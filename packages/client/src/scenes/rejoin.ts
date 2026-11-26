@@ -9,20 +9,25 @@
  *   does; the sheet only shows if that takes a moment. A save that cannot be resumed goes to Title.
  *
  * Cancel leaves to Play online (room) or Title (game) and clears the address.
+ *
+ * The box is a Lit panel over the canvas (`dom/popup-sheet.ts`); the scene keeps the press shield, the focus route (ring
+ * in the panel layer) and the answers.
  */
 import Phaser from "phaser";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { PopupSheet } from "../dom/popup-sheet.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { t } from "../i18n/translate.js";
 import { clearGameAddress } from "../platform/game-address.js";
 import { clearRoomAddress } from "../platform/room-address.js";
 import { leaveRoom } from "../platform/room.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import { cssOf } from "../ui/theme.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { McButton } from "../ui/widgets.js";
-import type { Rect } from "../view/layout.js";
-import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { glyphsFitFormFactor } from "../view/glyph-placement.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
+import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { resumeLocalSave } from "./resume-save.js";
 import { guidePrefs } from "../guide/guide-store.js";
@@ -46,9 +51,9 @@ const buttonType = { ...typeRole.label, size: 13 };
 
 export class RejoinOverlay extends Phaser.Scene {
   #data: RejoinData | null = null;
-  #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
-  #hints!: GlyphHints;
+  #panel!: PopupSheet;
+  #glyphs!: SheetGlyphs;
   #shown = false;
   #cancelled = false;
   #alive = false;
@@ -68,16 +73,17 @@ export class RejoinOverlay extends Phaser.Scene {
     const data = this.#data;
     if (!data) return;
     if (data.kind === "game") this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
-    this.#hints = new GlyphHints(this);
-    this.#route = new FocusRoute(this, { onCancel: () => this.#cancel(), primary: () => "cancel" });
+    this.#panel = new PopupSheet(this, (key) => {
+      if (key === "cancel") this.#cancel();
+    });
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
+    this.#route = new FocusRoute(this, { ring: domFocusRing, onCancel: () => this.#cancel(), primary: () => "cancel" });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
-      this.#hints.dispose();
+      this.#glyphs.dispose();
       this.scale.off("resize", onResize, this);
-      for (const button of this.#buttons) button.destroy();
-      this.#buttons = [];
     });
     if (data.kind === "game") {
       fadeScreenIn(this);
@@ -136,51 +142,54 @@ export class RejoinOverlay extends Phaser.Scene {
   #draw(): void {
     const data = this.#data;
     if (!data || !this.#shown) return;
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
     destroyChildren(this);
-    this.#hints.reset();
+    this.#glyphs.reset();
 
     const { width, height } = this.scale.gameSize;
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    this.add.graphics().fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
+    const b = this.#panel.begin(width, height);
 
     const boxWidth = Math.min(480, width - 32);
     const textWidth = boxWidth - 40;
-    const ground = this.add.graphics();
-    const title = this.add.text(0, 0, t("rejoin.title"), textStyle(typeRole.barTitle, surface.ink.hex));
+    const titleSpec = typeRole.barTitle;
+    const bodySpec = typeRole.body;
+    const title = t("rejoin.title");
     const line = data.kind === "room" ? t("rejoin.room", { code: data.code }) : t("rejoin.game");
-    const body = this.add
-      .text(0, 0, line, textStyle(typeRole.body, surface.ink.hex, 0.9))
-      .setWordWrapWidth(textWidth, true);
-    const boxHeight = 20 + title.height + 8 + body.height + 18 + hit.primary + 20;
+    const titleSize = b.measure(title, titleSpec);
+    const bodySize = b.measure(line, bodySpec, { wrapWidth: textWidth });
+    const boxHeight = 20 + titleSize.height + 8 + bodySize.height + 18 + hit.primary + 20;
     const box: Rect = {
       x: (width - boxWidth) / 2,
       y: Math.max(16, (height - boxHeight) / 3),
       width: boxWidth,
       height: boxHeight,
     };
-    ground.fillStyle(surface.paper.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    ground.lineStyle(4, surface.ink.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
-    title.setPosition(box.x + 20, box.y + 20);
-    body.setPosition(box.x + 20, title.y + title.height + 8);
+    b.box(box, { fill: surface.paper.hex, stroke: surface.ink.hex, strokeWidth: 4 });
+    b.text(box.x + 20, box.y + 20, title, titleSpec, { color: surface.ink.hex });
+    b.text(box.x + 20, box.y + 20 + titleSize.height + 8, line, bodySpec, {
+      color: surface.ink.hex,
+      alpha: 0.9,
+      wrapWidth: textWidth,
+    });
     const cancelRect: Rect = {
       x: box.x + 20,
       y: box.y + box.height - 20 - hit.primary,
       width: textWidth,
       height: hit.primary,
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: t("rejoin.cancel"),
-        type: buttonType,
-        rect: cancelRect,
-        onClick: () => this.#cancel(),
-      }),
-    );
-    this.#hints.button(this.#buttons[0]!, ["cancel"], "paper");
-    const stops = new Map<string, FocusStop>([["cancel", { rect: cancelRect, activate: () => this.#cancel() }]]);
+    // Glyphs are for desktop and tablet landscape (`glyphsFitFormFactor`), as every other pop-up.
+    const glyphsFit = glyphsFitFormFactor(formFactorFor(width, height));
+    this.#glyphs.button(b, {
+      key: "cancel",
+      rect: cancelRect,
+      label: t("rejoin.cancel"),
+      look: "secondary",
+      type: buttonType,
+      ids: glyphsFit ? ["cancel"] : [],
+      ground: "paper",
+    });
+    this.#panel.mount(b, width, height);
+    const stops = new Map([["cancel", { rect: cancelRect, activate: () => this.#cancel() }]]);
     this.#route?.set(["cancel"], stops);
   }
 }

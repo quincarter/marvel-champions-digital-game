@@ -105,7 +105,7 @@ export async function padWake(page: Page): Promise<void> {
   await padRelease(page, PAD.rt);
 }
 
-/** Every drawn glyph or label reading `text` in `sceneKey` whose center lies by `rect` (visible through every parent). */
+/** Every drawn glyph or label reading `text` in `sceneKey` (Phaser objects, or a Lit panel's `mc-glyph`) whose center lies by `rect` (visible through every parent). */
 export async function glyphCount(page: Page, sceneKey: string, text: string, rect: Rect): Promise<number> {
   return page.evaluate(
     ([key, wanted, r]) => {
@@ -136,6 +136,17 @@ export async function glyphCount(page: Page, sceneKey: string, text: string, rec
         }
       };
       walk(game.scene.getScene(key as string).children.list as Node[], true);
+      // A scene drawn as a Lit panel (`mc-sheet`) wears its glyphs as `mc-glyph` elements, labelled by what they show.
+      const panel = document.querySelector(`#mc-ui [data-scene="${key as string}"] mc-sheet`);
+      for (const glyph of panel?.shadowRoot?.querySelectorAll("mc-glyph") ?? []) {
+        const labels = (glyph.getAttribute("aria-label") ?? "").split(" + ");
+        if (!labels.includes(wanted as string) || Number(getComputedStyle(glyph).opacity) <= 0.05) continue;
+        const b = glyph.getBoundingClientRect();
+        const cx = b.x + b.width / 2;
+        const cy = b.y + b.height / 2;
+        if (cx >= box.x - 4 && cx <= box.x + box.width + 4 && cy >= box.y - 24 && cy <= box.y + box.height + 24)
+          found += 1;
+      }
       return found;
     },
     [sceneKey, text, rect] as const,

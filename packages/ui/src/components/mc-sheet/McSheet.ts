@@ -72,6 +72,12 @@ export interface SheetText {
   readonly key?: string;
   /** Letter ranges (`start` to `end`, exclusive) marked as a search match: a band behind them and a line under. */
   readonly marks?: readonly { readonly start: number; readonly end: number }[];
+  readonly italic?: boolean;
+  /** Turns the text about its anchor point, in degrees (Phaser's `setAngle`). */
+  readonly angle?: number;
+  /** An outline round the letters, drawn behind the fill (Phaser's `setStroke`): its colour and width in px. */
+  readonly strokeColor?: string;
+  readonly strokeWidth?: number;
 }
 
 /** A button: the client's `McButton` skins, pressed by a tap. */
@@ -123,6 +129,8 @@ export interface SheetTap {
   readonly inspect?: boolean;
   /** Names the card the area shows (the client's card hover popover reads it). */
   readonly hover?: string;
+  /** A mouse moving over or off the area raises `mc-hover` (a desktop shows a box's info before it is picked). */
+  readonly track?: boolean;
 }
 
 /**
@@ -141,6 +149,30 @@ export interface SheetImage {
   readonly color?: string;
   readonly hover?: string;
   readonly key?: string;
+  /** Fills the box, cropped (never stretched) around this focal point, 0 to 1 each way, instead of fitting whole. */
+  readonly cover?: { readonly x: number; readonly y: number };
+}
+
+/** Ink dots thickening toward the foot of a box, the way the comic pages shade a panel (a game mode box's art). */
+export interface SheetHalftone {
+  readonly kind: "halftone";
+  readonly rect: SheetRect;
+  readonly color: string;
+  /** The grid's spacing in px. */
+  readonly step: number;
+  /** How far up from the foot the dots reach, in px. */
+  readonly fade: number;
+  readonly opacity: number;
+}
+
+/** A filled polygon or an open line (a notch pointing at a box), its points in the sheet's own coordinates. */
+export interface SheetPoly {
+  readonly kind: "poly";
+  readonly points: readonly (readonly [number, number])[];
+  /** Filled and closed (a polygon); left out, it is an open line, only stroked. */
+  readonly fill?: string;
+  readonly stroke?: string;
+  readonly strokeWidth?: number;
 }
 
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
@@ -159,6 +191,8 @@ export type SheetNode =
   | SheetButton
   | SheetGlyph
   | SheetImage
+  | SheetHalftone
+  | SheetPoly
   | SheetTap
   | SheetScroll;
 
@@ -182,6 +216,7 @@ const px = (rect: SheetRect): string =>
  * @element mc-sheet
  * @fires mc-activate - `detail.key`: a button or tap area was tapped.
  * @fires mc-inspect - `detail.key`: a tap area with `inspect` was held or right-clicked.
+ * @fires mc-hover - `detail.key`, `detail.over`: a mouse moved onto or off a tap area with `track`.
  */
 export class McSheet extends LitElement {
   static override styles = [ThemeStyles, McSheetStyles];
@@ -206,6 +241,11 @@ export class McSheet extends LitElement {
 
   #activate(key: string): void {
     this.dispatchEvent(new CustomEvent("mc-activate", { detail: { key }, bubbles: true, composed: true }));
+  }
+
+  #hover(key: string, over: boolean, event: PointerEvent): void {
+    if (event.pointerType !== "mouse") return;
+    this.dispatchEvent(new CustomEvent("mc-hover", { detail: { key, over }, bubbles: true, composed: true }));
   }
 
   #inspect(key: string): void {
@@ -305,7 +345,12 @@ export class McSheet extends LitElement {
         const style = [
           `left:${node.x}px`,
           `top:${node.y}px`,
-          `transform:translate(${-(node.anchorX ?? 0) * 100}%, ${-(node.anchorY ?? 0) * 100}%)`,
+          `transform:translate(${-(node.anchorX ?? 0) * 100}%, ${-(node.anchorY ?? 0) * 100}%)${node.angle ? ` rotate(${node.angle}deg)` : ""}`,
+          node.angle ? `transform-origin:${(node.anchorX ?? 0) * 100}% ${(node.anchorY ?? 0) * 100}%` : "",
+          node.italic ? "font-style:italic" : "",
+          node.strokeColor && node.strokeWidth
+            ? `-webkit-text-stroke:${node.strokeWidth}px ${node.strokeColor};paint-order:stroke fill`
+            : "",
           `font-family:var(--mc-font-${node.font})`,
           `font-size:${size}`,
           `font-weight:${node.weight}`,
@@ -381,6 +426,7 @@ export class McSheet extends LitElement {
                   alt=""
                   loading="lazy"
                   decoding="async"
+                  style=${node.cover ? `object-fit:cover;object-position:${node.cover.x * 100}% ${node.cover.y * 100}%` : nothing}
                   draggable="false"
                   @error=${() => {
                     this.#failed.add(node.src!);
@@ -390,12 +436,42 @@ export class McSheet extends LitElement {
           }
         </div>`;
       }
+      case "halftone": {
+        const circles: { x: number; y: number; r: number }[] = [];
+        const { step, fade } = node;
+        for (let row = 0; row * step < fade; row++) {
+          const y = node.rect.height - row * step - step / 2;
+          const r = Math.max(0.6, (step / 2) * (1 - (row * step) / fade) * 0.95);
+          for (let x = (row % 2 ? step / 2 : 0) + step / 2; x < node.rect.width; x += step) circles.push({ x, y, r });
+        }
+        return html`<svg class="part" style=${px(node.rect)} aria-hidden="true">
+          ${circles.map(
+            ({ x, y, r }) =>
+              svg`<circle cx=${x} cy=${y} r=${r} fill=${node.color} fill-opacity=${node.opacity}></circle>`,
+          )}
+        </svg>`;
+      }
+      case "poly": {
+        const points = node.points.map(([x, y]) => `${x},${y}`).join(" ");
+        const shape = node.fill
+          ? svg`<polygon points=${points} fill=${node.fill} stroke=${node.stroke ?? "none"} stroke-width=${node.strokeWidth ?? 0}></polygon>`
+          : svg`<polyline points=${points} fill="none" stroke=${node.stroke ?? "none"} stroke-width=${node.strokeWidth ?? 0}></polyline>`;
+        return html`<svg
+          class="part poly"
+          style="left:0;top:0;width:1px;height:1px;overflow:visible"
+          aria-hidden="true"
+        >
+          ${shape}
+        </svg>`;
+      }
       case "tap":
         return html`<div
           class="part tap"
           data-key=${node.key}
           data-hover=${node.hover ?? nothing}
           style=${px(node.rect)}
+          @pointerenter=${node.track ? (event: PointerEvent) => this.#hover(node.key, true, event) : nothing}
+          @pointerleave=${node.track ? (event: PointerEvent) => this.#hover(node.key, false, event) : nothing}
           ${tapped(() => this.#activate(node.key), node.inspect ? () => this.#inspect(node.key) : undefined)}
         ></div>`;
       case "scroll":

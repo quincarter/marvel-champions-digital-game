@@ -5,6 +5,7 @@
  * offered (`unavailableOptionReasons`, from what the engine recorded). Nothing here decides anything: it reads events.
  */
 import type { EngineDeps, GameEvent, GameState, PlayerId } from "@mc/engine";
+import { t } from "../i18n/translate.js";
 import { abilityNameOf, unavailableOptionReasons, unofferedReason } from "./ability-refusal.js";
 import { cardName } from "./names.js";
 
@@ -51,7 +52,7 @@ export function optionNoticesOf(
     ];
     const rows = placed.sort((a, b) => a.at - b.at).map(({ row }) => row);
     const source = unavailable.sourceInstanceId ? cardName(state, unavailable.sourceInstanceId) : null;
-    return [{ title: source ? `${source}: only one option` : "Only one option", rows }];
+    return [{ title: source ? t("notice.onlyOne.titleFor", { card: source }) : t("notice.onlyOne.title"), rows }];
   });
 }
 
@@ -76,11 +77,12 @@ export function unofferedNoticesOf(
     seen.add(key);
     const name = cardName(state, event.instanceId);
     const printed = abilityNameOf(state, event.instanceId, event.abilityId);
-    const label = printed === "This ability" ? `${name}'s ${event.timing}` : printed;
+    const timing = t(event.timing === "interrupt" ? "notice.timing.interrupt" : "notice.timing.response");
+    const label = printed === "This ability" ? t("notice.notOffered.label", { name, timing }) : printed;
     const why = unofferedReason(state, event.instanceId, event.playerId, event.abilityId, event.reason, deps);
     const notice: OptionNotice = {
-      title: `${name}: ${event.timing} not offered`,
-      lead: `It answers what just happened, but it cannot be used right now, so you were not asked.`,
+      title: t("notice.notOffered.title", { name, timing }),
+      lead: t("notice.notOffered.lead"),
       rows: [{ kind: "unavailable", label, why }],
       optOut: true,
     };

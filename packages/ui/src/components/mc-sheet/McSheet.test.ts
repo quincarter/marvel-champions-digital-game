@@ -125,4 +125,78 @@ describe("mc-sheet", () => {
     expect(sheet.elementOf("frame")!.style.borderRadius).toBe("50%");
     sheet.remove();
   });
+
+  it("draws a cropped picture, halftone dots, a notch, a turned outlined text, and tells a mouse over a tracked area", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      { kind: "image", key: "art", rect: rect(0, 0, 100, 80), src: "/a.png", cover: { x: 0.5, y: 0.3 } },
+      { kind: "halftone", rect: rect(0, 40, 100, 40), color: "#000", step: 8, fade: 30, opacity: 0.85 },
+      {
+        kind: "poly",
+        points: [
+          [0, 0],
+          [10, 0],
+          [5, -8],
+        ],
+        fill: "#ff0",
+      },
+      {
+        kind: "poly",
+        points: [
+          [0, 0],
+          [5, -8],
+          [10, 0],
+        ],
+        stroke: "#000",
+        strokeWidth: 3,
+      },
+      {
+        kind: "text",
+        key: "vs",
+        x: 50,
+        y: 20,
+        text: "VS",
+        font: "display",
+        size: 28,
+        weight: 400,
+        color: "#fff",
+        anchorX: 0.5,
+        anchorY: 0.5,
+        angle: -8,
+        italic: true,
+        strokeColor: "#000",
+        strokeWidth: 5,
+      },
+      { kind: "tap", key: "box", rect: rect(0, 0, 100, 80), track: true },
+      { kind: "tap", key: "plain", rect: rect(0, 90, 100, 40) },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const img = sheet.elementOf("art")!.querySelector("img")!;
+    expect(img.style.objectFit).toBe("cover");
+    expect(img.style.objectPosition).toBe("50% 30%");
+    const root = sheet.shadowRoot!;
+    expect(root.querySelectorAll("svg circle").length).toBeGreaterThan(5);
+    expect(root.querySelectorAll("polygon")).toHaveLength(1);
+    expect(root.querySelectorAll("polyline")).toHaveLength(1);
+    const vs = sheet.elementOf("vs")!;
+    expect(vs.style.transform).toContain("rotate(-8deg)");
+    expect(vs.style.fontStyle).toBe("italic");
+    const seen: string[] = [];
+    sheet.addEventListener("mc-hover", (event) => {
+      const { key, over } = (event as CustomEvent<{ key: string; over: boolean }>).detail;
+      seen.push(`${key}:${over}`);
+    });
+    const move = (el: Element, type: string, pointerType: string): void => {
+      const event = new Event(type) as Event & { pointerType: string };
+      event.pointerType = pointerType;
+      el.dispatchEvent(event);
+    };
+    move(sheet.elementOf("box")!, "pointerenter", "mouse");
+    move(sheet.elementOf("box")!, "pointerleave", "mouse");
+    move(sheet.elementOf("box")!, "pointerenter", "touch");
+    move(sheet.elementOf("plain")!, "pointerenter", "mouse");
+    expect(seen).toEqual(["box:true", "box:false"]);
+    sheet.remove();
+  });
 });

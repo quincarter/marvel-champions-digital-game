@@ -4,14 +4,19 @@
  * (`view/option-notice.ts`). Nothing is decided here: it is read and dismissed. Modeled on `scenes/end-turn-confirm.ts`
  * (scrim and box, the scenes underneath take no input while it is up). A choice the same command opened (Work-Life
  * Balance's pick of which ally) waits under it.
+ *
+ * The box is a Lit panel over the canvas (`dom/popup-sheet.ts`); the scene keeps the press shield, the focus route (ring
+ * in the panel layer) and the answers.
  */
 import Phaser from "phaser";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { PopupSheet } from "../dom/popup-sheet.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { t } from "../i18n/translate.js";
 import { hit, surface, typeRole } from "../tokens.js";
-import { textStyle } from "../ui/theme.js";
-import { McButton } from "../ui/widgets.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
-import type { Rect } from "../view/layout.js";
+import { glyphsFitFormFactor } from "../view/glyph-placement.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import type { OptionNotice } from "../view/option-notice.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -56,9 +61,9 @@ export function giveBack(scenes: readonly Phaser.Scene[]): void {
 
 export class OptionNoticeOverlay extends Phaser.Scene {
   #notices: readonly OptionNotice[] = [];
-  #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
-  #hints!: GlyphHints;
+  #panel!: PopupSheet;
+  #glyphs!: SheetGlyphs;
 
   constructor() {
     super(SCENES.optionNotice);
@@ -74,11 +79,21 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#hints = new GlyphHints(this);
+    this.#panel = new PopupSheet(this, (key) => {
+      if (key === "ok") this.#dismiss();
+      else if (key === "never") {
+        if (this.#notices[0]?.action) this.#runAction();
+        else this.#optOut();
+      }
+    });
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     // A (or Enter) presses the focused OK, Start presses it from anywhere, B / Esc dismisses. A pad button still down
     // when it opens fires nothing here: Phaser builds a held Button as pressed.
     // X (G / H on the keyboard) presses "Don't show again" on a notice that offers it.
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
+      // OK's and "Don't show again"'s glyphs depend on which has the ring: the ring moved, so read them again.
+      onFocusChange: () => this.#glyphs.refresh(),
       onCancel: () => this.#dismiss(),
       primary: () => "ok",
       onToggle: () => {
@@ -86,10 +101,8 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       },
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.#hints.dispose();
+      this.#glyphs.dispose();
       this.scale.off("resize", onResize, this);
-      for (const button of this.#buttons) button.destroy();
-      this.#buttons = [];
       giveBack(paused);
     });
     this.#draw();
@@ -127,52 +140,40 @@ export class OptionNoticeOverlay extends Phaser.Scene {
   }
 
   #draw(): void {
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
     destroyChildren(this);
-    this.#hints.reset();
+    this.#glyphs.reset();
     const notice = this.#notices[0];
     if (!notice) return;
 
     const { width, height } = this.scale.gameSize;
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    this.add.graphics().fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
+    const b = this.#panel.begin(width, height);
 
     const boxWidth = Math.min(560, width - 32);
     const textWidth = boxWidth - 40;
-    const ground = this.add.graphics();
-    const title = this.add
-      .text(0, 0, notice.title, textStyle(typeRole.barTitle, surface.ink.hex))
-      .setWordWrapWidth(textWidth);
-    const lead = this.add
-      .text(
-        0,
-        0,
-        notice.lead ?? "The other options could not be chosen, so this one was taken.",
-        textStyle(typeRole.body, surface.ink.hex, 0.9),
-      )
-      .setWordWrapWidth(textWidth);
-    const rows = notice.rows.map((row) =>
-      this.add
-        .text(
-          0,
-          0,
-          row.kind === "taken" ? `✓ ${row.label} (taken)` : `${row.label}\nNot available: ${row.why}.`,
-          textStyle(typeRole.body, surface.ink.hex, row.kind === "taken" ? 1 : 0.55),
-        )
-        .setWordWrapWidth(textWidth - 24)
-        .setLineSpacing(2),
-    );
+    const titleSpec = typeRole.barTitle;
+    const bodySpec = typeRole.body;
+    const titleSize = b.measure(notice.title, titleSpec, { wrapWidth: textWidth });
+    const leadText = notice.lead ?? t("notice.onlyOne.lead");
+    const leadSize = b.measure(leadText, bodySpec, { wrapWidth: textWidth });
+    const rowOptions = { wrapWidth: textWidth - 24, lineSpacing: 2 };
+    const rows = notice.rows.map((row) => {
+      const text =
+        row.kind === "taken"
+          ? t("notice.row.taken", { label: row.label })
+          : t("notice.row.unavailable", { label: row.label, why: row.why });
+      return { row, text, size: b.measure(text, bodySpec, rowOptions) };
+    });
     const rowGap = 10;
-    const rowsHeight = rows.reduce((sum, text) => sum + text.height + 16 + rowGap, 0);
+    const rowsHeight = rows.reduce((sum, { size }) => sum + size.height + 16 + rowGap, 0);
     const buttonHeight = hit.primary;
     // A notice with an action stacks it above OK, full width: its label is long ("Continue in single player") and a half row clips it.
     const stacked = notice.action !== undefined;
     const boxHeight =
       20 +
-      title.height +
+      titleSize.height +
       8 +
-      lead.height +
+      leadSize.height +
       14 +
       rowsHeight +
       10 +
@@ -185,25 +186,28 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       width: boxWidth,
       height: boxHeight,
     };
-    ground.fillStyle(surface.paper.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    ground.lineStyle(4, surface.ink.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
-    title.setPosition(box.x + 20, box.y + 20);
-    lead.setPosition(box.x + 20, title.y + title.height + 8);
+    b.box(box, { fill: surface.paper.hex, stroke: surface.ink.hex, strokeWidth: 4 });
+    b.text(box.x + 20, box.y + 20, notice.title, titleSpec, { color: surface.ink.hex, wrapWidth: textWidth });
+    const leadY = box.y + 20 + titleSize.height + 8;
+    b.text(box.x + 20, leadY, leadText, bodySpec, { color: surface.ink.hex, alpha: 0.9, wrapWidth: textWidth });
     // Each option in a frame: the taken one drawn solid, the others faded, as the choice sheet draws a disabled row.
-    let y = lead.y + lead.height + 14;
-    notice.rows.forEach((row, index) => {
-      const text = rows[index]!;
-      const frame: Rect = { x: box.x + 20, y, width: textWidth, height: text.height + 16 };
-      ground.lineStyle(row.kind === "taken" ? 3 : 2, surface.ink.hex, row.kind === "taken" ? 1 : 0.35);
-      ground.strokeRect(frame.x, frame.y, frame.width, frame.height);
-      text.setPosition(frame.x + 12, frame.y + 8);
+    let y = leadY + leadSize.height + 14;
+    for (const { row, text, size } of rows) {
+      const frame: Rect = { x: box.x + 20, y, width: textWidth, height: size.height + 16 };
+      const taken = row.kind === "taken";
+      b.box(frame, { stroke: surface.ink.hex, strokeWidth: taken ? 3 : 2, alpha: taken ? 1 : 0.35 });
+      b.text(frame.x + 12, frame.y + 8, text, bodySpec, {
+        ...rowOptions,
+        color: surface.ink.hex,
+        alpha: taken ? 1 : 0.55,
+      });
       y += frame.height + rowGap;
-    });
+    }
 
     const buttonY = box.y + box.height - 20 - buttonHeight;
     // A notice that offers "Don't show again" splits the row: it on the left, OK on the right (`end-turn-confirm.ts`).
     const half = (textWidth - 12) / 2;
-    const sideLabel = notice.action ? notice.action.label : notice.optOut ? "Don't show again" : null;
+    const sideLabel = notice.action ? notice.action.label : notice.optOut ? t("notice.dontShowAgain") : null;
     const neverRect: Rect | null = sideLabel
       ? stacked
         ? { x: box.x + 20, y: buttonY - buttonHeight - 10, width: textWidth, height: buttonHeight }
@@ -213,43 +217,45 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       neverRect && !stacked
         ? { x: neverRect.x + half + 12, y: buttonY, width: half, height: buttonHeight }
         : { x: box.x + 20, y: buttonY, width: textWidth, height: buttonHeight };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: this.#notices.length > 1 ? "Next" : (notice.okLabel ?? "OK"),
-        type: buttonType,
-        rect: okRect,
-        onClick: () => this.#dismiss(),
-      }),
-    );
+    // Glyphs are for desktop and tablet landscape (`glyphsFitFormFactor`), as every other pop-up.
+    const glyphsFit = glyphsFitFormFactor(formFactorFor(width, height));
     // A on the focused OK; on a pad, Start too (it presses OK from anywhere).
-    this.#hints.button(this.#buttons[0]!, ["activate"], "ink", {
+    this.#glyphs.button(b, {
+      key: "ok",
+      rect: okRect,
+      label: this.#notices.length > 1 ? t("notice.next") : (notice.okLabel ?? t("notice.ok")),
+      look: "primary",
+      type: buttonType,
+      ids: glyphsFit ? ["activate"] : [],
+      ground: "ink",
       idsNow: (set) =>
-        this.#route?.focused !== "ok"
-          ? set === "pad"
-            ? ["pause"]
-            : null
-          : set === "pad"
-            ? ["activate", "pause"]
-            : ["activate"],
+        !glyphsFit
+          ? null
+          : this.#route?.focused !== "ok"
+            ? set === "pad"
+              ? ["pause"]
+              : null
+            : set === "pad"
+              ? ["activate", "pause"]
+              : ["activate"],
     });
     const stops = new Map([["ok", { rect: okRect, activate: () => this.#dismiss() }]]);
     if (neverRect) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: sideLabel!,
-          type: buttonType,
-          rect: neverRect,
-          onClick: () => (notice.action ? this.#runAction() : this.#optOut()),
-        }),
-      );
       // X (G / H) presses "Don't show again" from anywhere; A when it has the ring. An action has A only.
-      this.#hints.button(this.#buttons[1]!, [notice.action ? "activate" : "guide"], "paper", {
-        idsNow: () => (this.#route?.focused === "never" ? ["activate"] : notice.action ? [] : ["guide"]),
+      this.#glyphs.button(b, {
+        key: "never",
+        rect: neverRect,
+        label: sideLabel!,
+        look: "secondary",
+        type: buttonType,
+        ids: glyphsFit ? [notice.action ? "activate" : "guide"] : [],
+        ground: "paper",
+        idsNow: () =>
+          !glyphsFit ? null : this.#route?.focused === "never" ? ["activate"] : notice.action ? [] : ["guide"],
       });
       stops.set("never", { rect: neverRect, activate: () => (notice.action ? this.#runAction() : this.#optOut()) });
     }
+    this.#panel.mount(b, width, height);
     this.#route?.set(neverRect ? ["never", "ok"] : ["ok"], stops);
     // Opening (and each next notice) puts the ring on OK, so A answers at once.
     this.#route?.focusKey("ok");

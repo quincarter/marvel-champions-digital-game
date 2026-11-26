@@ -71,3 +71,43 @@ describe("SheetBuilder pictures and card taps", () => {
     expect(b.nodes[1]).toMatchObject({ kind: "button", look: "rail", selected: true });
   });
 });
+
+describe("SheetBuilder comic parts", () => {
+  const builder = (): SheetBuilder => new SheetBuilder({} as never, { x: 10, y: 20 }, () => false);
+
+  it("moves a notch, halftone and cropped picture by the origin, and keeps an outlined turned text and a tracked tap", () => {
+    const b = builder();
+    b.poly(
+      [
+        [10, 20],
+        [30, 20],
+        [20, 9],
+      ],
+      { fill: surface.ink.hex },
+    );
+    b.halftone({ x: 10, y: 20, width: 80, height: 40 }, { color: surface.ink.hex, step: 8, fade: 30, alpha: 0.85 });
+    b.image(
+      { x: 10, y: 20, width: 64, height: 90 },
+      { src: "/v.png", fill: surface.ink.hex, cover: { x: 0.5, y: 0.3 } },
+    );
+    b.text(40, 50, "VS", { family: "Bangers", size: 28, weight: 400 } as never, {
+      color: surface.paper.hex,
+      angle: -8,
+      italic: true,
+      stroke: { color: surface.ink.hex, width: 5 },
+    });
+    b.tap("mode:epic", { x: 10, y: 20, width: 5, height: 5 }, { track: true });
+    expect(b.nodes[0]).toMatchObject({
+      kind: "poly",
+      points: [
+        [0, 0],
+        [20, 0],
+        [10, -11],
+      ],
+    });
+    expect(b.nodes[1]).toMatchObject({ kind: "halftone", rect: { x: 0, y: 0, width: 80, height: 40 }, step: 8 });
+    expect(b.nodes[2]).toMatchObject({ kind: "image", cover: { x: 0.5, y: 0.3 } });
+    expect(b.nodes[3]).toMatchObject({ kind: "text", angle: -8, italic: true, strokeWidth: 5 });
+    expect(b.nodes[4]).toMatchObject({ kind: "tap", key: "mode:epic", track: true });
+  });
+});

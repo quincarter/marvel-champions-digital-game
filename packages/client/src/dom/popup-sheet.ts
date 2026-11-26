@@ -19,21 +19,23 @@ import type { Rect } from "../view/layout.js";
 export class PopupSheet {
   readonly #scene: Phaser.Scene;
   readonly #onActivate: (key: string) => void;
+  readonly #onHover: ((key: string, over: boolean) => void) | undefined;
   #region: DomRegion<McSheet> | null = null;
 
-  /** `onActivate` hears a button's key when it is tapped. */
-  constructor(scene: Phaser.Scene, onActivate: (key: string) => void) {
+  /** `onActivate` hears a button's key when it is tapped; `onHover`, a mouse moving onto or off a tracked tap area. */
+  constructor(scene: Phaser.Scene, onActivate: (key: string) => void, onHover?: (key: string, over: boolean) => void) {
     this.#scene = scene;
     this.#onActivate = onActivate;
+    this.#onHover = onHover;
     scene.events.once("shutdown", () => {
       this.#region = null;
     });
   }
 
-  /** A builder over the whole screen, with the dim scrim (Phaser's `void` at 0.7) already laid. */
-  begin(width: number, height: number): SheetBuilder {
+  /** A builder over the whole screen, with the dim scrim (Phaser's `void`, at 0.7 unless `scrim` says) already laid. */
+  begin(width: number, height: number, scrim = 0.7): SheetBuilder {
     const builder = new SheetBuilder(this.#scene.game, { x: 0, y: 0 }, isDesktopType);
-    builder.box({ x: 0, y: 0, width, height }, { fill: surface.void.hex, fillAlpha: 0.7 });
+    builder.box({ x: 0, y: 0, width, height }, { fill: surface.void.hex, fillAlpha: scrim });
     return builder;
   }
 
@@ -44,6 +46,12 @@ export class PopupSheet {
       element.addEventListener("mc-activate", (event) => {
         this.#onActivate((event as CustomEvent<{ key: string }>).detail.key);
       });
+      if (this.#onHover) {
+        element.addEventListener("mc-hover", (event) => {
+          const { key, over } = (event as CustomEvent<{ key: string; over: boolean }>).detail;
+          this.#onHover?.(key, over);
+        });
+      }
       this.#region = new DomRegion(this.#scene, element, { x: 0, y: 0, width, height }, { overlay: true });
     }
     const region = this.#region;

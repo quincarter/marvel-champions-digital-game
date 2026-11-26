@@ -61,6 +61,11 @@ export interface TextOptions {
   readonly align?: "left" | "center" | "right";
   readonly letterSpacing?: number;
   readonly key?: string;
+  readonly italic?: boolean;
+  /** Turns the text about its origin, in degrees (Phaser's `setAngle`). */
+  readonly angle?: number;
+  /** An outline behind the letters (Phaser's `setStroke`): token color and width. */
+  readonly stroke?: { readonly color: number; readonly width: number };
   /** Letter ranges drawn as a search match. */
   readonly marks?: readonly { readonly start: number; readonly end: number }[];
 }
@@ -176,6 +181,11 @@ export class SheetBuilder {
       ...(options.maxLines !== undefined ? { maxLines: options.maxLines } : {}),
       ...(options.key !== undefined ? { key: options.key } : {}),
       ...(options.marks?.length ? { marks: options.marks } : {}),
+      ...(options.italic ? { italic: true } : {}),
+      ...(options.angle ? { angle: options.angle } : {}),
+      ...(options.stroke
+        ? { strokeColor: sheetColor(options.stroke.color, "text"), strokeWidth: options.stroke.width }
+        : {}),
     };
     const familyName = fontKey === "display" ? font.display : fontKey === "mono" ? font.mono : font.body;
     const css: Record<string, string> = {
@@ -185,6 +195,7 @@ export class SheetBuilder {
       lineHeight: lineHeight !== undefined ? `${lineHeight}px` : "1.2",
       letterSpacing: letterSpacing ? `${letterSpacing}px` : "normal",
       textTransform: spec.uppercase ? "uppercase" : "none",
+      fontStyle: options.italic ? "italic" : "normal",
       whiteSpace: options.wrapWidth !== undefined ? "pre-wrap" : "pre",
       ...(options.wrapWidth !== undefined ? { width: `${options.wrapWidth}px` } : {}),
     };
@@ -250,6 +261,35 @@ export class SheetBuilder {
     });
   }
 
+  /** Ink dots thickening toward the foot of `rect` (a comic panel's shading): `step` px apart, reaching `fade` px up. */
+  halftone(
+    rect: Rect,
+    look: { readonly color: number; readonly step: number; readonly fade: number; readonly alpha: number },
+  ): void {
+    this.nodes.push({
+      kind: "halftone",
+      rect: this.#rect(rect),
+      color: sheetColor(look.color, "fill"),
+      step: look.step,
+      fade: look.fade,
+      opacity: look.alpha,
+    });
+  }
+
+  /** A filled polygon, or with no `fill` an open line, through `points`. */
+  poly(
+    points: readonly (readonly [number, number])[],
+    look: { readonly fill?: number; readonly stroke?: number; readonly strokeWidth?: number },
+  ): void {
+    this.nodes.push({
+      kind: "poly",
+      points: points.map(([x, y]) => [x - this.#origin.x, y - this.#origin.y] as const),
+      ...(look.fill !== undefined ? { fill: sheetColor(look.fill, "fill") } : {}),
+      ...(look.stroke !== undefined ? { stroke: sheetColor(look.stroke, "line") } : {}),
+      ...(look.strokeWidth !== undefined ? { strokeWidth: look.strokeWidth } : {}),
+    });
+  }
+
   /** A key or controller-button glyph (`mc-glyph`) with its left edge at `x` and vertical center at `y`. */
   glyph(options: {
     readonly x: number;
@@ -275,13 +315,18 @@ export class SheetBuilder {
   }
 
   /** An invisible press area. `inspect`: a press-and-hold or right-click also raises `mc-inspect` (a card's "look at this"). */
-  tap(key: string, rect: Rect, options: { readonly inspect?: boolean; readonly hover?: string } = {}): void {
+  tap(
+    key: string,
+    rect: Rect,
+    options: { readonly inspect?: boolean; readonly hover?: string; readonly track?: boolean } = {},
+  ): void {
     this.nodes.push({
       kind: "tap",
       key,
       rect: this.#rect(rect),
       ...(options.inspect ? { inspect: true } : {}),
       ...(options.hover !== undefined ? { hover: options.hover } : {}),
+      ...(options.track ? { track: true } : {}),
     });
   }
 
@@ -298,10 +343,13 @@ export class SheetBuilder {
       readonly color?: number;
       readonly hover?: string;
       readonly key?: string;
+      /** Fills the box, cropped around this focal point (0 to 1 each way), instead of fitting the whole picture. */
+      readonly cover?: { readonly x: number; readonly y: number };
     },
   ): void {
     this.nodes.push({
       kind: "image",
+      ...(options.cover ? { cover: options.cover } : {}),
       rect: this.#rect(rect),
       src: options.src,
       ...(options.fill !== undefined ? { fill: sheetColor(options.fill, "fill") } : {}),
