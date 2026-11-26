@@ -13,7 +13,12 @@ export interface TapOptions {
   readonly enabled?: () => boolean;
 }
 
+/**
+ * Whether the point is inside `rect`. A box with no size (a host drawn as `display: contents`, or no layout at all) can't
+ * be hit-tested, so it doesn't refuse the release: the other checks still decide.
+ */
 function contains(rect: DOMRect, x: number, y: number): boolean {
+  if (rect.width === 0 && rect.height === 0) return true;
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
