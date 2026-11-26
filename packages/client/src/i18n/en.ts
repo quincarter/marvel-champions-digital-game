@@ -1699,11 +1699,11 @@ export const en = {
     "In player order: the villain activates against that player, then each minion engaged with them, in that player's choice of order.",
   "rules.villain.dealEncounterCards.label": "3. Deal encounter cards",
   "rules.villain.dealEncounterCards.detail":
-    "Each player is dealt one encounter card facedown (plus the heroic level, in Heroic mode), then one more per hazard icon in play.",
+    "Each player is dealt one encounter card facedown (plus the heroic level, in Heroic mode). Then one more card is dealt for each hazard icon in play, one card per icon in total, in player order starting with the first player.",
   "rules.villain.revealEncounterCards.label": "4. Reveal encounter cards",
   "rules.villain.revealEncounterCards.detail":
-    "The first player reveals and resolves their dealt cards one at a time, then each other player does the same in turn order.",
-  "rules.villain.passFirstPlayer.label": "5. Pass first player",
+    "The first player reveals and resolves their dealt cards one at a time, in the order dealt, then each other player does the same in player order.",
+  "rules.villain.passFirstPlayer.label": "5. Pass the first player token",
   "rules.villain.passFirstPlayer.detail": "The first player token passes to the next player clockwise.",
   "rules.villain.endOfRound.label": "6. End of round",
   "rules.villain.endOfRound.detail":

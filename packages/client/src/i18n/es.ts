@@ -1720,13 +1720,12 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "En orden de jugadores: el villano se activa contra ese jugador y luego cada esbirro enfrentado a él, en el orden que ese jugador elija.",
   "rules.villain.dealEncounterCards.label": "3. Repartir cartas de Encuentro",
   "rules.villain.dealEncounterCards.detail":
-    "A cada jugador se le reparte una carta de Encuentro boca abajo (más el nivel heroico, en modo Heroico) y luego una más por cada icono de Riesgo en juego.",
+    "A cada jugador se le reparte una carta de Encuentro boca abajo (más el nivel heroico, en modo Heroico). Luego se reparte una carta adicional por cada icono de Riesgo en juego, una por icono en total, siguiendo el orden de jugadores a partir del Jugador inicial.",
   "rules.villain.revealEncounterCards.label": "4. Mostrar cartas de Encuentro",
   "rules.villain.revealEncounterCards.detail":
-    "El jugador inicial muestra y resuelve de una en una las cartas que le repartieron, y luego cada uno de los demás jugadores hace lo mismo por orden de turno.",
-  "rules.villain.passFirstPlayer.label": "5. Pasar el jugador inicial",
-  "rules.villain.passFirstPlayer.detail":
-    "El indicador de jugador inicial pasa al siguiente jugador en el sentido de las agujas del reloj.",
+    "El jugador inicial muestra y resuelve de una en una las cartas que le repartieron, en el orden en que se repartieron, y luego cada uno de los demás jugadores hace lo mismo siguiendo el orden de jugadores.",
+  "rules.villain.passFirstPlayer.label": "5. Ceder la ficha de Jugador inicial",
+  "rules.villain.passFirstPlayer.detail": "La ficha de Jugador inicial pasa al siguiente jugador en sentido horario.",
   "rules.villain.endOfRound.label": "6. Fin de la ronda",
   "rules.villain.endOfRound.detail":
     "Terminan los efectos «hasta el final de la ronda», se resuelven los efectos postergados y empieza una ronda nueva.",
