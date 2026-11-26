@@ -7,10 +7,11 @@
  * Pass `domFocusRing` as a `FocusRoute`'s `ring` (`scenes/focus-route.ts`).
  */
 import type Phaser from "phaser";
-import { accent, selectionRing } from "../tokens.js";
+import { selectionRing } from "../tokens.js";
 import type { FocusRing } from "../scenes/focus-route.js";
 import type { Rect } from "../view/layout.js";
 import { uiLayer } from "./ui-layer.js";
+import { sceneLayerState } from "./dom-region.js";
 
 const css = (hex: number): string => `#${hex.toString(16).padStart(6, "0")}`;
 
@@ -20,7 +21,7 @@ export function ringStyle(rect: Rect, color: number = selectionRing.color.hex): 
   // Phaser strokes centered on the ring's outer rect; a CSS border sits inside the box, so the box is grown by half.
   const half = width / 2;
   const edge = focusEdgeExtra / 2;
-  const glow = `rgba(${(color >> 16) & 0xff}, ${(color >> 8) & 0xff}, ${color & 0xff}, ${accent.redGlowAlpha})`;
+  const glow = `rgba(${(color >> 16) & 0xff}, ${(color >> 8) & 0xff}, ${color & 0xff}, ${selectionRing.glowAlpha})`;
   return {
     left: `${rect.x - offset - half}px`,
     top: `${rect.y - offset - half}px`,
@@ -31,12 +32,18 @@ export function ringStyle(rect: Rect, color: number = selectionRing.color.hex): 
   };
 }
 
+const STATE_EVENTS = ["postupdate", "sleep", "pause", "wake", "resume"] as const;
+
 class DomFocusRing implements FocusRing {
   readonly #element: HTMLDivElement;
   readonly #color: number | undefined;
+  readonly #scene: Phaser.Scene;
+  /** Shown by the route (`show`), as against hidden with its scene (an overlay above, a sleeping scene). */
+  #wanted = false;
 
   constructor(scene: Phaser.Scene, color: number | undefined) {
     this.#color = color;
+    this.#scene = scene;
     this.#element = document.createElement("div");
     this.#element.className = "mc-focus-ring";
     Object.assign(this.#element.style, {
@@ -47,6 +54,16 @@ class DomFocusRing implements FocusRing {
       display: "none",
     });
     uiLayer(scene.game).append(this.#element);
+    // It shows, hides and fades with its scene, as the scene's panel does (`dom/dom-region.ts`), and goes with it.
+    for (const event of STATE_EVENTS) scene.events.on(event, this.#sync, this);
+    scene.events.once("shutdown", this.destroy, this);
+    scene.events.once("destroy", this.destroy, this);
+  }
+
+  #sync(): void {
+    const { shown, opacity } = sceneLayerState(this.#scene);
+    this.#element.style.display = this.#wanted && shown ? "block" : "none";
+    this.#element.style.opacity = String(opacity);
   }
 
   get graphics(): { readonly visible: boolean } {
@@ -54,7 +71,9 @@ class DomFocusRing implements FocusRing {
   }
 
   show(rect: Rect, mode: "static" | "pulse", reducedMotion: boolean): void {
-    Object.assign(this.#element.style, ringStyle(rect, this.#color), { display: "block" });
+    this.#wanted = true;
+    Object.assign(this.#element.style, ringStyle(rect, this.#color));
+    this.#sync();
     this.#element.style.animation =
       mode === "pulse" && !reducedMotion
         ? `mc-ring-pulse ${selectionRing.pulseMs}ms ease-in-out infinite alternate`
@@ -62,10 +81,14 @@ class DomFocusRing implements FocusRing {
   }
 
   hide(): void {
+    this.#wanted = false;
     this.#element.style.display = "none";
   }
 
   destroy(): void {
+    for (const event of STATE_EVENTS) this.#scene.events.off(event, this.#sync, this);
+    this.#scene.events.off("shutdown", this.destroy, this);
+    this.#scene.events.off("destroy", this.destroy, this);
     this.#element.remove();
   }
 }

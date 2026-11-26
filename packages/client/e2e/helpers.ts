@@ -92,6 +92,8 @@ export async function installPageHelpers(page: Page): Promise<void> {
       for (const wrap of Array.from(layer?.children ?? []) as HTMLElement[]) {
         const key = wrap.dataset.scene;
         if (!key || !shown.has(key) || wrap.style.visibility === "hidden") continue;
+        // Only what the panel shows: a row scrolled out of its list is not on screen to press.
+        const view = wrap.getBoundingClientRect();
         const visit = (node: Element | ShadowRoot): void => {
           for (const child of Array.from(node.children)) {
             const own = Array.from(child.childNodes)
@@ -101,7 +103,9 @@ export async function installPageHelpers(page: Page): Promise<void> {
               .trim();
             if (own && own.toLowerCase().includes(substr.toLowerCase())) {
               const box = child.getBoundingClientRect();
-              if (box.width > 0 && box.height > 0)
+              const onScreen =
+                box.right > view.left && box.left < view.right && box.bottom > view.top && box.top < view.bottom;
+              if (box.width > 0 && box.height > 0 && onScreen)
                 results.push({
                   scene: key,
                   text: own,

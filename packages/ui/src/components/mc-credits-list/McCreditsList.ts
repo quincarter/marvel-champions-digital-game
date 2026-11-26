@@ -50,18 +50,18 @@ export class McCreditsList extends LitElement {
 
   override render() {
     return html`<div class="scroller">
-      <div class="rows" role="list">${this.rows.map((row, index) => this.#row(row, index))}</div>
+      <div class="rows">${this.rows.map((row, index) => this.#row(row, index))}</div>
     </div>`;
   }
 
   #row(row: CreditsListRow, index: number) {
-    if (row.kind === "notice") return html`<div class="notice" role="listitem" data-row=${index}>${row.text}</div>`;
+    if (row.kind === "notice") return html`<div class="notice" data-row=${index}>${row.text}</div>`;
     if (row.kind === "section")
       return html`<div class="section" data-row=${index}>
         <h2 class="display">${row.title}</h2>
         <span class="count">${row.count}</span>
       </div>`;
-    return html`<div class="entry" role="listitem" data-row=${index}>
+    return html`<div class="entry" data-row=${index}>
       <p class="title">${row.title}</p>
       ${row.lines.length > 0 ? row.lines.map((line) => html`<p class=${line.tone}>${line.text}</p>`) : nothing}
     </div>`;

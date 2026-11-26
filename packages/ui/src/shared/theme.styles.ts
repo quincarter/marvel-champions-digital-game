@@ -28,6 +28,7 @@ export const ThemeStyles = css`
   /* A scrolling region: native scrolling, with the lists' ink scrollbar (ui/virtual-list.ts: a 12% ink track, a
      60% ink thumb). */
   .scroller {
+    outline: none;
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;

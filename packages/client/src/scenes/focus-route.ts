@@ -316,6 +316,9 @@ export class FocusRoute {
     scene.events.on("update", follow);
     const release = (): void => {
       unsubscribe();
+      // A Phaser ring goes with the scene's display list; a DOM one (`dom/dom-ring.ts`) has to be taken down.
+      this.#ring?.destroy();
+      this.#ring = null;
       scene.events.off("update", follow);
       scene.events.off("shutdown", release);
       scene.events.off("destroy", release);
