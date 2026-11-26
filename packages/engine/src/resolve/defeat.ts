@@ -512,9 +512,7 @@ export function advanceMainScheme(
   // condition already occurred nor a procedure under way against the old stage (a thwart of it; `entered-since.ts`).
   // A turn from A to B (`mainSchemeTurnsToB`) is the same card in play, and is not this.
   ctx.state = noteReplacedInPlay(ctx.state, schemeId);
-  const scheme = mainSchemeStateOf(ctx.state, schemeId);
-  if (!scheme) return;
-  const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme);
+  if (!mainSchemeStateOf(ctx.state, schemeId)) return;
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const which = central ? {} : { schemeInstanceId: schemeId };
   const returned = Object.entries(mustInstance(ctx.state, schemeId).counters).filter(
@@ -531,17 +529,15 @@ export function advanceMainScheme(
   }
   emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy });
   pushFrames(ctx, [
-    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], firstPlayerOfCard(ctx.state, schemeId)),
+    // Step 3's starting threat is placed by the turn to the B side, before that side's When Revealed (RRG 1.8 "Main
+    // Scheme", p. 27; #1012).
+    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], firstPlayerOfCard(ctx.state, schemeId), {
+      placeStartingThreat: true,
+    }),
     // Its own incite, printed or granted ("Each other encounter card gains incite 1"), on the new stage itself, with
     // its When Revealed abilities (docs/phase7-wave6.md §3.65, §4 Q37). No other reveal step: a main scheme advance
     // is not a reveal frame (§4.1 Q36 makes only a villain's new face one).
     ...inciteFrames(ctx, schemeId, schemeId),
-    eventFrame(ctx, {
-      kind: "placeThreat",
-      schemeInstanceId: schemeId,
-      amount: startingThreat,
-      sourceInstanceId: null,
-    }),
     eventFrame(ctx, { kind: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy }),
   ]);
 }

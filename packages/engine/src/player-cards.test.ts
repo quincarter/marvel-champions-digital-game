@@ -487,6 +487,28 @@ describe("form, choices, players", () => {
     expect(mustPlayer(after, p2).hand.length).toBe(before + 1);
   });
 
+  // Issue #1006: a solo game's "choose a player" asked a one-option question every time (16 in one Spider-Man game).
+  it("'Choose a player' with only one player binds that player without asking", () => {
+    const commander = stubAbility(
+      "commander",
+      def({
+        trigger: { kind: "action" },
+        effects: [
+          { kind: "choosePlayer", slot: "pl", chooser: controller },
+          { kind: "draw", player: { kind: "slot", slot: "pl" }, amount: { kind: "const", value: 1 } },
+        ],
+      }),
+    );
+    const OFFICE = stubSupport({ id: "office", cost: 0, abilities: [commander.ref] });
+    const { deps, state } = setup({ cards: [OFFICE], abilities: [commander], players: 1 });
+    const given = giveCards(state, p1, "office");
+    const played = runWith(deps, given.state, play(given.ids[0] as InstanceId));
+    const before = mustPlayer(played, p1).hand.length;
+    const after = runWith(deps, played, use(given.ids[0] as InstanceId, "commander"));
+    expect(after.pendingChoice).toBeNull();
+    expect(mustPlayer(after, p1).hand.length).toBe(before + 1);
+  });
+
   it("'Each player discards the top 5 cards of their deck; for each printed [energy] resource, that player takes 1 damage'", () => {
     const backlash = stubAbility(
       "backlash",

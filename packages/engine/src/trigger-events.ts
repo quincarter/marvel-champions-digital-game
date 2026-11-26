@@ -1323,6 +1323,13 @@ export type TriggerEventBody =
       readonly stageIndex: number;
       readonly resolve: readonly ("setup" | "whenRevealed")[];
       readonly playerId: PlayerId;
+      /**
+       * The turn also places the stage's starting threat, read once it is the faceup side, before its `resolve`
+       * abilities: a main scheme advance (RRG 1.8 "Main Scheme", p. 27, step 3: "Flip … place threat on that card equal
+       * to its starting threat value, and resolve any 'When Revealed' ability on that side") and a stage revealed into a
+       * game area. Absent at setup, where step 11 has already placed it (RRG 1.8 Appendix II, p. 51).
+       */
+      readonly placeStartingThreat?: true;
     }
   /**
    * An enemy **would** activate (docs/phase7-wave5.md §3.2): "Hero Interrupt: When an enemy would activate, cancel that

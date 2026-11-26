@@ -17,9 +17,9 @@ import type { InstanceId } from "../ids.js";
 import { showingResources } from "../query.js";
 import { RESOURCE_TYPES, type ResourcePool, type ResourceType } from "../resources.js";
 import { pairLimitFor, resourceIconsInPlay } from "../rules.js";
-import { type EffectContext, resolvePlayers, resolveRef, selectTargets } from "../select.js";
+import { type EffectContext, resolveRef, selectTargets } from "../select.js";
 import type { EffectSpec, PairLimit } from "../spec.js";
-import { effectChoiceAuthority } from "../villain/authority.js";
+import { effectChoiceAuthority, resolveChooser } from "../villain/authority.js";
 import type { Frame } from "./frames.js";
 
 /** A pairing option's id: the card, then the character it is assigned to. */
@@ -84,7 +84,7 @@ export function executePairCards(
   effect: Extract<EffectSpec, { kind: "pairCards" }>,
   context: EffectContext,
 ): void {
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   // Bound and logged whether or not anything was paired, so a replay shows an attempt that paired nothing.
   const finish = (pairs: readonly { card: InstanceId; character: InstanceId; matched: boolean }[]): void => {
     const matched = pairs.filter((pair) => pair.matched).map((pair) => pair.character);

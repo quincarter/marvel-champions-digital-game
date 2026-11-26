@@ -199,7 +199,12 @@ import { executeAccuse } from "./accusation.js";
 import { executeReportFact } from "./report-fact.js";
 import { executeBasicPowerBy } from "./basic-power-by.js";
 import { resolveTeamwork } from "./enter-play.js";
-import { effectChoiceAuthority, isEncounterCardType, simultaneousOrderer } from "../villain/authority.js";
+import {
+  effectChoiceAuthority,
+  isEncounterCardType,
+  resolveChooser,
+  simultaneousOrderer,
+} from "../villain/authority.js";
 import {
   applyEffect,
   pushEachPlayerPass,
@@ -1605,7 +1610,7 @@ function executeDivide(
     effect.upTo || what === "threat"
       ? matched.filter((id) => divisionCanAffect(ctx, what, id, frame, context))
       : matched;
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   // "Up to" (docs/phase7-wave3.md §3.41): how many is the chooser's, so even a single candidate is asked.
   const asks = candidates.length > 1 || (effect.upTo === true && candidates.length === 1);
   if (frame.answer === null && asks && amount > 0 && chooser) {
@@ -1756,7 +1761,7 @@ function executeHealDivide(
   const candidates = [...caps.keys()];
   const held = [...caps.values()].reduce((sum, cap) => sum + cap, 0);
   const total = Math.min(amount, held);
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   // Nothing to choose when every candidate is healed in full (one candidate included), unless "up to" leaves how
   // many to the chooser (docs/phase7-wave3.md §3.41, §4 Q16: at least 1).
   const asks = effect.upTo === true ? candidates.length > 0 : candidates.length > 1 && held > amount;
@@ -1833,7 +1838,7 @@ function executeCounterDivide(
   const candidates = [...caps.keys()];
   const held = [...caps.values()].reduce((sum, cap) => sum + cap, 0);
   const total = Math.min(amount, held);
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   // Nothing to choose when every candidate gives up all it holds (one candidate included), unless "up to" leaves how
   // many to the chooser (docs/phase7-wave3.md §3.41, §4 Q16: at least 1), as for a division of healing.
   const asks = effect.upTo === true ? candidates.length > 0 : candidates.length > 1 && held > amount;
@@ -1917,7 +1922,7 @@ function executeStatusDivide(
     if (cap > 0) caps[id] = cap;
   }
   const candidates = Object.keys(caps).map(asInstanceId);
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   // One candidate is a forced choice (at least one target whenever one exists, docs/phase7-wave3.md §4 Q16): it takes
   // what it can hold. Several are the chooser's.
   if (frame.answer === null && candidates.length > 1 && chooser) {
@@ -2258,6 +2263,13 @@ function executeDiscardFromHand(
     ).filter((id) => !cannotChooseToDiscard(ctx.state, ctx.deps, id));
     const amount = Math.min(resolveValue(ctx.state, effect.amount, context, ctx.deps), candidates.length);
     if (amount <= 0) continue;
+    // Every card that can be picked must be: nothing to choose ("discard your hand", Hulk's Enraged; issue #1006), so
+    // the discard goes through as though they had been picked.
+    if (amount === candidates.length) {
+      const next = { ...frame, answer: candidates.map(String), vars: { ...vars, [`${DISCARD_HAND}index`]: index } };
+      setFrame(ctx, next);
+      return executeDiscardFromHand(ctx, next, effect, context);
+    }
     setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${DISCARD_HAND}index`]: index } });
     requestChoice(ctx, {
       playerId,
@@ -2483,7 +2495,7 @@ function executeReorderCards(
 ): void {
   if (effect.to !== "encounterDeckTop") return executePlaceTopOrBottom(ctx, frame, effect, context);
   const ids = selectCards(ctx, effect.cards, context);
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   if (frame.answer === null && ids.length > 1 && chooser) {
     requestChoice(ctx, {
       playerId: chooser,
@@ -2551,7 +2563,7 @@ function executePlaceTopOrBottom(
     setFrame(ctx, withoutPlace());
     return;
   }
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   const step = frame.vars["_place.step"] ?? 0;
   const advance = (next: number, top: readonly InstanceId[], bottom: readonly InstanceId[]): void =>
     setFrame(ctx, {
@@ -2692,7 +2704,7 @@ function executeDiscardBoostChoice(
     .filter((id) => inPlay.includes(id))
     .flatMap((id) => mustInstance(ctx.state, id).boostCards.filter((card) => !mustInstance(ctx.state, card).faceup));
   const count = effect.count ? Math.max(0, resolveValue(ctx.state, effect.count, context)) : 1;
-  const [chooser] = resolvePlayers(ctx.state, { kind: "controller" }, context);
+  const [chooser] = resolveChooser(ctx.state, { kind: "controller" }, context);
   if (!chooser || count === 0 || facedown.length <= count) return resolveWith(null, frame.bindings);
   setFrame(ctx, { ...frame, bindings: { ...frame.bindings, [BOOST_PICK_OFFERED]: facedown } });
   requestChoice(ctx, {
@@ -2774,7 +2786,7 @@ function executeChooseCards(
   effect: Extract<EffectSpec, { kind: "chooseCards" }>,
   context: EffectContext,
 ): void {
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   if (frame.answer !== null) {
     // A hidden-hand pick's facedown options map back through the candidates as offered (`hidden-hand-pick.ts`).
     const offered = effect.hiddenHands ? frame.bindings[offeredSlotOf(effect.slot)] : undefined;
@@ -2876,7 +2888,7 @@ function executeFindWithChoice(
   context: EffectContext,
 ): void {
   const candidates = findCandidates(ctx, effect, context).map((found) => found.id);
-  const [chooser] = resolvePlayers(ctx.state, { kind: "controller" }, context);
+  const [chooser] = resolveChooser(ctx.state, { kind: "controller" }, context);
   if (frame.answer === null && candidates.length > 1 && chooser) {
     requestChoice(ctx, {
       playerId: chooser,
@@ -3040,7 +3052,7 @@ function executeForEachCard(
   const waiting = effect.waiting.filter((card) => zoneKey(ctx.state, card.instanceId) === card.zone);
   if (waiting.length === 0) return replaceWith(null, null);
   const chooserRef = effect.chooser ?? { kind: "controller" };
-  const [chooser] = resolvePlayers(ctx.state, chooserRef, context);
+  const [chooser] = resolveChooser(ctx.state, chooserRef, context);
   if (chooser && waiting.length > 1 && frame.answer === null) {
     if (waiting.length !== effect.waiting.length) replaceWith({ ...effect, waiting });
     requestChoice(ctx, {
@@ -3124,7 +3136,7 @@ function executeChooseOne(
   effect: Extract<EffectSpec, { kind: "chooseOne" }>,
   context: EffectContext,
 ): void {
-  const [optionChooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [optionChooser] = resolveChooser(ctx.state, effect.chooser, context);
   // A choice made earlier in the ability that holds nothing (one among "that card" once it moved): an option acting
   // only on it acts on nothing either (#928 review).
   const emptySlots = [
@@ -3280,7 +3292,7 @@ function executeChooseSeveral(
   count: number,
   unavailable: UnavailableOptions | null,
 ): void {
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   const picks = effect.allowRepeat ? count : Math.min(count, available.length);
   if (frame.answer === null) {
     // No option left to choose (none can be resolved, even partly): the choice resolves to nothing.
@@ -3465,7 +3477,7 @@ function executeChooseGroup(
   effect: Extract<EffectSpec, { kind: "chooseGroup" }>,
   context: EffectContext,
 ): void {
-  const [playerId] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [playerId] = resolveChooser(ctx.state, effect.chooser, context);
   const groups = podGroupIds(ctx.state);
   const { [groupVar(effect.bind)]: _earlier, ...vars } = frame.vars;
   const bind = (index: number | null): void =>
@@ -3604,12 +3616,14 @@ function executeChoosePlayer(
     });
     return;
   }
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
-  // `among` (docs/phase7-wave3.md §3.35): only those players are eligible, and one eligible player is no choice.
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
+  // `among` (docs/phase7-wave3.md §3.35): only those players are eligible. One eligible player is no choice, with or
+  // without `among`: a solo game's "choose a player" (Avengers Mansion, Web of Life and Destiny) binds the only player
+  // without asking (issue #1006).
   const eligible = effect.among ? resolvePlayers(ctx.state, effect.among, context) : null;
   const players = playerOrder(ctx.state).filter((p) => eligible === null || eligible.includes(p.playerId));
-  if (!chooser || players.length === 0 || (eligible !== null && players.length === 1)) {
-    const bound = eligible !== null && players.length === 1 ? [players[0]!.identity.instanceId] : [];
+  if (!chooser || players.length <= 1) {
+    const bound = players.length === 1 ? [players[0]!.identity.instanceId] : [];
     setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: bound } });
     return;
   }
@@ -3820,7 +3834,7 @@ function executeAssignDamage(
     vars["_assign.left"] = (vars["_assign.left"] ?? 1) - 1;
   }
   const legal = selectTargets(ctx.state, effect.among, context);
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   if ((vars["_assign.left"] ?? 0) > 0 && legal.length > 0 && chooser) {
     setFrame(ctx, { ...frame, answer: null, vars });
     requestChoice(ctx, {
@@ -4007,7 +4021,7 @@ function executeDivideDamageEvenly(
   const remainder = characters.length > 0 ? amount % characters.length : 0;
   let extra: readonly InstanceId[] = [];
   if (remainder > 0) {
-    const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+    const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
     if (frame.answer === null && chooser) {
       requestChoice(ctx, {
         playerId: chooser,
@@ -4399,7 +4413,7 @@ function requestTargetChoice(
   effect: Extract<EffectSpec, { kind: "chooseTarget" }>,
   context: EffectContext,
 ): void {
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   // Only valid targets are offered (RRG 1.8 "Target", pp. 42–43): those some effect in the rest of this program can
   // affect. The main scheme is no target for a "(thwart)" while its player is patrolled (docs/phase7-wave3.md §3.5).
   const rest = frame.effects.slice(frame.cursor + 1);
