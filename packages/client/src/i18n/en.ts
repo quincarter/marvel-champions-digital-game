@@ -496,6 +496,9 @@ export const en = {
   "room.undo.hostDetail": "The host may Undo or Back out; guests cannot ask.",
   "room.undo.ask": "Ask the host",
   "room.undo.askDetail": "The host may Undo, and guests may ask the host to.",
+  "room.undo.own": "Each player",
+  "room.undo.ownDetail":
+    "Everyone takes back their own moves, as in single player: back to a card draw or the start of their turn.",
   "room.cheats.title": "Cheats",
   "room.cheats.detail":
     "The host's own Undo past a turn and Manual adjust work in this game. Fixed once the game starts.",
@@ -631,6 +634,7 @@ export const en = {
   "prompt.acceptedUndo": "The host agreed and undid the move.",
   "prompt.acceptedChange": "The host agreed to the change.",
   "prompt.declinedUndo": "The host said no to the undo.",
+  "prompt.ownUndoFailed": "That move could not be taken back.",
   "prompt.declinedChange": "The host said no to the change.",
   "prompt.more_one": "1 more waiting",
   "prompt.more_other": "{count} more waiting",
@@ -640,6 +644,7 @@ export const en = {
   "ask.undo": "Ask host to undo",
   "ask.undoLong": "Ask the host to undo",
   "ask.undoSent": "Asked the host to undo.",
+  "ask.undoOwnSent": "Taking it back…",
   "ask.change": "Ask for a change",
   "ask.changeDetail": "Ask the host to fix or change something on the table. They decide.",
   "ask.title": "Ask for a change",

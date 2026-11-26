@@ -43,6 +43,7 @@ import {
   type EpicStartRetry,
 } from "../view/epic-start-retry.js";
 import { dropTable, setEpic, startEpicGame, startEpicTableRoomGame, watchTable } from "../platform/room.js";
+import { hasKeptSettings, readHostSettings } from "../view/host-settings-memory.js";
 import { setCompetitive, setTeam, setTeamReady, startCompetitive } from "../platform/room.js";
 import {
   competitiveStartBlock,
@@ -517,7 +518,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (state.role === "host" && state.connection === "connected" && state.settings && state.seats.length === 0) {
       if (!this.#seatsDefaulted) {
         this.#seatsDefaulted = true;
-        setLobby({ seats: seatSpecsOf(ROOM_SEATS_DEFAULT) });
+        // The host's settings from its last room, kept on this device (GarethMagis), or the room's defaults.
+        const kept = readHostSettings();
+        // Two messages: a room that refuses the kept settings (an older Worker, the rate limit) still gets its seats.
+        setLobby({ seats: seatSpecsOf(clampSeatCount(kept.seats ?? ROOM_SEATS_DEFAULT)), keep: false });
+        if (hasKeptSettings(kept)) setLobby({ settings: kept.settings, keep: false });
       }
     }
     if (state.refusal && state.refusal.seq !== this.#refusalSeen) {

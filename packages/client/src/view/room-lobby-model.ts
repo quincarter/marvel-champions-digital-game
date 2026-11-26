@@ -613,6 +613,7 @@ export const undoKeys: Readonly<Record<LobbyUndo, { title: MessageKey; detail: M
   off: { title: "room.undo.off", detail: "room.undo.offDetail" },
   host: { title: "room.undo.host", detail: "room.undo.hostDetail" },
   ask: { title: "room.undo.ask", detail: "room.undo.askDetail" },
+  own: { title: "room.undo.own", detail: "room.undo.ownDetail" },
 };
 
 export interface UndoRow {
@@ -624,12 +625,12 @@ export interface UndoRow {
 
 /**
  * The Undo row's choices. Strict rules force Off, so only Off is offered (and nothing can be pressed); Host control
- * offers all three. The host presses them, guests see only the selected one. Unknown settings read as the mode's default.
+ * offers all four. The host presses them, guests see only the selected one. Unknown settings read as the mode's default.
  */
 export function undoRows(settings: LobbySettings | null): readonly UndoRow[] {
   const mode = settings?.playMode ?? "strict";
   const current = lobbyUndoFor(mode, settings?.undo);
-  const values: readonly LobbyUndo[] = mode === "strict" ? ["off"] : ["off", "host", "ask"];
+  const values: readonly LobbyUndo[] = mode === "strict" ? ["off"] : ["off", "host", "ask", "own"];
   return values.map((value) => ({
     value,
     titleKey: undoKeys[value].title,

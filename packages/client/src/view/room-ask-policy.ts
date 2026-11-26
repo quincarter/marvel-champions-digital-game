@@ -1,6 +1,7 @@
 /**
  * What a seated guest may ask the host for in a lobby room (#904), pure so the room worker and the screens share it.
- * Undo only under the "ask" policy (`lobbyUndoFor`; Host only and Off hide it, with the reason where Undo would be).
+ * Undo under the "ask" policy, and under "own", where the host's device takes the guest's own move back at once without
+ * asking (`lobbyUndoFor`; Host only and Off hide it, with the reason where Undo would be).
  * A change (Manual adjust) only with cheats on in a Host control room.
  */
 import { lobbyUndoFor, type LobbySettings } from "@mc/sync-worker/room-protocol";
@@ -15,6 +16,6 @@ export const seatUndoPolicyOf = (settings: Pick<LobbySettings, "playMode" | "und
 export function askAllowedOf(what: "undo" | "adjust", settings: SeatAskSettings | null | undefined): boolean {
   if (!settings) return false;
   return what === "undo"
-    ? seatUndoPolicyOf(settings) === "ask"
+    ? seatUndoPolicyOf(settings) === "ask" || seatUndoPolicyOf(settings) === "own"
     : settings.playMode === "host" && settings.cheats === true;
 }

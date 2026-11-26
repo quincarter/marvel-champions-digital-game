@@ -450,7 +450,7 @@ export class DecksScene extends Phaser.Scene {
   /** A scan drawn outside the pool grid this draw was not on hand yet, so its arrival redraws the screen. */
   #paneArtMissing = false;
   /** The scans drawn outside the pool grid this draw, asked for again on each arrival. */
-  #paneArt: ArtSource[] = [];
+  #paneArt: { readonly source: ArtSource; readonly texture: unknown }[] = [];
   #poolListScroll = new ListScroll();
   /** The author's notes in a community deck's detail rail: a list of wrapped lines, so a long write-up scrolls. */
   #notesList: McVirtualList | null = null;
@@ -767,7 +767,13 @@ export class DecksScene extends Phaser.Scene {
     // "all": a new card language or a pack's pictures, so every tile may have a new source. A pane picture is asked
     // for again (so the cache counts it as in use); one the cache evicted anyway is drawn again with the screen.
     const art = cardArt(this);
-    const paneEvicted = this.#paneArt.some((source) => !art.request(this, source) && !art.isMissing(source.key));
+    // Evicted (gone now), or evicted and loaded again (a new texture under the same key): either way the drawn picture
+    // no longer shows, and the screen is drawn again.
+    const paneEvicted = this.#paneArt.some(({ source, texture }) => {
+      const key = art.request(this, source);
+      if (key === null) return !art.isMissing(source.key);
+      return this.textures.get(key) !== texture;
+    });
     if (why === "all" || this.#paneArtMissing || paneEvicted) {
       this.#rebuild();
       return;
@@ -780,7 +786,7 @@ export class DecksScene extends Phaser.Scene {
   #drawPaneArt(source: ArtSource | null | undefined, rect: Rect): void {
     const art = cardArt(this);
     if (drawArt(this, art.request(this, source ?? null), rect)) {
-      if (source) this.#paneArt.push(source);
+      if (source) this.#paneArt.push({ source, texture: this.textures.get(source.key) });
       return;
     }
     if (source && !art.isMissing(source.key)) this.#paneArtMissing = true;
@@ -2428,7 +2434,7 @@ export class DecksScene extends Phaser.Scene {
           this,
           artRect.x + artRect.width / 2,
           artRect.y + artRect.height / 2,
-          "no scan",
+          t("deckCheck.noScan"),
           typeRole.label,
           surface.ink.hex,
           ink.meta,

@@ -1,7 +1,7 @@
 /**
  * Feeds the room's notices from its state (issue #880): who joined or left (the toast, `scenes/room-toast.ts`), the
- * "room-enter" sound when someone else joins, and the "chat-message" sound for a line from someone else while this
- * window is not in front, at most once every 3 s. Runs for the whole session and does nothing outside a room, so
+ * "room-enter" sound when someone else joins or, on the host, when a guest asks for an Undo or a change, and the
+ * "chat-message" sound for a line from someone else while this window is not in front, at most once every 3 s. Runs for the whole session and does nothing outside a room, so
  * single player and offline play never see it.
  */
 import type Phaser from "phaser";
@@ -16,6 +16,7 @@ import {
   ChatSoundGate,
   IN_GAME_SCENES,
   newChatFromOthers,
+  requestsForHostToAnswer,
   participantChanges,
   roomClosedInGame,
   windowFocused,
@@ -91,6 +92,8 @@ export function startRoomNoticeWatch(game: Phaser.Game): () => void {
     ) {
       appSession().music?.playEffect("chat-message");
     }
+    // A guest asked the host for an Undo or a change: always heard, so the host does not leave them waiting.
+    if (requestsForHostToAnswer(before, state).length > 0) appSession().music?.playEffect("room-enter");
   });
   if (import.meta.env.DEV) {
     // Dev hook: `window.__mcRoomToast("joined", "quin", "android")` shows a toast (screenshots use it with --eval).
