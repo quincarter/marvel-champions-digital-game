@@ -1,6 +1,15 @@
-import type { GameState, InstanceId, PendingChoice } from "@mc/engine";
+import { cardsInPlay, type GameState, type InstanceId, type PendingChoice } from "@mc/engine";
 import { describe, expect, test } from "vitest";
-import { choiceNoteOf, optionCounterNotesOf, tileCounterNote } from "./choice-tile-notes.js";
+import { LocalEngineHost } from "../engine/local-host.js";
+import { SessionStore } from "../store/session-store.js";
+import {
+  choiceNoteOf,
+  engagedNoteForms,
+  optionCounterNotesOf,
+  optionEngagedNamesOf,
+  tileCounterNote,
+} from "./choice-tile-notes.js";
+import { playerName } from "./names.js";
 
 const game = {
   instances: {
@@ -39,5 +48,115 @@ describe("a card choice's note (#525 item 11)", () => {
     expect(choiceNoteOf(withPrompt({ kind: "chooseCards", slot: "tuck" }))).toBeNull();
     expect(choiceNoteOf(withPrompt({ kind: "chooseCards", slot: "tuck", note: "  " }))).toBeNull();
     expect(choiceNoteOf(withPrompt({ kind: "chooseTarget", note: "x" }))).toBeNull();
+  });
+});
+
+describe("who a minion option is engaged with (issue #1001)", () => {
+  /** Ultron's setup deals each seat a facedown Drone: the same card back twice. */
+  async function ultronGame(seats: readonly string[]): Promise<GameState> {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "ultron",
+      difficulty: "standard",
+      players: seats.map((starterDeckId) => ({ starterDeckId })),
+      seed: 1,
+    });
+    for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
+      const { choice } = store.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
+      await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((pick) => pick.optionId));
+    }
+    return store.state.game!;
+  }
+
+  const dronesOf = (state: GameState): readonly InstanceId[] =>
+    cardsInPlay(state).filter((id) => state.instances[id]?.facedownAs?.kind === "minion");
+
+  const damageChoice = (state: GameState, targets: readonly InstanceId[]): PendingChoice =>
+    ({
+      playerId: state.players[0]!.playerId,
+      prompt: { kind: "chooseTarget" },
+      options: [
+        { optionId: "villain", label: "Ultron", ref: { kind: "card", instanceId: state.villains[0]!.instanceId } },
+        ...targets.map((id, index) => ({
+          optionId: `drone${index}`,
+          label: "Drone",
+          ref: { kind: "card", instanceId: id },
+        })),
+      ],
+    }) as unknown as PendingChoice;
+
+  test("two seats: each Drone says its seat, the villain says nothing", async () => {
+    const state = await ultronGame(["core-spider-man-justice", "core-she-hulk-aggression"]);
+    const drones = dronesOf(state);
+    expect(drones).toHaveLength(2);
+    const names = optionEngagedNamesOf(state, damageChoice(state, drones));
+    expect(names.has("villain")).toBe(false);
+    drones.forEach((id, index) => {
+      expect(names.get(`drone${index}`)).toBe(playerName(state, state.instances[id]!.engagedWith!));
+    });
+    expect(new Set(names.values()).size).toBe(2);
+  }, 60_000);
+
+  test("one seat: every minion is engaged with the one hero, so no note", async () => {
+    const state = await ultronGame(["core-spider-man-justice"]);
+    expect(dronesOf(state).length).toBeGreaterThan(0);
+    expect(optionEngagedNamesOf(state, damageChoice(state, dronesOf(state))).size).toBe(0);
+  }, 60_000);
+
+  test("worded as the board chip", () => {
+    expect(engagedNoteForms("Spider-Man (Peter Parker)")).toEqual([
+      "vs Spider-Man (Peter Parker)",
+      "vs Spider-Man",
+      "vs S.-Man",
+      "vs Peter Parker",
+      "vs P. Parker",
+    ]);
+    expect(engagedNoteForms("Captain Marvel")).toEqual(["vs Captain Marvel", "vs C. Marvel"]);
+    expect(engagedNoteForms("Hulk")).toEqual(["vs Hulk"]);
+    expect(engagedNoteForms("Spider-Man (Peter Parker) 2")).toEqual([
+      "vs Spider-Man (Peter Parker) 2",
+      "vs Spider-Man 2",
+      "vs S.-M. 2",
+      "vs Peter Parker 2",
+      "vs P. P. 2",
+      "#2 vs S.-Man",
+    ]);
+    expect(engagedNoteForms(undefined)).toEqual([]);
+  });
+
+  test("two seats with the same hero keep their seat number even in the shortest form (Codex, PR #1014)", () => {
+    const names = ["Spider-Man (Peter Parker) 1", "Spider-Man (Peter Parker) 2"];
+    const [one, two] = names.map((name) => engagedNoteForms(name, names));
+    // Every form either keeps the number at its end or, last, leads with it, so a label cut from the end still has it.
+    expect(one!.at(-1)).toBe("#1 vs S.-Man");
+    expect(two!.at(-1)).toBe("#2 vs S.-Man");
+    expect(one!.some((form) => two!.includes(form))).toBe(false);
+  });
+
+  test("a shorter form two seats would share is never offered (Codex, PR #1014)", () => {
+    const names = ["Spider-Man (Peter Parker)", "Spider-Man (Miles Morales)", "Iron Man"];
+    // Their hero name is shared, so a narrow tile falls back on the name in brackets, never the bare hero name (a
+    // tile that only shrank and clipped the whole would drop the brackets first: Codex, PR #1014).
+    expect(engagedNoteForms("Spider-Man (Peter Parker)", names)).toEqual([
+      "vs Spider-Man (Peter Parker)",
+      "vs Peter Parker",
+      "vs P. Parker",
+    ]);
+    expect(engagedNoteForms("Spider-Man (Miles Morales)", names)).toEqual([
+      "vs Spider-Man (Miles Morales)",
+      "vs Miles Morales",
+      "vs M. Morales",
+    ]);
+    expect(engagedNoteForms("Iron Man", names)).toEqual(["vs Iron Man"]);
+    // The same seat's name twice (two minions engaged with one hero) is not another seat.
+    expect(engagedNoteForms("Spider-Man (Peter Parker)", ["Spider-Man (Peter Parker)", "Iron Man"])).toEqual([
+      "vs Spider-Man (Peter Parker)",
+      "vs Spider-Man",
+      "vs S.-Man",
+      "vs Peter Parker",
+      "vs P. Parker",
+    ]);
   });
 });
