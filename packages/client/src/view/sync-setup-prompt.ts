@@ -6,6 +6,7 @@
  * The markers deliberately do not start with `mc-`: every `mc-*` key travels in a save export and is synced, and
  * "this device was asked" is about the device, like the recovery code's own `mcsync.code`.
  */
+import { t } from "../i18n/translate.js";
 import { syncRowTitle } from "./sync-model.js";
 
 /** Set once the player has answered (Set up, Join or Not now); the prompt is never shown again after it. */
@@ -13,18 +14,23 @@ export const SYNC_PROMPTED_KEY = "mcsync.prompted";
 /** Set once a launch has looked at this device, so "the first launch after this update" is only ever one launch. */
 export const SYNC_SEEN_KEY = "mcsync.seen";
 
-export const SYNC_SETUP_TITLE = "Set up cross-device sync?";
-export const SYNC_SETUP_BODY =
-  "Keep your saves in step across your phone, tablet and computer. There is no account to make, and your saves are encrypted so only your devices can read them.";
+export const syncSetupTitle = (): string => t("syncPrompt.title");
+export const syncSetupBody = (): string => t("syncPrompt.body");
 /** Where the settings live, spelled with the on-screen labels (Settings tab "More", row "Save data", the sync row). */
-export const SYNC_SETUP_PATH = `Settings → More → Save data → ${syncRowTitle()}`;
-export const SYNC_SETUP_LATER = `You can set this up any time in ${SYNC_SETUP_PATH}.`;
+export const syncSetupPath = (): string => t("syncPrompt.path", { row: syncRowTitle() });
+export const syncSetupLater = (): string => t("syncPrompt.later", { path: syncSetupPath() });
 
-export const SYNC_SETUP_BUTTONS = {
-  setUp: "Set up",
-  join: "Join with a code",
-  notNow: "Not now",
-} as const;
+export const syncSetupButtons = {
+  get setUp(): string {
+    return t("syncPrompt.setUp");
+  },
+  get join(): string {
+    return t("syncPrompt.join");
+  },
+  get notNow(): string {
+    return t("syncPrompt.notNow");
+  },
+};
 
 export type SyncSetupAnswer = "set-up" | "join" | "not-now";
 
@@ -45,8 +51,8 @@ export function syncSetupButtonSpan(
 }
 
 /** The notice that follows "Not now": the same pointer, short enough for a few seconds on screen. */
-export const SYNC_NOTICE_HEADING = "Cross-device sync is off";
-export const SYNC_NOTICE_BODY = SYNC_SETUP_LATER;
+export const syncNoticeHeading = (): string => t("syncPrompt.noticeHeading");
+export const syncNoticeBody = (): string => syncSetupLater();
 /** How long the notice stays up. */
 export const SYNC_NOTICE_HOLD_MS = 6000;
 

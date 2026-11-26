@@ -518,4 +518,25 @@ describe("mc-sheet drawings, QR codes and sliders", () => {
     expect(slides).toEqual([]);
     sheet.remove();
   });
+
+  it("says a drawing's picture is missing when it fails to load", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "svg",
+        key: "drawing",
+        rect: rect(0, 0, 200, 100),
+        viewBox: [400, 200],
+        missing: "No picture",
+        ops: [{ k: "image", href: "/nope.png", x: 0, y: 0, w: 400, h: 200 }],
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    expect(sheet.renderRoot.querySelector(".missing")).toBeNull();
+    sheet.renderRoot.querySelector("image")!.dispatchEvent(new Event("error"));
+    await sheet.updateComplete;
+    expect(sheet.renderRoot.querySelector(".missing")!.textContent).toBe("No picture");
+    sheet.remove();
+  });
 });

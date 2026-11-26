@@ -256,6 +256,8 @@ export interface SheetSvg {
   readonly rect: SheetRect;
   readonly viewBox: readonly [number, number];
   readonly ops: readonly SvgOp[];
+  /** Said over the drawing when one of its pictures fails to load (already translated). */
+  readonly missing?: string;
 }
 
 /**
@@ -444,7 +446,12 @@ export class McSheet extends LitElement {
         font-size=${op.size} font-weight=${op.weight} letter-spacing=${op.spacing ?? 0}
         font-family=${`var(--mc-font-${op.font})`}>${op.text}</text>`;
     }
-    if (op.k === "image") return svg`<image href=${op.href} x=${op.x} y=${op.y} width=${op.w} height=${op.h}></image>`;
+    if (op.k === "image") {
+      return svg`<image href=${op.href} x=${op.x} y=${op.y} width=${op.w} height=${op.h} @error=${() => {
+        this.#failed.add(op.href);
+        this.requestUpdate();
+      }}></image>`;
+    }
     const fill = op.fill ?? "none";
     const stroke = op.stroke ?? "none";
     const width = op.sw ?? 1;
@@ -777,14 +784,18 @@ export class McSheet extends LitElement {
       }
       case "svg":
         return html`<svg
-          class="part"
-          data-key=${node.key ?? nothing}
-          style=${px(node.rect)}
-          viewBox=${`0 0 ${node.viewBox[0]} ${node.viewBox[1]}`}
-          aria-hidden="true"
-        >
-          ${node.ops.map((op) => this.#svgOp(op))}
-        </svg>`;
+            class="part"
+            data-key=${node.key ?? nothing}
+            style=${px(node.rect)}
+            viewBox=${`0 0 ${node.viewBox[0]} ${node.viewBox[1]}`}
+            aria-hidden="true"
+          >
+            ${node.ops.map((op) => this.#svgOp(op))}</svg
+          >${
+            node.missing !== undefined && node.ops.some((op) => op.k === "image" && this.#failed.has(op.href))
+              ? html`<div class="part image" style=${px(node.rect)}><span class="missing">${node.missing}</span></div>`
+              : nothing
+          }`;
       case "slider":
         return this.#slider(node);
       case "scroll":

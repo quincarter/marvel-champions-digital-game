@@ -2269,4 +2269,17 @@ export const en = {
   "guide.wave.opens": "{name}: {opens}.",
   "guide.wave.rewards": "Then, a villain each: {rewards}.",
   "controls.section.buttons": "BUTTONS",
+  "syncPrompt.title": "Set up cross-device sync?",
+  "syncPrompt.body":
+    "Keep your saves in step across your phone, tablet and computer. There is no account to make, and your saves are encrypted so only your devices can read them.",
+  "syncPrompt.path": "Settings → More → Save data → {row}",
+  "syncPrompt.later": "You can set this up any time in {path}.",
+  "syncPrompt.setUp": "Set up",
+  "syncPrompt.join": "Join with a code",
+  "syncPrompt.notNow": "Not now",
+  "syncPrompt.noticeHeading": "Cross-device sync is off",
+  "global.shareLabel": "Share my games",
+  "global.shareLine":
+    "Shares each game you finish from now on: the villain, sets, difficulty, heroes, deck, result and why you lost. No name or account. Turn it off in Settings.",
+  "global.sharingOnLabel": "Sharing on",
 } as const;

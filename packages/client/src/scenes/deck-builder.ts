@@ -190,8 +190,8 @@ import {
   AGAINST_NOTE_STALE,
   AGAINST_NOTE_UNAVAILABLE,
   globalRowFailed,
-  SHARE_LABEL,
-  SHARE_LINE,
+  shareLabel,
+  shareLine,
   type AgainstSource,
 } from "../view/global-stats-ui.js";
 import type { GlobalVillainCards } from "@mc/sync-worker/global-protocol";
@@ -2200,11 +2200,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     // The room is the stepper's, the You / Everyone toggle's under it, and a first card. It is kept even with no villain
     // faced yet, so the switch is always there.
     // On Everyone with sharing off, Share and its line take room too (measured, at most two lines).
-    const shareLine = (): Phaser.GameObjects.Text => {
+    const shareLineText = (): Phaser.GameObjects.Text => {
       const text = this.add.text(
         left,
         y,
-        this.#shareFailed ? `${globalRowFailed()} ${SHARE_LINE}` : SHARE_LINE,
+        this.#shareFailed ? `${globalRowFailed()} ${shareLine()}` : shareLine(),
         textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label),
       );
       fitWrapped(text, column, 2, type.note);
@@ -2212,7 +2212,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     };
     let shareRoom = 0;
     if (this.#againstSource === "everyone" && readConsent() !== "on" && Number.isFinite(bottom)) {
-      const probe = shareLine();
+      const probe = shareLineText();
       shareRoom = hit.target + 6 + probe.height + 8;
       probe.destroy();
     }
@@ -2437,7 +2437,7 @@ ${entry.detail}`,
           this.#buttons.push(
             new McButton(this, {
               kind: onDark ? "onInk" : "secondary",
-              label: SHARE_LABEL,
+              label: shareLabel(),
               type: typeRole.label,
               rect: shareRect,
               onClick: () => share(false),
@@ -2446,7 +2446,7 @@ ${entry.detail}`,
           this.#stops.set("games:share", { rect: shareRect, activate: () => share(true) });
           this.#railStops.push("games:share");
           y += hit.target + 6;
-          y += shareLine().height + 8;
+          y += shareLineText().height + 8;
         } else if (bottom - y >= 30) {
           const line = this.add
             .text(

@@ -25,7 +25,7 @@ describe("Settings' sub-sheets in Spanish", () => {
   it("words Save data's sync status, countdown, summary and errors in Spanish", () => {
     useSpanish();
     expect(statusLine({ state: "synced", lastSyncedAt: 0 }, 5 * 60_000)).toBe("Sincronizado hace 5 min");
-    expect(statusLine({ state: "off", lastSyncedAt: null }, 0)).toBe("Desactivada");
+    expect(statusLine({ state: "off", lastSyncedAt: null }, 0)).toBe("Desactivado");
     expect(syncFailureStatusOf({ kind: "not-on" }).text).toBe(
       "La sincronización está desactivada en este dispositivo.",
     );

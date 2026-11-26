@@ -389,8 +389,15 @@ export class SheetBuilder {
   }
 
   /** A drawing in `viewBox` units scaled to `rect`: shapes with token colors already mapped (`sheetColor`). */
-  svg(rect: Rect, viewBox: readonly [number, number], ops: readonly SvgOp[], key?: string): void {
-    this.nodes.push({ kind: "svg", ...(key !== undefined ? { key } : {}), rect: this.#rect(rect), viewBox, ops });
+  svg(rect: Rect, viewBox: readonly [number, number], ops: readonly SvgOp[], key?: string, missing?: string): void {
+    this.nodes.push({
+      kind: "svg",
+      ...(key !== undefined ? { key } : {}),
+      ...(missing !== undefined ? { missing } : {}),
+      rect: this.#rect(rect),
+      viewBox,
+      ops,
+    });
   }
 
   /** A stepped slider (`mc-slide`, `mc-step`): its track, knob at `share` (0 to 1) and the value as `label`. */

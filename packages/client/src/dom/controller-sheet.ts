@@ -1,12 +1,13 @@
 /**
  * The controller drawing of the Controls screen (`view/controller-shapes.ts`) as parts of an `mc-sheet`: its shapes and
  * labels as one inline SVG (the labels stay text nodes), and each button's picture as an `mc-glyph` laid over the
- * drawing where the shape's label box is. The same geometry `ui/controller-drawing.ts` drew in Phaser.
+ * drawing where the shape's label box is. The geometry is the Phaser drawing's, scaled the same way.
  */
 import { layoutGlyph, measureGlyphText, type SvgOp } from "@mc/ui";
 import { font } from "../tokens.js";
 import { CONTROLLER_SHAPES, type ShapeOp } from "../view/controller-shapes.js";
-import { LABEL_INDEX, controllerImageUrl, labelOf } from "../view/controller-labels.js";
+import { t } from "../i18n/translate.js";
+import { LABEL_INDEX, controllerImageUrl, controllerPictureOf, labelOf } from "../view/controller-labels.js";
 import type { DrawingKind } from "../view/controls-rows.js";
 import { uiSpecOf } from "../view/glyph-ui-spec.js";
 import { padGlyphSpec } from "../view/input-glyph-model.js";
@@ -33,11 +34,12 @@ interface Styled {
   readonly dash?: readonly [number, number] | undefined;
 }
 
-function styleOf(op: Styled): Record<string, unknown> {
+/** A stroke never draws thinner than one screen pixel, as the Phaser drawing floored it (`max(1, sw * scale)`). */
+function styleOf(op: Styled, scale: number): Record<string, unknown> {
   return {
     ...(op.fill !== undefined ? { fill: sheetColor(op.fill, "fill") } : {}),
     ...(op.stroke !== undefined ? { stroke: sheetColor(op.stroke, "line") } : {}),
-    ...(op.sw !== undefined ? { sw: op.sw } : {}),
+    ...(op.stroke !== undefined ? { sw: Math.max(op.sw ?? 1, 1 / scale) } : {}),
     ...(op.alpha !== undefined ? { alpha: op.alpha } : {}),
     ...(op.dash ? { dash: op.dash } : {}),
   };
@@ -92,16 +94,24 @@ export function drawControllerSheet(
         });
         break;
       case "rect":
-        ops.push({ k: "rect", x: op.x, y: op.y, w: op.w, h: op.h, ...(op.rx ? { rx: op.rx } : {}), ...styleOf(op) });
+        ops.push({
+          k: "rect",
+          x: op.x,
+          y: op.y,
+          w: op.w,
+          h: op.h,
+          ...(op.rx ? { rx: op.rx } : {}),
+          ...styleOf(op, scale),
+        });
         break;
       case "circle":
-        ops.push({ k: "circle", cx: op.cx, cy: op.cy, r: op.r, ...styleOf(op) });
+        ops.push({ k: "circle", cx: op.cx, cy: op.cy, r: op.r, ...styleOf(op, scale) });
         break;
       case "line":
-        ops.push({ k: "line", x1: op.x1, y1: op.y1, x2: op.x2, y2: op.y2, ...styleOf(op) });
+        ops.push({ k: "line", x1: op.x1, y1: op.y1, x2: op.x2, y2: op.y2, ...styleOf(op, scale) });
         break;
       case "path":
-        ops.push({ k: "path", d: op.d, ...styleOf(op) });
+        ops.push({ k: "path", d: op.d, ...styleOf(op, scale) });
         break;
     }
   }
@@ -110,6 +120,7 @@ export function drawControllerSheet(
     [shape.width, shape.height],
     ops,
     "controller",
+    controllerPictureOf(kind) === null ? undefined : t("controls.pictureFailed"),
   );
   for (const glyph of glyphs) {
     const spec = padGlyphSpec(glyph.index, family, false);

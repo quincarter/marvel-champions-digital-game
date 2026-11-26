@@ -68,10 +68,9 @@ export function settleSource(state: SourceState): SourceState {
   return state;
 }
 
-export const SHARE_LABEL = "Share my games";
-export const SHARE_LINE =
-  "Shares each game you finish from now on: the villain, sets, difficulty, heroes, deck, result and why you lost. No name or account. Turn it off in Settings.";
-export const SHARING_ON_LABEL = "Sharing on";
+export const shareLabel = (): string => t("global.shareLabel");
+export const shareLine = (): string => t("global.shareLine");
+export const sharingOnLabel = (): string => t("global.sharingOnLabel");
 
 /** A load that has not answered yet, beside the answers. */
 export type GlobalState = { readonly kind: "idle" } | { readonly kind: "reading" } | GlobalLoad<GlobalStats>;

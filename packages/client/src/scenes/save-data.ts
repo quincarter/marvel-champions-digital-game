@@ -106,7 +106,7 @@ export class SaveDataOverlay extends Phaser.Scene {
   #motion = new OverlayMotion();
   #step: SaveDataStep = { kind: "menu" };
   #status: SaveDataStatus = NO_STATUS;
-  /** Once a second while a code is showing; only the countdown line changes until the code runs out. */
+  /** Once a second while a code is showing: the screen is drawn again for the countdown, until the code runs out. */
   #ticker: Phaser.Time.TimerEvent | null = null;
   /** The stop Start presses on the step now showing, or null (the menu and the replace confirm have none). */
   #primary: (() => void) | null = null;
