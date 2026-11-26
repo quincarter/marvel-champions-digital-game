@@ -12,7 +12,14 @@ import { assignAbilityIds, parseCardText, type ParsedAbility, type ParsedText } 
 import type { RawCard } from "../raw-types.ts";
 import { imageOf, imagesOf, reprintImages } from "./art.ts";
 import { brand } from "./brand.ts";
-import { applyAddedRecords, applySetRecodes, applyTypeCorrections, flatten, type Flattened } from "./flatten.ts";
+import {
+  applyAddedRecords,
+  applySetRecodes,
+  applyStarFlagCorrections,
+  applyTypeCorrections,
+  flatten,
+  type Flattened,
+} from "./flatten.ts";
 import type { Prepared } from "./prepare.ts";
 import { amplifyIconsField, collector, errataStatus, schemeIconsField, stripQuotes } from "./values.ts";
 
@@ -67,7 +74,11 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
   const errors: string[] = [];
   const flat = flatten(
     applySetRecodes(
-      applyTypeCorrections(applyAddedRecords(raw, curation, errors), curation.corrections, errors),
+      applyStarFlagCorrections(
+        applyTypeCorrections(applyAddedRecords(raw, curation, errors), curation.corrections, errors),
+        curation.corrections,
+        errors,
+      ),
       curation,
       errors,
     ),
@@ -263,7 +274,7 @@ export function baseFields(
     ...(p.cardBack ? { cardBack: p.cardBack } : {}),
     ...(p.definedCounterTypes ? { definedCounterTypes: p.definedCounterTypes } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),
-    ...amplifyIconsField(p.raw),
+    ...(p.amplifyIcons !== undefined ? { amplifyIcons: p.amplifyIcons } : amplifyIconsField(p.raw)),
     ...schemeIconsField(p.raw),
   };
 }

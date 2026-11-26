@@ -39,6 +39,8 @@ export interface Prepared {
   readonly schemeIcons?: { readonly crisis?: number; readonly acceleration?: number; readonly hazard?: number };
   /** `Correction.startingThreatPerPlayer`: replaces `!base_threat_fixed` for a side scheme (absent: raw decides). */
   readonly startingThreatPerPlayer?: boolean;
+  /** `Correction.amplifyIcons`: the printed amplify icon count, replacing raw's (absent for every ordinary card). */
+  readonly amplifyIcons?: number;
   /** `Correction.startingThreat`: replaces `base_threat` for a side scheme (absent: raw decides). */
   readonly startingThreat?: number;
   readonly text: CardText;
@@ -99,6 +101,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let scheme: number | undefined;
   let dashedMinionStats: readonly ("atk" | "sch")[] | undefined;
   let schemeIcons: Prepared["schemeIcons"];
+  let amplifyIcons: number | undefined;
   let startingThreatPerPlayer: boolean | undefined;
   let startingThreat: number | undefined;
   // MarvelCDB's own `cost: -1` is an unambiguous encoding of a printed "X" cost (docs/phase7-wave2.md §1.3) —
@@ -161,6 +164,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.scheme !== undefined) scheme = c.scheme;
     if (c.dashedMinionStats !== undefined) dashedMinionStats = c.dashedMinionStats;
     if (c.schemeIcons !== undefined) schemeIcons = c.schemeIcons;
+    if (c.amplifyIcons !== undefined) amplifyIcons = c.amplifyIcons;
     if (c.startingThreatPerPlayer !== undefined) startingThreatPerPlayer = c.startingThreatPerPlayer;
     if (c.startingThreat !== undefined) startingThreat = c.startingThreat;
     if (c.specialCost !== undefined) specialCost = c.specialCost;
@@ -213,6 +217,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(scheme !== undefined ? { scheme } : {}),
     ...(dashedMinionStats ? { dashedMinionStats } : {}),
     ...(schemeIcons ? { schemeIcons } : {}),
+    ...(amplifyIcons !== undefined ? { amplifyIcons } : {}),
     ...(startingThreatPerPlayer !== undefined ? { startingThreatPerPlayer } : {}),
     ...(startingThreat !== undefined ? { startingThreat } : {}),
     text: { printed, current },

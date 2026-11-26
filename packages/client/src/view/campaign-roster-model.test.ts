@@ -313,16 +313,14 @@ describe("pickerSearchDocumentsOf", () => {
   });
 });
 
-describe("not-ready heroes in the campaign roster", () => {
-  test("a legal Elektra deck is a blocked picker row and a seat that cannot be signed", () => {
-    const elektra = legalDeckFor("63001a");
-    const row = rosterDeckOptions([null], 1, [elektra], POOL_VERSION).find((o) => o.deck.id === elektra.id)!;
-    expect(row.blocked).toBe(true);
-    expect(row.blockedReason).toBe("Not ready yet");
-    const model = rosterModelOf([elektra], POOL_CARDS);
-    expect(model.seats[0]!.legal).toBe(false);
-    expect(model.canSign).toBe(false);
-    expect(model.blockedReason).toBe("Not ready yet");
+describe("Elektra and Iron Fist in the campaign roster (released 2026-11-25)", () => {
+  test.each(["63001a", "64001a"])("a legal %s deck is an open picker row and a seat that can be signed", (id) => {
+    const deck = legalDeckFor(id);
+    const row = rosterDeckOptions([null], 1, [deck], POOL_VERSION).find((o) => o.deck.id === deck.id)!;
+    expect(row.blocked).toBe(false);
+    const model = rosterModelOf([deck], POOL_CARDS);
+    expect(model.seats[0]!.legal).toBe(true);
+    expect(model.canSign).toBe(true);
   });
 });
 
