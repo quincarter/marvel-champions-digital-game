@@ -418,6 +418,11 @@ export type CampaignGameQuery =
        * encounter deck must not be recorded (and carried into the next scenario) twice. Absent: every entry is kept.
        */
       readonly distinct?: true;
+      /**
+       * Cards taken into a player's hand count too: MC10 p. 10's rescued allies are rescued into hand when Captured
+       * by Hydra is defeated ("takes that ally into their hand"), and one never played is still rescued (issue #1012).
+       */
+      readonly orTakenIntoHand?: true;
     }
   /** MC60 p. 13: "Record the title of each unique ally and support that was removed from the game in the campaign log." */
   | { readonly kind: "cardsRemovedFromGame"; readonly query: TargetQuery }

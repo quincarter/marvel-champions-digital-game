@@ -39,6 +39,7 @@ import {
   characterProfile,
   discardZoneFor,
   getInstance,
+  getPlayer,
   isLooseVillainCard,
   isMinion,
   locateCard,
@@ -1543,6 +1544,44 @@ function endedByBoostCancel(
 }
 
 /**
+ * RRG 1.8 "Player Elimination" (p. 34): "If a player is eliminated in the middle of an attack, that attack ends", and
+ * "Eliminated players no longer participate in the game". An enemy attack whose target player has been eliminated
+ * (in its "when … attacks" interrupt window, by a boost card's ability, at its damage step's interrupts) ends at
+ * whatever step it has reached: no boost card is given or turned faceup, nobody is asked to defend, no damage is dealt.
+ * FFG ruling (RRG 1.0-1.4 rulings, "Expansion card questions part 5", question 3, scenario 4, confirmed by Alex): "if
+ * a defending hero was defeated during the boost card step … the attack will not deal any damage at the end because
+ * the target player was eliminated". The attack event's own response step still follows, as for any enemy attack that
+ * ends before its damage is dealt (RRG 1.8 "Attack (Enemy Activation)", p. 9: "abilities that trigger after an attack
+ * or after a character defends an attack resolve as normal"), the same path as an attacker leaving play mid-procedure.
+ *
+ * p. 34 says "a player", not the target: the attacked player's elimination ends the attack even after another player's
+ * ally has defended it, and so does the defending ally's controller's (rules-expert, issue #1012). Both players the
+ * attack involves are read; a third player eliminated by an interrupt mid-attack is not tracked here.
+ *
+ * Boost cards already given for this activation are discarded, each to its own discard pile, as for an activation its
+ * own boost card cancelled (`endedByBoostCancel`, same engine interpretation). Ended at the give-boost step, nothing has
+ * been given yet, so boost cards the enemy holds from outside this activation stay on it.
+ */
+function endedByTargetElimination(ctx: Ctx, frame: Frame<"enemyAttack">): boolean {
+  if (frame.stage === "done" || frame.versusEnemy) return false;
+  const eliminated = (id: PlayerId): boolean => getPlayer(ctx.state, id)?.eliminated === true;
+  if (!eliminated(frame.targetPlayerId) && !eliminated(frame.attackedPlayerId)) return false;
+  if (frame.stage !== "giveBoost") {
+    for (const id of [...(getInstance(ctx.state, frame.enemyInstanceId)?.boostCards ?? [])]) {
+      moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    }
+  }
+  emit(ctx, {
+    type: "activationSkipped",
+    enemyInstanceId: frame.enemyInstanceId,
+    activation: "attack",
+    reason: "targetEliminated",
+  });
+  setFrame(ctx, { ...frame, stage: "done", boost: null });
+  return true;
+}
+
+/**
  * RRG 1.8 "Attack (Enemy Activation)" step 5 (p. 9): "If the defending ally leaves play prior to damage from the
  * attack being dealt, the attack is considered to have no character defending and the identity of that ally's
  * controller becomes the target of the attack." "Defend, Defense" (p. 16): "if a defending ally is defeated before
@@ -1615,6 +1654,7 @@ function defenseDecider(state: GameState, frame: Frame<"enemyAttack">): PlayerId
 export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): void {
   if (endedByLeavingPlay(ctx, frame, "attack")) return;
   if (endedByBoostCancel(ctx, frame, "attack")) return;
+  if (endedByTargetElimination(ctx, frame)) return;
   switch (frame.stage) {
     case "giveBoost":
       return giveBoostStep(ctx, frame, frame.versusEnemy ? "flipBoosts" : "declareDefender", "attack");

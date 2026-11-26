@@ -202,6 +202,37 @@ describe("CampaignGameQuery.cardsThatEnteredPlay (MC10 p. 5)", () => {
   it("with `distinct`, lists each card once however often it entered play", () => {
     expect(recordedWith(true)).toEqual({ kind: "cardList", cardIds: ["fp-3"] });
   });
+
+  // Issue #1012: MC10 p. 10's rescued allies go into hand when Captured by Hydra is defeated, and one never played is
+  // still rescued. A draw from the deck is not.
+  it("with `orTakenIntoHand`, a card moved into a hand from anywhere but a deck counts too", () => {
+    const fp2 = state.encounterDecks[state.encounterDeckOrder[0]!]!.discard[0]!;
+    const fp1 = state.encounterDecks[state.encounterDeckOrder[0]!]!.deck[1]!;
+    const player = state.players[0]!.playerId;
+    const taken: GameEvent = {
+      type: "cardMoved",
+      instanceId: fp2,
+      cardId: cardId("fp-2"),
+      from: { kind: "tucked", hostInstanceId: fp3 },
+      to: { kind: "hand", playerId: player },
+    } as GameEvent;
+    const drawn: GameEvent = {
+      type: "cardMoved",
+      instanceId: fp1,
+      cardId: cardId("fp-1"),
+      from: { kind: "deck", playerId: player },
+      to: { kind: "hand", playerId: player },
+    } as GameEvent;
+    const definition = record([
+      {
+        field: "found",
+        mode: "append",
+        value: { kind: "cardsThatEnteredPlay", query: FP_QUERY, distinct: true, orTakenIntoHand: true },
+      },
+    ]);
+    const result = campaignResultOf(definition, composedLog(definition), state, [taken, entered, drawn], DEFAULT_DEPS);
+    expect(result.records[0]?.write.value).toEqual({ kind: "cardList", cardIds: ["fp-2", "fp-3"] });
+  });
 });
 
 describe("LogWriteSpec.distinct on a cardList append", () => {

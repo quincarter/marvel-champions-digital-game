@@ -87,6 +87,15 @@ const enteredPlay = (events: readonly GameEvent[]): readonly InstanceId[] =>
       : [],
   );
 
+/** `enteredPlay`, with every card moved into a player's hand from anywhere but their deck, in event order. */
+const enteredPlayOrHand = (events: readonly GameEvent[]): readonly InstanceId[] =>
+  events.flatMap((event) => {
+    if (event.type === "triggerEvent" && event.phase === "resolved" && event.event.kind === "cardEntersPlay")
+      return [event.event.instanceId];
+    if (event.type === "cardMoved" && event.to.kind === "hand" && event.from.kind !== "deck") return [event.instanceId];
+    return [];
+  });
+
 /** MC60 p. 13: "each unique ally and support that was removed from the game". Read off the zone transitions. */
 const removedFromGame = (events: readonly GameEvent[]): readonly InstanceId[] =>
   events.flatMap((event) =>
@@ -127,7 +136,7 @@ function evaluateQuery(
   const context = contextFor(state, playerId, deps);
   switch (query.kind) {
     case "cardsThatEnteredPlay": {
-      const entered = enteredPlay(events);
+      const entered = query.orTakenIntoHand ? enteredPlayOrHand(events) : enteredPlay(events);
       const ids = query.distinct ? [...new Set(entered)] : entered;
       return { kind: "cards", instanceIds: matching(state, ids, query.query, context) };
     }

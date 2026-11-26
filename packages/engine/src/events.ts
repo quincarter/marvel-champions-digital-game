@@ -1031,12 +1031,16 @@ export type GameEvent =
       readonly activation: "attack" | "scheme";
       readonly playerId: PlayerId;
     }
-  /** An initiated activation did nothing because the enemy's stat for it is printed "—" (`dashedStatSkipsActivation`). */
+  /**
+   * An initiated activation did nothing more: the enemy's stat for it is printed "—" (`dashedStatSkipsActivation`), the
+   * enemy left play, or (an attack) its target player was eliminated (`endedByTargetElimination`, RRG 1.8 "Player
+   * Elimination", p. 34).
+   */
   | {
       readonly type: "activationSkipped";
       readonly enemyInstanceId: InstanceId;
       readonly activation: "attack" | "scheme";
-      readonly reason: "dashedStat" | "leftPlay";
+      readonly reason: "dashedStat" | "leftPlay" | "targetEliminated";
     }
   /**
    * An activation cancelled by a "Boost" ability of one of its own boost cards (`EffectSpec cancelBoostedActivation`)
