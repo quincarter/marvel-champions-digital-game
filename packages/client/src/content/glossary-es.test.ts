@@ -37,4 +37,10 @@ describe("GLOSSARY_ES", () => {
     expect(GLOSSARY_ES["boost"]!.definition).toMatch(/salvo un esbirro Infame/);
     expect(GLOSSARY_ES["boost"]!.definition).not.toMatch(/nunca reciben/);
   });
+
+  it("Equipo counts an identity in either form or an Aliado, and Amenaza completes a stage (RRG 1.8 pp. 27, 43, 48)", () => {
+    expect(GLOSSARY_ES["teamUp"]!.definition).toMatch(/como Aliado/);
+    expect(GLOSSARY_ES["teamUp"]!.definition).not.toMatch(/no cuenta/);
+    expect(GLOSSARY_ES["threat"]!.definition).toMatch(/esa etapa se completa/);
+  });
 });

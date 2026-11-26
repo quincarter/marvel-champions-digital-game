@@ -12,6 +12,7 @@ import type { McSheet } from "@mc/ui";
 import type Phaser from "phaser";
 import { surface } from "../tokens.js";
 import { isDesktopType } from "../ui/desktop-type.js";
+import { ActivationGate } from "./activation-gate.js";
 import { DomRegion, renderNow } from "./dom-region.js";
 import { SheetBuilder } from "./sheet-builder.js";
 import type { Rect } from "../view/layout.js";
@@ -21,15 +22,24 @@ export class PopupSheet {
   readonly #onActivate: (key: string) => void;
   readonly #onHover: ((key: string, over: boolean) => void) | undefined;
   #region: DomRegion<McSheet> | null = null;
+  /** One activation a frame, none once the scene stops or turns its input off (a second Send/Concede/Confirm tap). */
+  readonly #gate: ActivationGate;
 
   /** `onActivate` hears a button's key when it is tapped; `onHover`, a mouse moving onto or off a tracked tap area. */
   constructor(scene: Phaser.Scene, onActivate: (key: string) => void, onHover?: (key: string, over: boolean) => void) {
     this.#scene = scene;
     this.#onActivate = onActivate;
     this.#onHover = onHover;
+    this.#gate = new ActivationGate(scene);
     scene.events.once("shutdown", () => {
+      this.#gate.destroy();
       this.#region = null;
     });
+  }
+
+  /** The panel element once mounted (to reach a part, e.g. to scroll a region). */
+  get element(): McSheet | null {
+    return this.#region?.element ?? null;
   }
 
   /** A builder over the whole screen, with the dim scrim (Phaser's `void`, at 0.7 unless `scrim` says) already laid. */
@@ -44,6 +54,7 @@ export class PopupSheet {
     if (!this.#region) {
       const element = document.createElement("mc-sheet") as McSheet;
       element.addEventListener("mc-activate", (event) => {
+        if (!this.#gate.take()) return;
         this.#onActivate((event as CustomEvent<{ key: string }>).detail.key);
       });
       if (this.#onHover) {

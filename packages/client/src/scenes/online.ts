@@ -42,6 +42,7 @@ import {
   LIVE_HEADING_HEIGHT,
   LIVE_ROW_GAP,
   LIVE_ROW_HEIGHT,
+  liveRowKey,
   liveRowsOf,
   onlineLayout,
   type LiveRow,
@@ -646,7 +647,8 @@ export class OnlineScene extends Phaser.Scene {
       this.#paragraph(b, x, y + 6 + title.height + 6, width, t("online.liveEmptyBody"));
       return;
     }
-    rows.forEach((row, i) => {
+    rows.forEach((row) => {
+      const key = liveRowKey(row);
       const box: Rect = { x, y, width, height: LIVE_ROW_HEIGHT };
       // An opaque ground, then the half-strength outline over it (the outline alone is translucent).
       b.box(box, { fill: surface.paper.hex });
@@ -687,9 +689,9 @@ export class OnlineScene extends Phaser.Scene {
       );
       // Watch and Join both open the room's lobby by its code; there a watcher can ask for a seat, so one path serves both.
       const go = (): void => this.#startJoin(row.target);
-      this.#actions.set(`live:${i}`, go);
+      this.#actions.set(key, go);
       b.button({
-        key: `live:${i}`,
+        key: key,
         rect: buttonRect,
         label: t(
           row.action === "watch" ? "online.liveWatch" : row.action === "join" ? "online.liveJoin" : "online.liveRejoin",
@@ -698,8 +700,8 @@ export class OnlineScene extends Phaser.Scene {
         type: typeRole.label,
         ...(busy ? { disabled: true as const } : {}),
       });
-      stops.set(`live:${i}`, { rect: buttonRect, activate: go });
-      order.push(`live:${i}`);
+      stops.set(key, { rect: buttonRect, activate: go });
+      order.push(key);
       y += LIVE_ROW_HEIGHT + LIVE_ROW_GAP;
     });
   }

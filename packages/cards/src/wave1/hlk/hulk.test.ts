@@ -9,6 +9,7 @@ import {
   paymentFor,
   remainingHitPoints,
   type Command,
+  type EngineDeps,
   type GameSetupConfig,
   type GameState,
   type InstanceId,
@@ -28,12 +29,14 @@ import {
   play,
   playerOf,
   resourceAbility,
+  runWith,
   settle,
   stackEncounterDeck,
   toHero,
   use,
 } from "../../testing/harness.js";
-import { wave1Scenario } from "../setup.js";
+import { CORE_ABILITIES } from "../../core/index.js";
+import { wave1Scenario, wave1StarterDeckSetup } from "../setup.js";
 import { HLK_DEPS, runHlk, startHlkGame } from "./testing.js";
 
 // Real wave 1 content: the Hulk (Aggression) precon against Rhino, standard, solo.
@@ -140,8 +143,9 @@ describe("Hulk / Bruce Banner kit", () => {
   // physical resources can pay for this card"), because legality priced a wallet of everything in hand at once.
   describe("Crushing Blow is offered when a [physical] payment exists alongside other resources (#648)", () => {
     /** Hulk in hero form holding exactly these cards; the rest of the opening hand goes back to the deck. */
-    const holding = (...codes: string[]) => {
-      const hero = runHlk(hulkGame(), toHero());
+    const holding = (...codes: string[]) => holdingIn(hulkGame(), ...codes);
+    function holdingIn(game: GameState, ...codes: string[]) {
+      const hero = runHlk(game, toHero());
       const given = moveToHand(hero, P1, ...codes);
       const state: GameState = {
         ...given.state,
@@ -152,7 +156,7 @@ describe("Hulk / Bruce Banner kit", () => {
         ),
       };
       return { state, ids: given.ids };
-    };
+    }
     const playOf = (state: GameState, id: InstanceId) => {
       const legal = legalActions(state, P1, HLK_DEPS);
       if (legal.kind !== "turn") throw new Error(`expected a turn, got ${legal.kind}`);
@@ -182,6 +186,84 @@ describe("Hulk / Bruce Banner kit", () => {
       const { legal, illegal } = playOf(state, ids[0]!);
       expect(legal).toBeUndefined();
       expect(illegal?.reason).toBe("insufficient_resources");
+    });
+
+    // Issue #1028: with its cost reduced to 0 by Helicarrier, Crushing Blow needs no resources, so the [physical]
+    // restriction has nothing to refuse (FAQ "Crushing Blow (#2)", RRG 1.8 p. 60). It read as unaffordable when the
+    // hand held no [physical] resource, because legality never tried paying nothing.
+    const DEPS: EngineDeps = { abilities: { ...CORE_ABILITIES, ...HLK_DEPS.abilities } };
+    /** The Hulk (Aggression) precon with its last card swapped for Helicarrier (01092, basic). */
+    const helicarrierGame = () => {
+      const precon = wave1StarterDeckSetup("hlk-aggression");
+      const deck = [...precon.deck!.slice(0, -1), "01092"];
+      return startHlkGame(wave1Scenario("rhino", { players: [{ ...precon, deck }], seed: 17 }));
+    };
+    /** Hulk holding Crushing Blow and these cards, with Helicarrier (01092) in play and used on himself. */
+    const afterHelicarrier = (...others: string[]) => {
+      const { state, ids } = holdingIn(helicarrierGame(), "10002", ...others);
+      const crushingBlow = ids[0]!;
+      const helicarrier = instancesOf(state, "01092")[0]!;
+      const away = (zone: readonly InstanceId[]) => zone.filter((id) => id !== helicarrier);
+      const inPlay: GameState = {
+        ...state,
+        players: state.players.map((p) =>
+          p.playerId === P1
+            ? { ...p, hand: away(p.hand), deck: away(p.deck), playArea: [...p.playArea, helicarrier] }
+            : p,
+        ),
+      };
+      const used = settle(
+        runWith(DEPS, inPlay, use(P1, helicarrier, "01092.helicarrier-action")),
+        picking(P1),
+        undefined,
+        DEPS,
+      );
+      expect(inst(used, helicarrier).exhausted).toBe(true);
+      return { state: used, crushingBlow, others: ids.slice(1) };
+    };
+    const freePlayOf = (state: GameState, id: InstanceId) => {
+      const legal = legalActions(state, P1, DEPS);
+      if (legal.kind !== "turn") throw new Error(`expected a turn, got ${legal.kind}`);
+      return legal.legal.find((a) => a.action.kind === "playCard" && a.action.instanceId === id);
+    };
+
+    it("is played for free with only a [mental] resource in hand, and the reduction is used up", () => {
+      const { state, crushingBlow, others } = afterHelicarrier("10021");
+      const genius = others[0]!;
+      const legal = freePlayOf(state, crushingBlow);
+      expect(legal).toBeDefined();
+      expect(legal!.needsPayment).toBe(false);
+      const example = legal!.example as Extract<Command, { type: "playCard" }>;
+      expect(example.payment).toEqual([]);
+
+      const villain = activeVillain(state).instanceId;
+      const hpBefore = remainingHitPoints(state, villain, DEPS)!;
+      const reductionsBefore = state.lastingEffects.filter((e) => e.kind === "costReduction").length;
+      expect(reductionsBefore).toBeGreaterThan(0);
+      const after = settle(runWith(DEPS, state, example), firstLegal, undefined, DEPS);
+      // Hulk's printed ATK is 3 (packages/content/src/data/hlk/cards.ts, 10001a).
+      expect(remainingHitPoints(after, villain, DEPS)).toBe(hpBefore - 3);
+      expect(playerOf(after, P1).hand).toContain(genius);
+      expect(playerOf(after, P1).discard).toContain(crushingBlow);
+      expect(after.lastingEffects.filter((e) => e.kind === "costReduction")).toHaveLength(reductionsBefore - 1);
+    });
+
+    it("is played for free with an empty hand too (a guard: this case already worked before #1028)", () => {
+      const { state, crushingBlow } = afterHelicarrier();
+      const legal = freePlayOf(state, crushingBlow);
+      expect(legal?.needsPayment).toBe(false);
+      expect((legal!.example as Extract<Command, { type: "playCard" }>).payment).toEqual([]);
+    });
+
+    it("still refuses a [mental] resource spent on the free cost, for the [physical] restriction", () => {
+      const { state, crushingBlow, others } = afterHelicarrier("10021");
+      const result = applyCommand(state, play(P1, crushingBlow, [others[0]!]), DEPS);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toMatchObject({
+        code: "insufficient_resources",
+        message: "only physical resources can pay for this card",
+      });
     });
   });
 

@@ -225,7 +225,8 @@ export class McLazyText extends Phaser.GameObjects.Text {
     const copy = document.createElement("canvas");
     copy.width = own.width;
     copy.height = own.height;
-    const context = copy.getContext("2d");
+    // A software canvas: the copy is only ever uploaded, and an accelerated one held GPU memory of its own per label.
+    const context = copy.getContext("2d", { willReadFrequently: true });
     if (!context) return;
     context.drawImage(own, 0, 0);
     painted.set(key, {

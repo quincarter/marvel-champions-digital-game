@@ -197,6 +197,8 @@ export class SheetBuilder {
       textTransform: spec.uppercase ? "uppercase" : "none",
       fontStyle: options.italic ? "italic" : "normal",
       whiteSpace: options.wrapWidth !== undefined ? "pre-wrap" : "pre",
+      // A long unbroken word or URL breaks at the width instead of running out of its box.
+      ...(options.wrapWidth !== undefined ? { overflowWrap: "anywhere" } : {}),
       ...(options.wrapWidth !== undefined ? { width: `${options.wrapWidth}px` } : {}),
     };
     return { node, css };

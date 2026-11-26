@@ -897,7 +897,8 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Team-Up",
     definition:
-      "This keyword names two characters. A player can only include the card in their deck if their identity is one of the two, and can't play it unless both named characters are in play showing their hero side (an identity in alter-ego form doesn't count).",
+      "This keyword names two characters. A player can only include the card in their deck if their identity's hero or alter-ego title matches one of the two. The card can only be played while both named characters are in play as friendly characters, either as an identity in either form or as an ally whose title or subtitle matches.",
+    // RRG v1.8 p. 43 Team-Up: a friendly identity (either form) or ally by title or subtitle; rulings 2025-07-11, 2025-09-12.
     sources: [{ kind: "rrg", page: 43 }],
   },
   teamwork: {
@@ -1060,8 +1061,12 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Threat",
     definition:
-      "Threat is what piles up on the main scheme and side schemes as the villain phase goes by. If the main scheme's threat reaches its target, the villain wins the game.",
-    sources: [{ kind: "rrg", page: 44 }],
+      "Threat is what piles up on the main scheme and side schemes as the villain phase goes by. When the main scheme's threat reaches its target, that stage is completed and the next main scheme stage comes in. If the final stage is completed, the villain wins, unless the scenario says otherwise.",
+    sources: [
+      { kind: "rrg", page: 44 },
+      { kind: "rrg", page: 27 },
+      { kind: "rrg", page: 48 },
+    ],
   },
   mainScheme: {
     id: "mainScheme",

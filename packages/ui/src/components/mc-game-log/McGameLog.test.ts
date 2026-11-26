@@ -197,5 +197,39 @@ describe("mc-game-log", () => {
       expect(log.following).toBe(false);
       log.remove();
     });
+
+    it("lands on the first surviving line when the retention limit trims the anchor", async () => {
+      Object.defineProperty(HTMLElement.prototype, "offsetTop", {
+        configurable: true,
+        get(this: HTMLElement) {
+          return this.classList.contains("line") ? [...this.parentElement!.children].indexOf(this) * 100 : 0;
+        },
+      });
+      const log = await mounted(lines(10));
+      const scroller = log.scroller!;
+      Object.defineProperty(scroller, "scrollHeight", { configurable: true, get: () => 1000 });
+      Object.defineProperty(scroller, "clientHeight", { configurable: true, get: () => 250 });
+      let top = 0;
+      Object.defineProperty(scroller, "scrollTop", {
+        configurable: true,
+        get: () => top,
+        set: (v: number) => {
+          top = v;
+        },
+      });
+      scroller.dispatchEvent(new Event("scroll"));
+      await log.updateComplete;
+      expect(log.following).toBe(false);
+      // The anchor is l1; l1 to l4 are trimmed as four lines arrive, so l5 (now first) is the nearest survivor.
+      log.lines = lines(14).slice(4);
+      await log.updateComplete;
+      expect(scroller.scrollTop).toBe(0);
+      expect(scroller.querySelector<HTMLElement>(".line")?.dataset.id).toBe("l5");
+      // Everything trimmed: the first line of the new list.
+      log.lines = lines(40).slice(30);
+      await log.updateComplete;
+      expect(scroller.scrollTop).toBe(0);
+      log.remove();
+    });
   });
 });
