@@ -168,14 +168,16 @@ describe("packNameOf", () => {
   });
 
   test("POOL_PACKS covers Core and every wave 1, cycle 1, cycle 2, cycle 3 and cycle 4 (shipped-so-far) cycle 6 to cycle 10 pack (Civil War, Synthezoid Smackdown), with no duplicate codes", () => {
-    expect(POOL_PACKS.length).toBe(64);
-    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(64);
+    expect(POOL_PACKS.length).toBe(66);
+    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(66);
     expect(packNameOf("cw")).toBe("Civil War");
     expect(packNameOf("synthezoid")).toBe("Synthezoid Smackdown");
     expect(packNameOf("wonder_man")).toBe("Wonder Man");
     expect(packNameOf("hercules")).toBe("Hercules");
     expect(packNameOf("jj")).toBe("Jessica Jones");
     expect(packNameOf("luke_cage")).toBe("Luke Cage");
+    expect(packNameOf("elektra")).toBe("Elektra");
+    expect(packNameOf("iron_fist")).toBe("Iron Fist");
     expect(packNameOf("shadowland")).toBe("Shadowland");
   });
 });
