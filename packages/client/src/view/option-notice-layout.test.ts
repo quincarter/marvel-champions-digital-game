@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutNotice, noticeButtonKey, noticeButtonOf } from "./option-notice-layout.js";
+import { layoutNotice, noticeButtonKey, noticeButtonOf, noticeTextKey } from "./option-notice-layout.js";
 
 const long = {
   titleHeight: 48,
@@ -43,5 +43,12 @@ describe("notice button identity", () => {
     expect(noticeButtonOf(noticeButtonKey("ok", 3, false), 3)).toBe("ok");
     expect(noticeButtonOf(noticeButtonKey("never", 3, false), 4)).toBeNull();
     expect(noticeButtonOf("cancel", 3)).toBeNull();
+  });
+});
+
+describe("noticeTextKey", () => {
+  test("is one key per notice, so a queued notice does not inherit the last one's scroll", () => {
+    expect(noticeTextKey(1)).not.toBe(noticeTextKey(2));
+    expect(noticeTextKey(2)).toBe(noticeTextKey(2));
   });
 });

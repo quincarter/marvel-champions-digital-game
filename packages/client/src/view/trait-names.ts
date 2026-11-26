@@ -13,6 +13,8 @@ const TRAITS_ES: Readonly<Record<string, string>> = {
   GUARDIAN: "Guardián",
   ELITE: "Élite",
   SPELL: "Hechizo",
+  LABOR: "Trabajo",
+  GIFT: "Don",
 };
 
 /** The trait in `lang` when the catalog has it, else null (the caller keeps the English trait). */

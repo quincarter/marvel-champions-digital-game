@@ -254,6 +254,34 @@ test("a notice with long reasons on a short phone scrolls its text and both butt
   expect(errors).toEqual([]);
 });
 
+test("the next queued notice opens at the top of its text, not at the bottom the last one was read to", async ({
+  page,
+}) => {
+  const errors = trackPageErrors(page);
+  await page.setViewportSize({ width: 375, height: 500 });
+  const why = "A long reason that wraps over several lines so the notice text has to scroll on a short phone screen.";
+  const long = (title: string) => ({
+    title,
+    rows: [
+      { kind: "taken", label: "Take this" },
+      ...[2, 3, 4, 5, 6].map((n) => ({ kind: "unavailable", label: `Option ${n}`, why })),
+    ],
+  });
+  await launch(page, NOTICE, { notices: [long("First long notice"), long("Second long notice")] });
+  const panel = sheet(page, NOTICE);
+  await expect(panel).toContainText("First long notice");
+  const scroller = panel.locator('[data-key^="notice-text"]');
+  const scrolled = await scroller.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+    return el.scrollTop;
+  });
+  expect(scrolled).toBeGreaterThan(0);
+  await panel.locator('mc-button[data-key^="ok:"]').click();
+  await expect(panel).toContainText("Second long notice");
+  expect(await panel.locator('[data-key^="notice-text"]').evaluate((el) => el.scrollTop)).toBe(0);
+  expect(errors).toEqual([]);
+});
+
 test("a press begun on one notice's button and finished after another input dismissed it does not act on the next", async ({
   page,
 }) => {

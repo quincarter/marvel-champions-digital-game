@@ -86,3 +86,9 @@ export function noticeButtonOf(key: string, current: number): NoticeButton | nul
   if ((button !== "ok" && button !== "never") || Number(id) !== current) return null;
   return button;
 }
+
+/**
+ * The DOM key of a notice's scrolling text: one per notice, so the next queued notice opens at its top (the sheet keeps a
+ * keyed scroller's position across redraws, which is wanted for the same notice, on a resize or a glyph change).
+ */
+export const noticeTextKey = (noticeId: number): string => `notice-text:${noticeId}`;

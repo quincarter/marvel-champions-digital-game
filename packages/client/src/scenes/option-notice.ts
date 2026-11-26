@@ -18,7 +18,7 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { glyphsFitFormFactor } from "../view/glyph-placement.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import type { OptionNotice } from "../view/option-notice.js";
-import { layoutNotice, noticeButtonKey, noticeButtonOf } from "../view/option-notice-layout.js";
+import { layoutNotice, noticeButtonKey, noticeButtonOf, noticeTextKey } from "../view/option-notice-layout.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { anyPadButtonHeld } from "./press-guard.js";
@@ -105,7 +105,8 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       primary: () => "ok",
       // The right stick scrolls the text when it is taller than the screen.
       onScroll: (_dx, dy) => {
-        const text = this.#panel.element?.elementOf("notice-text");
+        const current = this.#notices[0];
+        const text = current ? this.#panel.element?.elementOf(noticeTextKey(this.#idOf(current))) : undefined;
         if (text) text.scrollTop += dy;
       },
       onToggle: () => {
@@ -199,7 +200,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     const { box } = layout;
     b.box(box, { fill: surface.paper.hex, stroke: surface.ink.hex, strokeWidth: 4 });
     // The text and the option rows scroll in a region bounded to the box; the buttons below it are always on screen.
-    b.scroll("notice-text", layout.scroll, layout.contentHeight, (sb) => {
+    b.scroll(noticeTextKey(this.#idOf(notice)), layout.scroll, layout.contentHeight, (sb) => {
       const x = box.x + 20;
       sb.text(x, layout.titleY, notice.title, titleSpec, { color: surface.ink.hex, wrapWidth: textWidth });
       sb.text(x, layout.leadY, leadText, bodySpec, { color: surface.ink.hex, alpha: 0.9, wrapWidth: textWidth });

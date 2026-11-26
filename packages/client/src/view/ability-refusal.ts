@@ -65,12 +65,31 @@ type Query = { readonly trait?: string; readonly name?: string };
 
 const titleCase = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 
-/** "a Labor card" for a trait query, "Appeal to Athena" for a named one, null for a query it cannot word. */
-function queryNoun(state: GameState, query: Query): string | null {
-  if (query.name) return namedCard(state, query.name);
-  if (query.trait) return `${traitWord(query.trait)} card`;
+/** The article English puts before a word ("a Labor card", "an Avenger card"); the key suffix picks it (Spanish has one wording for both). */
+const articleOf = (word: string): "a" | "an" => (/^[AEIOU]/i.test(word) ? "an" : "a");
+
+/** A query's card as the sentences below word it: its displayed name or trait, and the key suffix of its shape. */
+function queryCard(
+  state: GameState,
+  query: Query,
+): { kind: "named" | "trait"; shown: string; article: "a" | "an" } | null {
+  if (query.name) {
+    const shown = namedCard(state, query.name);
+    return { kind: "named", shown, article: articleOf(shown) };
+  }
+  if (query.trait) {
+    const shown = traitWord(query.trait);
+    return { kind: "trait", shown, article: articleOf(shown) };
+  }
   return null;
 }
+
+/** A separate deck's name as the sentence shows it ("Labor" is "Trabajos" on the Spanish cards); unlisted ones stay as is. */
+const DECK_WORDS: Readonly<Record<string, MessageKey>> = {
+  Labor: "refusal.deck.Labor",
+  Gift: "refusal.deck.Gift",
+};
+const deckWord = (deck: string): string => (DECK_WORDS[deck] ? t(DECK_WORDS[deck]!) : deck);
 
 /** The clauses of a `while`: an `and` is its parts, anything else is one clause. */
 function clausesOf(predicate: Predicate): readonly Predicate[] {
@@ -86,15 +105,17 @@ function failedClause(
   const read = (value: ValueSpec): number =>
     resolveValue(state, value, { ...context, event: null, bindings: {} }, context.deps);
   if (clause.kind === "not" && clause.of.kind === "exists") {
-    const noun = queryNoun(state, clause.of.query as Query);
-    if (!noun) return null;
+    const card = queryCard(state, clause.of.query as Query);
+    if (!card) return null;
     const present = read({ kind: "count", query: clause.of.query });
-    return present > 0 ? `${/^[AEIOU]/.test(noun) ? "an" : "a"} ${noun} is in play` : null;
+    return present > 0 ? t(`refusal.inPlay.${card.kind}.${card.article}` as MessageKey, { shown: card.shown }) : null;
   }
   if (clause.kind === "exists") {
-    const noun = queryNoun(state, clause.query as Query);
-    if (!noun) return null;
-    return read({ kind: "count", query: clause.query }) > 0 ? null : `no ${noun} is in play`;
+    const card = queryCard(state, clause.query as Query);
+    if (!card) return null;
+    return read({ kind: "count", query: clause.query }) > 0
+      ? null
+      : t(card.kind === "named" ? "refusal.noneNamed" : "refusal.noneTrait", { shown: card.shown });
   }
   if (clause.kind === "compare" && clause.op === "atLeast" && clause.right.kind === "const") {
     const have = read(clause.left);
@@ -102,7 +123,8 @@ function failedClause(
     if (have >= need) return null;
     const left = clause.left;
     if (left.kind === "deckCount" && left.separateDeck) {
-      return have === 0 ? `the ${left.separateDeck} deck is empty` : `only ${have} in the ${left.separateDeck} deck`;
+      const deck = deckWord(left.separateDeck);
+      return have === 0 ? t("refusal.deckEmpty", { deck }) : t("refusal.deckOnly", { have, deck });
     }
   }
   return null;
@@ -493,7 +515,7 @@ export function unofferedReason(
 
 /** The ability's printed name ("New Labors of Hercules"), or "This ability" when the card does not print one. */
 export function abilityNameOf(state: GameState, instanceId: InstanceId, abilityId: AbilityId): string {
-  return activeAbilityRefs(state, instanceId).find((ref) => ref.id === abilityId)?.label ?? "This ability";
+  return activeAbilityRefs(state, instanceId).find((ref) => ref.id === abilityId)?.label ?? t("refusal.thisAbility");
 }
 
 /**
@@ -509,5 +531,5 @@ export function refusedAbilityLine(
   named = false,
 ): string {
   const reason = abilityRefusalReason(state, instanceId, controllerId, abilityId, deps);
-  return named ? `${abilityNameOf(state, instanceId, abilityId)}: ${reason}` : `Can't use: ${reason}`;
+  return named ? `${abilityNameOf(state, instanceId, abilityId)}: ${reason}` : t("refusal.cantUse", { why: reason });
 }
