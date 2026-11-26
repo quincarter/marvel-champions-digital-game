@@ -183,6 +183,51 @@ describe("Hulk / Bruce Banner kit", () => {
       expect(legal).toBeUndefined();
       expect(illegal?.reason).toBe("insufficient_resources");
     });
+
+    // Issue #1028: with its cost reduced to 0 (Helicarrier), Crushing Blow needs no resources, so the [physical]
+    // restriction has nothing to refuse (FAQ "Crushing Blow (#2)", RRG 1.8 p. 60). It read as unaffordable when the
+    // hand held no [physical] resource, because legality never tried paying nothing.
+    const reducedToZero = (state: GameState, id: InstanceId): GameState => ({
+      ...state,
+      lastingEffects: [
+        ...state.lastingEffects,
+        {
+          id: "test.helicarrier",
+          kind: "costReduction",
+          playerId: P1,
+          amount: 1,
+          cardInstanceId: id,
+          duration: { kind: "endOfPhase" },
+        } as never,
+      ],
+    });
+
+    it("is legal for free when its cost is reduced to 0 and the hand holds only a [mental] resource", () => {
+      const { state, ids } = holding("10002", "10021");
+      const [crushingBlow] = ids as [InstanceId];
+      const free = reducedToZero(state, crushingBlow);
+      const { legal } = playOf(free, crushingBlow);
+      expect(legal).toBeDefined();
+      const example = legal!.example as Extract<Command, { type: "playCard" }>;
+      expect(example.payment).toEqual([]);
+      expect(applyCommand(free, example, HLK_DEPS).ok).toBe(true);
+    });
+
+    it("is legal for free with an empty hand too (a guard: this case already worked before #1028)", () => {
+      const { state, ids } = holding("10002");
+      const [crushingBlow] = ids as [InstanceId];
+      const free = reducedToZero(state, crushingBlow);
+      const { legal } = playOf(free, crushingBlow);
+      expect(legal).toBeDefined();
+      expect((legal!.example as Extract<Command, { type: "playCard" }>).payment).toEqual([]);
+    });
+
+    it("still refuses a [mental] resource spent on top of the free cost", () => {
+      const { state, ids } = holding("10002", "10021");
+      const [crushingBlow, genius] = ids as [InstanceId, InstanceId];
+      const free = reducedToZero(state, crushingBlow);
+      expect(applyCommand(free, play(P1, crushingBlow, [genius]), HLK_DEPS).ok).toBe(false);
+    });
   });
 
   it("Hulk Smash: +10 ATK on a basic attack, but no overkill when not paid using only [physical] resources", () => {
