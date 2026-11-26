@@ -60,6 +60,7 @@ import { startHangWatchdogHeartbeat } from "./platform/hang-watchdog.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
+import { setUiLayerDesktop } from "./dom/ui-layer.js";
 import { formFactorFor } from "./view/layout.js";
 import { applyViewportFit } from "./platform/platform.js";
 import { applyIosInputZoomGuard } from "./platform/ios-input-zoom.js";
@@ -109,6 +110,7 @@ applyIosInputZoomGuard();
 installLazyText();
 installDesktopType();
 setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop");
+setUiLayerDesktop(formFactorFor(window.innerWidth, window.innerHeight) === "desktop");
 
 // A device whose WebGL cannot draw gets a plain-text reason instead of a black page (`ui/startup-watchdog.ts`).
 const watchStartup = installStartupWatchdog();
@@ -309,9 +311,12 @@ onPowerSavingChange(() => applyScreenSettings(game, appSession().settings));
 watchPowerSaving();
 
 // Registered before any scene's own resize listener, so a screen redrawing on resize already draws at the new size.
-game.scale.on("resize", (size: Phaser.Structs.Size) =>
-  setDesktopType(formFactorFor(size.width, size.height) === "desktop"),
-);
+game.scale.on("resize", (size: Phaser.Structs.Size) => {
+  const desktop = formFactorFor(size.width, size.height) === "desktop";
+  setDesktopType(desktop);
+  // The Lit panels' small text grows with Phaser's (`dom/ui-layer.ts`).
+  setUiLayerDesktop(desktop);
+});
 
 // Right-click is the desktop Inspect gesture, so the browser's own menu has to
 // stay out of the way of it. Phaser 4 has no game-config flag for this, only

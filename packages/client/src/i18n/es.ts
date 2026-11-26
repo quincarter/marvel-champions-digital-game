@@ -1255,4 +1255,20 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "deckBuilder.pickSubtitle": "Elige todos los que quieras. Si no eliges ninguno, se muestran todos.",
   "deckBuilder.pickAll": "Todos",
   "deckBuilder.pickDone": "Listo",
+  "credits.title": "Arte y créditos",
+  "credits.back": "◂ EXTRAS",
+  "credits.shownIn": "Aparece en: {where}",
+  "credits.intro.fanProject":
+    "Este es un proyecto hecho por fans y sin ánimo de lucro. Marvel Champions: El Juego de Cartas, el texto de sus cartas, sus ilustraciones y sus personajes son propiedad intelectual de Fantasy Flight Games y Marvel.",
+  "credits.intro.terms":
+    "Este proyecto no te concede ninguna licencia sobre el arte, la música ni el texto de las cartas que hay aquí. Cada pieza sigue siendo de las personas y empresas que se nombran abajo, con sus propias condiciones.",
+  "credits.group.game": "El juego",
+  "credits.group.cardArt": "Arte de las cartas y reglamentos",
+  "credits.group.heroVillainArt": "Arte de héroes, villanos y portada",
+  "credits.group.story": "Historia y páginas de cómic",
+  "credits.group.music": "Música y sonido",
+  "credits.group.tools": "Herramientas y bibliotecas",
+  "credits.notice.ffgMarvel": "Marvel Champions es de Fantasy Flight Games. Ilustraciones y personajes (c) Marvel.",
+  "credits.notice.marvel": "(c) Marvel. Se usa en este proyecto de fans; no se reclama ninguna propiedad.",
+  "credits.notice.artistNotRecorded": "Todavía no consta el artista ni la fuente original.",
 };

@@ -7,41 +7,41 @@
  * nothing (CLAUDE.md, no tap on finger lift); the only presses are the top bar's Back and the list's own scrolling.
  * A pad or keyboard walks the entries (each a focus stop that does nothing on A; the list follows the ring).
  * An entry whose artist or source the repo does not record says so in its credit line, in words.
+ *
+ * The list is a Lit panel over the canvas (`@mc/ui`'s `mc-credits-list`, mounted with `dom/dom-region.ts`): native
+ * text and scrolling, no Phaser objects to build or sign each frame. The top bar, Back and its glyph stay Phaser; the
+ * focus ring is drawn in the DOM (`dom/dom-ring.ts`), since a Phaser ring would sit under the panel.
  */
 import Phaser from "phaser";
-import { ink, surface, typeRole } from "../tokens.js";
-import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
+import "@mc/ui";
+import type { McCreditsList } from "@mc/ui";
+import { surface } from "../tokens.js";
+import { campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import { cssOf } from "../ui/theme.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
-import { McButton, fitText } from "../ui/widgets.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
+import { McButton } from "../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { clipToView } from "../view/focus-list.js";
-import { ListScroll } from "../view/list-scroll.js";
 import type { Rect } from "../view/layout.js";
-import {
-  CREDITS_TEXT,
-  creditsRowHeightOf,
-  creditsRowsOf,
-  shownInLabelOf,
-  type CreditsRow,
-} from "../view/credits-model.js";
+import { creditsRowsOf } from "../view/credits-model.js";
+import { DomRegion } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { t } from "../i18n/translate.js";
+import { onLanguageChange } from "../language-change.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
-/** Room at each row's right edge for the list's own scrollbar. */
-const GUTTER = 14;
-const PAD = 12;
+/** How far a page (Page Up / Down, a shoulder button) scrolls, as a share of the list's height. */
+const PAGE = 0.85;
 
 export class CreditsScene extends Phaser.Scene {
   #buttons: McButton[] = [];
-  #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
   #alive = false;
   #hints!: GlyphHints;
-  /** Kept across redraws and visits (Phaser reuses this scene instance). */
-  readonly #scroll = new ListScroll();
+  /** The list, a Lit panel over the canvas (`@mc/ui`'s `mc-credits-list`); made once a visit so its scroll stays. */
+  #region: DomRegion<McCreditsList> | null = null;
 
   constructor() {
     super(SCENES.credits);
@@ -54,15 +54,19 @@ export class CreditsScene extends Phaser.Scene {
     this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#back(),
-      onPage: (direction) => this.#list?.scrollByPage(direction),
-      onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
-      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      onPage: (direction) => this.#scrollBy(direction * this.#pageHeight()),
+      onHomeEnd: (edge) => this.#scroller()?.scrollTo({ top: edge === "home" ? 0 : Number.MAX_SAFE_INTEGER }),
+      onScroll: (_dx, dy) => this.#scrollBy(dy),
+      ring: domFocusRing,
     });
+    const offLanguage = onLanguageChange(() => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      offLanguage();
       this.#hints.dispose();
       this.scale.off("resize", this.#draw, this);
       this.#destroyWidgets();
+      this.#region = null;
     });
     this.#draw();
     fadeScreenIn(this);
@@ -76,8 +80,18 @@ export class CreditsScene extends Phaser.Scene {
   #destroyWidgets(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.#list?.destroy();
-    this.#list = null;
+  }
+
+  #scroller(): HTMLElement | null {
+    return this.#region?.element.scroller ?? null;
+  }
+
+  #scrollBy(dy: number): void {
+    this.#scroller()?.scrollBy({ top: dy });
+  }
+
+  #pageHeight(): number {
+    return (this.#region?.rect.height ?? 0) * PAGE;
   }
 
   #draw(): void {
@@ -93,10 +107,10 @@ export class CreditsScene extends Phaser.Scene {
 
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     const bar = drawTopBar(this, {
-      backLabel: phone ? "◂" : "◂ EXTRAS",
+      backLabel: phone ? "◂" : t("credits.back"),
       onBack: () => this.#back(),
       hints: this.#hints,
-      title: "Art & Credits",
+      title: t("credits.title"),
     });
     if (bar.back) this.#buttons.push(bar.back);
     if (bar.backRect) stops.set("back", { rect: bar.backRect, activate: () => this.#back() });
@@ -108,107 +122,31 @@ export class CreditsScene extends Phaser.Scene {
       width: width - gutter * 2,
       height: Math.max(60, height - listTop - gutter),
     };
-    // Entries wrap inside the box, clear of the scrollbar gutter and the box padding.
-    const textWidth = listRect.width - GUTTER - PAD * 2;
-    const list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight: 120,
-      rowHeightOf: (index) => creditsRowHeightOf(rows[index]!, textWidth),
-      count: rows.length,
-      scroll: this.#scroll,
-      background: false,
-      renderRow: (index, rect) => this.#renderRow(rows[index]!, rect, textWidth, phone),
-    });
-    this.#list = list;
+    if (!this.#region) this.#region = new DomRegion(this, document.createElement("mc-credits-list"), listRect);
+    const region = this.#region;
+    region.setRect(listRect);
+    region.element.phone = phone;
+    region.element.rows = rows.map((row) =>
+      row.kind === "entry" ? { kind: "entry", title: row.title, lines: row.lines } : row,
+    );
 
     const order: string[] = bar.backRect ? ["back"] : [];
     rows.forEach((row, index) => {
       if (row.kind === "section") return;
       const key = `row:${index}`;
       order.push(key);
+      const element = (): HTMLElement | null => region.element.rowElement(index);
       stops.set(key, {
+        // Clipped to the list, so the ring never floats over the top bar while a row is scrolled partly out.
         rect: () => {
-          // Clipped to the list, so the ring never floats over the top bar while a row is scrolled partly out.
-          const r = list.rectFor(index);
-          return clipToView({ ...r, width: r.width - GUTTER }, listRect);
+          const row = element();
+          return row ? clipToView(region.rectOf(row), listRect) : listRect;
         },
+        view: listRect,
         activate: () => undefined,
-        ensureVisible: () => list.scrollIntoView(index),
+        ensureVisible: () => element()?.scrollIntoView({ block: "nearest" }),
       });
     });
     this.#route?.set(order, stops);
-  }
-
-  #renderRow(row: CreditsRow, rect: Rect, textWidth: number, phone: boolean): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const innerWidth = rect.width - GUTTER;
-    const wrapped = (
-      x: number,
-      y: number,
-      text: string,
-      size: number,
-      alpha = 1,
-      color: number = surface.ink.hex,
-    ): Phaser.GameObjects.Text => {
-      const t = this.add
-        .text(x, y, text, textStyle(typeRole.body, color, alpha))
-        .setFontSize(size)
-        .setWordWrapWidth(textWidth, true)
-        .setLineSpacing(size * 0.4 - 4);
-      objects.push(t);
-      return t;
-    };
-
-    if (row.kind === "section") {
-      const g = this.add.graphics();
-      g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y + rect.height - 4, innerWidth, 2);
-      const title = this.add
-        .text(
-          rect.x,
-          rect.y + rect.height - 12,
-          row.title.toUpperCase(),
-          textStyle(bangers(phone ? 20 : 24), surface.ink.hex),
-        )
-        .setOrigin(0, 1)
-        .setLetterSpacing(1);
-      fitText(title, innerWidth - 40, phone ? 20 : 24);
-      const count = this.add
-        .text(
-          rect.x + innerWidth,
-          rect.y + rect.height - 12,
-          row.count,
-          textStyle(typeRole.rowTitle, surface.ink.hex, ink.secondary),
-        )
-        .setOrigin(1, 1)
-        .setFontSize(13);
-      objects.push(g, title, count);
-      return { objects };
-    }
-
-    const box: Rect = { x: rect.x, y: rect.y + 3, width: innerWidth, height: rect.height - 6 };
-    const g = this.add.graphics();
-    objects.push(g);
-    if (row.kind === "notice") {
-      g.fillStyle(surface.ink.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-      wrapped(box.x + PAD, box.y + 8, row.text, CREDITS_TEXT.notice, 1, surface.paper.hex);
-      return { objects };
-    }
-
-    const { entry } = row;
-    g.fillStyle(surface.parchment.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
-    let y = box.y + 8;
-    const place = (text: string, size: number, alpha: number, bold = false): void => {
-      const t = wrapped(box.x + PAD, y, text, size, alpha);
-      if (bold) t.setStyle({ ...textStyle(typeRole.rowTitle, surface.ink.hex, alpha) }).setFontSize(size);
-      t.setWordWrapWidth(textWidth, true);
-      y += t.height + 2;
-    };
-    place(entry.title, CREDITS_TEXT.title, 1, true);
-    place(shownInLabelOf(entry), CREDITS_TEXT.small, 0.75);
-    place(entry.credit, CREDITS_TEXT.body, 0.95);
-    place(entry.notice, CREDITS_TEXT.small, 0.75);
-    if (entry.url) place(entry.url, CREDITS_TEXT.small, 0.75);
-    return { objects };
   }
 }

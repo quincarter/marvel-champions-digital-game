@@ -1245,4 +1245,20 @@ export const en = {
   "deckBuilder.pickSubtitle": "Pick as many as you like. With none picked, the pool shows them all.",
   "deckBuilder.pickAll": "All",
   "deckBuilder.pickDone": "Done",
+  "credits.title": "Art & Credits",
+  "credits.back": "◂ EXTRAS",
+  "credits.shownIn": "Shown in: {where}",
+  "credits.intro.fanProject":
+    "This is a fan-made, non-commercial project. Marvel Champions: The Card Game, its card text, artwork and characters are the intellectual property of Fantasy Flight Games and Marvel.",
+  "credits.intro.terms":
+    "No art, music or card text here is licensed to you by this project. Each piece stays with the people and companies named below, under their own terms.",
+  "credits.group.game": "The game",
+  "credits.group.cardArt": "Card art and rulebooks",
+  "credits.group.heroVillainArt": "Hero, villain and title art",
+  "credits.group.story": "Story and comic pages",
+  "credits.group.music": "Music and sound",
+  "credits.group.tools": "Tools and libraries",
+  "credits.notice.ffgMarvel": "Marvel Champions is Fantasy Flight Games'. Artwork and characters (c) Marvel.",
+  "credits.notice.marvel": "(c) Marvel. Used in this fan project; no ownership is claimed.",
+  "credits.notice.artistNotRecorded": "The artist and original source are not recorded yet.",
 } as const;

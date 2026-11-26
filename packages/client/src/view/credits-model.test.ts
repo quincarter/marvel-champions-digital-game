@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { CREDITS, CREDIT_GROUPS, CREDITS_INTRO } from "../content/credits.js";
-import { creditsRowHeightOf, creditsRowsOf, wrappedLinesOf } from "./credits-model.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { CREDITS, CREDIT_GROUPS, CREDITS_INTRO, FFG_MARVEL } from "../content/credits.js";
+import { en } from "../i18n/en.js";
+import { es } from "../i18n/es.js";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
+import { creditsRowsOf } from "./credits-model.js";
+
+afterEach(useEnglish);
 
 describe("creditsRowsOf", () => {
   const rows = creditsRowsOf();
@@ -28,6 +33,10 @@ describe("creditsRowsOf", () => {
       for (const field of [entry.title, entry.shownIn, entry.credit, entry.notice]) expect(field.trim()).not.toBe("");
     }
     expect(new Set(CREDITS.map((entry) => entry.id)).size).toBe(CREDITS.length);
+    const first = rows.find((row) => row.kind === "entry")!;
+    expect(first.kind === "entry" && first.lines.map((line) => line.tone)).toEqual(
+      expect.arrayContaining(["small", "body"]),
+    );
   });
 
   it("carries the Shadowland and Avengers #11 bibliographies", () => {
@@ -37,13 +46,16 @@ describe("creditsRowsOf", () => {
     expect(text("avengers-11")).toMatch(/Jason Aaron/);
     expect(text("avengers-11")).toMatch(/Cory Smith/);
   });
-});
 
-describe("row heights", () => {
-  it("grow as text wraps onto more lines and as the column narrows", () => {
-    const entry = creditsRowsOf().find((row) => row.kind === "entry")!;
-    expect(creditsRowHeightOf(entry, 280)).toBeGreaterThan(creditsRowHeightOf(entry, 900));
-    expect(wrappedLinesOf("one two three", 1000, 12)).toBe(1);
-    expect(wrappedLinesOf("a\nb", 1000, 12)).toBe(2);
+  it("words the notices, the group titles and the labels in Spanish", () => {
+    useSpanish();
+    const spanish = creditsRowsOf();
+    expect(spanish[0]).toEqual({ kind: "notice", text: es["credits.intro.fanProject"] });
+    expect(spanish.find((row) => row.kind === "section" && row.id === "music")).toMatchObject({
+      title: es["credits.group.music"],
+    });
+    const ffg = spanish.find((row) => row.kind === "entry" && row.entry.notice === FFG_MARVEL);
+    expect(ffg?.kind === "entry" && ffg.lines.some((line) => line.text === es["credits.notice.ffgMarvel"])).toBe(true);
+    expect(en["credits.intro.fanProject"]).toBe(CREDITS_INTRO[0]);
   });
 });

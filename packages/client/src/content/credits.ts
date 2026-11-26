@@ -47,9 +47,9 @@ export const CREDIT_GROUPS: readonly { readonly id: CreditGroup; readonly title:
   { id: "tools", title: "Tools and libraries" },
 ];
 
-const FFG_MARVEL = "Marvel Champions is Fantasy Flight Games'. Artwork and characters (c) Marvel.";
-const MARVEL = "(c) Marvel. Used in this fan project; no ownership is claimed.";
-const ARTIST_NOT_RECORDED = "The artist and original source are not recorded yet.";
+export const FFG_MARVEL = "Marvel Champions is Fantasy Flight Games'. Artwork and characters (c) Marvel.";
+export const MARVEL = "(c) Marvel. Used in this fan project; no ownership is claimed.";
+export const ARTIST_NOT_RECORDED = "The artist and original source are not recorded yet.";
 
 const RULEBOOKS: readonly (readonly [string, string, string])[] = [
   ["trors", "The Rise of Red Skull", "mc10_the_rise_of_red_skull_rules_web.pdf"],

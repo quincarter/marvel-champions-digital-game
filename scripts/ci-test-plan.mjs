@@ -105,6 +105,8 @@ const include = [
   ...(has("sync-worker")
     ? [{ name: "sync-worker", title: "Sync Worker tests", args: "--project @mc/sync-worker" }]
     : []),
+  // The Lit components' tests take seconds in a DOM stand-in (happy-dom) and need nothing from the other packages.
+  ...(has("ui") ? [{ name: "ui", title: "UI component tests", args: "--project @mc/ui" }] : []),
   // The mod SDK's tests build and validate the sample packs; they import the cards package but nothing imports them.
   ...(has("mod-sdk")
     ? [
