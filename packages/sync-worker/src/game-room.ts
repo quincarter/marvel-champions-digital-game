@@ -1446,6 +1446,10 @@ export class GameRoomLogic {
     this.sockets.set(participant.id, socket);
     // The room's own record is current (a promotion to table host is not yet on an old attachment's copy).
     const who = this.participants.get(participant.id)!;
+    // An anonymous watch-link watcher (#1021) only watches: it may change what it follows, and nothing else.
+    if (who.watchOnly && !(message.ch === "room" && message.kind === "follow")) {
+      return this.refuse(socket, "not-allowed");
+    }
     await this.loadLobby(); // So `tables` holds every Epic table before a message names one.
     if (this.woke) {
       this.woke = false;
@@ -1582,16 +1586,19 @@ export class GameRoomLogic {
     // A lobby room needs a name from everyone; any other room ignores `hello.name`, as watching always did.
     const lobbyRoom = meta.code !== undefined;
     const given = lobbyRoom ? clip(cleanText(message.name ?? "").replace(/\s+/g, " "), MAX_NAME_LENGTH).trim() : "";
-    // A watch link's socket (`#watch=`, the Discord "Watch live" button) asks only to watch and, in builds up to 1.0.0,
-    // says no name: it is let in as a watcher under a stand-in name rather than refused, or a room game could never be
-    // watched from its link (#1021). Anyone asking for chat or seats, or holding a token, still has to give a name.
-    const watchOnly =
+    // A watch link's socket (`#watch=`, the Discord "Watch live" button) asks only to watch (`caps: ["watch"]`) and, in
+    // builds up to 1.0.0, says no name: it is let in as a read-only watcher under a stand-in name rather than refused,
+    // or a room game could never be watched from its link (#1021). Anyone else, or anyone holding a token, still needs
+    // a name.
+    const anonymousWatcher =
+      lobbyRoom &&
+      !hasVisible(given) &&
       message.token === undefined &&
       (message.seatTokens ?? []).length === 0 &&
       (message.tableTokens ?? []).length === 0 &&
-      !message.caps.includes("chat") &&
-      !message.caps.includes("seats");
-    const name = lobbyRoom && !hasVisible(given) && watchOnly ? WATCH_LINK_NAME : given;
+      message.caps.length > 0 &&
+      message.caps.every((cap) => cap === "watch");
+    const name = anonymousWatcher ? WATCH_LINK_NAME : given;
     if (lobbyRoom && !hasVisible(name)) {
       this.refuse(socket, "name-required");
       socket.close(1008, "name required");
@@ -1640,6 +1647,7 @@ export class GameRoomLogic {
       ...(lobbyRoom ? { name, ...(message.build ? { build: message.build } : {}) } : {}),
       ...(device ? { device } : {}),
       ...(follow ? { follow } : {}),
+      ...(anonymousWatcher ? { watchOnly: true as const } : {}),
     };
     socket.setParticipant(you);
     this.sockets.set(you.id, socket);

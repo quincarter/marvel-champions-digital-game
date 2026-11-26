@@ -224,12 +224,56 @@ describe("play together: watching a room game from its watch link (#1021)", () =
     expect(w.last("welcome")!.you).toMatchObject({ role: "watcher", name: "Gareth" });
   });
 
-  it("still needs a name from anyone asking for chat or seats, or holding a seat token", async () => {
+  it("still needs a name from anyone asking for more than watch (or nothing), or holding a seat token", async () => {
     const ctx = await setup();
-    for (const extra of [{ caps: ["watch", "chat"] }, { caps: ["watch", "seats"] }, { seatTokens: ["x"] }]) {
+    const asks = [
+      { caps: ["watch", "chat"] },
+      { caps: ["watch", "seats"] },
+      { caps: ["watch", "play"] },
+      { caps: [] },
+      { seatTokens: ["x"] },
+    ];
+    for (const extra of asks) {
       const s = await watchLink(ctx, extra);
       expect(s.refusals, JSON.stringify(extra)).toEqual(["name-required"]);
     }
+  });
+
+  it("keeps the anonymous watcher read-only: no chat, no seat, no lobby change; following is still its own", async () => {
+    const ctx = await setup();
+    await ctx.send(ctx.host, { ch: "room", kind: "lobby-set", settings: { chat: true } });
+    // A named participant may chat in this room, so a refusal below is the watcher's, not the room's.
+    const named = await ctx.join("Bea");
+    await ctx.send(named, { ch: "chat", kind: "say", text: "hello" });
+    expect(ctx.host.last("said")).toMatchObject({ name: "Bea", text: "hello" });
+    const w = await watchLink(ctx);
+    expect(w.last("welcome")!.you.watchOnly).toBe(true);
+    const chats = ctx.host.of("said").length;
+    await ctx.send(w, { ch: "chat", kind: "say", text: "hi" });
+    await ctx.send(w, { ch: "room", kind: "seat-request", seat: "s1" });
+    await ctx.send(w, { ch: "game", kind: "propose", table: "t1", command: { type: "pass" }, base: 0 });
+    expect(w.refusals).toEqual(["not-allowed", "not-allowed", "not-allowed"]);
+    expect(ctx.host.of("said")).toHaveLength(chats);
+    expect(ctx.host.last("lobby")!.seats.find((seat) => seat.id === "s1")!.holder).toBeUndefined();
+    await ctx.send(w, { ch: "room", kind: "follow", tables: ["t1"] });
+    expect(w.refusals).toHaveLength(3);
+  });
+
+  it("stays read-only after the room hibernates and wakes", async () => {
+    const ctx = await setup();
+    await ctx.send(ctx.host, { ch: "room", kind: "lobby-set", settings: { chat: true } });
+    const w = await watchLink(ctx);
+    const woken = new GameRoomLogic(ctx.storage, undefined, () => ctx.clock.now);
+    woken.restore(ctx.host);
+    woken.restore(w);
+    await ctx.send(w, { ch: "chat", kind: "say", text: "hi" }, woken);
+    expect(w.refusals).toEqual(["not-allowed"]);
+  });
+
+  it("gives a named watch link an ordinary watcher, not a read-only one", async () => {
+    const ctx = await setup();
+    const w = await watchLink(ctx, { name: "Gareth" });
+    expect(w.last("welcome")!.you).not.toHaveProperty("watchOnly");
   });
 });
 

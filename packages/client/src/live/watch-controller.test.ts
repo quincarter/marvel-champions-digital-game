@@ -437,3 +437,40 @@ describe("LiveWatcher hello name (#1021)", () => {
     }
   });
 });
+
+describe("LiveWatcher table (#1021)", () => {
+  test("a link to an Epic room's other table follows that table alone, and opens its log", async () => {
+    FakeSocket.all = [];
+    const { core, calls } = fakeCore();
+    const w = new LiveWatcher({
+      core,
+      baseUrl: "http://sync",
+      roomId: "A".repeat(12),
+      packs: [],
+      emit: () => undefined,
+      table: "t2",
+      deps: {
+        WebSocket: FakeSocket as never,
+        setTimer: () => undefined,
+        clearTimer: () => undefined,
+        random: () => 0.5,
+      },
+    });
+    const opened = w.open();
+    const socket = FakeSocket.all.at(-1)!;
+    socket.onopen?.({});
+    expect(socket.sent[0]).toMatchObject({ kind: "hello", caps: ["watch"], follow: ["t2"] });
+    // The first table's log is not the one asked for; the second's opens the watch.
+    socket.say({ ch: "game", kind: "log", table: "t1", header: {}, commands: [{ type: "pass" }] });
+    socket.say({
+      ch: "game",
+      kind: "log",
+      table: "t2",
+      header: {},
+      commands: [{ type: "pass" }, { type: "pass" }],
+    });
+    await opened;
+    expect(calls).toEqual(["open 2"]);
+    w.dispose();
+  });
+});

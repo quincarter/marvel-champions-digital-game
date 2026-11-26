@@ -41,6 +41,13 @@ import type { ReplayRequest, ReplayResponse } from "./replay-protocol.js";
 import type { ReplayInfo } from "./replay-session.js";
 
 /** Where a replay is rebuilt: the replay worker in the app, `ReplayCore` in-thread in the tests. */
+/** A watch link's own socket (#1021): the viewer's online name for its hello, and the table the link names. */
+export interface WatchLinkOptions {
+  readonly name?: string;
+  /** An Epic room's table other than the first; absent follows the first table. */
+  readonly table?: string;
+}
+
 export interface ReplayBackend {
   open(source: ReplayOpenSource): Promise<ReplayOpened>;
   snapshot(n: number, played: boolean): Promise<Snapshot>;
@@ -53,7 +60,7 @@ export interface ReplayBackend {
     syncUrl: string,
     packs: readonly PackRuntime[],
     feed?: MessagePort,
-    name?: string,
+    link?: WatchLinkOptions,
   ): Promise<ReplayOpened>;
   /** Hears the live game's changes while one is followed. */
   onLive?(listener: (event: LiveWatchEvent) => void): void;
@@ -160,7 +167,7 @@ export class WorkerReplayBackend implements ReplayBackend {
     syncUrl: string,
     packs: readonly PackRuntime[],
     feed?: MessagePort,
-    name?: string,
+    link?: WatchLinkOptions,
   ): Promise<ReplayOpened> {
     const device = currentRoomDevice();
     const response = await this.#request(
@@ -172,7 +179,8 @@ export class WorkerReplayBackend implements ReplayBackend {
         packs,
         ...(feed ? { feed } : {}),
         ...(device ? { device } : {}),
-        ...(name ? { name } : {}),
+        ...(link?.name ? { name: link.name } : {}),
+        ...(link?.table ? { table: link.table } : {}),
       },
       feed ? [feed] : [],
     );
@@ -289,8 +297,8 @@ export class ReplayHost implements EngineHost {
     own = false,
     /** The watched table and its game's admission id, read when the end arrives; absent for a watch link's own socket. */
     identity?: () => { readonly tableId: string | null; readonly gid: string | null },
-    /** A watch link's own socket: the name said in its hello (the online name; a room game's lobby needs one, #1021). */
-    name?: string,
+    /** A watch link's own socket: the name its hello says and the table it follows (#1021). */
+    link?: WatchLinkOptions,
   ): Promise<ReplayInfo> {
     this.#watchedRoom = roomId;
     this.#countsAsWatched = !own;
@@ -299,7 +307,7 @@ export class ReplayHost implements EngineHost {
     if (!watch || !this.#backend.onLive) throw new ReplayOpenError("setup", "this backend cannot follow a live game");
     this.#live = INITIAL_LIVE_STATE;
     this.#backend.onLive((event) => this.#onLive(event));
-    const { cardPool, info } = await watch.call(this.#backend, roomId, syncUrl, packs, feed, name);
+    const { cardPool, info } = await watch.call(this.#backend, roomId, syncUrl, packs, feed, link);
     this.#cardPool = cardPool;
     this.#info = info;
     this.#position = info.length;

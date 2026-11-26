@@ -331,6 +331,11 @@ export interface Participant {
   readonly build?: RoomBuild;
   /** From the participant's `hello`, in every room (watch rooms too); absent when it sent none or an unknown one. */
   readonly device?: RoomDevice;
+  /**
+   * A lobby room's watcher let in from a watch link without a name (#1021): it may only watch and choose what it
+   * follows. Chat, seats and every other lobby message are refused. Kept on the socket, so it survives hibernation.
+   */
+  readonly watchOnly?: true;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { activeScenes, pressAt, settle, waitFor, waitForText } from "./helpers.js";
+import { activeScenes, clickText, pressAt, settle, waitFor, waitForText } from "./helpers.js";
 import {
   boardRound,
   endTurnToNextRound,
@@ -9,7 +9,7 @@ import {
   waitForScene,
 } from "./wave6-helpers-a.js";
 import { dealToFirstTurn, declineMulligans, quietGuide } from "./wave6-helpers-b.js";
-import { test, type RoomServer } from "./live-room-helpers.js";
+import { ROOM_PORT, test, type RoomServer } from "./live-room-helpers.js";
 
 /**
  * Watching a live game from its link (issue #876): `#watch=<roomId>` joins the room, rebuilds the game from the log the
@@ -218,7 +218,7 @@ test.describe("a room of one", () => {
 
   test("a full room says so", async ({ page, room }) => {
     test.setTimeout(120_000);
-    const created = await fetch("http://localhost:8787/room", { method: "POST", body: "{}" });
+    const created = await fetch(`http://localhost:${ROOM_PORT}/room`, { method: "POST", body: "{}" });
     const { roomId } = (await created.json()) as { roomId: string };
     await room.joinWatcher(roomId);
     await openWatch(page, roomId);
@@ -226,54 +226,108 @@ test.describe("a room of one", () => {
   });
 });
 
-test.describe("a room game (#1021)", () => {
-  // The game streams into a lobby room, as a room game does: a lobby wants a name from everyone in it.
-  test.use({ roomOptions: { lobbyRooms: true } });
-
-  test("its watch link opens the game, for a viewer who has set no online name", async ({
-    page,
-    browser,
+/** A browser context of its own (own saves) on the suite's settings: the villain phase advances by itself. */
+async function newPlayer(browser: Browser, baseURL: string, url: string): Promise<HostGame> {
+  const context = await browser.newContext({
     baseURL,
-    room,
-  }) => {
-    test.setTimeout(240_000);
-    const errors = trackErrors(page);
-    const host = await startHost(browser, baseURL!, room);
-    try {
-      const live = room.room()!;
-      await openWatch(page, live.id);
-      await reachBoard(page);
-      // What builds up to 1.0.0 always sent: no name. The room lets it watch under a stand-in name.
-      const hello = room.sent.find((m) => !m.host && m.kind === "hello");
-      expect(hello).not.toHaveProperty("name");
-      await waitFor(async () => ((await hasWord(page, /^LIVE$/)) ? true : null), "the LIVE label", 15000);
-      await waitFor(
-        positionIs(page, () => live.logLength()),
-        "at the host's newest move",
-        20000,
-      );
-      expect(await hasWord(page, /isn't open any more/i)).toBe(false);
-      expect(errors).toEqual([]);
-    } finally {
-      await host.context.close();
-    }
+    locale: "en-US",
+    reducedMotion: "reduce",
+    viewport: { width: 1280, height: 800 },
   });
+  const page = await context.newPage();
+  await installWave6Helpers(page);
+  await quietGuide(page);
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "on", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
+  );
+  await page.goto(url);
+  return { context, page };
+}
 
-  test("a viewer's watch link says their online name", async ({ page, room }) => {
-    test.setTimeout(120_000);
-    await page.addInitScript(() =>
-      localStorage.setItem("mc-settings", JSON.stringify({ version: 1, onlineName: "Gareth" })),
-    );
-    const created = await fetch("http://localhost:8787/room", { method: "POST", body: "{}" });
-    const { roomId } = (await created.json()) as { roomId: string };
-    await openWatch(page, roomId);
-    const hello = await waitFor(
-      async () => room.sent.find((m) => !m.host && m.kind === "hello") ?? null,
-      "the watcher's hello",
+/** A watch link's own socket: it asks for `watch` alone (a room's guests ask for chat and seats too). */
+const watchLinkHello = (room: RoomServer) =>
+  room.sent.find((m) => !m.host && m.kind === "hello" && JSON.stringify(m.caps) === JSON.stringify(["watch"]));
+
+test("a room game's watch link opens the game and follows it, for a viewer with no online name (#1021)", async ({
+  page,
+  browser,
+  baseURL,
+  room,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "two host-side desktop contexts and a watcher");
+  test.setTimeout(300_000);
+  const errors = trackErrors(page);
+  // A real room game (`scenes/boot-dev-jump.ts`): the host makes a lobby room, seats a guest and starts the game.
+  const host = await newPlayer(browser, baseURL!, "/?screen=room-play-host&name=Mara");
+  let guest: HostGame | null = null;
+  try {
+    const code = await waitFor(
+      async () =>
+        (await host.page.evaluate(() => (globalThis as { __mcRoomCode?: string | null }).__mcRoomCode)) ?? null,
+      "the room code",
       60000,
     );
-    expect(hello.name).toBe("Gareth");
-  });
+    guest = await newPlayer(browser, baseURL!, `/?screen=room-play-guest&code=${code}&name=Ava`);
+    await waitForScene(host.page, "Board", 90000);
+    const live = room.room()!;
+    await waitFor(async () => (live.logLength() > 0 ? true : null), "the room holds the game", 30000);
+    // The link the host's game shares (the Discord Watch live button's), as the host's own status says it.
+    const url = await waitFor(
+      () =>
+        host.page.evaluate(async () => {
+          const mod = (await import("/src/platform/live-watch.ts")) as unknown as {
+            liveStatus: () => { watchUrl: string | null };
+          };
+          return mod.liveStatus().watchUrl;
+        }),
+      "the host's watch link",
+      30000,
+    );
+    expect(url).toContain(`#watch=${live.id}`);
+
+    await installWave6Helpers(page);
+    await quietGuide(page);
+    await page.goto(`/?unlock=all${url.slice(url.indexOf("#"))}`);
+    await reachBoard(page);
+    // What builds up to 1.0.0 always sent: no name. The room lets it watch, under a stand-in name.
+    expect(watchLinkHello(room)).not.toHaveProperty("name");
+    expect(await hasWord(page, /isn't open any more/i)).toBe(false);
+    await waitFor(async () => ((await hasWord(page, /^LIVE$/)) ? true : null), "the LIVE label", 15000);
+    await waitFor(
+      positionIs(page, () => live.logLength()),
+      "at the host's newest move",
+      30000,
+    );
+
+    // The host plays on: the watcher follows to the newest move.
+    const held = live.logLength();
+    await clickText(host.page, "End turn", { sceneKey: "Board", timeoutMs: 45000 });
+    await waitFor(async () => (live.logLength() > held ? true : null), "the host's next move", 30000);
+    await waitFor(
+      positionIs(page, () => live.logLength()),
+      "following the newest move",
+      30000,
+    );
+    expect(errors).toEqual([]);
+  } finally {
+    await guest?.context.close();
+    await host.context.close();
+  }
+});
+
+test("a viewer's watch link says their online name (#1021)", async ({ page, room }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() =>
+    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, onlineName: "Gareth" })),
+  );
+  const created = await fetch(`http://localhost:${ROOM_PORT}/room`, { method: "POST", body: "{}" });
+  const { roomId } = (await created.json()) as { roomId: string };
+  await openWatch(page, roomId);
+  const hello = await waitFor(async () => watchLinkHello(room) ?? null, "the watcher's hello", 60000);
+  expect(hello.name).toBe("Gareth");
 });
 
 test("a link that names no room says it isn't valid", async ({ page, room }) => {

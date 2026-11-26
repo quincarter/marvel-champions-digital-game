@@ -49,6 +49,11 @@ export interface LiveWatcherOptions {
    * give a nameless watch-only hello a stand-in name, so this may be absent.
    */
   readonly name?: string;
+  /**
+   * The table a watch link names (an Epic room's, #1021): its log is the one followed, and the hello asks for it alone.
+   * Absent: the first table, and every table's log is sent as before.
+   */
+  readonly table?: string;
   /** How long to wait for the room to answer with the game before calling it gone. */
   readonly openTimeoutMs?: number;
   /** How long to wait for a host that has not started the game yet. */
@@ -63,7 +68,7 @@ const CAPS: readonly RoomCapability[] = ["watch"];
 
 export class LiveWatcher {
   readonly #o: LiveWatcherOptions;
-  readonly #feed = new WatchFeed();
+  readonly #feed: WatchFeed;
   #socket: RoomSocket | null = null;
   #chain: Promise<void> = Promise.resolve();
   #info: ReplayInfo | null = null;
@@ -75,6 +80,7 @@ export class LiveWatcher {
 
   constructor(options: LiveWatcherOptions) {
     this.#o = options;
+    this.#feed = new WatchFeed(options.table);
   }
 
   /** Connects and settles once the game has arrived and is open; rejects with `missing` when the room is not there. */
@@ -132,6 +138,7 @@ export class LiveWatcher {
       caps: CAPS,
       ...(this.#o.device ? { device: this.#o.device } : {}),
       ...(this.#o.name ? { name: this.#o.name } : {}),
+      ...(this.#o.table ? { follow: [this.#o.table] } : {}),
       ...(this.#o.deps ? { deps: this.#o.deps } : {}),
       onGone: () => {
         // The room cannot be reached for good: before the game opened that is "gone", after it the feed is lost.
