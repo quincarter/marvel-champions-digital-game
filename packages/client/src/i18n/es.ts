@@ -1279,7 +1279,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "log.villainPhase": "◂ Fase del villano",
   "log.empty": "Lo que pasa en la mesa se anota aquí.",
   "log.newer": "▼ Nuevas entradas: {count} · Ir al final",
-  "log.latest": "▼ último",
+  "log.latest": "▼ Ir al final",
   "log.status.stunned": "Aturdido",
   "log.status.confused": "Confundido",
   "log.status.tough": "Duro",

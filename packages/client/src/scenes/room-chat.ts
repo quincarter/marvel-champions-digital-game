@@ -17,7 +17,7 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { McTextInput } from "../ui/widgets.js";
 import type { Rect } from "../view/layout.js";
 import { layoutChatList } from "../view/room-chat-layout.js";
-import { markChatRead } from "../view/room-chat-unread.js";
+import { chatChanged, chatMark, markChatRead, type ChatMark } from "../view/room-chat-unread.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
@@ -37,7 +37,7 @@ export class RoomChatOverlay extends Phaser.Scene {
   #state: RoomState = roomState();
   #route: FocusRoute | null = null;
   #off: (() => void) | null = null;
-  #lastLines = -1;
+  #drawn: ChatMark | null = null;
   #panel!: PopupSheet;
 
   constructor() {
@@ -46,7 +46,7 @@ export class RoomChatOverlay extends Phaser.Scene {
 
   init(data: RoomChatData = {}): void {
     this.#value = data.draft ?? "";
-    this.#lastLines = -1;
+    this.#drawn = null;
   }
 
   create(): void {
@@ -64,7 +64,7 @@ export class RoomChatOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#off = onRoomState((state) => {
-      const changed = state.chat.length !== this.#lastLines;
+      const changed = chatChanged(this.#drawn, state.chat);
       this.#state = state;
       if (changed && this.sys.isActive()) this.#draw();
     });
@@ -122,8 +122,8 @@ export class RoomChatOverlay extends Phaser.Scene {
     const footer = fieldHeight + 10 + hit.target + 16;
     const listTop = box.y + 14 + titleSize.height + 10;
     const listHeight = box.y + box.height - footer - listTop;
-    const newLine = this.#state.chat.length !== this.#lastLines;
-    this.#lastLines = this.#state.chat.length;
+    const newLine = chatChanged(this.#drawn, this.#state.chat);
+    this.#drawn = chatMark(this.#state.chat);
     const shown = this.#state.chat;
     if (shown.length === 0) {
       b.text(box.x + 16, listTop, t("chat.empty"), typeRole.body, { color: surface.ink.hex, alpha: 0.7 });

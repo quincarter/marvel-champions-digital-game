@@ -178,6 +178,52 @@ describe("onHold", () => {
     expect(held).toHaveBeenCalledTimes(1);
   });
 
+  it("is no hold when a captured finger sits just outside the element's edge at the timer, within the slop", () => {
+    const element = document.createElement("div");
+    const held = vi.fn();
+    onHold(element, held);
+    element.dispatchEvent(pointer("pointerdown", 98, 50));
+    element.dispatchEvent(pointer("pointermove", 105, 50));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).not.toHaveBeenCalled();
+    // Back inside at the timer: a hold.
+    element.dispatchEvent(pointer("pointerdown", 98, 50));
+    element.dispatchEvent(pointer("pointermove", 105, 50));
+    element.dispatchEvent(pointer("pointermove", 99, 50));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).toHaveBeenCalledTimes(1);
+  });
+
+  it("is no hold when a captured finger sits outside the scroll viewport that clips the element", () => {
+    const scroller = document.createElement("div");
+    scroller.style.overflowY = "auto";
+    const element = document.createElement("div");
+    scroller.append(element);
+    document.body.append(scroller);
+    element.getBoundingClientRect = () => rect(0, 0, 100, 100);
+    scroller.getBoundingClientRect = () => rect(0, 0, 100, 60);
+    const held = vi.fn();
+    onHold(element, held);
+    element.dispatchEvent(pointer("pointerdown", 50, 55));
+    element.dispatchEvent(pointer("pointermove", 50, 64));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).not.toHaveBeenCalled();
+    // Still inside the viewport: a hold.
+    element.dispatchEvent(pointer("pointerdown", 50, 55));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds an element with no measurable box", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(0, 0, 0, 0));
+    const element = document.createElement("div");
+    const held = vi.fn();
+    onHold(element, held);
+    element.dispatchEvent(pointer("pointerdown", 50, 50));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).toHaveBeenCalledTimes(1);
+  });
+
   it("leaves a quick press to the tap", () => {
     const element = document.createElement("div");
     const held = vi.fn();
