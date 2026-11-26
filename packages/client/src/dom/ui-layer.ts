@@ -12,7 +12,7 @@
  * Nothing here draws a screen: a scene mounts its panel with `DomRegion` (`dom/dom-region.ts`).
  */
 import type Phaser from "phaser";
-import { accent, font, signal, surface, type Token } from "../tokens.js";
+import { accent, font, signal, status, surface, type Token } from "../tokens.js";
 import { colorScheme, onColorSchemeChange, schemeColor, type ColorChannel } from "../view/color-scheme.js";
 import { desktopTypeSize } from "../view/desktop-type.js";
 
@@ -29,6 +29,10 @@ const COLORS: Readonly<Record<string, Token>> = {
   heal: signal.heal,
   caution: signal.caution,
   spent: signal.spent,
+  "ink-on-hue": surface.inkOnHue,
+  stunned: status.stunned,
+  confused: status.confused,
+  tough: status.tough,
 };
 
 const CHANNELS: readonly ColorChannel[] = ["text", "fill", "line"];
