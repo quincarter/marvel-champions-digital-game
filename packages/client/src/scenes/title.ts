@@ -1627,7 +1627,7 @@ ${words.slice(cut + 1)}!`
   #artLoaded(): Promise<void> {
     const art = this.#art;
     return new Promise((resolve) => {
-      if (!art || ensurePictureLoaded(this, art, resolve) !== null) resolve();
+      if (!art || ensurePictureLoaded(this, art, resolve, { fitScreen: true }) !== null) resolve();
     });
   }
 
@@ -1651,7 +1651,7 @@ ${words.slice(cut + 1)}!`
   #preloadNextArt(): void {
     if (!this.sys.isActive() || nextTitleArt) return;
     nextTitleArt = this.#pickArt();
-    if (nextTitleArt) ensurePictureLoaded(this, nextTitleArt, () => undefined);
+    if (nextTitleArt) ensurePictureLoaded(this, nextTitleArt, () => undefined, { fitScreen: true });
   }
 
   /** Draws this visit's picture if its texture is ready, otherwise loads it once and draws on arrival. */
@@ -1675,7 +1675,7 @@ ${words.slice(cut + 1)}!`
     };
     // Through the shared loader: the guide chooser draws the same wallpaper, and two scenes loading one key at once log
     // "Texture key already in use".
-    if (ensurePictureLoaded(this, art, place) !== null) place();
+    if (ensurePictureLoaded(this, art, place, { fitScreen: true }) !== null) place();
   }
 
   #freshDraft(picked = false) {

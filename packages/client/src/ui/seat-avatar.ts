@@ -60,7 +60,7 @@ export function drawHeroAvatar(
     const ready = (): void => void scene.events.emit(SEAT_AVATAR_READY);
     const key = scaleToSlot
       ? ensureBakedPictureLoaded(scene, picture, graySlotOf(rect, currentRenderScale()), false, ready)
-      : ensurePictureLoaded(scene, picture, ready);
+      : ensurePictureLoaded(scene, picture, ready, { fitScreen: true });
     const source = key && scene.textures.exists(key) ? scene.textures.get(key).getSourceImage() : null;
     if (key && source && source.width > 0 && source.height > 0) {
       const fit = coverFit(source, rect, picture.focus);

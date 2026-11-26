@@ -34,25 +34,9 @@ import { CARD_BACKS, type ArtSource } from "./art-source.js";
 import { onArtChange, onLanguageChange } from "../language-change.js";
 import { releasePackArt } from "./pack-art.js";
 import { artBudgetBytes } from "./memory-budget.js";
-
-/**
- * `Phaser.Loader.Events.FILE_COMPLETE` / `.FILE_LOAD_ERROR` and
- * `Phaser.Scenes.Events.SHUTDOWN`, spelled out as the string literals they
- * are (`phaser/src/loader/events/FILE_COMPLETE_EVENT.js` etc. — stable public
- * event names, not implementation detail).
- *
- * Only a *type* import of `phaser` remains above. The real package has a
- * module-scope `window` reference that throws outside a browser
- * (`phaser.esm.js`'s environment sniff runs on import, not on use), so a
- * runtime import here would make this file — the one with the actual
- * eviction logic worth regression-testing — impossible to unit test without
- * a DOM shim. Nothing else in this module needs Phaser as a value.
- */
-const FILE_COMPLETE = "filecomplete";
-const FILE_LOAD_ERROR = "loaderror";
-/** `Phaser.Loader.Events.ADD`: a file was queued; the listener gets (key, type, loader, file). */
-const FILE_ADD = "addfile";
-const SHUTDOWN = "shutdown";
+import { decodedBakedPicture } from "./picture-bake-client.js";
+import type { Size } from "./grayscale.js";
+import { currentRenderScale } from "../ui/render-scale.js";
 
 /**
  * Textures live on the game, not the scene, so this cache does too: one per
@@ -62,11 +46,9 @@ const caches = new WeakMap<Phaser.Game, CardArt>();
 
 /**
  * Decoded bytes allowed resident at once. ~256 MB comfortably holds a full
- * board plus an open overlay (a few hundred typically-sized scans, more if
- * they're the rare oversized ones) while keeping a long or repeated session
- * from climbing toward the gigabytes that crashed a real game. Tune here if
- * play reveals it's too tight (visible re-fetch stutter) or too loose
- * (memory still climbing). Half that on iOS (`memory-budget.ts`, #871).
+ * board plus an open overlay while keeping a long or repeated session from
+ * climbing toward the gigabytes that crashed a real game. Half that on iOS
+ * and in the WebKit desktop apps (`memory-budget.ts`, #871).
  */
 const RESIDENT_BUDGET_BYTES = artBudgetBytes();
 
@@ -77,6 +59,33 @@ const RESIDENT_BUDGET_BYTES = artBudgetBytes();
  * sweep on every redraw.
  */
 const PINNED_KEYS: ReadonlySet<string> = new Set(Object.values(CARD_BACKS).map((back) => back.key));
+
+/**
+ * The share of the screen's height the biggest card on a table takes (the villain, an identity, the main scheme), which
+ * is the height a scan is decoded to for the table. A scan is 900 pixels tall; a table card on a laptop is 200 to 300.
+ * Decoding every scan at full size kept three to five times the pixels any table card shows, and in the WebKit apps
+ * (the Mac and Linux desktop builds) each kept scan also costs a decoded copy beside its texture: a long game climbed
+ * ~180 MB a round. A card drawn bigger than this (the hover preview, Inspect) gets the full scan, `upgrade` below.
+ */
+const TABLE_SHARE = 0.34;
+/** Never decoded smaller than this, whatever the window: a phone or a small window still shows crisp cards. */
+const MIN_TABLE_HEIGHT = 360;
+/** A slot this much taller than the table copy is still drawn from it: a few percent of upscaling doesn't show. */
+const UPGRADE_SLACK = 1.12;
+/** A slot no picture is larger than: `bakedSizeOf` never scales up, so this decodes the scan at its own size. */
+const FULL_SLOT: Size = { width: 100_000, height: 100_000 };
+/** The full-size copy's texture key, beside the table copy (which keeps the source's own key). */
+const fullKeyOf = (key: string): string => `${key}#full`;
+
+/** Fetches and decodes `url` no larger than `slot` (off the main thread where it can), or null for a missing scan. */
+export type ScanDecoder = (url: string, slot: Size) => Promise<HTMLCanvasElement | null>;
+
+export interface CardArtDeps {
+  readonly decode?: ScanDecoder;
+  readonly budgetBytes?: number;
+  /** Device pixels per game unit, read at each draw (Settings > Resolution, the display's scale). */
+  readonly renderScale?: () => number;
+}
 
 export function cardArt(scene: Phaser.Scene): CardArt {
   const existing = caches.get(scene.game);
@@ -90,59 +99,46 @@ export function cardArt(scene: Phaser.Scene): CardArt {
   return created;
 }
 
-/**
- * What this cache tracks is deliberately *not* "has this scan arrived" — the
- * texture manager already knows that, and a second answer to the same question
- * is a second answer that can be wrong. An earlier version kept a per-key
- * loading/ready/missing state and gated drawing on it; a scan could land in the
- * texture manager while its entry stayed "loading", and the table then drew the
- * placeholder until some unrelated redraw happened to fix it.
- *
- * So the texture manager decides what can be drawn, and this class only
- * remembers two things it alone knows: what has already been handed to the
- * loader (don't ask twice) and what came back 404 (don't ask again, ever).
- */
 /** How long arrivals are gathered before the screens showing them redraw. Short enough to read as "the art popped in". */
 const ARRIVAL_WINDOW_MS = 120;
 
+/**
+ * What this cache tracks is deliberately *not* "has this scan arrived" — the
+ * texture manager already knows that, and a second answer to the same question
+ * is a second answer that can be wrong. So the texture manager decides what can
+ * be drawn, and this class only remembers what it alone knows: what has already
+ * been asked for (don't ask twice), what came back 404 (don't ask again, ever),
+ * and which keys are table copies with a full-size copy to be had.
+ *
+ * Scans are decoded by `picture-bake-client.ts` (in the picture-bake worker where
+ * there is one) rather than by Phaser's loader: the decode is scaled to the size
+ * the table needs, and the main thread only uploads the result. Textures belong to
+ * the game, so a scan that lands after the scene that asked for it closed is kept
+ * like any other.
+ */
 export class CardArt {
-  /** Keys already handed to the loader, so one scan is fetched once. */
+  /** Keys asked for and not yet answered (or answered and resident). One scan is fetched once. */
   readonly #requested = new Set<string>();
   /** Keys the server has no scan for. The generated frame is the answer for these. */
   readonly #missing = new Set<string>();
   readonly #listeners = new Set<() => void>();
-  /** Scenes whose loader this cache has already hooked. */
-  readonly #hooked = new WeakSet<Phaser.Scene>();
-  /** Requested but not yet handed to a loader. */
-  #pending: ArtSource[] = [];
-  /**
-   * Keys handed to a loader and not yet answered, by the scene whose loader
-   * has them. A scene's loader dies with the scene — an overlay stopped
-   * mid-fetch never reports those files at all — so on shutdown these are
-   * un-requested and the next redraw that wants them asks again.
-   */
-  readonly #inflight = new Map<string, Phaser.Scene>();
-  /**
-   * The loader's own file for each key in flight, so a closing scene can cancel it. Phaser does not: a scene's
-   * shutdown clears the loader's lists, but a file whose request is already out still finishes and adds itself to the
-   * game's texture manager. Forgetting the key (below) lets the next scene ask for the same scan, and then both land:
-   * "Texture key already in use", the second add refused, on a game that was otherwise right.
-   */
-  readonly #files = new Map<string, Phaser.Loader.File>();
-  /**
-   * The scene whose clock holds the scheduled flush/notify, or null. Held as
-   * the scene rather than a boolean because a scene's clock dies with it: the
-   * choice and inspect overlays are launched and stopped constantly, and a
-   * flush scheduled on one that closed before the next tick used to leave a
-   * `true` flag behind that blocked every later scan for the rest of the tab.
-   */
-  #flushScene: Phaser.Scene | null = null;
-  #notifyScene: Phaser.Scene | null = null;
+  /** The source behind each table copy, so `upgrade` can fetch its full-size copy. */
+  readonly #sources = new Map<string, ArtSource>();
   /** Decoded byte size of every non-pinned texture currently resident. */
   readonly #resident = new Map<string, number>();
   /** Tick a key was last asked for, by *any* scene. Lower = colder = evicted first. */
   readonly #lastUsed = new Map<string, number>();
   #tick = 0;
+  #notifyTimer: ReturnType<typeof setTimeout> | null = null;
+  readonly #decode: ScanDecoder;
+  readonly #budget: number;
+  readonly #renderScale: () => number;
+
+  constructor(deps: CardArtDeps = {}) {
+    this.#decode = deps.decode ?? ((url, slot) => decodedBakedPicture(url, slot, false));
+    this.#budget = deps.budgetBytes ?? RESIDENT_BUDGET_BYTES;
+    this.#renderScale = deps.renderScale ?? currentRenderScale;
+  }
 
   /** Called when art arrives, so the board can redraw with it. */
   onArrived(listener: () => void): () => void {
@@ -151,8 +147,10 @@ export class CardArt {
   }
 
   /**
-   * The texture key if the scan is on hand, else null — and the request is
-   * queued. Callers draw their frame either way and get a redraw later.
+   * The texture key if the scan is on hand, else null — and the scan is asked
+   * for. Callers draw their frame either way and get a redraw later. The key is
+   * the table copy's; `drawArt` swaps in the full-size copy for a slot that
+   * needs it.
    */
   request(scene: Phaser.Scene, source: ArtSource | null): string | null {
     if (!source) return null;
@@ -160,17 +158,40 @@ export class CardArt {
     // the only signal eviction uses, so a key still being drawn is always the
     // last one evicted, never the first.
     this.#lastUsed.set(source.key, ++this.#tick);
+    this.#sources.set(source.key, source);
     if (scene.textures.exists(source.key)) return source.key;
     if (this.#missing.has(source.key)) return null;
-
-    if (!this.#requested.has(source.key)) {
-      this.#requested.add(source.key);
-      this.#pending.push(source);
-    }
-    // Also re-arms a flush whose scene closed before it ran: the work is still
-    // pending, and this scene is alive to run it.
-    if (this.#pending.length > 0) this.#schedule(scene);
+    this.#load(scene.textures, source.key, source.url, this.#tableSlot(scene));
     return null;
+  }
+
+  /**
+   * The key to draw `key` from in a slot `slotHeight` game units tall: the table
+   * copy while it is big enough for the slot, else the full-size copy once it
+   * has arrived (asked for here, and the screens redraw when it lands). Any key
+   * this cache did not load is its own answer.
+   */
+  upgrade(scene: Phaser.Scene, key: string, slotHeight: number): string {
+    const source = this.#sources.get(key);
+    if (!source || !scene.textures.exists(key)) return key;
+    const height = scene.textures.get(key).getSourceImage().height;
+    if (!height || slotHeight * this.#renderScale() <= height * UPGRADE_SLACK) return key;
+    const full = fullKeyOf(key);
+    this.#lastUsed.set(full, ++this.#tick);
+    if (scene.textures.exists(full)) return full;
+    // No bigger scan than the table copy (it was already full size), or none to be had: the table copy it is.
+    if (this.#missing.has(full)) return key;
+    this.#load(scene.textures, full, source.url, FULL_SLOT);
+    return key;
+  }
+
+  /**
+   * The full-size copy's key while it is on its way for a slot that `upgrade` found too big for the table copy `key`,
+   * else null: a screen that draws only on arrivals it waits for (the hover preview) waits for this one too.
+   */
+  fullOnTheWay(key: string): string | null {
+    const full = fullKeyOf(key);
+    return this.#requested.has(full) && !this.#missing.has(full) && !this.#resident.has(full) ? full : null;
   }
 
   /** Tells every screen showing art to redraw, as an arrival does (a card language switch). */
@@ -190,106 +211,54 @@ export class CardArt {
     return total;
   }
 
-  /**
-   * One flush per frame. A board redraw asks for every visible card at once, so
-   * batching keeps that to a single loader run.
-   */
-  #schedule(scene: Phaser.Scene): void {
-    if (this.#flushScene) return;
-    this.#flushScene = scene;
-    // Hooked before the call is armed, so this scene's shutdown can release
-    // the schedule even if it closes before the tick.
-    this.#hook(scene);
-    scene.time.delayedCall(0, () => {
-      if (this.#flushScene !== scene) return;
-      this.#flushScene = null;
-      this.#flush(scene);
-    });
+  /** The table copy's size: a share of the screen's height in device pixels, never below a floor. */
+  #tableSlot(scene: Phaser.Scene): Size {
+    const screen = (scene.scale?.height ?? 0) * this.#renderScale();
+    return { width: 1, height: Math.max(MIN_TABLE_HEIGHT, Math.round(screen * TABLE_SHARE)) };
   }
 
-  #flush(scene: Phaser.Scene): void {
-    const batch = this.#pending;
-    this.#pending = [];
-    if (batch.length === 0) return;
-
-    for (const source of batch) {
-      this.#inflight.set(source.key, scene);
-      scene.load.image(source.key, source.url);
-    }
-    // Files added while a run is in flight are picked up by that run; starting
-    // a second one would be the race, not the fix.
-    if (!scene.load.isLoading()) scene.load.start();
-  }
-
-  /**
-   * Redraw on *any* file arriving, rather than on a particular batch finishing.
-   * A redraw is cheap and idempotent, and the alternative — deciding which
-   * batch a completion belongs to — is exactly the bookkeeping this class no
-   * longer keeps.
-   */
-  #hook(scene: Phaser.Scene): void {
-    if (this.#hooked.has(scene)) return;
-    this.#hooked.add(scene);
-
-    const onAdd = (key: string, _type: string, _loader: unknown, file: Phaser.Loader.File): void => {
-      if (this.#inflight.get(key) === scene) this.#files.set(key, file);
-    };
-    const onFile = (key: string): void => {
-      this.#inflight.delete(key);
-      this.#files.delete(key);
-      this.#track(scene, key);
-      this.#notify(scene);
-    };
-    // A 404 is the ordinary answer for a card with no scan, so it is recorded
-    // rather than reported: the frame the board already drew is the fallback.
-    const onError = (file: Phaser.Loader.File): void => {
-      this.#inflight.delete(file.key);
-      this.#files.delete(file.key);
-      this.#missing.add(file.key);
-      this.#notify(scene);
-    };
-
-    scene.load.on(FILE_ADD, onAdd);
-    scene.load.on(FILE_COMPLETE, onFile);
-    scene.load.on(FILE_LOAD_ERROR, onError);
-    scene.events.once(SHUTDOWN, () => {
-      scene.load.off(FILE_ADD, onAdd);
-      scene.load.off(FILE_COMPLETE, onFile);
-      scene.load.off(FILE_LOAD_ERROR, onError);
-      this.#hooked.delete(scene);
-      // The loader is reset with its scene, so whatever it still had will never
-      // report back. Forget those keys were ever asked for; the next redraw
-      // that wants one asks a live scene.
-      for (const [key, owner] of this.#inflight) {
-        if (owner !== scene) continue;
-        // The request may still be out. Whatever it brings back must not reach the texture manager: the next scene
-        // that wants this scan loads it itself, and only one of the two may add the key.
-        const file = this.#files.get(key);
-        if (file) file.addToCache = () => undefined;
-        this.#files.delete(key);
-        this.#inflight.delete(key);
+  #load(textures: Phaser.Textures.TextureManager, key: string, url: string, slot: Size): void {
+    if (this.#requested.has(key)) return;
+    this.#requested.add(key);
+    this.#decode(url, slot).then(
+      (canvas) => {
+        if (!canvas) {
+          this.#missing.add(key);
+        } else if (this.#noBiggerThanTable(textures, key, canvas.height)) {
+          // A full-size copy no bigger than its table copy (a small scan, or a big window): not kept, never asked again.
+          canvas.width = 0;
+          canvas.height = 0;
+          this.#missing.add(key);
+        } else if (!textures.exists(key)) {
+          textures.addImage(key, canvas as unknown as HTMLImageElement);
+          this.#track(textures, key);
+        }
+        this.#notify();
+      },
+      () => {
+        // A decode that threw (no answer at all): forget it was asked for, so the next draw asks again.
         this.#requested.delete(key);
-      }
-      if (this.#flushScene === scene) this.#flushScene = null;
-      if (this.#notifyScene === scene) {
-        this.#notifyScene = null;
-        // The redraw this scene owed the others still has to happen.
-        setTimeout(() => this.#fireListeners(), 0);
-      }
-    });
+      },
+    );
+  }
+
+  #noBiggerThanTable(textures: Phaser.Textures.TextureManager, key: string, height: number): boolean {
+    if (!key.endsWith("#full")) return false;
+    const table = key.slice(0, -"#full".length);
+    return textures.exists(table) && textures.get(table).getSourceImage().height >= height;
   }
 
   /**
    * Records a freshly-loaded texture's decoded size and sweeps the
    * least-recently-used ones out if that pushes residency over budget.
    */
-  #track(scene: Phaser.Scene, key: string): void {
+  #track(textures: Phaser.Textures.TextureManager, key: string): void {
     if (PINNED_KEYS.has(key)) return;
-    if (!scene.textures.exists(key)) return;
-    const image = scene.textures.get(key).getSourceImage() as { width?: number; height?: number };
+    if (!textures.exists(key)) return;
+    const image = textures.get(key).getSourceImage() as { width?: number; height?: number };
     const bytes = (image.width ?? 0) * (image.height ?? 0) * 4;
     this.#resident.set(key, bytes);
-    this.#evict(scene);
+    this.#evict(textures);
   }
 
   /**
@@ -298,19 +267,28 @@ export class CardArt {
    * again (the ordinary thing to happen the next time it's drawn) reloads it
    * rather than silently returning null forever.
    */
-  #evict(scene: Phaser.Scene): void {
-    if (this.residentBytes() <= RESIDENT_BUDGET_BYTES) return;
+  #evict(textures: Phaser.Textures.TextureManager): void {
+    if (this.residentBytes() <= this.#budget) return;
     const coldestFirst = [...this.#resident.keys()].sort(
       (a, b) => (this.#lastUsed.get(a) ?? 0) - (this.#lastUsed.get(b) ?? 0),
     );
     for (const key of coldestFirst) {
-      if (this.residentBytes() <= RESIDENT_BUDGET_BYTES) break;
+      if (this.residentBytes() <= this.#budget) break;
       this.#resident.delete(key);
       this.#lastUsed.delete(key);
       this.#requested.delete(key);
-      if (scene.textures.exists(key)) scene.textures.remove(key);
+      if (textures.exists(key)) {
+        const source = textures.get(key).getSourceImage() as unknown as { width?: number; height?: number };
+        textures.remove(key);
+        // The decoded copy goes with the texture now, not whenever the collector gets to the canvas: an evicted
+        // scan's pixels otherwise outlived it in the WebKit apps.
+        if (typeof HTMLCanvasElement !== "undefined" && source instanceof HTMLCanvasElement) {
+          source.width = 0;
+          source.height = 0;
+        }
+      }
       // A pack picture was loaded from a blob: URL; revoke it (a later ask reads the store again).
-      releasePackArt(key);
+      if (!key.endsWith("#full")) releasePackArt(key);
     }
   }
 
@@ -319,14 +297,12 @@ export class CardArt {
    * scans stream in across many frames, every listener rebuilds its whole screen, and one rebuild per frame for the
    * length of a download is what made a list of thumbnails (Rules reference, the roster) stutter on a tablet.
    */
-  #notify(scene: Phaser.Scene): void {
-    if (this.#notifyScene) return;
-    this.#notifyScene = scene;
-    scene.time.delayedCall(ARRIVAL_WINDOW_MS, () => {
-      if (this.#notifyScene !== scene) return;
-      this.#notifyScene = null;
+  #notify(): void {
+    if (this.#notifyTimer !== null) return;
+    this.#notifyTimer = setTimeout(() => {
+      this.#notifyTimer = null;
       this.#fireListeners();
-    });
+    }, ARRIVAL_WINDOW_MS);
   }
 
   #fireListeners(): void {
@@ -370,24 +346,32 @@ export interface DrawArtOptions {
  * `cover` crops in texture space and shifts the image back by the crop offset:
  * Phaser keeps a cropped object's frame layout, so the visible piece would
  * otherwise land one crop-origin to the right of where it belongs.
+ *
+ * A scan is kept at the size the table needs (`CardArt`); a slot bigger than
+ * that (the hover preview, Inspect) is drawn from the full-size scan once it
+ * arrives, and from the table copy until then.
  */
 export function drawArt(
   scene: Phaser.Scene,
-  key: string | null,
+  given: string | null,
   rect: Rect,
   options: DrawArtOptions = {},
 ): Phaser.GameObjects.Image | null {
-  if (!key || !scene.textures.exists(key)) return null;
-  const size = scene.textures.get(key).getSourceImage();
+  if (!given || !scene.textures.exists(given)) return null;
+  const fit = options.fit ?? "contain";
+  const fitScale = (width: number, height: number): number =>
+    fit === "cover"
+      ? Math.max(rect.width / width, rect.height / height)
+      : Math.min(rect.width / width, rect.height / height);
+  const table = scene.textures.get(given).getSourceImage();
+  if (!table.width || !table.height) return null;
+  const key = cardArt(scene).upgrade(scene, given, table.height * fitScale(table.width, table.height));
+  const size = key === given ? table : scene.textures.get(key).getSourceImage();
   const sourceWidth = size.width;
   const sourceHeight = size.height;
   if (!sourceWidth || !sourceHeight) return null;
 
-  const fit = options.fit ?? "contain";
-  const scale =
-    fit === "cover"
-      ? Math.max(rect.width / sourceWidth, rect.height / sourceHeight)
-      : Math.min(rect.width / sourceWidth, rect.height / sourceHeight);
+  const scale = fitScale(sourceWidth, sourceHeight);
 
   const image = scene.add
     .image(0, 0, key)

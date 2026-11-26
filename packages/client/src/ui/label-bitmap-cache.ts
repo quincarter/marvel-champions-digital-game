@@ -9,7 +9,11 @@
  * already done.
  *
  * Keyed on everything a paint depends on (`PaintJob` without its id: size, font, colors, the laid-out lines), so a hit
- * is the same pixels by construction. Bounded by the bytes the canvases hold, least recently used first out.
+ * is the same pixels by construction. Bounded by the bytes the canvases hold and by how many there are, least recently
+ * used first out. The count matters as much as the bytes: every kept label is a canvas element of its own, with a
+ * drawing context and a backing store the bytes do not count, and a long game paints thousands of distinct labels
+ * (each new card name, value and log line). Capped by bytes alone the cache grew past 2,000 canvases in five rounds,
+ * the bulk of the WebKit apps' ~180 MB a round (an 8 GB Mac reported 3.9 GB at round 12).
  */
 import type { PaintJob } from "./text-paint-protocol.js";
 
@@ -48,15 +52,20 @@ export function labelKeyOf(job: Omit<PaintJob, "id">): string {
   ]);
 }
 
+/** Up to this many labels are kept: a whole screen's labels, twice over. */
+export const LABEL_CACHE_ENTRIES = 500;
+
 const bytesOf = (label: CachedLabel): number => label.canvas.width * label.canvas.height * 4;
 
 export class LabelBitmapCache {
   readonly #entries = new Map<string, CachedLabel>();
   readonly #budget: number;
+  readonly #maxEntries: number;
   #bytes = 0;
 
-  constructor(budgetBytes: number = LABEL_CACHE_BYTES) {
+  constructor(budgetBytes: number = LABEL_CACHE_BYTES, maxEntries: number = LABEL_CACHE_ENTRIES) {
     this.#budget = budgetBytes;
+    this.#maxEntries = maxEntries;
   }
 
   get size(): number {
@@ -88,7 +97,7 @@ export class LabelBitmapCache {
     this.#entries.set(key, label);
     this.#bytes += size;
     for (const [oldest, entry] of this.#entries) {
-      if (this.#bytes <= this.#budget) break;
+      if (this.#bytes <= this.#budget && this.#entries.size <= this.#maxEntries) break;
       this.#entries.delete(oldest);
       this.#bytes -= bytesOf(entry);
     }

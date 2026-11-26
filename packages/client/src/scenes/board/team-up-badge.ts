@@ -121,7 +121,7 @@ export function drawRingImage(
   const ground = scene.add.graphics();
   // The quiet ring fades its picture over paper, not ink: faded over ink it read as a black disc (#365).
   ground.fillStyle(quiet ? surface.paper.hex : surface.ink.hex, 1).fillCircle(slot.cx, slot.cy, slot.radius);
-  const key = ensurePictureLoaded(scene, picture, onReady);
+  const key = ensurePictureLoaded(scene, picture, onReady, { fitScreen: true });
   if (key) {
     const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
     const box: Rect = {
