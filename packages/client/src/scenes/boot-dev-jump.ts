@@ -490,6 +490,22 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       },
     };
   }
+  // `?screen=room-chat` (dev only): the room chat sheet over a made-up room. `__mcChatArrives(text)` makes a line arrive
+  // from another player, as the room worker would send it.
+  if (screen === "room-chat" && import.meta.env.DEV) {
+    const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    const { previewRoomState, roomState } = await import("../platform/room.js");
+    previewRoomState(roomLobbyFixture("guest", "open"));
+    (globalThis as { __mcChatArrives?: (text: string) => void }).__mcChatArrives = (text) => {
+      const now = roomState();
+      previewRoomState({
+        ...now,
+        chat: [...now.chat, { from: "p2", name: "Ava", text, at: now.chat.length, mine: false }],
+        chatLive: now.chatLive + 1,
+      });
+    };
+    return { key: SCENES.roomChat, data: { draft: params.get("draft") ?? "" } };
+  }
   // `?screen=room-deck-picker&as=guest|host`: the deck picker for a seat of the made-up room (a guest's own seat, or the host's Set deck on seat 2).
   if (screen === "room-deck-picker") {
     const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
