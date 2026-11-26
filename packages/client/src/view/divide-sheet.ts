@@ -6,9 +6,9 @@
  * is legal.
  */
 
-import { isMinion, type ChoiceRef, type GameState, type InstanceId, type PendingChoice } from "@mc/engine";
-import { engagedNameOf, threatOnCard } from "./board-model.js";
-import { engagedNoteForms } from "./choice-tile-notes.js";
+import type { ChoiceRef, GameState, InstanceId, PendingChoice } from "@mc/engine";
+import { threatOnCard } from "./board-model.js";
+import { engagedNoteForms, minionEngagedName } from "./choice-tile-notes.js";
 import { cardName } from "./names.js";
 
 export interface DivideOptionLabel {
@@ -85,7 +85,7 @@ export function divideSheetOf(
   // Two copies of one card engaged with one hero (or two schemes of one name) are numbered in table order across every
   // target on the sheet, not just the picked ones, so a tile and its tally entry carry the same "#2" whatever is
   // picked (Codex, PR #1014).
-  const engagedBy = new Map(order.map((instanceId) => [instanceId, engagedOf(state, instanceId)] as const));
+  const engagedBy = new Map(order.map((instanceId) => [instanceId, minionEngagedName(state, instanceId)] as const));
   const copies = copyNumbers(order.map((instanceId) => `${cardName(state, instanceId)}|${engagedBy.get(instanceId)}`));
   const copyOf = new Map(order.map((instanceId, index) => [instanceId, copies[index]] as const));
   const named = (instanceId: InstanceId): string => {
@@ -161,11 +161,6 @@ export function copyNumbers(keys: readonly string[]): readonly (number | null)[]
     seen.set(key, nth);
     return nth;
   });
-}
-
-function engagedOf(state: GameState, instanceId: InstanceId): string | null {
-  if (!isMinion(state, instanceId)) return null;
-  return engagedNameOf(state, state.instances[instanceId]?.engagedWith ?? null);
 }
 
 function holdsOf(state: GameState, instanceId: InstanceId, what: string): string {

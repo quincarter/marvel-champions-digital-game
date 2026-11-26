@@ -59,8 +59,8 @@ export function optionEngagedNamesOf(state: GameState, choice: PendingChoice): R
   const inPlay = new Set(cardsInPlay(state));
   for (const option of choice.options) {
     const id = refInstanceId(option.ref);
-    if (!id || !inPlay.has(id) || !isMinion(state, id)) continue;
-    const name = engagedNameOf(state, state.instances[id]?.engagedWith ?? null);
+    if (!id || !inPlay.has(id)) continue;
+    const name = minionEngagedName(state, id);
     if (name) notes.set(option.optionId, name);
   }
   return notes;
@@ -87,6 +87,16 @@ function noteForms(name: string): readonly string[] {
     forms.push(`#${seat[2]} ${engagedChipWords(hero, 0)}`);
   }
   return [...new Set(forms)];
+}
+
+/**
+ * The seat a minion is engaged with, as the board's chip names it, or null: for a card that is not a minion, a minion
+ * engaged with nobody (held, captive), and every minion in a one-seat game, where there is no one else to tell apart
+ * (`engagedNameOf`). The one gate the choice sheet's tiles and rows and the divide sheet share (issue #1001).
+ */
+export function minionEngagedName(state: GameState, instanceId: InstanceId): string | null {
+  if (!isMinion(state, instanceId)) return null;
+  return engagedNameOf(state, state.instances[instanceId]?.engagedWith ?? null);
 }
 
 /**
