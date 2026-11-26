@@ -1687,7 +1687,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "rules.scope.captionTable": "Filtrado a lo que hay en tu mesa",
   "rules.scope.captionAll": "Mostrando todas las reglas, no solo las de la mesa",
   "rules.scope.captionPool": "Mostrando el catálogo de cartas: no hay partida en curso.",
-  "rules.search.placeholder": 'Buscar reglas — "retaliate", "confused"…',
+  "rules.search.placeholder": "Buscar reglas — «represalia», «confundido»…",
   "rules.glossary.empty": "Ningún término de reglas coincide con esa búsqueda.",
   "rules.cardList.emptyGame": "Esta partida no tiene cartas de Encuentro que mostrar.",
   "rules.cardList.emptyPool": "No hay conjuntos de Encuentro en el catálogo.",
