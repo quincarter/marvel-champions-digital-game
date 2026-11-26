@@ -18,6 +18,7 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { glyphsFitFormFactor } from "../view/glyph-placement.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import type { OptionNotice } from "../view/option-notice.js";
+import { layoutNotice, noticeButtonKey, noticeButtonOf } from "../view/option-notice-layout.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { anyPadButtonHeld } from "./press-guard.js";
@@ -61,6 +62,9 @@ export function giveBack(scenes: readonly Phaser.Scene[]): void {
 
 export class OptionNoticeOverlay extends Phaser.Scene {
   #notices: readonly OptionNotice[] = [];
+  /** A stable identity per notice, so a button's DOM key says which notice it belongs to. */
+  readonly #ids = new WeakMap<OptionNotice, number>();
+  #nextId = 1;
   #route: FocusRoute | null = null;
   #panel!: PopupSheet;
   #glyphs!: SheetGlyphs;
@@ -80,9 +84,12 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#panel = new PopupSheet(this, (key) => {
-      if (key === "ok") this.#dismiss();
-      else if (key === "never") {
-        if (this.#notices[0]?.action) this.#runAction();
+      // A key of another notice (a press begun on the one just dismissed) answers nothing.
+      const current = this.#notices[0];
+      const button = current ? noticeButtonOf(key, this.#idOf(current)) : null;
+      if (button === "ok") this.#dismiss();
+      else if (button === "never") {
+        if (current?.action) this.#runAction();
         else this.#optOut();
       }
     });
@@ -96,6 +103,11 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       onFocusChange: () => this.#glyphs.refresh(),
       onCancel: () => this.#dismiss(),
       primary: () => "ok",
+      // The right stick scrolls the text when it is taller than the screen.
+      onScroll: (_dx, dy) => {
+        const text = this.#panel.element?.elementOf("notice-text");
+        if (text) text.scrollTop += dy;
+      },
       onToggle: () => {
         if (this.#notices[0]?.optOut && !this.#notices[0].action) this.#optOut();
       },
@@ -106,6 +118,15 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       giveBack(paused);
     });
     this.#draw();
+  }
+
+  #idOf(notice: OptionNotice): number {
+    let id = this.#ids.get(notice);
+    if (id === undefined) {
+      id = this.#nextId++;
+      this.#ids.set(notice, id);
+    }
+    return id;
   }
 
   /** More notices, from a later command while this one is still up: shown after the ones waiting. */
@@ -149,8 +170,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     const b = this.#panel.begin(width, height);
 
-    const boxWidth = Math.min(560, width - 32);
-    const textWidth = boxWidth - 40;
+    const textWidth = Math.min(560, width - 32) - 40;
     const titleSpec = typeRole.barTitle;
     const bodySpec = typeRole.body;
     const titleSize = b.measure(notice.title, titleSpec, { wrapWidth: textWidth });
@@ -164,47 +184,43 @@ export class OptionNoticeOverlay extends Phaser.Scene {
           : t("notice.row.unavailable", { label: row.label, why: row.why });
       return { row, text, size: b.measure(text, bodySpec, rowOptions) };
     });
-    const rowGap = 10;
-    const rowsHeight = rows.reduce((sum, { size }) => sum + size.height + 16 + rowGap, 0);
     const buttonHeight = hit.primary;
     // A notice with an action stacks it above OK, full width: its label is long ("Continue in single player") and a half row clips it.
     const stacked = notice.action !== undefined;
-    const boxHeight =
-      20 +
-      titleSize.height +
-      8 +
-      leadSize.height +
-      14 +
-      rowsHeight +
-      10 +
-      buttonHeight +
-      (stacked ? buttonHeight + 10 : 0) +
-      20;
-    const box: Rect = {
-      x: (width - boxWidth) / 2,
-      y: Math.max(16, (height - boxHeight) / 2),
-      width: boxWidth,
-      height: boxHeight,
-    };
+    const layout = layoutNotice({
+      width,
+      height,
+      titleHeight: titleSize.height,
+      leadHeight: leadSize.height,
+      rowTextHeights: rows.map(({ size }) => size.height),
+      stacked,
+      buttonHeight,
+    });
+    const { box } = layout;
     b.box(box, { fill: surface.paper.hex, stroke: surface.ink.hex, strokeWidth: 4 });
-    b.text(box.x + 20, box.y + 20, notice.title, titleSpec, { color: surface.ink.hex, wrapWidth: textWidth });
-    const leadY = box.y + 20 + titleSize.height + 8;
-    b.text(box.x + 20, leadY, leadText, bodySpec, { color: surface.ink.hex, alpha: 0.9, wrapWidth: textWidth });
-    // Each option in a frame: the taken one drawn solid, the others faded, as the choice sheet draws a disabled row.
-    let y = leadY + leadSize.height + 14;
-    for (const { row, text, size } of rows) {
-      const frame: Rect = { x: box.x + 20, y, width: textWidth, height: size.height + 16 };
-      const taken = row.kind === "taken";
-      b.box(frame, { stroke: surface.ink.hex, strokeWidth: taken ? 3 : 2, alpha: taken ? 1 : 0.35 });
-      b.text(frame.x + 12, frame.y + 8, text, bodySpec, {
-        ...rowOptions,
-        color: surface.ink.hex,
-        alpha: taken ? 1 : 0.55,
+    // The text and the option rows scroll in a region bounded to the box; the buttons below it are always on screen.
+    b.scroll("notice-text", layout.scroll, layout.contentHeight, (sb) => {
+      const x = box.x + 20;
+      sb.text(x, layout.titleY, notice.title, titleSpec, { color: surface.ink.hex, wrapWidth: textWidth });
+      sb.text(x, layout.leadY, leadText, bodySpec, { color: surface.ink.hex, alpha: 0.9, wrapWidth: textWidth });
+      // Each option in a frame: the taken one drawn solid, the others faded, as the choice sheet draws a disabled row.
+      rows.forEach(({ row, text }, n) => {
+        const f = layout.rowFrames[n]!;
+        const frame: Rect = { x, y: f.y, width: textWidth, height: f.height };
+        const taken = row.kind === "taken";
+        sb.box(frame, { stroke: surface.ink.hex, strokeWidth: taken ? 3 : 2, alpha: taken ? 1 : 0.35 });
+        sb.text(frame.x + 12, frame.y + 8, text, bodySpec, {
+          ...rowOptions,
+          color: surface.ink.hex,
+          alpha: taken ? 1 : 0.55,
+        });
       });
-      y += frame.height + rowGap;
-    }
+    });
 
-    const buttonY = box.y + box.height - 20 - buttonHeight;
+    const buttonY = layout.buttonY;
+    const id = this.#idOf(notice);
+    const okKey = noticeButtonKey("ok", id, false);
+    const neverKey = noticeButtonKey("never", id, notice.action !== undefined);
     // A notice that offers "Don't show again" splits the row: it on the left, OK on the right (`end-turn-confirm.ts`).
     const half = (textWidth - 12) / 2;
     const sideLabel = notice.action ? notice.action.label : notice.optOut ? t("notice.dontShowAgain") : null;
@@ -221,7 +237,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     const glyphsFit = glyphsFitFormFactor(formFactorFor(width, height));
     // A on the focused OK; on a pad, Start too (it presses OK from anywhere).
     this.#glyphs.button(b, {
-      key: "ok",
+      key: okKey,
       rect: okRect,
       label: this.#notices.length > 1 ? t("notice.next") : (notice.okLabel ?? t("notice.ok")),
       look: "primary",
@@ -243,7 +259,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     if (neverRect) {
       // X (G / H) presses "Don't show again" from anywhere; A when it has the ring. An action has A only.
       this.#glyphs.button(b, {
-        key: "never",
+        key: neverKey,
         rect: neverRect,
         label: sideLabel!,
         look: "secondary",

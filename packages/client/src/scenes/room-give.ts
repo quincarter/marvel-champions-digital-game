@@ -14,6 +14,7 @@ import { assignSeat, roomState } from "../platform/room.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import type { Rect } from "../view/layout.js";
+import { layoutRoomGive } from "../view/room-give-layout.js";
 import { assignCandidates } from "../view/room-lobby-model.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -46,6 +47,10 @@ export class RoomGiveOverlay extends Phaser.Scene {
       ring: domFocusRing,
       onCancel: () => this.scene.stop(),
       primary: () => "cancel",
+      onScroll: (_dx, dy) => {
+        const list = this.#panel.element?.elementOf("give-list");
+        if (list) list.scrollTop += dy;
+      },
     });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
@@ -55,6 +60,12 @@ export class RoomGiveOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** Where a panel part is now, scroll included. */
+  #liveRect(key: string): Rect | null {
+    const found = this.#panel.element?.elementOf(key);
+    return found ? this.#panel.rectOf(found) : null;
+  }
+
   #draw(): void {
     destroyChildren(this);
     this.#answers.clear();
@@ -62,48 +73,56 @@ export class RoomGiveOverlay extends Phaser.Scene {
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     const b = this.#panel.begin(width, height);
     const people = assignCandidates(roomState());
-    const boxWidth = Math.min(420, width - 32);
-    const inner = boxWidth - 40;
     const titleSpec = typeRole.barTitle;
     const bodySpec = typeRole.body;
     const titleText = t("give.title", { hero: this.#data.hero });
-    const titleSize = b.measure(titleText, titleSpec);
-    const emptyOptions = { wrapWidth: inner };
     const emptyText = t("room.seat.giveNobody");
-    const emptySize = people.length === 0 ? b.measure(emptyText, bodySpec, emptyOptions) : null;
-    const listHeight = people.length === 0 ? (emptySize?.height ?? 0) : people.length * (hit.target + 6);
-    const boxHeight = 20 + titleSize.height + 12 + listHeight + 10 + hit.target + 20;
-    const box: Rect = {
-      x: (width - boxWidth) / 2,
-      y: Math.max(12, (height - boxHeight) / 3),
-      width: boxWidth,
-      height: Math.min(boxHeight, height - 24),
-    };
+    const wrap = { wrapWidth: Math.min(420, width - 32) - 40 };
+    const titleSize = b.measure(titleText, titleSpec);
+    const emptySize = people.length === 0 ? b.measure(emptyText, bodySpec, wrap) : null;
+    const layout = layoutRoomGive({
+      width,
+      height,
+      titleHeight: titleSize.height,
+      emptyHeight: emptySize?.height ?? null,
+      recipients: people.length,
+      target: hit.target,
+    });
+    const { box, inner, list } = layout;
     b.box(box, { fill: surface.paper.hex, stroke: surface.ink.hex, strokeWidth: 4 });
     b.text(box.x + 20, box.y + 20, titleText, titleSpec, { color: surface.ink.hex });
-    let y = box.y + 20 + titleSize.height + 12;
     const order: string[] = [];
     const stops = new Map<string, FocusStop>();
-    if (emptySize) b.text(box.x + 20, y, emptyText, bodySpec, { ...emptyOptions, color: surface.ink.hex, alpha: 0.85 });
-    for (const person of people) {
-      const rect: Rect = { x: box.x + 20, y, width: inner, height: hit.target };
+    if (emptySize) b.text(list.x, list.y, emptyText, bodySpec, { ...wrap, color: surface.ink.hex, alpha: 0.85 });
+    // The recipients scroll in a region bounded to the box; Cancel stays outside it, always on screen.
+    const recipients = people.map((person, n) => ({
+      person,
+      key: `give:${person.id}`,
+      rect: { x: list.x, y: layout.rowTops[n]!, width: inner, height: hit.target } satisfies Rect,
+    }));
+    if (recipients.length > 0) {
+      b.scroll("give-list", list, layout.contentHeight, (sb) => {
+        for (const { person, key, rect } of recipients) {
+          sb.button({ key, rect, label: person.name, look: "primary", type: buttonType });
+        }
+      });
+    }
+    for (const { person, key, rect } of recipients) {
       const give = (): void => {
         assignSeat(this.#data.seat, person.id);
         this.scene.stop();
       };
-      const key = `give:${person.id}`;
-      b.button({ key, rect, label: person.name, look: "primary", type: buttonType });
       this.#answers.set(key, give);
       order.push(key);
-      stops.set(key, { rect, activate: give });
-      y += hit.target + 6;
+      const screenRect: Rect = { ...rect, y: list.y + rect.y };
+      stops.set(key, {
+        rect: () => this.#liveRect(key) ?? screenRect,
+        view: () => this.#liveRect("give-list") ?? list,
+        activate: give,
+        ensureVisible: () => this.#panel.element?.elementOf(key)?.scrollIntoView({ block: "nearest" }),
+      });
     }
-    const cancelRect: Rect = {
-      x: box.x + 20,
-      y: box.y + box.height - 20 - hit.target,
-      width: inner,
-      height: hit.target,
-    };
+    const cancelRect = layout.cancel;
     const cancel = (): void => void this.scene.stop();
     b.button({ key: "cancel", rect: cancelRect, label: t("give.cancel"), look: "secondary", type: buttonType });
     this.#answers.set("cancel", cancel);

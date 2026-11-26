@@ -42,6 +42,11 @@ export class PopupSheet {
     return this.#region?.element ?? null;
   }
 
+  /** An element inside the panel, in game coordinates (it follows a scrolling region's scroll). */
+  rectOf(target: Element): Rect | null {
+    return this.#region?.rectOf(target) ?? null;
+  }
+
   /** A builder over the whole screen, with the dim scrim (Phaser's `void`, at 0.7 unless `scrim` says) already laid. */
   begin(width: number, height: number, scrim = 0.7): SheetBuilder {
     const builder = new SheetBuilder(this.#scene.game, { x: 0, y: 0 }, isDesktopType);

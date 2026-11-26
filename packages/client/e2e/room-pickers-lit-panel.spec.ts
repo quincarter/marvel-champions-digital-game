@@ -148,13 +148,13 @@ test("the notice is a panel: the ring is on OK at once, two notices show Next, E
   await expect(panel).toContainText("Not available: no reason.");
   expect(await focusOf(page, NOTICE)).toBe("ok");
   await expect(page.locator("#mc-ui .mc-focus-ring").last()).toBeVisible();
-  await expect(panel.locator('mc-button[data-key="ok"]')).toContainText(/next/i);
+  await expect(panel.locator('mc-button[data-key^="ok:"]')).toContainText(/next/i);
 
   await pressKey(page, "Enter");
   await expect(panel).toContainText("Second notice");
-  await expect(panel.locator('mc-button[data-key="ok"]')).toHaveText(/^ok$/i);
+  await expect(panel.locator('mc-button[data-key^="ok:"]')).toHaveText(/^ok$/i);
   // The second one offers "Don't show again" beside OK; the ring walks to it.
-  await expect(panel.locator('mc-button[data-key="never"]')).toBeVisible();
+  await expect(panel.locator('mc-button[data-key^="never:"]')).toBeVisible();
   await walkTo(page, NOTICE, "never", "ArrowLeft", 4);
   await walkTo(page, NOTICE, "ok", "ArrowRight", 4);
   await pressKey(page, "Escape");
@@ -170,7 +170,119 @@ test("pressing the notice's OK on the panel dismisses it", async ({ page }) => {
   const panel = sheet(page, NOTICE);
   await expect(panel).toBeVisible();
   await expect(panel).toContainText("The host closed the room.");
-  await panel.locator('mc-button[data-key="ok"]').click();
+  await panel.locator('mc-button[data-key^="ok:"]').click();
   await expect(panel).toHaveCount(0, { timeout: 10000 });
+  expect(errors).toEqual([]);
+});
+
+test("Give <hero> to... with a full room keeps Cancel on screen and scrolls the recipients, on a phone", async ({
+  page,
+}) => {
+  const errors = trackPageErrors(page);
+  for (const size of [
+    { width: 375, height: 667 },
+    { width: 667, height: 375 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.evaluate(async () => {
+      const room = (await import("/src/platform/room.ts")) as unknown as {
+        previewRoomState(state: unknown): void;
+      };
+      const { roomLobbyFixture } = (await import("/src/view/room-lobby-fixture.ts")) as unknown as {
+        roomLobbyFixture(as: string, variant: string, extras: object): { participants: Record<string, unknown>[] };
+      };
+      const fixture = roomLobbyFixture("host", "open", {});
+      const host = fixture.participants.find((p) => p.role === "host") ?? fixture.participants[0]!;
+      const guests = Array.from({ length: 24 }, (_, i) => ({
+        ...host,
+        id: `p${i}`,
+        name: `Guest ${i + 1}`,
+        role: "guest",
+        seats: [],
+        buildMatches: true,
+      }));
+      room.previewRoomState({ ...fixture, participants: [host, ...guests] });
+    });
+    await launch(page, GIVE, { seat: "seat-1", hero: "Spider-Man" });
+    const panel = sheet(page, GIVE);
+    await expect(panel).toBeVisible();
+    const viewport = page.viewportSize()!;
+    const cancel = panel.locator('mc-button[data-key="cancel"]');
+    const box = (await cancel.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    // The recipients sit above Cancel, not over it.
+    const last = panel.locator('mc-button[data-key="give:p23"]');
+    await walkTo(page, GIVE, "give:p23", "ArrowDown", 30);
+    const lastBox = (await last.boundingBox())!;
+    expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(box.y + 1);
+    expect(lastBox.y).toBeGreaterThanOrEqual(0);
+    await walkTo(page, GIVE, "cancel", "ArrowDown", 3);
+    await pressKey(page, "Escape");
+    await expect(panel).toHaveCount(0, { timeout: 10000 });
+  }
+  expect(errors).toEqual([]);
+});
+
+test("a notice with long reasons on a short phone scrolls its text and both buttons stay reachable", async ({
+  page,
+}) => {
+  const errors = trackPageErrors(page);
+  await page.setViewportSize({ width: 375, height: 500 });
+  const why =
+    "Jessica Jones es estoica y no puede quedar confundida mientras tenga la mejora Firmeza en juego, asi que no se ofrecio";
+  await launch(page, NOTICE, {
+    notices: [
+      {
+        title: "Work-Life Balance",
+        optOut: true,
+        rows: [
+          { kind: "taken", label: "Remove an ally" },
+          ...[2, 3, 4, 5].map((n) => ({ kind: "unavailable", label: `Option ${n}`, why })),
+        ],
+      },
+    ],
+  });
+  const panel = sheet(page, NOTICE);
+  await expect(panel).toBeVisible();
+  for (const key of ["ok", "never"]) {
+    const box = (await panel.locator(`mc-button[data-key^="${key}:"]`).boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(500);
+  }
+  await walkTo(page, NOTICE, "never", "ArrowLeft", 3);
+  await walkTo(page, NOTICE, "ok", "ArrowRight", 3);
+  expect(errors).toEqual([]);
+});
+
+test("a press begun on one notice's button and finished after another input dismissed it does not act on the next", async ({
+  page,
+}) => {
+  const errors = trackPageErrors(page);
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __mcGame: { scene: { getScene(k: string): { scene: { launch(k: string, d: unknown): void } } } };
+      __room: { calls: string[] };
+    };
+    w.__room = { calls: [] };
+    const action = (name: string) => ({ label: `Continue ${name}`, run: () => w.__room.calls.push(name) });
+    const notice = (title: string, name: string) => ({ title, rows: [], action: action(name) });
+    w.__mcGame.scene
+      .getScene("PauseOverlay")
+      .scene.launch("OptionNoticeOverlay", { notices: [notice("Notice A", "A"), notice("Notice B", "B")] });
+  });
+  const panel = sheet(page, NOTICE);
+  await expect(panel).toContainText("Notice A");
+  const side = panel.locator('mc-button[data-key^="never:"]');
+  const box = (await side.boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await pressKey(page, "Enter");
+  await expect(panel).toContainText("Notice B");
+  await page.mouse.up();
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText("Notice B");
+  expect(await calls(page)).toEqual([]);
   expect(errors).toEqual([]);
 });
