@@ -353,6 +353,19 @@ describe("wave 8 mechanics (guided mode section 3.14)", () => {
     );
   });
 
+  it("Team-Up counts a friendly identity in either form or an ally, not only a hero (RRG 1.8 p. 43)", () => {
+    const teamUp = glossaryEntry("teamUp")!.definition;
+    expect(teamUp).toMatch(/either form or as an ally/);
+    expect(teamUp).not.toMatch(/alter-ego form doesn't count/);
+  });
+
+  it("threat reaching the target completes a stage; only the final stage wins for the villain (RRG 1.8 pp. 27, 48)", () => {
+    const threat = glossaryEntry("threat")!;
+    expect(threat.definition).toMatch(/stage is completed/);
+    expect(threat.definition).toMatch(/final stage/);
+    expect(threat.sources).toContainEqual({ kind: "rrg", page: 27 });
+  });
+
   it("uses American spelling and no dashes in what a player reads", () => {
     for (const id of WAVE_8_IDS) {
       const entry = glossaryEntry(id)!;

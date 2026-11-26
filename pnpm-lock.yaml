@@ -117,6 +117,9 @@ importers:
       fake-indexeddb:
         specifier: ^6.2.8
         version: 6.2.8
+      happy-dom:
+        specifier: ^21.0.4
+        version: 21.0.4
       sharp:
         specifier: 0.35.5
         version: 0.35.5(@types/node@24.19.2)

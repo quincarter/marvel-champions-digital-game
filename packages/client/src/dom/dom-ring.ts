@@ -35,7 +35,11 @@ export function ringStyle(rect: Rect, color: number = selectionRing.color.hex): 
 const STATE_EVENTS = ["postupdate", "sleep", "pause", "wake", "resume"] as const;
 
 class DomFocusRing implements FocusRing {
+  /** Outer wrapper: the box, display and the camera-fade opacity (`#sync`). The pulse never runs on it. */
   readonly #element: HTMLDivElement;
+  /** Inner ring: the border and glow, and the only element the pulse animates, so a running CSS animation can't
+   *  override the wrapper's inline opacity while the camera fades. */
+  readonly #ring: HTMLDivElement;
   readonly #color: number | undefined;
   readonly #scene: Phaser.Scene;
   readonly #passes: ReadonlySet<string> | undefined;
@@ -55,6 +59,9 @@ class DomFocusRing implements FocusRing {
       zIndex: "10",
       display: "none",
     });
+    this.#ring = document.createElement("div");
+    Object.assign(this.#ring.style, { position: "absolute", inset: "0", boxSizing: "border-box" });
+    this.#element.append(this.#ring);
     uiLayer(scene.game).append(this.#element);
     // It shows, hides and fades with its scene, as the scene's panel does (`dom/dom-region.ts`), and goes with it.
     for (const event of STATE_EVENTS) scene.events.on(event, this.#sync, this);
@@ -77,9 +84,11 @@ class DomFocusRing implements FocusRing {
 
   show(rect: Rect, mode: "static" | "pulse", reducedMotion: boolean): void {
     this.#wanted = true;
-    Object.assign(this.#element.style, ringStyle(rect, this.#color));
+    const { left, top, width, height, ...look } = ringStyle(rect, this.#color);
+    Object.assign(this.#element.style, { left, top, width, height });
+    Object.assign(this.#ring.style, look);
     this.#sync();
-    this.#element.style.animation =
+    this.#ring.style.animation =
       mode === "pulse" && !reducedMotion
         ? `mc-ring-pulse ${selectionRing.pulseMs}ms ease-in-out infinite alternate`
         : "none";

@@ -1361,7 +1361,7 @@ export const en = {
     "Plays the songs you've earned in Extras, shuffled, in menus and games. Openers, Game over and finales keep their own.",
   "settings.confirmEndTurn.title": "Confirm before ending turn",
   "settings.confirmEndTurn.detail":
-    "Ask before End turn whenever a basic attack, thwart or recover is still open, for you or an ally. Off ends the turn straight away.",
+    "Ask before End turn while you can still make a basic attack, thwart or recover, or an ally can still attack or thwart. Off ends the turn straight away.",
   "settings.notOffered.title": "Explain abilities not offered",
   "settings.notOffered.detail":
     "The first time a card's interrupt or response can't be used (no target, or a cost you can't pay), say why. The log always says it.",
@@ -1708,11 +1708,11 @@ export const en = {
     "In player order: the villain activates against that player, then each minion engaged with them, in that player's choice of order.",
   "rules.villain.dealEncounterCards.label": "3. Deal encounter cards",
   "rules.villain.dealEncounterCards.detail":
-    "Each player is dealt one encounter card facedown (plus the heroic level, in Heroic mode), then one more per hazard icon in play.",
+    "Each player is dealt one encounter card facedown (plus the heroic level, in Heroic mode). Then one more card is dealt for each hazard icon in play, one card per icon in total, in player order starting with the first player.",
   "rules.villain.revealEncounterCards.label": "4. Reveal encounter cards",
   "rules.villain.revealEncounterCards.detail":
-    "The first player reveals and resolves their dealt cards one at a time, then each other player does the same in turn order.",
-  "rules.villain.passFirstPlayer.label": "5. Pass first player",
+    "The first player reveals and resolves their dealt cards one at a time, in the order dealt, then each other player does the same in player order.",
+  "rules.villain.passFirstPlayer.label": "5. Pass the first player token",
   "rules.villain.passFirstPlayer.detail": "The first player token passes to the next player clockwise.",
   "rules.villain.endOfRound.label": "6. End of round",
   "rules.villain.endOfRound.detail":

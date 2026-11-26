@@ -782,7 +782,14 @@ export class BoardScene extends Phaser.Scene {
       this.#draw();
     });
     // The Epic clock counts down in minutes: look again every 20 seconds.
-    const clockTimer = this.time.addEvent({ delay: 20_000, loop: true, callback: () => this.#refreshRoomPart() });
+    // Only an Epic room has a clock: a game anywhere else is not drawn again for it.
+    const clockTimer = this.time.addEvent({
+      delay: 20_000,
+      loop: true,
+      callback: () => {
+        if (this.#room.epic) this.#refreshRoomPart();
+      },
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       roomOff();
       clockTimer.remove();
