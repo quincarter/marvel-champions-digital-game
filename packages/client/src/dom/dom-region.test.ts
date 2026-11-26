@@ -26,6 +26,13 @@ describe("coveredAbove", () => {
     expect(coveredAbove(scenes, "Credits", chrome)).toBe(false);
   });
 
+  it("is covered by a paused scene above it that is still drawn (as `active` here means drawn)", () => {
+    const paused = scenes.map((scene) => (scene.key === "Pause" ? { ...scene, active: true } : scene));
+    expect(coveredAbove(paused, "Credits", chrome)).toBe(true);
+    const hidden = paused.map((scene) => (scene.key === "Pause" ? { ...scene, visible: false } : scene));
+    expect(coveredAbove(hidden, "Credits", chrome)).toBe(false);
+  });
+
   it("is covered by a scene above it that is up", () => {
     expect(coveredAbove(scenes, "Board", chrome)).toBe(true);
     const paused = scenes.map((scene) => (scene.key === "Pause" ? { ...scene, active: true } : scene));
