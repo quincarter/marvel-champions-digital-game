@@ -32,7 +32,7 @@ import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
 import { onArtChange, onLanguageChange } from "../language-change.js";
-import { releasePackArt } from "./pack-art.js";
+import { currentPackArt, releasePackArt } from "./pack-art.js";
 import { artBudgetBytes } from "./memory-budget.js";
 
 /**
@@ -161,7 +161,10 @@ export class CardArt {
    * The texture key if the scan is on hand, else null — and the request is
    * queued. Callers draw their frame either way and get a redraw later.
    */
-  request(scene: Phaser.Scene, source: ArtSource | null): string | null {
+  request(scene: Phaser.Scene, held: ArtSource | null): string | null {
+    if (!held) return null;
+    // A source held across an eviction (a slot, a pane) may carry a blob URL revoked since: resolve it at request time.
+    const source = currentPackArt(held);
     if (!source) return null;
     // Every request, hit or miss, marks the key as the newest tick — this is
     // the only signal eviction uses, so a key still being drawn is always the
