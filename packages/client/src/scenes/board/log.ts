@@ -116,6 +116,11 @@ export class LogPanel {
     this.#region?.element.scroller?.scrollBy({ top: dy });
   }
 
+  /** The controller's activate press on the log: down to the newest line if the chip is showing; false if not. */
+  jumpToLatest(): boolean {
+    return this.#rect !== null && (this.#region?.element.jumpToLatest() ?? false);
+  }
+
   /**
    * The close button's box in game coordinates, for the focus route, or null while the panel is not shown. Read from
    * the DOM, as the button is drawn there.

@@ -121,6 +121,16 @@ export class McGameLog extends LitElement {
     return this.#following;
   }
 
+  /**
+   * The controller's activate press: back down to the newest line when the "newer" chip is showing (true), else nothing
+   * (false), so the press falls through to whatever it does with the log focused.
+   */
+  jumpToLatest(): boolean {
+    if (this.#following) return false;
+    this.scrollToLatest();
+    return true;
+  }
+
   /** Back down to the newest line, and following it again. */
   scrollToLatest(): void {
     const scroller = this.scroller;

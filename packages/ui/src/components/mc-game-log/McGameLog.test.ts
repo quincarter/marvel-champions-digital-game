@@ -170,6 +170,21 @@ describe("mc-game-log", () => {
     }
   });
 
+  it("jumpToLatest, the controller's activate, goes down only while reading back", async () => {
+    const log = await mounted();
+    stub(log, { top: 900, height: 1000, view: 100 });
+    log.scroller!.dispatchEvent(new Event("scroll"));
+    expect(log.jumpToLatest()).toBe(false);
+    stub(log, { top: 0, height: 1000, view: 250 });
+    log.scroller!.dispatchEvent(new Event("scroll"));
+    await log.updateComplete;
+    expect(log.jumpToLatest()).toBe(true);
+    await log.updateComplete;
+    expect(log.scroller!.scrollTop).toBe(1000);
+    expect(chip(log)).toBeNull();
+    log.remove();
+  });
+
   it("does not take the click that follows a pointer tap as a second activation", async () => {
     const log = await mounted();
     stub(log, { top: 0, height: 1000, view: 250 });
