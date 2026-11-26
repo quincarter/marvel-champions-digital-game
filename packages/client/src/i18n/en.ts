@@ -565,6 +565,8 @@ export const en = {
   "online.live": "Live now",
   "online.liveHosted": "Hosted by you",
   "online.liveJoined": "You joined",
+  "online.liveBadgeHosted": "H",
+  "online.liveBadgeJoined": "J",
   "online.liveRejoin": "Rejoin",
   "online.liveWatch": "Watch",
   "online.liveJoin": "Join",

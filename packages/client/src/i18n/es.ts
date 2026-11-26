@@ -573,6 +573,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "online.live": "En vivo",
   "online.liveHosted": "Creada por ti",
   "online.liveJoined": "Te uniste",
+  "online.liveBadgeHosted": "C",
+  "online.liveBadgeJoined": "T",
   "online.liveRejoin": "Volver",
   "online.liveWatch": "Mirar",
   "online.liveJoin": "Unirse",

@@ -8,6 +8,12 @@
  * (`view/room-lobby-model.ts`), never on a screen that is already the lobby.
  */
 import Phaser from "phaser";
+import "@mc/ui";
+import type { McSheet } from "@mc/ui";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder } from "../dom/sheet-builder.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import { t } from "../i18n/translate.js";
 import {
   onRoomState,
@@ -29,9 +35,8 @@ import { drawArtBackdrop } from "../ui/art-backdrop.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
-import { textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { McButton, McTextInput, fitText } from "../ui/widgets.js";
+import { McButton, McTextInput } from "../ui/widgets.js";
 import type { Rect } from "../view/layout.js";
 import {
   LIVE_HEADING_HEIGHT,
@@ -96,6 +101,10 @@ export class OnlineScene extends Phaser.Scene {
   /** A line under the buttons: why the last try did not open a room. */
   #message: string | null = null;
   #route: FocusRoute | null = null;
+  /** The controls and "Live now" rows: one Lit panel over the canvas, made once a visit. */
+  #region: DomRegion<McSheet> | null = null;
+  /** What a press on each panel button does, by its key. */
+  readonly #actions = new Map<string, () => void>();
   #hints!: GlyphHints;
   #alive = false;
   #off: (() => void) | null = null;
@@ -125,6 +134,7 @@ export class OnlineScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       blocked: () => (this.#input?.focused ?? false) || this.scene.isActive(SCENES.onlineName),
       onCancel: () => this.#back(),
     });
@@ -148,6 +158,8 @@ export class OnlineScene extends Phaser.Scene {
       this.#buttons = [];
       this.#input?.destroy();
       this.#input = null;
+      // The panel goes with the scene (`DomRegion`); the next visit makes a new one.
+      this.#region = null;
     });
     this.#draw();
     this.#stopPoll = pollLiveRooms((rooms) => this.#onLive(rooms));
@@ -386,6 +398,8 @@ export class OnlineScene extends Phaser.Scene {
   }
 
   #startJoin(target: string): void {
+    // A press or a pad A on a row while a room is opening does nothing, as its disabled button does.
+    if (this.#busy) return;
     // No connection (or no service): said here before a name is asked for.
     if (this.#offline()) return;
     this.#withName(() => {
@@ -445,6 +459,7 @@ export class OnlineScene extends Phaser.Scene {
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
     this.#hints.reset();
+    this.#actions.clear();
 
     const frame = campaignFrame(this);
     const { width, height, phone, gutter } = frame;
@@ -463,64 +478,69 @@ export class OnlineScene extends Phaser.Scene {
       order.push("back");
     }
 
+    // The controls are one Lit panel (`mc-sheet`) over the canvas, below the top bar, which stays Phaser (so the Back
+    // button keeps its own hover and press). Its parts are built at the same rects the Phaser screen drew them.
     const layout = onlineLayout(width, height, bar.height, gutter);
+    const area: Rect = { x: 0, y: bar.height, width, height: height - bar.height };
+    const b = new SheetBuilder(this.game, { x: area.x, y: area.y }, isDesktopType);
     const busy = this.#busy !== null;
 
     // The controls sit on a panel, so text never reads over the picture.
     const panel = layout.controls;
-    this.#panelBox(panel);
+    this.#panelBox(b, panel);
     const left = panel.x + PANEL_PAD;
     const column = panel.width - PANEL_PAD * 2;
     let y = panel.y + PANEL_PAD;
 
     // The name, with a way to change it.
     const name = onlineName();
-    const nameLine = this.add
-      .text(
-        left,
-        y + hit.target / 2,
-        name ? t("online.playingAs", { name }) : t("online.nameTitle"),
-        textStyle(typeRole.rowTitle, surface.ink.hex),
-      )
-      .setOrigin(0, 0.5);
+    b.text(
+      left,
+      y + hit.target / 2,
+      name ? t("online.playingAs", { name }) : t("online.nameTitle"),
+      typeRole.rowTitle,
+      {
+        color: surface.ink.hex,
+        origin: [0, 0.5],
+        fitWidth: column - 140,
+      },
+    );
     const changeRect: Rect = { x: left + column - 130, y, width: 130, height: hit.target };
-    fitText(nameLine, column - 140, typeRole.rowTitle.size);
     const change = (): void => {
+      if (this.#busy) return;
       this.scene.launch(SCENES.onlineName, { onDone: () => this.#alive && this.#draw() } satisfies OnlineNameData);
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: name ? t("online.change") : t("online.nameSettingNone"),
-        type: typeRole.label,
-        rect: changeRect,
-        enabled: !busy,
-        onClick: change,
-      }),
-    );
+    this.#actions.set("name", change);
+    b.button({
+      key: "name",
+      rect: changeRect,
+      label: name ? t("online.change") : t("online.nameSettingNone"),
+      look: "secondary",
+      type: typeRole.label,
+      ...(busy ? { disabled: true as const } : {}),
+    });
     stops.set("name", { rect: changeRect, activate: change });
     order.push("name");
     y += hit.target + 18;
 
     // Host a room.
-    y = this.#paragraph(left, y, column, t("online.hostDetail"));
+    y = this.#paragraph(b, left, y, column, t("online.hostDetail"));
     const hostRect: Rect = { x: left, y: y + 8, width: column, height: hit.primary };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: this.#busy === "host" ? t("online.connecting") : t("online.host"),
-        type: bangers(22),
-        rect: hostRect,
-        enabled: !busy,
-        onClick: () => this.#host(),
-      }),
-    );
+    this.#actions.set("host", () => this.#host());
+    b.button({
+      key: "host",
+      rect: hostRect,
+      label: this.#busy === "host" ? t("online.connecting") : t("online.host"),
+      look: "primary",
+      type: bangers(22),
+      ...(busy ? { disabled: true as const } : {}),
+    });
     stops.set("host", { rect: hostRect, activate: () => this.#host() });
     order.push("host");
     y = hostRect.y + hostRect.height + 24;
 
     // Join a room.
-    y = this.#paragraph(left, y, column, t("online.joinDetail"));
+    y = this.#paragraph(b, left, y, column, t("online.joinDetail"));
     const joinWidth = 110;
     const fieldRect: Rect = { x: left, y: y + 8, width: column - joinWidth - 10, height: hit.primary };
     if (this.#input) {
@@ -551,16 +571,15 @@ export class OnlineScene extends Phaser.Scene {
       width: joinWidth,
       height: hit.primary,
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: this.#busy === "join" ? "…" : t("online.joinGo"),
-        type: typeRole.label,
-        rect: joinRect,
-        enabled: !busy,
-        onClick: () => this.#join(),
-      }),
-    );
+    this.#actions.set("join", () => this.#join());
+    b.button({
+      key: "join",
+      rect: joinRect,
+      label: this.#busy === "join" ? "…" : t("online.joinGo"),
+      look: "secondary",
+      type: typeRole.label,
+      ...(busy ? { disabled: true as const } : {}),
+    });
     stops.set("code", { rect: fieldRect, activate: () => this.#input?.focus() });
     stops.set("join", { rect: joinRect, activate: () => this.#join() });
     order.push("code", "join");
@@ -568,60 +587,82 @@ export class OnlineScene extends Phaser.Scene {
 
     const message = this.#busy ? t("online.connecting") : this.#message;
     if (message) {
-      this.add
-        .text(left, y, message, textStyle(typeRole.rowTitle, surface.ink.hex))
-        .setWordWrapWidth(column, true)
-        .setFontSize(15);
+      b.text(left, y, message, typeRole.rowTitle, { color: surface.ink.hex, size: 15, wrapWidth: column });
     }
 
-    if (layout.live) this.#drawLive(layout.live, layout.rows, busy, stops, order);
+    if (layout.live) this.#drawLive(b, layout.live, layout.rows, busy, stops, order);
+    this.#mount(area, b, fieldRect);
     this.#route?.set(order, stops);
   }
 
+  /** Hands the built parts to the panel (made once) and renders them now, so a focus stop can be read this frame. */
+  #mount(area: Rect, builder: SheetBuilder, fieldRect: Rect): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      element.addEventListener("mc-activate", (event) => {
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#region = new DomRegion(this, element, area);
+    }
+    const region = this.#region;
+    region.setRect(area);
+    // The code field is a Phaser DOM element under the panel: left out of it, it is seen and pressed. Only while it
+    // shows: under the name pop-up it hides itself, and the hole would show the backdrop through the panel.
+    region.setHoles(() => (this.#input?.shown ? [fieldRect] : []));
+    region.element.nodes = builder.nodes;
+    renderNow(region.element);
+  }
+
   /** A solid page-coloured box with the design ink border: what text sits on over the backdrop picture. */
-  #panelBox(rect: Rect): void {
-    this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.paper.hex, 0.96).setOrigin(0, 0);
-    const g = this.add.graphics();
-    g.lineStyle(2, surface.ink.hex, 1);
-    g.strokeRect(rect.x, rect.y, rect.width, rect.height);
+  #panelBox(b: SheetBuilder, rect: Rect): void {
+    b.box(rect, { fill: surface.paper.hex, fillAlpha: 0.96, stroke: surface.ink.hex, strokeWidth: 2 });
   }
 
   /** "Live now": this device recent rooms with Rejoin; a directory feed rows would draw the same way. */
-  #drawLive(rect: Rect, capacity: number, busy: boolean, stops: Map<string, FocusStop>, order: string[]): void {
+  #drawLive(
+    b: SheetBuilder,
+    rect: Rect,
+    capacity: number,
+    busy: boolean,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): void {
     const rows = liveRowsOf(recentRooms(), this.#live).slice(0, capacity);
     // The panel is as tall as its rows (or its empty note): the picture shows below it on a wide screen.
     const body = rows.length === 0 ? 96 : rows.length * (LIVE_ROW_HEIGHT + LIVE_ROW_GAP) - LIVE_ROW_GAP;
-    this.#panelBox({ ...rect, height: Math.min(rect.height, PANEL_PAD * 2 + LIVE_HEADING_HEIGHT - 8 + body) });
+    this.#panelBox(b, { ...rect, height: Math.min(rect.height, PANEL_PAD * 2 + LIVE_HEADING_HEIGHT - 8 + body) });
     const x = rect.x + PANEL_PAD;
     const width = rect.width - PANEL_PAD * 2;
-    this.add
-      .text(x, rect.y + PANEL_PAD - 2, t("online.live").toUpperCase(), textStyle(bangers(22), surface.ink.hex))
-      .setLetterSpacing(1.5);
+    b.text(x, rect.y + PANEL_PAD - 2, t("online.live").toUpperCase(), bangers(22), {
+      color: surface.ink.hex,
+      letterSpacing: 1.5,
+    });
     let y = rect.y + PANEL_PAD + LIVE_HEADING_HEIGHT - 8;
     if (rows.length === 0) {
-      const title = this.add
-        .text(x, y + 6, t("online.liveEmpty"), textStyle(typeRole.rowTitle, surface.ink.hex))
-        .setWordWrapWidth(width, true);
-      this.#paragraph(x, y + 6 + title.height + 6, width, t("online.liveEmptyBody"));
+      const title = b.text(x, y + 6, t("online.liveEmpty"), typeRole.rowTitle, {
+        color: surface.ink.hex,
+        wrapWidth: width,
+      });
+      this.#paragraph(b, x, y + 6 + title.height + 6, width, t("online.liveEmptyBody"));
       return;
     }
     rows.forEach((row, i) => {
       const box: Rect = { x, y, width, height: LIVE_ROW_HEIGHT };
-      this.add.rectangle(box.x, box.y, box.width, box.height, surface.paper.hex, 1).setOrigin(0, 0);
-      const g = this.add.graphics();
-      g.lineStyle(1.5, surface.ink.hex, 0.5);
-      g.strokeRect(box.x, box.y, box.width, box.height);
+      // An opaque ground, then the half-strength outline over it (the outline alone is translucent).
+      b.box(box, { fill: surface.paper.hex });
+      b.box(box, { stroke: surface.ink.hex, strokeWidth: 1.5, alpha: 0.5 });
       // The picture slot: a directory row hero art goes here; a room has a plain badge.
       const badge = LIVE_ROW_HEIGHT - 16;
-      this.add.rectangle(box.x + 8, box.y + 8, badge, badge, surface.ink.hex).setOrigin(0, 0);
-      this.add
-        .text(
-          box.x + 8 + badge / 2,
-          box.y + 8 + badge / 2,
-          row.kind === "live" ? ([...(row.host ?? "")][0] ?? "?").toUpperCase() : row.kind === "hosted" ? "H" : "J",
-          textStyle(bangers(26), surface.paper.hex),
-        )
-        .setOrigin(0.5);
+      b.box({ x: box.x + 8, y: box.y + 8, width: badge, height: badge }, { fill: surface.ink.hex });
+      b.text(
+        box.x + 8 + badge / 2,
+        box.y + 8 + badge / 2,
+        row.kind === "live"
+          ? ([...(row.host ?? "")][0] ?? "?").toUpperCase()
+          : t(row.kind === "hosted" ? "online.liveBadgeHosted" : "online.liveBadgeJoined"),
+        bangers(26),
+        { color: surface.paper.hex, origin: [0.5, 0.5] },
+      );
       const textX = box.x + badge + 20;
       const buttonRect: Rect = {
         x: box.x + box.width - 108,
@@ -630,40 +671,33 @@ export class OnlineScene extends Phaser.Scene {
         height: hit.target,
       };
       const isLive = row.kind === "live";
-      const code = this.add
-        .text(
-          textX,
-          box.y + 10,
-          isLive ? (row.scenario ?? t("online.livePublic", { host: row.host ?? "" })) : row.title,
-          textStyle(bangers(24), surface.ink.hex),
-        )
-        .setLetterSpacing(isLive ? 0 : 3);
-      fitText(code, buttonRect.x - textX - 8, 24);
-      const sub = this.add.text(
+      b.text(
+        textX,
+        box.y + 10,
+        isLive ? (row.scenario ?? t("online.livePublic", { host: row.host ?? "" })) : row.title,
+        bangers(24),
+        { color: surface.ink.hex, letterSpacing: isLive ? 0 : 3, fitWidth: buttonRect.x - textX - 8 },
+      );
+      b.text(
         textX,
         box.y + 38,
         isLive ? this.#liveDetail(row) : t(row.kind === "hosted" ? "online.liveHosted" : "online.liveJoined"),
-        textStyle(typeRole.label, surface.ink.hex, 0.75),
+        typeRole.label,
+        { color: surface.ink.hex, alpha: 0.75, fitWidth: buttonRect.x - textX - 8 },
       );
-      fitText(sub, buttonRect.x - textX - 8, typeRole.label.size);
       // Watch and Join both open the room's lobby by its code; there a watcher can ask for a seat, so one path serves both.
       const go = (): void => this.#startJoin(row.target);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: t(
-            row.action === "watch"
-              ? "online.liveWatch"
-              : row.action === "join"
-                ? "online.liveJoin"
-                : "online.liveRejoin",
-          ),
-          type: typeRole.label,
-          rect: buttonRect,
-          enabled: !busy,
-          onClick: go,
-        }),
-      );
+      this.#actions.set(`live:${i}`, go);
+      b.button({
+        key: `live:${i}`,
+        rect: buttonRect,
+        label: t(
+          row.action === "watch" ? "online.liveWatch" : row.action === "join" ? "online.liveJoin" : "online.liveRejoin",
+        ),
+        look: "secondary",
+        type: typeRole.label,
+        ...(busy ? { disabled: true as const } : {}),
+      });
       stops.set(`live:${i}`, { rect: buttonRect, activate: go });
       order.push(`live:${i}`);
       y += LIVE_ROW_HEIGHT + LIVE_ROW_GAP;
@@ -681,10 +715,9 @@ export class OnlineScene extends Phaser.Scene {
       .join(" · ");
   }
 
-  #paragraph(x: number, y: number, width: number, text: string): number {
-    const line = this.add
-      .text(x, y, text, textStyle(typeRole.body, surface.ink.hex, 0.85))
-      .setWordWrapWidth(width, true);
+  /** A wrapped line of body text; returns the y under it. */
+  #paragraph(b: SheetBuilder, x: number, y: number, width: number, text: string): number {
+    const line = b.text(x, y, text, typeRole.body, { color: surface.ink.hex, alpha: 0.85, wrapWidth: width });
     return y + line.height;
   }
 }
