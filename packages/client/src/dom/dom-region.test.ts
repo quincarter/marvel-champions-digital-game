@@ -3,6 +3,7 @@ import {
   clipWithHoles,
   coveredAbove,
   disjointUnion,
+  forwardMouseMoves,
   holesAbove,
   panelZIndex,
   regionOpacity,
@@ -141,5 +142,35 @@ describe("holesAbove", () => {
   it("is empty for a scene with no overlay above it, or one not listed", () => {
     expect(holesAbove([{ key: "Board" }, { key: "Pause" }], "Board")).toEqual([]);
     expect(holesAbove([{ key: "Board" }], "Nope")).toEqual([]);
+  });
+});
+
+describe("forwardMouseMoves", () => {
+  const move = (pointerType: string, clientX = 40, clientY = 90): Event =>
+    Object.assign(new Event("pointermove"), { pointerType, clientX, clientY, screenX: 5, screenY: 6, buttons: 0 });
+
+  it("passes a mouse move on to the canvas at the same client coordinates, and stops when told", () => {
+    const panel = new EventTarget();
+    const canvas = new EventTarget();
+    const heard: Event[] = [];
+    canvas.addEventListener("mousemove", (event) => heard.push(event));
+    const off = forwardMouseMoves(panel, canvas, (init) => Object.assign(new Event("mousemove"), init));
+    panel.dispatchEvent(move("mouse"));
+    expect(heard).toHaveLength(1);
+    expect(heard[0]).toMatchObject({ type: "mousemove", clientX: 40, clientY: 90, buttons: 0 });
+    off();
+    panel.dispatchEvent(move("mouse"));
+    expect(heard).toHaveLength(1);
+  });
+
+  it("leaves a finger and a pen alone", () => {
+    const panel = new EventTarget();
+    const canvas = new EventTarget();
+    let count = 0;
+    canvas.addEventListener("mousemove", () => count++);
+    forwardMouseMoves(panel, canvas, () => new Event("mousemove"));
+    panel.dispatchEvent(move("touch"));
+    panel.dispatchEvent(move("pen"));
+    expect(count).toBe(0);
   });
 });

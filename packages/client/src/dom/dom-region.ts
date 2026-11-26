@@ -202,6 +202,36 @@ function chromeBoxes(game: Phaser.Game): Rect[] {
   return boxes;
 }
 
+/**
+ * Re-dispatches a mouse moving over `source` as a `mousemove` on `target` (the canvas), at the same client
+ * coordinates. A touch or a pen is left alone. Returns the function that stops forwarding. `create` makes the event
+ * (a test supplies its own where there is no `MouseEvent`).
+ *
+ * The cut-out of a card hover popover (`DomRegion.setHoles`) is not part of the panel, so a press or the wheel over the
+ * popover reaches the canvas, not the list: it is drawn beside the pointer, never under it.
+ */
+export function forwardMouseMoves(
+  source: EventTarget,
+  target: EventTarget,
+  create: (init: MouseEventInit) => Event = (init) => new MouseEvent("mousemove", init),
+): () => void {
+  const onMove = (event: Event): void => {
+    const move = event as PointerEvent;
+    if (move.pointerType !== "mouse") return;
+    target.dispatchEvent(
+      create({
+        clientX: move.clientX,
+        clientY: move.clientY,
+        screenX: move.screenX,
+        screenY: move.screenY,
+        buttons: move.buttons,
+      }),
+    );
+  };
+  source.addEventListener("pointermove", onMove);
+  return () => source.removeEventListener("pointermove", onMove);
+}
+
 const STATE_EVENTS = ["sleep", "pause", "wake", "resume"] as const;
 
 /** A Phaser object a region moves and fades with (an overlay panel's entrance and exit, `ui/transitions.ts`). */
@@ -292,21 +322,8 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
    * (`ui/card-hover-preview.ts`, which follows Phaser's pointer); a finger or pen is left alone.
    */
   forwardMouseMoves(): void {
-    const canvas = this.#scene.game.canvas;
-    const onMove = (event: PointerEvent): void => {
-      if (event.pointerType !== "mouse") return;
-      canvas.dispatchEvent(
-        new MouseEvent("mousemove", {
-          clientX: event.clientX,
-          clientY: event.clientY,
-          screenX: event.screenX,
-          screenY: event.screenY,
-          buttons: event.buttons,
-        }),
-      );
-    };
-    this.#wrap.addEventListener("pointermove", onMove);
-    this.#scene.events.once("shutdown", () => this.#wrap.removeEventListener("pointermove", onMove));
+    const off = forwardMouseMoves(this.#wrap, this.#scene.game.canvas);
+    this.#scene.events.once("shutdown", off);
   }
 
   /** Hides the region whatever its scene does (the scene shows something else in its place for now). */

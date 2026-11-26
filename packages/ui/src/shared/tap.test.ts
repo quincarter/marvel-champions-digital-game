@@ -21,6 +21,34 @@ describe("onHold", () => {
     expect(tapped).not.toHaveBeenCalled();
   });
 
+  it("never taps on the release of a hold, however long the press lasts after the hold fires", () => {
+    const element = document.createElement("div");
+    const held = vi.fn();
+    const tapped = vi.fn();
+    onHold(element, held);
+    onTap(element, tapped);
+    element.dispatchEvent(pointer("pointerdown"));
+    vi.advanceTimersByTime(HOLD_MS + 5000);
+    element.dispatchEvent(pointer("pointerup"));
+    expect(held).toHaveBeenCalledTimes(1);
+    expect(tapped).not.toHaveBeenCalled();
+    // The next press is its own: a quick one taps.
+    element.dispatchEvent(pointer("pointerdown"));
+    element.dispatchEvent(pointer("pointerup"));
+    expect(tapped).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds when a rolling fingertip wandered and came back before the timer fired", () => {
+    const element = document.createElement("div");
+    const held = vi.fn();
+    onHold(element, held);
+    element.dispatchEvent(pointer("pointerdown"));
+    element.dispatchEvent(pointer("pointermove", 10, 60));
+    element.dispatchEvent(pointer("pointermove", 12, 12));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).toHaveBeenCalledTimes(1);
+  });
+
   it("leaves a quick press to the tap", () => {
     const element = document.createElement("div");
     const held = vi.fn();
@@ -35,7 +63,7 @@ describe("onHold", () => {
     expect(tapped).toHaveBeenCalledTimes(1);
   });
 
-  it("is no hold when the press wandered away (a scroll)", () => {
+  it("is no hold when the press is away from where it began when the timer fires (a scroll)", () => {
     const element = document.createElement("div");
     const held = vi.fn();
     onHold(element, held);

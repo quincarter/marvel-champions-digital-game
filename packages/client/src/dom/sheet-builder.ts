@@ -204,7 +204,18 @@ export class SheetBuilder {
   text(x: number, y: number, text: string, spec: TypeSpec, options: TextOptions): Measured {
     const { node } = this.#textStyle(spec, options);
     this.nodes.push({ ...node, x: x - this.#origin.x, y: y - this.#origin.y, text });
-    return this.measure(text, spec, options);
+    // Measured when a later part asks (a layout read each), not for every text drawn: a long list draws thousands that
+    // nothing is placed against.
+    let measured: Measured | null = null;
+    const size = (): Measured => (measured ??= this.measure(text, spec, options));
+    return {
+      get width() {
+        return size().width;
+      },
+      get height() {
+        return size().height;
+      },
+    };
   }
 
   button(options: {

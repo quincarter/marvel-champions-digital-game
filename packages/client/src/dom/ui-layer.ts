@@ -72,6 +72,8 @@ export function uiLayer(game: Phaser.Game): HTMLElement {
   layer.id = "mc-ui";
   // Over the whole canvas and passing every press through, except on a panel (`DomRegion` turns its own back on).
   Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", overflow: "hidden" });
+  // No browser context menu over a panel, as `main.ts` has none over the canvas: a right-click is a card's Inspect.
+  layer.addEventListener("contextmenu", (event) => event.preventDefault());
   host.append(layer);
   paint();
   return layer;

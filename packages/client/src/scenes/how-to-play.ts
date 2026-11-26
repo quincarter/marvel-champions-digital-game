@@ -88,6 +88,8 @@ export class HowToPlayScene extends Phaser.Scene {
   #b!: SheetBuilder;
   /** What each key in the panel does when tapped, this draw. */
   #actions = new Map<string, () => void>();
+  /** Where the body was scrolled to, kept across a restart of the screen (coming back from a lesson page). */
+  #scrollTop = 0;
   /** The viewport the body scrolls in, for the dev hook and the stops' `view`. */
   #viewport: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
@@ -108,6 +110,7 @@ export class HowToPlayScene extends Phaser.Scene {
       this.#unsubscribePrefs?.();
       this.#unsubscribePrefs = null;
       offLanguage();
+      this.#scrollTop = this.#scroller()?.scrollTop ?? this.#scrollTop;
       this.#glyphs.dispose();
       // The panel goes with the scene (`DomRegion`); the next open makes a new one.
       this.#region = null;
@@ -262,8 +265,14 @@ export class HowToPlayScene extends Phaser.Scene {
     }
     const region = this.#region;
     region.setRect({ x: 0, y: 0, width, height });
+    const fresh = !region.element.isConnected || region.element.nodes.length === 0;
     region.element.nodes = builder.nodes;
     renderNow(region.element);
+    // A new panel (the screen opened again) reads from where it was left.
+    if (fresh) {
+      const scroller = this.#scroller();
+      if (scroller) scroller.scrollTop = this.#scrollTop;
+    }
   }
 
   /** A row: its tap area over `rect` (content space), its action, and its focus stop. */

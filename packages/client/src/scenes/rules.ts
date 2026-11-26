@@ -86,7 +86,7 @@ import { domFocusRing } from "../dom/dom-ring.js";
 import { SheetBuilder } from "../dom/sheet-builder.js";
 import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { t, tPlural, type MessageKey } from "../i18n/translate.js";
-import { onLanguageChange } from "../language-change.js";
+import { onArtChange, onLanguageChange } from "../language-change.js";
 import { McTextInput } from "../ui/widgets.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
@@ -144,10 +144,11 @@ type CardListSlot =
       readonly count: number;
     };
 
-/** What a card picture's hover slot stands for. */
+/** What a card picture's hover slot stands for, and where it sits in the list's content space (`y` from the list's top). */
 interface HoverTarget {
   readonly cardId: string;
   readonly face?: CardFace;
+  readonly rect: Rect;
 }
 
 export class RulesOverlay extends Phaser.Scene {
@@ -165,6 +166,11 @@ export class RulesOverlay extends Phaser.Scene {
   /** What each key in the panel does when tapped, and when held or right-clicked, this draw. */
   #actions = new Map<string, () => void>();
   #inspects = new Map<string, () => void>();
+  /** The Card list's built band, in content space, and the list's whole height; null on another tab. */
+  #cardListBuilt: { readonly from: number; readonly to: number; readonly total: number } | null = null;
+  /** The scroller elements this scene already listens to (the panel keeps one per list across draws). */
+  #listened = new WeakSet<HTMLElement>();
+  #scrollFrame = 0;
   /** The list reads from its top on the next draw (a new tab, scope or query). */
   #listFromTop = false;
   #motion = new OverlayMotion();
@@ -190,6 +196,10 @@ export class RulesOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     const offLanguage = onLanguageChange(() => this.#draw());
+    // A card picture that resolves later (a pack's scan, once its pack has loaded) draws in place of "no scan".
+    const offArt = onArtChange(() => {
+      if (this.sys.isActive()) this.#draw();
+    });
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     // Before the route: A, B or Start takes the caret out of the search field.
     bindTextFieldEscape(
@@ -222,6 +232,7 @@ export class RulesOverlay extends Phaser.Scene {
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offLanguage();
+      offArt();
       this.#glyphs.dispose();
       this.scale.off("resize", onResize, this);
       this.#hover?.destroy();
@@ -264,16 +275,20 @@ export class RulesOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  /** Every card picture on screen with its place, for the hover popover: read off the panel on each pointer move. */
+  /**
+   * Every card picture in view with its place, for the hover popover (read on each pointer move). Computed from the
+   * layout rects noted at draw time plus the list's scroll: no element is measured, so a long list costs a few
+   * subtractions, not a layout read per card.
+   */
   #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
     const found = new Map<string, HoverCardIdRect>();
-    const region = this.#region;
-    if (!region) return found;
-    for (const element of region.element.renderRoot.querySelectorAll<HTMLElement>("[data-hover]")) {
-      const slot = element.dataset.hover!;
-      const target = this.#hoverTargets.get(slot);
-      if (!target) continue;
-      const rect = clipHoverRect(region.rectOf(element), this.#bodyRect);
+    const body = this.#bodyRect;
+    const scrolled = this.#scroller()?.scrollTop ?? 0;
+    for (const [slot, target] of this.#hoverTargets) {
+      const top = body.y + target.rect.y - scrolled;
+      // Only the band in view.
+      if (top + target.rect.height <= body.y || top >= body.y + body.height) continue;
+      const rect = clipHoverRect({ ...target.rect, y: top }, body);
       if (rect)
         found.set(slot, {
           ...rect,
@@ -285,10 +300,10 @@ export class RulesOverlay extends Phaser.Scene {
     return found;
   }
 
-  /** A card picture's hover slot, noted so the popover knows which card (and face) it stands for. */
-  #hoverSlot(cardId: string, where: string, face?: CardFace): string {
+  /** A card picture's hover slot (its `rect` in the list's content space), noted so the popover knows which card and face it stands for. */
+  #hoverSlot(cardId: string, where: string, rect: Rect, face?: CardFace): string {
     const slot = hoverSlotOf(cardId, where);
-    this.#hoverTargets.set(slot, { cardId, ...(face ? { face } : {}) });
+    this.#hoverTargets.set(slot, { cardId, rect, ...(face ? { face } : {}) });
     return slot;
   }
 
@@ -304,9 +319,30 @@ export class RulesOverlay extends Phaser.Scene {
   }
 
   /** A stop inside the scrolling list: its box is read off the panel, so it follows the scroll. */
-  #listStop(itemKey: string, activate: () => void, extra: Pick<FocusStop, "inspect"> = {}): FocusStop {
+  #listStop(
+    itemKey: string,
+    activate: () => void,
+    extra: Pick<FocusStop, "inspect"> = {},
+    /** The item's box in the list's content space, for a list that draws only the band in view: its place is then worked out from the scroll, and taking focus scrolls to it, drawn or not. */
+    at?: Rect,
+  ): FocusStop {
     const region = (): DomRegion<McSheet> | null => this.#region;
     const body = this.#bodyRect;
+    if (at) {
+      return {
+        rect: () => ({ ...at, y: body.y + at.y - (this.#scroller()?.scrollTop ?? 0) }),
+        view: body,
+        activate,
+        ...extra,
+        ensureVisible: () => {
+          const scroller = this.#scroller();
+          if (!scroller) return;
+          if (at.y < scroller.scrollTop) scroller.scrollTop = at.y;
+          else if (at.y + at.height > scroller.scrollTop + body.height)
+            scroller.scrollTop = at.y + at.height - body.height;
+        },
+      };
+    }
     return {
       rect: () => {
         const found = region()?.element.elementOf(itemKey);
@@ -332,6 +368,22 @@ export class RulesOverlay extends Phaser.Scene {
       } finally {
         this.#b = outer;
       }
+    });
+  }
+
+  /** The Card list scrolled: draw again once the view nears the edge of what is built, so what scrolls in is there. */
+  #onListScroll(): void {
+    if (this.#scrollFrame) return;
+    this.#scrollFrame = requestAnimationFrame(() => {
+      this.#scrollFrame = 0;
+      const built = this.#cardListBuilt;
+      const scroller = this.#scroller();
+      if (!built || !scroller || this.#motion.leaving || !this.sys.isActive()) return;
+      const slack = this.#bodyRect.height / 2;
+      const top = scroller.scrollTop;
+      const bottom = top + this.#bodyRect.height;
+      if ((built.from > 0 && top < built.from + slack) || (built.to < built.total && bottom > built.to - slack))
+        this.#draw();
     });
   }
 
@@ -365,10 +417,14 @@ export class RulesOverlay extends Phaser.Scene {
     });
     region.element.nodes = this.#b.nodes;
     renderNow(region.element);
+    const scroller = this.#scroller();
     if (this.#listFromTop) {
-      const scroller = this.#scroller();
       if (scroller) scroller.scrollTop = 0;
       this.#listFromTop = false;
+    }
+    if (scroller && !this.#listened.has(scroller)) {
+      this.#listened.add(scroller);
+      scroller.addEventListener("scroll", () => this.#onListScroll(), { passive: true });
     }
   }
 
@@ -529,10 +585,14 @@ export class RulesOverlay extends Phaser.Scene {
     });
 
     let rowIds: readonly string[] = [];
+    this.#cardListBuilt = null;
     if (this.#activeTab === "glossary") {
       this.#searchRect = layout.search;
-      if (this.#searchInput) this.#searchInput.layout(layout.search);
-      else
+      if (this.#searchInput) {
+        this.#searchInput.layout(layout.search);
+        // A language switch rewords it (the field itself is kept across redraws).
+        this.#searchInput.setPlaceholder(t("rules.search.placeholder"));
+      } else
         this.#searchInput = new McTextInput(this, {
           rect: layout.search,
           value: this.#query,
@@ -568,6 +628,13 @@ export class RulesOverlay extends Phaser.Scene {
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
     this.#region?.follow(anchor);
     this.#hover?.onDraw();
+    if (import.meta.env.DEV) {
+      // Dev e2e hook: the card the hover popover shows, and the cards it could show right now.
+      (window as unknown as { __mcRulesDebug?: unknown }).__mcRulesDebug = {
+        hoverKey: () => this.#hover?.shownKey ?? null,
+        hoverCards: () => this.#hoverCards().size,
+      };
+    }
   }
 
   /** One "All rules" / "On your table" segment — see `#draw`'s own comment on why this isn't an `onInk` button. */
@@ -858,7 +925,12 @@ export class RulesOverlay extends Phaser.Scene {
             source,
             {
               tap: key,
-              hover: this.#hoverSlot(ref.cardId, key, game && ref.instanceId ? this.#faceForRef(ref, game) : undefined),
+              hover: this.#hoverSlot(
+                ref.cardId,
+                key,
+                tileRect,
+                game && ref.instanceId ? this.#faceForRef(ref, game) : undefined,
+              ),
             },
             () => this.#inspectRef(ref, game),
           );
@@ -1001,7 +1073,7 @@ export class RulesOverlay extends Phaser.Scene {
         ...(source ? { missing: t("rules.noScan") } : {}),
         color: ink1,
         ...(cardId
-          ? { hover: this.#hoverSlot(cardId, `step${index}`, game ? this.#stepFace(step, game) : undefined) }
+          ? { hover: this.#hoverSlot(cardId, `step${index}`, artRect, game ? this.#stepFace(step, game) : undefined) }
           : {}),
       });
       textX = artRect.x + artRect.width + 16;
@@ -1103,41 +1175,58 @@ export class RulesOverlay extends Phaser.Scene {
           ? SET_HEADER_HEIGHT
           : geometry.cellHeight,
     );
+    const tops: number[] = [];
+    let total = 0;
+    for (const h of heights) {
+      tops.push(total);
+      total += h;
+    }
+    // Only the band in view, and a viewport's height either side of it, is built: the pool can be two thousand cards
+    // (All rules), and every one a dozen parts. The list scrolls natively; a scroll that nears the edge of what is
+    // built draws again (`#onListScroll`).
+    const scrolled = this.#listFromTop ? 0 : (this.#scroller()?.scrollTop ?? 0);
+    const margin = rect.height;
+    const from = scrolled - margin;
+    const to = scrolled + rect.height + margin;
+    this.#cardListBuilt = { from: Math.max(0, from), to: Math.min(total, to), total };
     this.#listPanel(rect);
-    this.#inScroll(
-      rect,
-      heights.reduce((sum, h) => sum + h, 0),
-      (b) => {
-        let top = 0;
-        slots.forEach((slot, index) => {
-          this.#cardListSlot(
-            b,
-            { x: rect.x, y: top, width: rect.width, height: heights[index]! },
-            slot,
-            index,
-            geometry,
-            game,
-          );
-          top += heights[index]!;
-        });
-      },
-    );
+    this.#inScroll(rect, total, (b) => {
+      slots.forEach((slot, index) => {
+        if (tops[index]! + heights[index]! < from || tops[index]! > to) return;
+        this.#cardListSlot(
+          b,
+          { x: rect.x, y: tops[index]!, width: rect.width, height: heights[index]! },
+          slot,
+          index,
+          geometry,
+          game,
+        );
+      });
+    });
 
     const rowIds: string[] = [];
-    for (const slot of slots) {
-      if (slot.kind !== "gridRow") continue;
+    slots.forEach((slot, index) => {
+      if (slot.kind !== "gridRow") return;
       for (let col = 0; col < slot.count; col++) {
         const card = slot.group.cards[slot.startIndex + col]!;
         const id = `${slot.group.setId}:${card.cardId}`;
         rowIds.push(id);
+        const cell = poolCellRect(
+          geometry,
+          { x: rect.x, y: tops[index]!, width: rect.width, height: heights[index]! },
+          col,
+        );
         stops.set(
           `row:${id}`,
-          this.#listStop(`card:${id}`, () => this.#inspectPoolCard(card, game), {
-            inspect: () => this.#inspectPoolCard(card, game),
-          }),
+          this.#listStop(
+            `card:${id}`,
+            () => this.#inspectPoolCard(card, game),
+            { inspect: () => this.#inspectPoolCard(card, game) },
+            { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 },
+          ),
         );
       }
-    }
+    });
     return rowIds;
   }
 
@@ -1211,7 +1300,7 @@ export class RulesOverlay extends Phaser.Scene {
         fitWidth: cardRect.width - 16,
       });
       const key = `card:${slot.group.setId}:${card.cardId}`;
-      b.tap(key, cardRect, { inspect: true, hover: this.#hoverSlot(card.cardId, `cell${index}.${col}`) });
+      b.tap(key, cardRect, { inspect: true, hover: this.#hoverSlot(card.cardId, `cell${index}.${col}`, cardRect) });
       this.#pressOrInspect(key, () => this.#inspectPoolCard(card, game));
     }
   }

@@ -82,14 +82,23 @@ export const HOLD_MS = 420;
 export const HOLD_SLOP_PX = 12;
 
 /**
- * Calls `handler` for a press-and-hold (the mouse or a finger kept down on `element` for `HOLD_MS`, within
- * `HOLD_SLOP_PX` of where it began) and for a right-click: the gesture a card shares for "look at this" (Inspect).
- * A hold that fired swallows the release that ends it, so a tap on the same element does not also act. Returns the
- * function that stops listening.
+ * Calls `handler` for a press-and-hold (the mouse or a finger kept down on `element` for `HOLD_MS`, and within
+ * `HOLD_SLOP_PX` of where it began when the timer fires, as the client's `view/hold-gesture.ts` decides: a rolling
+ * fingertip still holds) and for a right-click: the gesture a card shares for "look at this" (Inspect). The release
+ * that ends a hold that fired never also taps, however long the press lasted after it fired. Returns the function that
+ * stops listening.
  */
 export function onHold(element: HTMLElement, handler: (event: Event) => void): () => void {
-  let press: { id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null;
-  let firedAt = -Infinity;
+  let press: {
+    id: number;
+    x: number;
+    y: number;
+    lastX: number;
+    lastY: number;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
+  /** The pointer whose hold fired and whose release is still to come; cleared by that release or the next press. */
+  let fired: number | null = null;
   const end = (): void => {
     if (press) clearTimeout(press.timer);
     press = null;
@@ -97,31 +106,36 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
   const down = (event: PointerEvent): void => {
     if (event.button !== 0) return;
     end();
+    fired = null;
     const held = { id: event.pointerId, x: event.clientX, y: event.clientY };
     const timer = setTimeout(() => {
-      if (press?.id !== held.id) return;
+      const now = press;
+      if (now?.id !== held.id) return;
       press = null;
-      firedAt = performance.now();
+      // Where the pointer is now, not whether it ever wandered: a wobble that comes back is still a hold.
+      if (Math.hypot(now.lastX - now.x, now.lastY - now.y) > HOLD_SLOP_PX) return;
+      fired = held.id;
       handler(event);
     }, HOLD_MS);
-    press = { ...held, timer };
+    press = { ...held, lastX: held.x, lastY: held.y, timer };
   };
   const move = (event: PointerEvent): void => {
-    if (press?.id === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) > HOLD_SLOP_PX)
-      end();
+    if (press?.id !== event.pointerId) return;
+    press.lastX = event.clientX;
+    press.lastY = event.clientY;
   };
   const up = (event: PointerEvent): void => {
     end();
     // The release that ends a hold is not a tap: stopped before the element's tap listener hears it.
-    if (performance.now() - firedAt < 1500 && event.button === 0) {
-      firedAt = -Infinity;
+    if (fired === event.pointerId && event.button === 0) {
+      fired = null;
       event.stopImmediatePropagation();
     }
   };
   const menu = (event: Event): void => {
     event.preventDefault();
     // A long press on a touch screen raises this too, after the hold already fired.
-    if (performance.now() - firedAt < 1500) return;
+    if (fired !== null) return;
     handler(event);
   };
   element.addEventListener("pointerdown", down);

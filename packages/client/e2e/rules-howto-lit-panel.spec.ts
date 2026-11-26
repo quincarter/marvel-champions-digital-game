@@ -194,3 +194,57 @@ test("on a phone, the lift that ends a swipe over the Rules reference's list pre
   await expect(page.locator(`${panel("RulesOverlay")} [data-key="tab:glossary"]`)).toHaveAttribute("selected", "");
   expect(await activeScenes(page)).not.toContain("InspectOverlay");
 });
+
+test("on a desktop, a card picture in the Rules reference shows the hover popover; a tap, a right-click and a hold open Inspect", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "a mouse");
+  test.setTimeout(120_000);
+  // From How to play there is no game under the Rules reference, so nothing covers the popover.
+  await openApp(page, "screen=howtoplay&unlock=all", { landing: "HowToPlay" });
+  await waitForText(page, "THE BASICS", { sceneKey: "HowToPlay" });
+  await walkTo(page, "HowToPlay", "reference");
+  await pressKey(page, "Enter");
+  await waitFor(async () => ((await activeScenes(page)).includes("RulesOverlay") ? true : null), "Rules opens", 10_000);
+  const thumb = page.locator(`${panel("RulesOverlay")} [data-key*=":card:"]`).first();
+  await expect(thumb).toHaveCount(1);
+  await thumb.scrollIntoViewIfNeeded();
+  const box = (await thumb.boundingBox())!;
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const inspect = async (): Promise<boolean> => (await activeScenes(page)).includes("InspectOverlay");
+  const closeInspect = async (): Promise<void> => {
+    await pressKey(page, "Escape");
+    await waitFor(async () => ((await inspect()) ? null : true), "Inspect closes", 10_000);
+  };
+
+  // Resting the mouse on the picture shows the popover (the panel passes the mouse on to Phaser).
+  await page.mouse.move(at.x - 3, at.y - 3);
+  await page.mouse.move(at.x, at.y);
+  await waitFor(
+    () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __mcRulesDebug: { hoverKey(): string | null } }).__mcRulesDebug.hoverKey() ?? null,
+      ),
+    "the hover popover shows",
+    10_000,
+  );
+
+  // A tap opens Inspect, as it did.
+  await page.mouse.click(at.x, at.y);
+  await waitFor(inspect, "a tap opens Inspect", 10_000);
+  await closeInspect();
+  // A right-click does too, with no browser menu.
+  await page.mouse.click(at.x, at.y, { button: "right" });
+  await waitFor(inspect, "a right-click opens Inspect", 10_000);
+  await closeInspect();
+  // So does a press-and-hold, and its release does not open it a second time.
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await waitFor(inspect, "a hold opens Inspect", 10_000);
+  await closeInspect();
+  await page.waitForTimeout(400);
+  expect(await inspect(), "the hold's release did not open Inspect again").toBe(false);
+});
