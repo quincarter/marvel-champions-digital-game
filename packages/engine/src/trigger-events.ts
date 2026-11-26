@@ -303,6 +303,18 @@ export type TriggerEventBody =
       readonly playerId: PlayerId;
       /** Damage for an "(attack)" ability; absent/null = the attacker's ATK (a basic attack). */
       readonly amount?: number | null;
+      /**
+       * The first share of a divided basic attack (Wasp's Giant form) whose division is still to be settled: the
+       * division's targets in order, the event frames of every share (this one first), and `evenly` for a mandatory
+       * even split (Bombshell). As this event applies, the shares are checked against the ATK it deals then, and
+       * divided again if that changed (`settleBasicAttackDivision`, `resolve/divided-basic-attack.ts`; issue #1012 §5).
+       * Removed once settled.
+       */
+      readonly divisionToChoose?: {
+        readonly targets: readonly InstanceId[];
+        readonly shareFrameIds: readonly FrameId[];
+        readonly evenly?: true;
+      };
       readonly basic?: boolean;
       readonly overkill?: boolean;
       /** "This attack gains piercing/ranged": keywords this attack has that its attacker need not (`AttackKeyword`). */
