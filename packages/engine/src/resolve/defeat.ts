@@ -56,6 +56,7 @@ import {
 } from "../state.js";
 import { spillDefeatedKey, type TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherDefeated, defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
+import { markEnemyAttacksUnderway } from "./eliminated-attack.js";
 import { addFrameVars, base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { mainSchemeStageFrames } from "./main-scheme-side.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, leaveVillainRow, passActiveCounter } from "./game-areas.js";
@@ -1205,6 +1206,8 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   // "If a player is eliminated in the middle of an attack, that attack ends" (RRG 1.8 "Player Elimination", p. 34): each
   // attack of theirs underway now is marked to end, at any step (`attackerEliminated`, `eliminated-attack.ts`).
   markAttacksUnderway(ctx, identityId);
+  // …and so does any enemy attack underway, whoever it attacks (`markEnemyAttacksUnderway`).
+  markEnemyAttacksUnderway(ctx);
   // Step 4, "each card owned by the eliminated player": the ones in play outside their play area, a player side
   // scheme beside the main scheme or an upgrade on another player's or the villain's card. Each leaves play as any
   // card does, so its threat and tokens are cleared and what is attached to it is discarded.

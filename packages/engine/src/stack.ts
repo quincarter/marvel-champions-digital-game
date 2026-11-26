@@ -448,6 +448,14 @@ export type StackFrame =
        */
       readonly attackerEliminated?: true;
       /**
+       * A player was eliminated while the enemy attack this frame belongs to was underway, so that attack ends (RRG 1.8
+       * "Player Elimination", p. 34: "If a player is eliminated in the middle of an attack, that attack ends"; any
+       * player, not only its target; `markEnemyAttacksUnderway`, `resolve/eliminated-attack.ts`). Set on an
+       * `enemyAttack` event still in its interrupt window (before its procedure exists), and on the `dealDamage` and
+       * `characterAttacked` events its procedure queued but had not yet applied. Absent otherwise.
+       */
+      readonly enemyAttackEndedByElimination?: true;
+      /**
        * On an attack whose damage is all prevented (`modifyAttack.preventAllDamage` with a `bind`,
        * docs/phase7-wave9.md §3.4): where each instance the prevention stops is recorded, as this frame's vars
        * `attackPreventedVars(bind)`. `targetInstanceId`: the character a player attack was against when the effect
@@ -900,6 +908,11 @@ export type StackFrame =
        * 10, 2026 - Ruling 3 (B); October 12, 2026 - Ruling 1). Set once step 3 has begun; absent otherwise.
        */
       readonly boostOrder?: "enemy" | "defender";
+      /**
+       * A player was eliminated while this attack was underway (RRG 1.8 "Player Elimination", p. 34; any player,
+       * `markEnemyAttacksUnderway`): it ends at the step it has reached (`endedByTargetElimination`). Absent otherwise.
+       */
+      readonly playerEliminated?: true;
     })
   /** RRG "Scheme (Enemy Activation)". */
   | (FrameBase & {

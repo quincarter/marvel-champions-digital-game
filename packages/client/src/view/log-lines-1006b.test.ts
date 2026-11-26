@@ -319,18 +319,18 @@ describe("the why (1.5)", () => {
     expect(out[0]).toMatch(/dealt a facedown encounter card/);
   });
 
-  test("an attack that ends because its target was eliminated says who", () => {
+  test("an attack that ends because a player was eliminated says who", () => {
     const out = lines([
       { type: "enemyActivated", enemyInstanceId: villain, activation: "attack", playerId: p2 },
       { type: "playerEliminated", playerId: p2 },
-      { type: "activationSkipped", enemyInstanceId: villain, activation: "attack", reason: "targetEliminated" },
+      { type: "activationSkipped", enemyInstanceId: villain, activation: "attack", reason: "playerEliminated" },
     ]);
     expect(out.at(-1)).toMatch(/^The attack ends: .* was eliminated\.$/);
     expect(
       lines([
-        { type: "activationSkipped", enemyInstanceId: villain, activation: "attack", reason: "targetEliminated" },
+        { type: "activationSkipped", enemyInstanceId: villain, activation: "attack", reason: "playerEliminated" },
       ]),
-    ).toEqual(["The attack ends: its target was eliminated."]);
+    ).toEqual(["The attack ends: a player was eliminated."]);
   });
 });
 

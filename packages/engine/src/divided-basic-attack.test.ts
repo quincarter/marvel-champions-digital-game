@@ -6,6 +6,7 @@
  * Sources: RRG 1.8 FAQ "Wasp (#1C)" (p. 61): the targets are chosen when the power is used, each is attacked and each
  * retaliate damages her; ruling January 11, 2026 R4 (Bombshell: divided as evenly as possible among each enemy). The
  * readings for ATK below the number of targets and for an even split re-made are the engine's (authority step 5).
+ * RRG 1.8 "Player Elimination" (p. 34): "If a player is eliminated in the middle of an attack, that attack ends".
  */
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition } from "./abilities.js";
@@ -28,6 +29,21 @@ const RETALIATOR = stubMinion({
   keywords: [{ name: "retaliate", value: 1 }],
 });
 const PLAIN = stubMinion({ id: "plain-minion", atk: 0, sch: 0, hp: 9, boostIcons: 0 });
+/** "Forced Interrupt: When this minion is attacked, deal 99 damage to the first player's hero." (Speed Demon's place.) */
+const BACKLASH = stubAbility(
+  "backlash.forced-interrupt",
+  def({
+    trigger: { kind: "interrupt", forced: true, on: { on: "attack", selfIs: "target" } },
+    effects: [
+      {
+        kind: "dealDamage",
+        target: { kind: "identityOf", player: { kind: "id", playerId: p1 } },
+        amount: { kind: "const", value: 99 },
+      },
+    ],
+  }),
+);
+const DEMON = stubMinion({ id: "demon", atk: 0, sch: 0, hp: 9, boostIcons: 0, abilities: [BACKLASH.ref] });
 const DIVIDE = stubAbility(
   "giant.constant",
   def({
@@ -65,8 +81,15 @@ const bonus = (x: number) =>
     }),
   );
 
-/** A hero-form identity with ATK 3 and `abilities`, both minions engaged (test surgery from the encounter deck). */
-function game(abilities: readonly ReturnType<typeof stubAbility>[]) {
+/**
+ * A hero-form identity with ATK 3 and `abilities`, both minions engaged with the first player (test surgery from the
+ * encounter deck). `first` is the first minion's card (the retaliating one by default); `players` seats that many.
+ */
+function game(
+  abilities: readonly ReturnType<typeof stubAbility>[],
+  options: { readonly first?: typeof RETALIATOR; readonly players?: 1 | 2 } = {},
+) {
+  const first = options.first ?? RETALIATOR;
   const refs = abilities.map((a) => a.ref);
   const identity = stubIdentity({
     id: "divider",
@@ -80,19 +103,20 @@ function game(abilities: readonly ReturnType<typeof stubAbility>[]) {
     heroAbilities: refs,
     alterEgoAbilities: refs,
   });
-  const deps = depsOf(...abilities);
+  const deps = depsOf(...abilities, BACKLASH);
   const start = newGame({
     identity,
     deps,
-    extraCards: [RETALIATOR, PLAIN],
-    encounterDeck: [RETALIATOR.id, PLAIN.id, ...Array.from({ length: 10 }, () => PLAIN.id)],
+    players: options.players ?? 1,
+    extraCards: [RETALIATOR, PLAIN, DEMON],
+    encounterDeck: [first.id, PLAIN.id, ...Array.from({ length: 10 }, () => PLAIN.id)],
   });
   const hero = applyCommand(start, { type: "changeForm", playerId: p1 }, deps);
   if (!hero.ok) throw new Error(hero.error.message);
   const state = settle(hero.state, defaultPick, deps);
   const [deckId] = state.encounterDeckOrder;
   const piles = state.encounterDecks[deckId as string]!;
-  const retaliator = piles.deck.find((id) => state.instances[id]?.cardId === RETALIATOR.id)!;
+  const retaliator = piles.deck.find((id) => state.instances[id]?.cardId === first.id)!;
   const plain = piles.deck.find((id) => state.instances[id]?.cardId === PLAIN.id)!;
   const minions = [retaliator, plain];
   const staged: GameState = {
@@ -101,7 +125,7 @@ function game(abilities: readonly ReturnType<typeof stubAbility>[]) {
       ...state.encounterDecks,
       [deckId as string]: { ...piles, deck: piles.deck.filter((id) => !minions.includes(id)) },
     },
-    players: state.players.map((p) => ({ ...p, playArea: [...p.playArea, ...minions] })),
+    players: state.players.map((p) => (p.playerId === p1 ? { ...p, playArea: [...p.playArea, ...minions] } : p)),
     instances: {
       ...state.instances,
       [retaliator]: { ...state.instances[retaliator]!, faceup: true, engagedWith: p1 },
@@ -203,5 +227,30 @@ describe("a divided basic attack is divided from the ATK its first share deals (
     expect(asked).toEqual([]);
     // 4 among 3: 2 / 1 / 1, the remainder to the first target chosen (the shares were tied).
     expect([damageOf(after, plain), damageOf(after, retaliator), damageOf(after, villain)]).toEqual([2, 1, 1]);
+  });
+
+  // Owner's repro on e6d44d336 (#1012): Giant Wasp at 1 HP divides 1 + 1 between Speed Demon and Shocker with Rapid
+  // Growth's +2; Speed Demon's forced interrupt eliminates her, and the engine then asked the eliminated player to
+  // divide 4 damage, leaving the table stuck. The attack ends with her elimination (RRG 1.8 p. 34): nobody is asked.
+  it("a player eliminated in the first share's interrupt window is not asked to divide: the attack ends unmade", () => {
+    const table = game([DIVIDE, bonus(2)], { first: DEMON, players: 2 });
+    const { retaliator: demon, plain } = table;
+    const { asked, after } = attack(
+      table,
+      [
+        { targetInstanceId: demon, amount: 2 },
+        { targetInstanceId: plain, amount: 1 },
+      ],
+      new Map([
+        [demon, 3],
+        [plain, 2],
+      ]),
+    );
+    expect(after.players.find((p) => p.playerId === p1)?.eliminated).toBe(true);
+    expect(asked).toEqual([]);
+    expect(after.pendingChoice?.playerId ?? null).not.toBe(p1);
+    expect([damageOf(after, demon), damageOf(after, plain)]).toEqual([0, 0]);
+    expect(after.players.filter((p) => !p.eliminated)).toHaveLength(1);
+    expect(after.outcome).toBeNull();
   });
 });

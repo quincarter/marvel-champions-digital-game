@@ -35,6 +35,7 @@ import type { InstanceId } from "../ids.js";
 import { characterProfile } from "../query.js";
 import { statUsedInPlaceOf } from "../rules.js";
 import { displayNameOf } from "../visibility.js";
+import { endedByElimination } from "./eliminated-attack.js";
 import type { Frame } from "./frames.js";
 
 /** The attack a division is settled for, without its `divisionToChoose`: the event as it deals its damage. */
@@ -68,6 +69,10 @@ function evenSplit(
 export function settleBasicAttackDivision(ctx: Ctx, frame: Frame<"event">): boolean {
   const event = frame.event;
   if (event.kind !== "attack" || event.divisionToChoose === undefined || frame.cancelled) return false;
+  // Its player was eliminated while it was underway (an interrupt to it, before this apply step): the attack ends and
+  // deals nothing (RRG 1.8 "Player Elimination", p. 34; `applyPlayerAttack`), so there is nothing to divide and the
+  // eliminated player is not asked.
+  if (endedByElimination(frame)) return false;
   const { targets, shareFrameIds, evenly } = event.divisionToChoose;
   const attacker = event.attackerInstanceId;
   // The other shares' event frames, still on the stack beneath this one.

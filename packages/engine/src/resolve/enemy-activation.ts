@@ -1554,9 +1554,12 @@ function endedByBoostCancel(
  * ends before its damage is dealt (RRG 1.8 "Attack (Enemy Activation)", p. 9: "abilities that trigger after an attack
  * or after a character defends an attack resolve as normal"), the same path as an attacker leaving play mid-procedure.
  *
- * p. 34 says "a player", not the target: the attacked player's elimination ends the attack even after another player's
- * ally has defended it, and so does the defending ally's controller's (rules-expert, issue #1012). Both players the
- * attack involves are read; a third player eliminated by an interrupt mid-attack is not tracked here.
+ * p. 34 says "a player", not the target: any player's elimination while the attack is underway ends it, the attacked
+ * player's after another player's ally has defended, the defending ally's controller's, or a third player's
+ * (rules-expert, issue #1012). The elimination marks the attack (`markEnemyAttacksUnderway`, `eliminated-attack.ts`:
+ * this procedure, or its event still in its interrupt window); the target and attacked player are also read directly,
+ * for an attack begun against a player already eliminated. Damage already queued when the elimination comes, in its
+ * own interrupt window, is taken off there (`endedEnemyAttackPart`).
  *
  * Boost cards already given for this activation are discarded, each to its own discard pile, as for an activation its
  * own boost card cancelled (`endedByBoostCancel`, same engine interpretation). Ended at the give-boost step, nothing has
@@ -1565,7 +1568,11 @@ function endedByBoostCancel(
 function endedByTargetElimination(ctx: Ctx, frame: Frame<"enemyAttack">): boolean {
   if (frame.stage === "done" || frame.versusEnemy) return false;
   const eliminated = (id: PlayerId): boolean => getPlayer(ctx.state, id)?.eliminated === true;
-  if (!eliminated(frame.targetPlayerId) && !eliminated(frame.attackedPlayerId)) return false;
+  const activation = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+  const marked =
+    frame.playerEliminated === true ||
+    (activation?.kind === "event" && activation.enemyAttackEndedByElimination === true);
+  if (!marked && !eliminated(frame.targetPlayerId) && !eliminated(frame.attackedPlayerId)) return false;
   if (frame.stage !== "giveBoost") {
     for (const id of [...(getInstance(ctx.state, frame.enemyInstanceId)?.boostCards ?? [])]) {
       moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
@@ -1575,7 +1582,7 @@ function endedByTargetElimination(ctx: Ctx, frame: Frame<"enemyAttack">): boolea
     type: "activationSkipped",
     enemyInstanceId: frame.enemyInstanceId,
     activation: "attack",
-    reason: "targetEliminated",
+    reason: "playerEliminated",
   });
   setFrame(ctx, { ...frame, stage: "done", boost: null });
   return true;

@@ -935,10 +935,10 @@ function describe(
       };
     }
     case "activationSkipped": {
-      if (event.reason !== "targetEliminated" || event.activation !== "attack") return null;
+      if (event.reason !== "playerEliminated" || event.activation !== "attack") return null;
       const eliminated = eliminatedTargetOf(burst, event.enemyInstanceId);
       return {
-        text: `The attack ends: ${eliminated ? `${who(eliminated)} ${verb(eliminated, "were", "was")}` : "its target was"} eliminated.`,
+        text: `The attack ends: ${eliminated ? `${who(eliminated)} ${verb(eliminated, "were", "was")}` : "a player was"} eliminated.`,
         voice: "villain",
       };
     }

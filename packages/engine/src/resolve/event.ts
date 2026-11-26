@@ -6,7 +6,12 @@ import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
 import { applyStatusBeingGiven, statusGiveNotMade, statusStillToGive } from "./status-being-given.js";
 import { resolveTuck } from "./tuck.js";
-import { endEliminatedAttack, endedByElimination, partOfEliminatedAttack } from "./eliminated-attack.js";
+import {
+  endEliminatedAttack,
+  endedByElimination,
+  endedEnemyAttackPart,
+  partOfEliminatedAttack,
+} from "./eliminated-attack.js";
 import { resolveImminentAttach } from "./imminent-attach.js";
 import { applyCountersBeingPlaced } from "./counters-being-placed.js";
 import { applyWouldDiscard, wouldDiscardNotMade } from "./would-discard.js";
@@ -193,6 +198,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
     popFrame(ctx);
     return;
   }
+  // The damage an enemy attack queued, not yet dealt, when a player was eliminated (RRG 1.8 p. 34): the attack ends.
+  if (endedEnemyAttackPart(ctx, frame)) return;
   switch (frame.stage) {
     case "interrupts": {
       // A standing "If …, discard this card" took the card out of play the moment it was in play (`fromEntering`,
