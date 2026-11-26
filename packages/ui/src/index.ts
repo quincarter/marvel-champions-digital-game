@@ -5,3 +5,16 @@
  */
 export { ThemeStyles } from "./shared/theme.styles.js";
 export { McCreditsList, type CreditsListRow } from "./components/mc-credits-list/mc-credits-list.js";
+export { McButton, type McButtonKind } from "./components/mc-button/mc-button.js";
+export {
+  McSettingsBody,
+  type BodyButton,
+  type BodyCell,
+  type BodyControl,
+  type BodyField,
+  type BodyHeading,
+  type BodyRect,
+  type BodyRow,
+  type SettingsBodyModel,
+} from "./components/mc-settings-body/mc-settings-body.js";
+export { onTap, TAP_SLOP_PX } from "./shared/tap.js";

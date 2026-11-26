@@ -123,6 +123,19 @@ function chromeBoxes(game: Phaser.Game): Rect[] {
 
 const STATE_EVENTS = ["sleep", "pause", "wake", "resume"] as const;
 
+/** A Phaser object a region moves and fades with (an overlay panel's entrance and exit, `ui/transitions.ts`). */
+export interface Followed {
+  readonly x: number;
+  readonly y: number;
+  readonly alpha: number;
+  readonly active: boolean;
+}
+
+/** Renders a Lit element's pending update now, so its elements exist for a focus stop read in the same frame. */
+export function renderNow(element: HTMLElement): void {
+  (element as unknown as { performUpdate?: () => void }).performUpdate?.();
+}
+
 export class DomRegion<E extends HTMLElement = HTMLElement> {
   readonly element: E;
   readonly #scene: Phaser.Scene;
@@ -132,6 +145,9 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   #opacity = -1;
   #shown: boolean | null = null;
   #clip: string | null = null;
+  #hidden = false;
+  #follow: Followed | null = null;
+  #offset = "";
   #destroyed = false;
 
   constructor(scene: Phaser.Scene, element: E, rect: Rect) {
@@ -164,6 +180,21 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     });
   }
 
+  /** Hides the region whatever its scene does (the scene shows something else in its place for now). */
+  setHidden(hidden: boolean): void {
+    this.#hidden = hidden;
+    this.#sync();
+  }
+
+  /**
+   * Moves and fades with `object`: an overlay panel drawn at its place with `x` and `y` 0 at rest, which its entrance
+   * and exit tween (`OverlayMotion`), so the DOM body rises and fades with the Phaser panel around it.
+   */
+  follow(object: Followed | null): void {
+    this.#follow = object;
+    this.#sync();
+  }
+
   /** The region's box, in game coordinates (what a focus stop's `view` is). */
   get rect(): Rect {
     return this.#rect;
@@ -176,7 +207,15 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
 
   #sync(): void {
     if (this.#destroyed) return;
-    const { shown, opacity } = sceneLayerState(this.#scene);
+    const state = sceneLayerState(this.#scene);
+    const follow = this.#follow?.active ? this.#follow : null;
+    const shown = state.shown && !this.#hidden;
+    const opacity = state.opacity * (follow ? follow.alpha : 1);
+    const offset = follow && (follow.x !== 0 || follow.y !== 0) ? `translate(${follow.x}px, ${follow.y}px)` : "";
+    if (offset !== this.#offset) {
+      this.#offset = offset;
+      this.#wrap.style.transform = offset;
+    }
     if (shown !== this.#shown) {
       this.#shown = shown;
       this.#wrap.style.visibility = shown ? "visible" : "hidden";

@@ -1,0 +1,64 @@
+/**
+ * A tap: the press and the release both on the element, within `TAP_SLOP_PX` of each other, and nothing scrolled in
+ * between. The client's rule for every press control (CLAUDE.md, "no tap on finger lift"; `ui/tap.ts` and
+ * `view/press-arm.ts` in the client): on a phone, the end of a scroll or swipe must never press whatever control the
+ * finger lifts over. A bare `click` would fire for a swipe that started and ended on the same control.
+ */
+
+/** As the client's `view/press-arm.ts`. */
+export const TAP_SLOP_PX = 10;
+
+export interface TapOptions {
+  /** Read at the press: false makes this press do nothing (a disabled control). */
+  readonly enabled?: () => boolean;
+}
+
+/** Calls `handler` on each tap on `element`; returns the function that stops listening. */
+export function onTap(
+  element: HTMLElement,
+  handler: (event: PointerEvent) => void,
+  options: TapOptions = {},
+): () => void {
+  let press: { id: number; x: number; y: number; scrolled: boolean } | null = null;
+  const onScroll = (): void => {
+    if (press) press.scrolled = true;
+  };
+  const end = (): void => {
+    press = null;
+    window.removeEventListener("scroll", onScroll, true);
+  };
+  const down = (event: PointerEvent): void => {
+    if (event.button !== 0 || options.enabled?.() === false) return;
+    press = { id: event.pointerId, x: event.clientX, y: event.clientY, scrolled: false };
+    // Any scroll under way (a list this control sits in) cancels the press: a swipe, not a tap.
+    window.addEventListener("scroll", onScroll, true);
+  };
+  const up = (event: PointerEvent): void => {
+    const held = press;
+    end();
+    if (!held || held.id !== event.pointerId || held.scrolled) return;
+    if (Math.hypot(event.clientX - held.x, event.clientY - held.y) > TAP_SLOP_PX) return;
+    handler(event);
+  };
+  const move = (event: PointerEvent): void => {
+    if (
+      press &&
+      press.id === event.pointerId &&
+      Math.hypot(event.clientX - press.x, event.clientY - press.y) > TAP_SLOP_PX
+    )
+      end();
+  };
+  element.addEventListener("pointerdown", down);
+  element.addEventListener("pointerup", up);
+  element.addEventListener("pointermove", move);
+  element.addEventListener("pointercancel", end);
+  element.addEventListener("pointerleave", end);
+  return () => {
+    end();
+    element.removeEventListener("pointerdown", down);
+    element.removeEventListener("pointerup", up);
+    element.removeEventListener("pointermove", move);
+    element.removeEventListener("pointercancel", end);
+    element.removeEventListener("pointerleave", end);
+  };
+}
