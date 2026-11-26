@@ -122,4 +122,45 @@ describe("placeArtSlot", () => {
     expect(fill()).toBe(false);
     expect(drawn).toBe(0);
   });
+
+  it("puts the stand-in back when a shown picture was evicted, and the picture again once it is back", () => {
+    let onHand: string | null = "scan";
+    const container = new FakeParent();
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const pictures: Phaser.GameObjects.GameObject[] = [];
+    const standIns: Phaser.GameObjects.GameObject[] = [];
+    const inContainer = (object: Phaser.GameObjects.GameObject): Phaser.GameObjects.GameObject => {
+      (object as unknown as { parentContainer: unknown }).parentContainer = container;
+      return object;
+    };
+    const fill = placeArtSlot(
+      {
+        request: () => onHand,
+        draw: () => {
+          const picture = fake(`picture ${pictures.length}`);
+          pictures.push(picture);
+          return picture;
+        },
+        sceneList: new FakeParent(),
+      },
+      objects,
+      () => {
+        const standIn = fake("stand-in");
+        standIns.push(standIn);
+        return standIn;
+      },
+    );
+    container.list.push(inContainer(pictures[0]!));
+
+    onHand = null;
+    expect(fill()).toBe(false);
+    expect(pictures[0]!.active).toBe(false);
+    expect(objects).toEqual([standIns[0]]);
+    inContainer(standIns[0]!);
+
+    onHand = "scan";
+    expect(fill()).toBe(true);
+    expect(objects).toEqual([pictures[1]]);
+    expect(standIns[0]!.active).toBe(false);
+  });
 });

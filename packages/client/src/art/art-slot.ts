@@ -31,9 +31,9 @@ export interface ArtSlotDeps {
 /**
  * Draws the scan, or `placeholder()` when it isn't on hand yet, and pushes what it drew into `objects` (the row's
  * objects, which the list destroys with the row). Returns the `fill` to call on every refresh (a row's
- * `refresh`): it puts the picture in once its scan arrives and returns true once it is in (at once, when the scan was
- * on hand), and it asks the cache for a drawn scan again so the cache never evicts it while it is on screen. It does
- * nothing once the row is gone.
+ * `refresh`): it puts the picture in once its scan arrives and returns true while it is in. It asks the cache for a
+ * drawn scan again, so the cache counts it as in use; if the cache evicted it anyway, the stand-in goes back until the
+ * scan is in again. It does nothing once the row is gone.
  */
 export function placeArtSlot(
   deps: ArtSlotDeps,
@@ -42,37 +42,41 @@ export function placeArtSlot(
 ): () => boolean {
   const key = deps.request();
   const drawn = key ? deps.draw(key) : null;
-  if (drawn) {
-    objects.push(drawn);
-    return () => {
-      // Asked again on every refresh, as a redraw would: the cache evicts the scans asked for longest ago, and this
-      // one is still on screen.
-      if (drawn.active) deps.request();
-      return true;
-    };
-  }
-  const standIn = placeholder();
-  objects.push(standIn);
-  let filled: Phaser.GameObjects.GameObject | null = null;
+  /** What the slot shows now: the picture, or the stand-in until it arrives. */
+  let shown = drawn ?? placeholder();
+  let isPicture = drawn !== null;
+  objects.push(shown);
+
+  /** Puts `next` where `shown` is, in the row's objects and on screen, and destroys `shown`. */
+  const swap = (next: Phaser.GameObjects.GameObject): void => {
+    const at = objects.indexOf(shown);
+    if (at >= 0) objects[at] = next;
+    else objects.push(next);
+    const container = shown.parentContainer as SlotParent | null;
+    if (container?.addAt) container.addAt(next, container.getIndex(shown));
+    // A new object starts on top of the scene's own list: move it down to the old one's place.
+    else deps.sceneList.moveTo?.(next, deps.sceneList.getIndex(shown));
+    shown.destroy();
+    shown = next;
+  };
+
   return () => {
-    if (filled) {
-      if (filled.active) deps.request();
-      return true;
+    if (!shown.active) return false;
+    // Asked again on every refresh, as a redraw would: the cache evicts the scans asked for longest ago, and a shown
+    // one must count as in use.
+    const now = deps.request();
+    if (isPicture) {
+      if (now) return true;
+      // Evicted anyway (asked for again just now): the stand-in goes back until the scan is in again.
+      swap(placeholder());
+      isPicture = false;
+      return false;
     }
-    if (!standIn.active) return false;
-    const arrived = deps.request();
-    if (!arrived) return false;
-    const picture = deps.draw(arrived);
+    if (!now) return false;
+    const picture = deps.draw(now);
     if (!picture) return false;
-    filled = picture;
-    const at = objects.indexOf(standIn);
-    if (at >= 0) objects[at] = picture;
-    else objects.push(picture);
-    const container = standIn.parentContainer as SlotParent | null;
-    if (container?.addAt) container.addAt(picture, container.getIndex(standIn));
-    // `drawArt` already put the picture on the scene's list (on top): move it down to the stand-in's place.
-    else deps.sceneList.moveTo?.(picture, deps.sceneList.getIndex(standIn));
-    standIn.destroy();
+    swap(picture);
+    isPicture = true;
     return true;
   };
 }
