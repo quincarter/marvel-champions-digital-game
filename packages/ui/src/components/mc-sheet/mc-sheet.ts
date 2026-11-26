@@ -12,6 +12,7 @@ export { McSheet };
 export type {
   SheetBox,
   SheetButton,
+  SheetChip,
   SheetDots,
   SheetGlyph,
   SheetHalftone,

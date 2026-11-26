@@ -410,7 +410,8 @@ export class HowToPlayScene extends Phaser.Scene {
     this.#rowCard(rect, 1.5, surface.ink.hex);
 
     const pad = 16;
-    b.text(rect.x + pad, rect.y + 12, aspect.name, ROW_TITLE_TYPE, { color: surface.ink.hex });
+    // The aspect's own chip stands where the plain name was: its frame color with the name on it, as Seats and Decks show it.
+    b.chip(rect.x + pad, rect.y + 12, aspect.aspect, aspect.name, { height: 22, size: 12 });
     b.text(rect.x + pad, rect.y + 38, aspect.tagline, ROW_DETAIL_TYPE, {
       color: surface.ink.hex,
       alpha: ink.secondary,

@@ -294,6 +294,26 @@ export class SheetBuilder {
     });
   }
 
+  /** An aspect chip (`mc-aspect-chip`: the aspect's color with its translated name on it) with its top left at `x`, `y`. */
+  chip(
+    x: number,
+    y: number,
+    aspect: string,
+    label: string,
+    options: { readonly height?: number; readonly size?: number; readonly key?: string } = {},
+  ): void {
+    this.nodes.push({
+      kind: "chip",
+      x: x - this.#origin.x,
+      y: y - this.#origin.y,
+      aspect,
+      label,
+      ...(options.height !== undefined ? { height: options.height } : {}),
+      ...(options.size !== undefined ? { size: options.size } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
+  }
+
   /** A key or controller-button glyph (`mc-glyph`) with its left edge at `x` and vertical center at `y`. */
   glyph(options: {
     readonly x: number;

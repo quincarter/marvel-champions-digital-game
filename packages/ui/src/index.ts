@@ -5,6 +5,7 @@
  */
 export { ThemeStyles } from "./shared/theme.styles.js";
 export { McCreditsList, type CreditsListRow } from "./components/mc-credits-list/mc-credits-list.js";
+export { McAspectChip } from "./components/mc-aspect-chip/mc-aspect-chip.js";
 export { McButton, type McButtonKind } from "./components/mc-button/mc-button.js";
 export {
   McSettingsBody,
@@ -23,6 +24,7 @@ export {
   McSheet,
   type SheetBox,
   type SheetButton,
+  type SheetChip,
   type SheetDots,
   type SheetGlyph,
   type SheetHalftone,

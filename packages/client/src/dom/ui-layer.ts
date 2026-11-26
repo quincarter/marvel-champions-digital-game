@@ -14,6 +14,7 @@
 import type Phaser from "phaser";
 import { accent, font, signal, status, surface, type Token } from "../tokens.js";
 import { colorScheme, onColorSchemeChange, schemeColor, type ColorChannel } from "../view/color-scheme.js";
+import { aspectStampOf } from "../view/aspect-stamp.js";
 import { desktopTypeSize } from "../view/desktop-type.js";
 
 /** The tokens the layer exposes, by the name a stylesheet reads (`--mc-fill-ink`, `--mc-text-paper`, ...). */
@@ -35,6 +36,8 @@ const COLORS: Readonly<Record<string, Token>> = {
   tough: status.tough,
 };
 
+const ASPECTS = ["aggression", "justice", "protection", "leadership", "pool", "basic"] as const;
+
 const CHANNELS: readonly ColorChannel[] = ["text", "fill", "line"];
 
 /** The small sizes that grow on desktop; a stylesheet writes `var(--mc-small-11)` where Phaser would ask for 11px. */
@@ -47,6 +50,12 @@ export function layerVariables(scheme: "light" | "dark", desktop: boolean): Read
   const out: Record<string, string> = {};
   for (const [name, token] of Object.entries(COLORS))
     for (const channel of CHANNELS) out[`--mc-${channel}-${name}`] = css(schemeColor(token.hex, channel, scheme));
+  // The aspect chips' printed frame colors and the word's ink on each: the same in both schemes, as Phaser draws them.
+  for (const aspect of ASPECTS) {
+    const stamp = aspectStampOf(aspect);
+    out[`--mc-fill-${aspect}`] = css(stamp.fill);
+    out[`--mc-text-on-${aspect}`] = css(stamp.ink);
+  }
   out["--mc-font-display"] = `"${font.display}", sans-serif`;
   out["--mc-font-body"] = `"${font.body}", sans-serif`;
   out["--mc-font-mono"] = `"${font.mono}", monospace`;

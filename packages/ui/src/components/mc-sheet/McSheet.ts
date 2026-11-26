@@ -4,6 +4,7 @@ import { ThemeStyles } from "../../shared/theme.styles.js";
 import { graphemesOf } from "../../shared/graphemes.js";
 import { tapped } from "../../shared/tapped.js";
 import { cancelHold } from "../../shared/tap.js";
+import "../mc-aspect-chip/mc-aspect-chip.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
 import type { GlyphSpec } from "../mc-glyph/glyph-layout.js";
@@ -106,6 +107,19 @@ export interface SheetButton {
   readonly keyshortcuts?: string;
 }
 
+/** An aspect chip (`mc-aspect-chip`) with its top left at `x`, `y`: decorative, the row it sits on takes the press. */
+export interface SheetChip {
+  readonly kind: "chip";
+  readonly x: number;
+  readonly y: number;
+  readonly aspect: string;
+  /** The aspect's name, already translated. */
+  readonly label: string;
+  readonly height?: number;
+  readonly size?: number;
+  readonly key?: string;
+}
+
 /** A key or controller-button glyph (`mc-glyph`) at its left edge `x`, vertically centered on `y`. Never takes a press. */
 export interface SheetGlyph {
   readonly kind: "glyph";
@@ -199,6 +213,7 @@ export type SheetNode =
   | SheetText
   | SheetButton
   | SheetGlyph
+  | SheetChip
   | SheetImage
   | SheetHalftone
   | SheetPoly
@@ -422,6 +437,16 @@ export class McSheet extends LitElement {
           aria-keyshortcuts=${node.keyshortcuts ?? nothing}
           @mc-press=${() => this.#activate(node.key)}
         ></mc-button>`;
+      case "chip":
+        return html`<mc-aspect-chip
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${`left:${node.x}px;top:${node.y}px`}
+          aspect=${node.aspect}
+          .label=${node.label}
+          .height=${node.height ?? 18}
+          .size=${node.size ?? 10}
+        ></mc-aspect-chip>`;
       case "glyph":
         return html`<mc-glyph
           class="part"
