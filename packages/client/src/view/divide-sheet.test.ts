@@ -3,7 +3,7 @@ import { activeVillain, cardsInPlay, choiceId, type PendingChoice } from "@mc/en
 import { LocalEngineHost } from "../engine/local-host.js";
 import { startEngagedTargetGame } from "../store/dev-engaged-target-game.js";
 import { SessionStore } from "../store/session-store.js";
-import { distinctNames, divideSheetOf, shownDivideChoice } from "./divide-sheet.js";
+import { copyNumbers, divideSheetOf, shownDivideChoice } from "./divide-sheet.js";
 import { playerName } from "./names.js";
 
 const store = new SessionStore(new LocalEngineHost());
@@ -110,12 +110,25 @@ describe("damage divided among minions engaged with different seats (issue #1001
     expect(seats).toHaveLength(2);
   });
 
-  test("names that repeat in a tally are numbered in order (Codex, PR #1014)", () => {
-    expect(distinctNames(["Drone minion vs I. Man", "Drone minion vs I. Man", "vs S.-Man"])).toEqual([
-      "Drone minion vs I. Man #1",
-      "Drone minion vs I. Man #2",
-      "vs S.-Man",
-    ]);
+  test("copies are numbered across every target, the same on the tile and in the tally (Codex, PR #1014)", () => {
+    expect(copyNumbers(["Drone|Iron Man", "Drone|Iron Man", "Drone|Spider-Man"])).toEqual([1, 2, null]);
+    // The main scheme offered twice under different ids stands in for two copies of one card.
+    const twin = {
+      ...state,
+      instances: { ...state.instances, twin: { ...state.instances[scheme]!, instanceId: "twin" } },
+    };
+    const divide = {
+      ...choice,
+      options: [
+        { optionId: `${scheme}#1`, label: "a", ref: { kind: "card", instanceId: scheme } },
+        { optionId: "twin#1", label: "b", ref: { kind: "card", instanceId: "twin" } },
+      ],
+    } as unknown as PendingChoice;
+    // Only the second copy picked: its tile and its tally entry both say #2.
+    const sheet = divideSheetOf(twin as never, divide, ["twin#1"])!;
+    expect(sheet.labels.get("twin#1")?.name).toBe(`${nameOf(scheme)} #2`);
+    expect(sheet.labels.get(`${scheme}#1`)?.name).toBe(`${nameOf(scheme)} #1`);
+    expect(sheet.tally).toBe(`${nameOf(scheme)} #2 1 · 2 to place`);
   }, 120_000);
 });
 
