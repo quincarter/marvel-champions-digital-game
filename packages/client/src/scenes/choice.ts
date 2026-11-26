@@ -71,7 +71,7 @@ import { unavailableOptionReasons } from "../view/ability-refusal.js";
 import { choiceRowsOf } from "../view/choice-option-rows.js";
 import { optionArtInstance, optionArtOf } from "../view/choice-option-art.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { onTap } from "../ui/tap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -2778,7 +2778,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     // being lifted out into a second group (which moved the second card and shrank both: QA QB-8).
     const gridArea: Rect = { ...area, y: area.y + captionHeight, height: area.height - captionHeight };
     const game = this.#sessionState().game;
-    const divideTally = game ? (divideSheetOf(game, choice, this.#selected)?.tally ?? "") : "";
+    const divideTallies = game ? (divideSheetOf(game, choice, this.#selected)?.tallies ?? []) : [];
+    const divideTally = divideTallies[0] ?? "";
     // Cards that do not fit the area whole at a readable height (a phone held sideways, a dozen options) scroll
     // in a grid inside the area instead of being cut off or shrunk (`view/choice-options-layout.ts`).
     let layout = choiceCardLayout(gridArea, choice.options.length, { gap: 6 });
@@ -2795,7 +2796,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         gridSlots[0]!.y !== gridSlots.at(-1)!.y ||
         area.height < CHOICE_MIN_CARD_HEIGHT * 2 + captionHeight * 2 + 10);
     if (stable) {
-      label(
+      const caption = label(
         this,
         area.x,
         area.y,
@@ -2810,6 +2811,15 @@ export class ChoiceOverlay extends Phaser.Scene {
         surface.ink.hex,
         ink.label,
       );
+      if (divideTally && !isAcknowledgeOnly(choice)) {
+        // A long tally (two Drones engaged with long-named heroes) takes a shorter form that leads with what is left to
+        // place before it is shrunk or cut (`view/divide-sheet.ts`).
+        for (const form of divideTallies.slice(1)) {
+          if (caption.width <= area.width) break;
+          caption.setText(caseOf(typeRole.label, form));
+        }
+        fitText(caption, area.width, typeRole.label.size);
+      }
       const region = layout.scrolls
         ? new McScrollRegion(this, {
             rect: gridArea,

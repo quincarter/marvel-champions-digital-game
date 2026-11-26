@@ -82,6 +82,33 @@ describe("damage divided among minions engaged with different seats (issue #1001
     expect(new Set(seats).size).toBe(2);
     expect(sheet.tally).toContain(`(vs ${seats[0]}) 1`);
   }, 120_000);
+
+  test("a long tally has shorter forms that lead with the count and keep every target", async () => {
+    const two = new SessionStore(new LocalEngineHost());
+    await startEngagedTargetGame(two);
+    const game = two.state.game!;
+    const drones = cardsInPlay(game).filter((id) => game.instances[id]?.facedownAs?.kind === "minion");
+    const divide = {
+      ...choice,
+      prompt: { kind: "divide", what: "damage", amount: 3 },
+      options: drones.map((id) => ({ optionId: `${id}#1`, label: id, ref: { kind: "card", instanceId: id } })),
+    } as unknown as PendingChoice;
+    const sheet = divideSheetOf(
+      game,
+      divide,
+      drones.map((id) => `${id}#1`),
+    )!;
+    const seats = drones.map((id) => playerName(game, game.instances[id]!.engagedWith!));
+    expect(sheet.tallies[0]).toBe(sheet.tally);
+    const shortest = sheet.tallies.at(-1)!;
+    expect(shortest.startsWith("1 to place · ")).toBe(true);
+    expect(shortest.length).toBeLessThan(sheet.tally.length);
+    // Each Drone keeps a part of its own: the two seats never read the same.
+    const parts = shortest.split(" · ").slice(1);
+    expect(parts).toHaveLength(2);
+    expect(new Set(parts).size).toBe(2);
+    expect(seats).toHaveLength(2);
+  }, 120_000);
 });
 
 describe("shownDivideChoice", () => {

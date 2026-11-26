@@ -8,6 +8,7 @@
 
 import { isMinion, type ChoiceRef, type GameState, type InstanceId, type PendingChoice } from "@mc/engine";
 import { engagedNameOf, threatOnCard } from "./board-model.js";
+import { engagedNoteForms } from "./choice-tile-notes.js";
 import { cardName } from "./names.js";
 
 export interface DivideOptionLabel {
@@ -30,6 +31,12 @@ export interface DivideSheet {
   readonly labels: ReadonlyMap<string, DivideOptionLabel>;
   /** "The Break-In! 2 · Bomb Scare 1 · 1 to place" — empty while nothing is picked. */
   readonly tally: string;
+  /**
+   * The tally's ways to read, longest first: `tally` itself, then shorter forms that lead with what is left to place
+   * and name each card as briefly as still tells it apart ("1 to place · vs P. Parker 1 · vs M. Morales 1"). A phone's
+   * caption takes the first that fits, so a cut from the end costs a target's name, never the count. Empty with `tally`.
+   */
+  readonly tallies: readonly string[];
 }
 
 const refInstanceId = (ref: ChoiceRef): InstanceId | null =>
@@ -87,14 +94,27 @@ export function divideSheetOf(
     const instanceId = owner.get(optionId);
     if (instanceId) counts.set(instanceId, (counts.get(instanceId) ?? 0) + 1);
   }
-  const parts = order.flatMap((instanceId) => {
+  const picked = order.flatMap((instanceId) => {
     const count = counts.get(instanceId);
-    const engaged = engagedOf(state, instanceId);
-    return count ? [`${cardName(state, instanceId)}${engaged ? ` (vs ${engaged})` : ""} ${count}`] : [];
+    return count ? [{ instanceId, count, engaged: engagedOf(state, instanceId) }] : [];
   });
   const left = prompt.amount - selected.length;
-  const tally = parts.length === 0 ? "" : `${parts.join(" · ")} · ${left > 0 ? `${left} to place` : "all placed"}`;
-  return { labels, tally };
+  const leftWords = left > 0 ? `${left} to place` : "all placed";
+  if (picked.length === 0) return { labels, tally: "", tallies: [] };
+  const seats = order.flatMap((instanceId) => {
+    const engaged = engagedOf(state, instanceId);
+    return engaged ? [engaged] : [];
+  });
+  const full = picked.map(
+    ({ instanceId, count, engaged }) => `${cardName(state, instanceId)}${engaged ? ` (vs ${engaged})` : ""} ${count}`,
+  );
+  // A minion engaged with a seat is named by that seat alone, in the shortest form no other seat shares.
+  const brief = picked.map(({ instanceId, count, engaged }) =>
+    engaged ? `${engagedNoteForms(engaged, seats).at(-1)} ${count}` : `${cardName(state, instanceId)} ${count}`,
+  );
+  const tally = `${full.join(" · ")} · ${leftWords}`;
+  const tallies = [...new Set([tally, [leftWords, ...full].join(" · "), [leftWords, ...brief].join(" · ")])];
+  return { labels, tally, tallies };
 }
 
 function engagedOf(state: GameState, instanceId: InstanceId): string | null {
