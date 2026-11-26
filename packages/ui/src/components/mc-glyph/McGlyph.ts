@@ -6,6 +6,7 @@ import {
   artDrawSize,
   artMarkup,
   layoutGlyph,
+  measureGlyphText,
   type GlyphSpec,
   type GlyphSymbol,
   type LaidCell,
@@ -51,6 +52,9 @@ export class McGlyph extends LitElement {
   declare openness: number;
   declare ground: McGlyphGround;
   declare still: boolean;
+  /** Measures keys in the font the page draws glyphs in (`--mc-font-body`), as the client measured them to place the glyph. */
+  readonly #measure = (label: string, size: number): number =>
+    measureGlyphText(label, size, getComputedStyle(this).getPropertyValue("--mc-font-body").trim() || undefined);
   readonly #uid = `g${++counter}`;
 
   constructor() {
@@ -72,7 +76,7 @@ export class McGlyph extends LitElement {
 
   override willUpdate(): void {
     const open = Math.min(1, Math.max(0, this.openness));
-    const { fullWidth } = layoutGlyph(this.specs, this.height);
+    const { fullWidth } = layoutGlyph(this.specs, this.height, this.#measure);
     const duration = open > 0.5 ? GLYPH_EXPAND_MS : GLYPH_COLLAPSE_MS;
     this.style.transitionDuration = `${duration}ms`;
     this.style.width = `${GLYPH_TAB_WIDTH + (fullWidth - GLYPH_TAB_WIDTH) * open}px`;
@@ -83,7 +87,7 @@ export class McGlyph extends LitElement {
   }
 
   override render() {
-    const { cells } = layoutGlyph(this.specs, this.height);
+    const { cells } = layoutGlyph(this.specs, this.height, this.#measure);
     return html`<div class="row">${cells.map((cell, index) => this.#cell(cell, index))}</div>`;
   }
 

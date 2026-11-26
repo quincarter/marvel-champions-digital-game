@@ -38,6 +38,7 @@ export {
   GLYPH_CHORD_GAP,
   GLYPH_COLLAPSE_MS,
   GLYPH_EXPAND_MS,
+  GLYPH_FONT_FAMILY,
   GLYPH_TAB_WIDTH,
   artDrawSize,
   artMarkup,

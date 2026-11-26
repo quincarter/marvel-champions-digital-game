@@ -210,10 +210,13 @@ export class SheetBuilder {
     readonly type?: TypeSpec;
     /** The label slides right by this many px to make room for a glyph beside it. */
     readonly labelShift?: number;
+    /** The label slides with no animation (reduced motion). */
+    readonly still?: boolean;
   }): void {
     const type = options.type;
     this.nodes.push({
       ...(options.labelShift ? { labelShift: options.labelShift } : {}),
+      ...(options.still ? { still: true } : {}),
       kind: "button",
       key: options.key,
       rect: this.#rect(options.rect),

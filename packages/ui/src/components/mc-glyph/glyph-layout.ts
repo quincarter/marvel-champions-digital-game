@@ -13,7 +13,7 @@ export interface GlyphKeySpec {
 }
 
 export interface GlyphPadArt {
-  /** The family's picture of this button: raw SVG with its BODY / CUT placeholders. */
+  /** The family's picture of this button: raw SVG with its BODY / CUT placeholders. Trusted, bundled SVG only: it is drawn as markup. */
   readonly source: string;
   /** Xbox / PlayStation face buttons keep their own colors, with no outline. */
   readonly colored: boolean;
@@ -40,13 +40,16 @@ export const GLYPH_ART_UNIT = 24.5;
 /** The ink outline around a white picture, in picture units. */
 export const GLYPH_ART_OUTLINE = 1.5;
 
+/** The font a glyph draws in when the page does not say (the client's body font). */
+export const GLYPH_FONT_FAMILY = '"Public Sans", sans-serif';
+
 /** Width in px of `label` set in Public Sans 800 at `size`. */
 export type GlyphTextMeasure = (label: string, size: number) => number;
 
 let context: CanvasRenderingContext2D | null | undefined;
 
 /** The default measure: a canvas in the glyph's own font, or a rough per-letter width where there is no canvas. */
-export const measureGlyphText: GlyphTextMeasure = (label, size) => {
+export const measureGlyphText = (label: string, size: number, family = GLYPH_FONT_FAMILY): number => {
   if (context === undefined) {
     try {
       context = typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
@@ -56,7 +59,7 @@ export const measureGlyphText: GlyphTextMeasure = (label, size) => {
   }
   const rough = label.length * size * 0.62;
   if (!context) return rough;
-  context.font = `800 ${size}px "Public Sans", sans-serif`;
+  context.font = `800 ${size}px ${family}`;
   const width = context.measureText(label).width;
   return width > 0 ? width : rough;
 };
@@ -87,11 +90,16 @@ export function parseArt(source: string): ArtPicture {
  */
 export function artMarkup(inner: string, uid: string): string {
   const ids = [...inner.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]!);
-  let out = inner
-    .replaceAll('fill="BODY"', 'style="fill:var(--mc-fill-card)"')
-    .replaceAll('stroke="BODY"', 'style="stroke:var(--mc-fill-card)"')
-    .replaceAll('fill="CUT"', 'style="fill:var(--mc-fill-ink)"')
-    .replaceAll('stroke="CUT"', 'style="stroke:var(--mc-fill-ink)"');
+  // One style attribute per element: an element with both a fill and a stroke placeholder keeps both.
+  let out = inner.replace(/<[a-zA-Z][^>]*>/g, (tag) => {
+    const styles: string[] = [];
+    const stripped = tag.replace(/\s(fill|stroke)="(BODY|CUT)"/g, (_all, prop: string, color: string) => {
+      styles.push(`${prop}:var(--mc-fill-${color === "BODY" ? "card" : "ink"})`);
+      return "";
+    });
+    if (styles.length === 0) return tag;
+    return stripped.replace(/(\/?>)$/, ` style="${styles.join(";")}"$1`);
+  });
   for (const id of ids) {
     out = out.replaceAll(`id="${id}"`, `id="${uid}-${id}"`).replaceAll(`url(#${id})`, `url(#${uid}-${id})`);
   }

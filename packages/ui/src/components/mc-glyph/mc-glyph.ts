@@ -15,6 +15,7 @@ export {
   GLYPH_ART_OUTLINE,
   GLYPH_ART_UNIT,
   GLYPH_CHORD_GAP,
+  GLYPH_FONT_FAMILY,
   GLYPH_TAB_WIDTH,
   artDrawSize,
   artMarkup,

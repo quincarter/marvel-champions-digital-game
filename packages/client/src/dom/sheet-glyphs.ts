@@ -11,8 +11,8 @@
  */
 import type Phaser from "phaser";
 import type { McGlyphGround } from "@mc/ui";
-import { layoutGlyph } from "@mc/ui";
-import { typeRole, type TypeSpec } from "../tokens.js";
+import { layoutGlyph, measureGlyphText } from "@mc/ui";
+import { font, typeRole, type TypeSpec } from "../tokens.js";
 import { bindInputHints, type InputHints, type InputHintsSnapshot } from "../ui/input-hints.js";
 import {
   glyphBesideLabel,
@@ -56,7 +56,13 @@ export interface SheetGlyphButton {
 
 interface Registered {
   readonly entry: SheetGlyphButton;
+  /** The specs' signature this entry was drawn with (null: it had none), to tell later whether anything changed. */
+  drawn: string | null;
 }
+
+/** Keys measured in the font `mc-glyph` draws with (`--mc-font-body`). */
+const BODY_MEASURE = (label: string, size: number): number =>
+  measureGlyphText(label, size, `"${font.body}", sans-serif`);
 
 export class SheetGlyphs {
   readonly #scene: Phaser.Scene;
@@ -65,7 +71,11 @@ export class SheetGlyphs {
   readonly #binding: InputHints;
   #entries: Registered[] = [];
   #snapshot: InputHintsSnapshot | null = null;
-  #signature = "";
+  /** The flags (open, size, reduced motion) the last draw used. */
+  #drawnFlags = "";
+  #expanded: boolean | null = null;
+  #hadGlyph = false;
+  #disposed = false;
 
   /**
    * `redraw` rebuilds the scene's sheet; it is called when what the glyphs show changed. `obstacles` are the rects a
@@ -78,16 +88,31 @@ export class SheetGlyphs {
     this.#binding = bindInputHints(scene, (snapshot) => {
       this.#snapshot = snapshot;
       if (this.#entries.length === 0) return;
-      const signature = this.#signatureOf(snapshot);
-      if (signature === this.#signature) return;
-      this.#signature = signature;
-      this.#redraw();
+      // Mid-fold the mouse state has not changed: the glyph animates itself, nothing to compute.
+      const expanded = glyphsExpanded(snapshot.state);
+      const folding = snapshot.openness > 0 && snapshot.openness < 1;
+      if (folding && expanded === this.#expanded) return;
+      this.#expanded = expanded;
+      const now = this.#compose(
+        this.#entries.map(({ entry }) => this.#signatureOf(entry, snapshot)),
+        this.#flagsOf(snapshot),
+      );
+      const drawn = this.#compose(
+        this.#entries.map((registered) => registered.drawn),
+        this.#drawnFlags,
+      );
+      if (now !== drawn) this.#redraw();
+    });
+    // Key widths and the word measured before the fonts were in: place again once they are.
+    void (typeof document === "undefined" ? undefined : document.fonts?.ready)?.then(() => {
+      if (!this.#disposed && this.#hadGlyph) this.#redraw();
     });
   }
 
   /** Forget every registered glyph: call at the start of the scene's draw. */
   reset(): void {
     this.#entries = [];
+    this.#hadGlyph = false;
   }
 
   /** Re-reads now (the screen's state, a `idsNow`, changed). */
@@ -96,6 +121,7 @@ export class SheetGlyphs {
   }
 
   dispose(): void {
+    this.#disposed = true;
     this.#binding.dispose();
   }
 
@@ -111,11 +137,20 @@ export class SheetGlyphs {
     return ids ? specsFor(ids, snapshot) : null;
   }
 
-  /** Everything the drawn glyphs depend on, so an input change that alters none of it redraws nothing. */
-  #signatureOf(snapshot: InputHintsSnapshot): string {
-    const parts = this.#entries.map(({ entry }) => specsSignature(this.#specsOf(entry, snapshot)));
+  #signatureOf(entry: SheetGlyphButton, snapshot: InputHintsSnapshot): string | null {
+    const specs = this.#specsOf(entry, snapshot);
+    return specs ? specsSignature(specs) : null;
+  }
+
+  #flagsOf(snapshot: InputHintsSnapshot): string {
     const { glyphSize, reducedMotion } = snapshot.settings;
-    return [glyphsExpanded(snapshot.state), glyphSize, reducedMotion, ...parts].join("/");
+    return [glyphsExpanded(snapshot.state), glyphSize, reducedMotion].join("/");
+  }
+
+  /** What the glyphs depend on, so an input change that alters none of it redraws nothing. */
+  #compose(parts: readonly (string | null)[], flags: string): string {
+    // With nothing to show, the mouse moving or resting changes nothing drawn.
+    return parts.every((part) => part === null) ? "none" : [flags, ...parts.map((part) => part ?? "")].join("|");
   }
 
   /**
@@ -124,7 +159,8 @@ export class SheetGlyphs {
    * called `builder.button`.
    */
   button(builder: SheetBuilder, entry: SheetGlyphButton): void {
-    this.#entries.push({ entry });
+    const registered: Registered = { entry, drawn: null };
+    this.#entries.push(registered);
     const { key, rect, label, look, type, selected, disabled } = entry;
     const plain = (): void =>
       builder.button({
@@ -138,13 +174,18 @@ export class SheetGlyphs {
       });
     const snapshot = this.#snapshot;
     const specs = snapshot ? this.#specsOf(entry, snapshot) : null;
+    if (snapshot) {
+      this.#drawnFlags = this.#flagsOf(snapshot);
+      registered.drawn = specs ? specsSignature(specs) : null;
+    }
     if (!snapshot || !specs) {
       plain();
       return;
     }
     const open = glyphsExpanded(snapshot.state);
     const height = scaledGlyphHeight(glyphHeightFor(rect.height), snapshot.settings.glyphSize);
-    const { fullWidth } = layoutGlyph(specs.map(uiSpecOf), height);
+    this.#hadGlyph = true;
+    const { fullWidth } = layoutGlyph(specs.map(uiSpecOf), height, BODY_MEASURE);
     // The word's real drawn width, measured in the DOM in the button's own type.
     const word = builder.measure(label, type ?? typeRole.label).width;
     const beside = glyphBesideLabel(
@@ -181,6 +222,7 @@ export class SheetGlyphs {
       ...(disabled !== undefined ? { disabled } : {}),
       // The word makes room only while the glyph is open; folded away it is back where the button put it.
       ...(open ? { labelShift: shift } : {}),
+      ...(snapshot.settings.reducedMotion ? { still: true } : {}),
     });
     builder.glyph({
       x,

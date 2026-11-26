@@ -5,7 +5,7 @@ import { tapped } from "../../shared/tapped.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
 import type { GlyphSpec } from "../mc-glyph/glyph-layout.js";
-import type { McGlyphGround } from "../mc-glyph/McGlyph.js";
+import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS, type McGlyphGround } from "../mc-glyph/McGlyph.js";
 import type { McButtonKind } from "../mc-button/McButton.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
 
@@ -86,6 +86,8 @@ export interface SheetButton {
   readonly size?: number;
   /** How far the label slides right to make room for a glyph beside it (px; eased when it changes). */
   readonly labelShift?: number;
+  /** No label slide (reduced motion). */
+  readonly still?: boolean;
 }
 
 /** A key or controller-button glyph (`mc-glyph`) at its left edge `x`, vertically centered on `y`. Never takes a press. */
@@ -284,13 +286,14 @@ export class McSheet extends LitElement {
         return html`<mc-button
           class="part"
           data-key=${node.key}
-          style=${`${px(node.rect)}${node.size ? `;--mc-button-size:${node.size}px` : ""};--mc-label-shift:${node.labelShift ?? 0}px`}
+          style=${`${px(node.rect)}${node.size ? `;--mc-button-size:${node.size}px` : ""};--mc-label-shift:${node.labelShift ?? 0}px;--mc-label-ms:${node.labelShift ? GLYPH_EXPAND_MS : GLYPH_COLLAPSE_MS}ms`}
           kind=${node.look}
           .label=${node.label}
           ?selected=${node.selected ?? false}
           ?framed=${node.framed ?? false}
           ?display=${node.display ?? false}
           ?plain=${node.plain ?? false}
+          ?still=${node.still ?? false}
           ?disabled=${node.disabled !== undefined}
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
           @mc-press=${() => this.#activate(node.key)}

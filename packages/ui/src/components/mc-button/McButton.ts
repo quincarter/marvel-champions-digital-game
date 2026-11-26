@@ -14,6 +14,7 @@ export type McButtonKind = "primary" | "secondary" | "quiet" | "onInk";
  * @element mc-button
  * @attr kind - primary | secondary | quiet | onInk
  * @attr selected - The control's on / chosen state.
+ * @attr still - No label slide when a glyph makes room (reduced motion).
  * @attr disabled - Unavailable: kept in place, dimmed, presses do nothing. `reason` says why, as a tooltip.
  * @attr framed - The inner paper frame an "on" switch carries.
  * @attr display - A Bangers label.
@@ -31,6 +32,7 @@ export class McButton extends LitElement {
     framed: { type: Boolean, reflect: true },
     display: { type: Boolean, reflect: true },
     plain: { type: Boolean, reflect: true },
+    still: { type: Boolean, reflect: true },
     reason: { type: String },
   };
 
@@ -41,6 +43,8 @@ export class McButton extends LitElement {
   declare framed: boolean;
   declare display: boolean;
   declare plain: boolean;
+  /** No label slide (reduced motion). */
+  declare still: boolean;
   declare reason: string;
   #stopTap: (() => void) | null = null;
   #resize: ResizeObserver | null = null;
@@ -54,6 +58,7 @@ export class McButton extends LitElement {
     this.framed = false;
     this.display = false;
     this.plain = false;
+    this.still = false;
     this.reason = "";
   }
 

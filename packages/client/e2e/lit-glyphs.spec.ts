@@ -112,6 +112,8 @@ test("the glyphs fold away while the mouse moves", async ({ page }) => {
   await page.mouse.move(300, 300);
   await page.mouse.move(340, 320);
   await expect(glyphs(page).first()).toHaveCSS("opacity", "0");
+  // ...and comes back once the mouse has rested.
+  await expect(glyphs(page).first()).toHaveCSS("opacity", "1", { timeout: 5000 });
   expect(errors).toEqual([]);
 });
 
@@ -120,7 +122,23 @@ test("with a keyboard, the confirm shows the keycap beside Keep playing", async 
   await openApp(page, "screen=pause", { landing: "PauseOverlay" });
   await page.keyboard.press("ArrowDown");
   await openConfirm(page);
-  await expect(glyphs(page).first()).toHaveCount(1);
+  // Only Keep playing has a glyph on a keyboard: End turn shows one only while it has the ring.
+  await expect(glyphs(page)).toHaveCount(1);
+  await expect(glyphs(page).first()).toHaveAttribute("aria-label", /^(Esc|Q)$/);
   await expect(glyphs(page).first().locator("svg text")).toHaveCount(1);
   expect(errors).toEqual([]);
+});
+
+test.describe("touch", () => {
+  test.use({ hasTouch: true });
+
+  test("shows no glyph on touch", async ({ page }) => {
+    const errors = trackPageErrors(page);
+    await openApp(page, "screen=pause", { landing: "PauseOverlay" });
+    await page.touchscreen.tap(1100, 600);
+    await page.waitForTimeout(300);
+    await openConfirm(page);
+    await expect(glyphs(page)).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
 });

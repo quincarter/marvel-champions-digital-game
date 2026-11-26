@@ -40,6 +40,14 @@ describe("glyph layout", () => {
     expect(marked).not.toContain("BODY");
   });
 
+  it("keeps both a fill and a stroke placeholder on one element, in one style attribute", () => {
+    const marked = artMarkup('<path d="M0 0" fill="BODY" stroke="CUT"/><g fill="CUT"></g>', "u");
+    expect(marked).toContain('style="fill:var(--mc-fill-card);stroke:var(--mc-fill-ink)"');
+    expect(marked).toContain('<g style="fill:var(--mc-fill-ink)">');
+    expect(marked.match(/style=/g)).toHaveLength(2);
+    expect(marked).not.toMatch(/(fill|stroke)="(BODY|CUT)"/);
+  });
+
   it("draws a colored face picture an outlined disc's size, and a plain one with its outline", () => {
     const colored = layoutGlyph([{ kind: "pad", label: "A", shape: "face", art: { source: art, colored: true } }], 24);
     expect(colored.cells[0]!.width).toBeCloseTo(24, 5);
