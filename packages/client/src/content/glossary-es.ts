@@ -289,7 +289,7 @@ export const GLOSSARY_ES: Readonly<Record<string, GlossaryTextEs>> = {
   boost: {
     name: "Aumento",
     definition:
-      "Una carta de Aumento se reparte boca abajo al villano cuando ataca o ejecuta su plan, y se pone boca arriba durante esa activación para sumar sus iconos (y a veces su propio efecto) al total. Los esbirros nunca reciben cartas de Aumento.",
+      "Una carta de Aumento se reparte boca abajo al villano cuando ataca o ejecuta su plan, y se pone boca arriba durante esa activación para sumar sus iconos (y a veces su propio efecto) al total. Los esbirros no reciben cartas de Aumento, salvo un esbirro Infame, que recibe una cada vez que usa un atributo básico.",
   },
   villainPhase: {
     name: "Fase del villano",

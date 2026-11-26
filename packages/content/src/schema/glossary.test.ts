@@ -658,6 +658,13 @@ describe("wave 10 mechanics (Civil War, Tigra, Hulkling, Wonder Man, Hercules)",
     expect(glossaryEntry("overpaying")?.sources).toContainEqual({ kind: "rrg", page: 13 });
   });
 
+  it("boost names the Villainous minion as the exception to minions getting no boost cards (RRG 1.8 p. 47)", () => {
+    const boost = glossaryEntry("boost")!;
+    expect(boost.definition).toMatch(/except a Villainous minion/);
+    expect(boost.definition).not.toMatch(/Minions never get boost cards/);
+    expect(boost.sources).toContainEqual({ kind: "rrg", page: 47 });
+  });
+
   it("uses American spelling and no dashes in what a player reads", () => {
     for (const id of WAVE_10_IDS) {
       const entry = glossaryEntry(id)!;

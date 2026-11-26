@@ -1180,8 +1180,12 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Boost",
     definition:
-      "A boost card is dealt facedown to the villain when it attacks or schemes, then flipped face up during that activation to add its icons (and sometimes its own effect) to the total. Minions never get boost cards.",
-    sources: [{ kind: "rrg", page: 11 }],
+      "A boost card is dealt facedown to the villain when it attacks or schemes, then flipped face up during that activation to add its icons (and sometimes its own effect) to the total. Minions get no boost cards, except a Villainous minion, which is dealt one whenever it uses a basic power.",
+    // Villainous (RRG 1.8 p. 47) is the exception to "minions get no boost cards".
+    sources: [
+      { kind: "rrg", page: 11 },
+      { kind: "rrg", page: 47 },
+    ],
   },
   villainPhase: {
     id: "villainPhase",

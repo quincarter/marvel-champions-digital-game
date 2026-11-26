@@ -32,4 +32,9 @@ describe("GLOSSARY_ES", () => {
     expect(GLOSSARY_ES["quickstrike"]!.name).toBe("Ataque veloz");
     expect(GLOSSARY_ES["thwart"]!.name).toBe("Intervención");
   });
+
+  it("Aumento names the Infame minion as the exception, as the English does (RRG 1.8 p. 47)", () => {
+    expect(GLOSSARY_ES["boost"]!.definition).toMatch(/salvo un esbirro Infame/);
+    expect(GLOSSARY_ES["boost"]!.definition).not.toMatch(/nunca reciben/);
+  });
 });
