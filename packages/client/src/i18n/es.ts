@@ -664,7 +664,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "notice.timingCap.response": "Respuesta",
   "refusal.and": " y ",
   "refusal.idle": "{kind} no se puede usar ahora: {why}",
-  "refusal.stalwart": "{name} es inquebrantable y no puede quedar {status}",
+  "refusal.stalwart": "{name} tiene Firmeza y no puede quedar {status}",
   "refusal.already": "{name} ya está {status}",
   "refusal.status.confused": "confundido",
   "refusal.status.stunned": "aturdido",
