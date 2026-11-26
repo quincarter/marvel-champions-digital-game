@@ -12,11 +12,18 @@
  * cheaper than the game-object card it replaces: one canvas and one upload rather than one per label, measured
  * rather than re-rasterized while fitting, and the art still decoded by `createImageBitmap` rather than the loader.
  *
+ * Requests are not all started at once: they wait in a priority queue (`bake-queue.ts`) and at most `IN_FLIGHT` are
+ * being baked at a time, in either mode, so a screenful of tiles doesn't decode every picture together and an
+ * on-screen tile doesn't wait behind overscan. A caller that knows where a tile is (the shelf roster) wraps its draw
+ * in `track`, gets tickets for the faces still baking, re-prioritises them as the view scrolls and releases them when
+ * the tile goes; a face nobody holds a ticket for and that has not started is dropped, never baked.
+ *
  * Faces are cached by spec, one texture each, under a byte budget: least recently requested first, and never one a
  * live image still shows (`hold`).
  */
 import type Phaser from "phaser";
 
+import { BakeQueue } from "./bake-queue.js";
 import { canvasOf } from "./bitmap-canvas.js";
 import { ArtBitmaps, bakeCardFace } from "./card-face-bake.js";
 import { cardFaceKey, type CardFaceSpec } from "./card-face.js";
@@ -26,6 +33,10 @@ import { WorkerCrashGuard } from "../platform/worker-crash-guard.js";
 
 /** Decoded bytes of baked faces allowed resident: 96 MB, half that on iOS (`memory-budget.ts`, #871). */
 const FACE_BUDGET_BYTES = faceBudgetBytes();
+/** Faces being baked at once (in the worker, or inline on the main thread). */
+export const IN_FLIGHT = 2;
+/** The priority of a request made outside `track`: as if on screen. */
+const DEFAULT_PRIORITY = 0;
 /** How long to wait for the worker to load its fonts before painting on the main thread instead. */
 const READY_TIMEOUT_MS = 5000;
 /** The font families a card face draws with; only their `@font-face` rules are sent to the worker. */
@@ -40,8 +51,17 @@ interface Entry {
   /** Accepted or requested since the last `onBaked` notice: its scene hasn't drawn and held it yet. */
   fresh: boolean;
   triedInline: boolean;
+  /** Handed to the worker or the inline baker: no longer cancellable. */
+  started: boolean;
+  /** Lower bakes sooner (`BakeQueue`). */
+  priority: number;
+  /** Tracked requests still wanting this face (`track`); a queued face with none left is dropped. */
+  waiters: number;
   readonly spec: CardFaceSpec;
 }
+
+/** A pending face a tracked request is waiting on (`CardFaceBaker.track`). */
+export type FaceTicket = object;
 
 type Mode = "starting" | "worker" | "inline";
 
@@ -64,7 +84,8 @@ export class CardFaceBaker {
   readonly #listeners = new Set<() => void>();
   #mode: Mode = "starting";
   #worker: Worker | null = null;
-  #waiting: Entry[] = [];
+  readonly #queue = new BakeQueue<Entry>(IN_FLIGHT);
+  #context: { priority: number; tickets: Entry[] } | null = null;
   #inlineArt: ArtBitmaps | null = null;
   #nextId = 1;
   #tick = 0;
@@ -90,15 +111,76 @@ export class CardFaceBaker {
         holds: 0,
         fresh: true,
         triedInline: false,
+        started: false,
+        priority: DEFAULT_PRIORITY,
+        waiters: 0,
         spec,
       };
       this.#entries.set(specKey, entry);
       this.#byTexture.set(entry.textureKey, entry);
-      this.#dispatch(entry);
     }
     entry.lastUsed = ++this.#tick;
     entry.fresh = true;
-    return entry.state === "ready" ? entry.textureKey : null;
+    if (entry.state === "ready") return entry.textureKey;
+    if (entry.state === "pending") {
+      const context = this.#context;
+      if (context) {
+        entry.waiters++;
+        context.tickets.push(entry);
+      }
+      if (!entry.started) {
+        // A tracked asker (the roster) knows where the tile is, so its priority stands; any other is as if on screen.
+        const priority = context ? context.priority : Math.min(entry.priority, DEFAULT_PRIORITY);
+        if (this.#queue.has(entry)) this.#setPriority(entry, priority);
+        else {
+          entry.priority = priority;
+          this.#queue.enqueue(entry, priority);
+          this.#pump();
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Runs `draw` (which makes `request` calls), queueing every face it leaves baking at `priority` and returning
+   * tickets for them; `reprioritize` and `release` take those tickets.
+   */
+  track<R>(priority: number, draw: () => R): { readonly result: R; readonly tickets: FaceTicket[] } {
+    const outer = this.#context;
+    const context = { priority, tickets: [] as Entry[] };
+    this.#context = context;
+    try {
+      return { result: draw(), tickets: context.tickets };
+    } finally {
+      this.#context = outer;
+    }
+  }
+
+  /** Moves the faces behind `tickets` that have not started baking to `priority` (lower bakes sooner). */
+  reprioritize(tickets: readonly FaceTicket[], priority: number): void {
+    for (const ticket of tickets) this.#setPriority(ticket as Entry, priority);
+  }
+
+  /** The tile behind `tickets` is gone: a face nobody else wants and not yet started is never baked. */
+  release(tickets: readonly FaceTicket[]): void {
+    for (const ticket of tickets) {
+      const entry = ticket as Entry;
+      entry.waiters = Math.max(0, entry.waiters - 1);
+      if (entry.waiters > 0 || !this.#queue.remove(entry)) continue;
+      this.#entries.delete(cardFaceKey(entry.spec));
+      this.#byTexture.delete(entry.textureKey);
+    }
+  }
+
+  /** How many faces wait for a free slot; for diagnostics and tests. */
+  get queued(): number {
+    return this.#queue.size;
+  }
+
+  #setPriority(entry: Entry, priority: number): void {
+    entry.priority = priority;
+    this.#queue.reprioritize(entry, priority);
   }
 
   /** Keeps `textureKey` from being evicted until `object` is destroyed. */
@@ -157,9 +239,7 @@ export class CardFaceBaker {
       }
       if (this.#mode !== "starting") return;
       this.#mode = "worker";
-      const waiting = this.#waiting;
-      this.#waiting = [];
-      for (const entry of waiting) this.#dispatch(entry);
+      this.#pump();
       return;
     }
     // A face came back (baked or not): the worker lived through that job.
@@ -170,8 +250,10 @@ export class CardFaceBaker {
       if (message.type === "baked") message.bitmap.close();
       return;
     }
+    this.#queue.done();
     if (message.type === "baked") this.#accept(entry, message.bitmap);
-    else this.#bakeInline(entry);
+    else this.#retryInline(entry);
+    this.#pump();
   }
 
   /** Stops using the worker; everything it was asked for is painted here instead. */
@@ -184,41 +266,66 @@ export class CardFaceBaker {
     this.#mode = "inline";
     this.#worker?.terminate();
     this.#worker = null;
-    const orphans = [...this.#waiting, ...this.#inflight.values()];
-    this.#waiting = [];
+    // What the worker was baking is baked again here, ahead of what is still waiting.
+    const orphans = [...this.#inflight.values()];
     this.#inflight.clear();
-    for (const entry of orphans) this.#bakeInline(entry);
+    this.#queue.clearInFlight();
+    for (const entry of orphans) this.#requeueFirst(entry);
+    this.#pump();
   }
 
-  #dispatch(entry: Entry): void {
-    if (this.#mode === "starting") {
-      this.#waiting.push(entry);
-      return;
-    }
-    if (this.#mode === "inline" || !this.#worker) {
-      this.#bakeInline(entry);
-      return;
-    }
-    const id = this.#nextId++;
-    this.#inflight.set(id, entry);
-    const message: CardFaceRequest = { type: "bake", id, spec: entry.spec };
-    this.#guard.working();
-    this.#worker.postMessage(message);
+  #requeueFirst(entry: Entry): void {
+    entry.started = false;
+    entry.priority = -1;
+    this.#queue.enqueue(entry, -1);
   }
 
-  #bakeInline(entry: Entry): void {
+  /** Starts queued faces while there is a free slot; waits out `starting` (the worker's first reply). */
+  #pump(): void {
+    if (this.#mode === "starting") return;
+    for (let entry = this.#queue.next(); entry; entry = this.#queue.next()) {
+      entry.started = true;
+      if (this.#mode === "inline" || !this.#worker) {
+        this.#bakeInline(entry);
+        continue;
+      }
+      const id = this.#nextId++;
+      this.#inflight.set(id, entry);
+      const message: CardFaceRequest = { type: "bake", id, spec: entry.spec };
+      this.#guard.working();
+      this.#worker.postMessage(message);
+    }
+  }
+
+  /** The worker couldn't bake this one: once more here, in a slot of its own. */
+  #retryInline(entry: Entry): void {
     if (entry.triedInline) {
       entry.state = "failed";
       return;
     }
+    this.#requeueFirst(entry);
+  }
+
+  /** Bakes on this thread in a slot the caller took from the queue, given back when it is done. */
+  #bakeInline(entry: Entry): void {
+    if (entry.triedInline) {
+      entry.state = "failed";
+      this.#queue.done();
+      return;
+    }
     entry.triedInline = true;
     this.#inlineArt ??= new ArtBitmaps();
-    bakeCardFace(entry.spec, this.#inlineArt).then(
-      (bitmap) => this.#accept(entry, bitmap),
-      () => {
-        entry.state = "failed";
-      },
-    );
+    bakeCardFace(entry.spec, this.#inlineArt)
+      .then(
+        (bitmap) => this.#accept(entry, bitmap),
+        () => {
+          entry.state = "failed";
+        },
+      )
+      .finally(() => {
+        this.#queue.done();
+        this.#pump();
+      });
   }
 
   #accept(entry: Entry, bitmap: ImageBitmap): void {

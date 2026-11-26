@@ -8,6 +8,7 @@
  * Decoded art is kept in a small LRU (`ArtBitmaps`), keyed by URL and decode size, so re-baking a card for a new
  * state (selected, seated, dimmed) doesn't fetch and decode its art again.
  */
+import { ByteLru } from "./byte-lru.js";
 import { artDecodeSize, footerHeightOf, paintCardFace, type CardFaceSpec, type FaceContext } from "./card-face.js";
 
 interface DecodedArt {
@@ -18,11 +19,13 @@ interface DecodedArt {
 
 /** How many decoded (already downscaled) art bitmaps one baker keeps. A shelf screen shows a dozen or two at once. */
 const ART_CACHE_SIZE = 32;
+/** The most decoded bytes (width x height x 4) those bitmaps may add up to: a few big ones cost a phone its tab. */
+export const ART_CACHE_BYTES = 40 * 1024 * 1024;
 /** How long an evicted art bitmap stays open, for bakes already holding it to finish painting. */
 export const EVICTED_ART_CLOSE_DELAY_MS = 10_000;
 
 export class ArtBitmaps {
-  readonly #decoded = new Map<string, Promise<DecodedArt | null>>();
+  readonly #decoded = new ByteLru<Promise<DecodedArt | null>>(ART_CACHE_SIZE, ART_CACHE_BYTES);
   /** Fetches in flight, by URL, so two decode sizes of one picture asked for at once fetch it once. */
   readonly #blobs = new Map<string, Promise<Blob | null>>();
   readonly #reported = new Set<string>();
@@ -32,27 +35,27 @@ export class ArtBitmaps {
     if (!url) return Promise.resolve(null);
     const slot = { width: spec.width, height: spec.height - footerHeightOf(spec) };
     const key = `${url}|${Math.round(slot.width)}x${Math.round(slot.height)}@${spec.resolution}|${spec.artFit}`;
+    // `get` makes a hit the most recently used.
     const hit = this.#decoded.get(key);
-    if (hit) {
-      // Re-inserted, so the map's own order is least- to most-recently used.
-      this.#decoded.delete(key);
-      this.#decoded.set(key, hit);
-      return hit;
-    }
+    if (hit) return hit;
     const decoding = this.#decode(url, slot, spec);
-    this.#decoded.set(key, decoding);
-    while (this.#decoded.size > ART_CACHE_SIZE) {
-      const oldest = this.#decoded.keys().next().value as string;
-      const evicted = this.#decoded.get(oldest);
-      this.#decoded.delete(oldest);
+    this.#close(this.#decoded.set(key, decoding));
+    // Its size is only known once decoded; then the byte cap can evict.
+    void decoding.then((art) => {
+      if (art) this.#close(this.#decoded.setBytes(key, art.width * art.height * 4));
+    });
+    return decoding;
+  }
+
+  #close(evicted: Promise<DecodedArt | null>[]): void {
+    for (const gone of evicted) {
       // Not at once: a bake that took this entry from the cache a moment ago is still awaiting it, and painting from a
       // closed bitmap throws, which left that face failed for good (a mass re-request, such as a screen's relayout,
       // turns over the whole cache while earlier bakes are still in flight).
-      void evicted?.then((art) => {
+      void gone.then((art) => {
         if (art) setTimeout(() => art.source.close(), EVICTED_ART_CLOSE_DELAY_MS);
       });
     }
-    return decoding;
   }
 
   async #decode(url: string, slot: { width: number; height: number }, spec: CardFaceSpec): Promise<DecodedArt | null> {

@@ -39,6 +39,7 @@
  * widget's own `clip`/`suppressClick` wiring so a drag release over a
  * chevron doesn't also fire it.
  */
+import { cardFaces, type FaceTicket } from "../art/card-face-baker.js";
 import Phaser from "phaser";
 
 import type { Shelf } from "../view/roster-shelves.js";
@@ -106,6 +107,8 @@ interface LiveShelf {
   /** The card rows, moved by the shelf's own horizontal offset. */
   readonly cards: Phaser.GameObjects.Container;
   readonly cardRows: Map<number, VirtualListRow>;
+  /** The card faces each row is still waiting on (`CardFaceBaker.track`), by item index: re-prioritised as the shelf scrolls, released when the row goes. */
+  readonly faceTickets: Map<number, FaceTicket[]>;
   chevronLeft: McButton | null;
   chevronRight: McButton | null;
 }
@@ -270,8 +273,7 @@ export class McShelfRoster<T> {
   /** Like `refreshVisible`, but redraws only the cards, keeping every shelf header (and its text) as it is — for a card face that just arrived. */
   refreshCards(): void {
     for (const live of this.#live.values()) {
-      for (const row of live.cardRows.values()) for (const o of row.objects) o.destroy();
-      live.cardRows.clear();
+      this.#dropRows(live);
     }
     this.#sync();
   }
@@ -410,6 +412,44 @@ export class McShelfRoster<T> {
     if (this.#paintBackground) paintPanel(this.#background, this.#rect, "rail", "rest");
   }
 
+  /** Destroys the card rows of `live` (all, or those whose item index passes `which`) and gives up the faces they waited on. */
+  #dropRows(live: LiveShelf, which?: (itemIndex: number) => boolean): void {
+    const faces = cardFaces(this.#scene);
+    for (const [itemIndex, row] of live.cardRows) {
+      if (which && !which(itemIndex)) continue;
+      for (const o of row.objects) o.destroy();
+      live.cardRows.delete(itemIndex);
+      const tickets = live.faceTickets.get(itemIndex);
+      if (tickets) faces.release(tickets);
+      live.faceTickets.delete(itemIndex);
+    }
+  }
+
+  /** How far card `itemIndex` of shelf `shelfIndex` is from the roster's viewport, in px: 0 when any of it shows. */
+  #facePriority(shelfIndex: number, itemIndex: number): number {
+    const m = this.#metrics;
+    const shelf = this.#shelves[shelfIndex];
+    const innerWidth = this.#innerWidth();
+    const cardStep = m.cardWidth + m.cardGap;
+    const hOffset = shelf ? this.#horizontalScrollFor(shelf.id).offsetPx : 0;
+    const x = this.#rect.x + CHEVRON_WIDTH + itemIndex * cardStep - hOffset;
+    const y =
+      this.#rect.y +
+      (this.#tops().tops[shelfIndex] ?? 0) +
+      m.headerHeight +
+      m.headerToCardsGap -
+      this.#verticalScroll.offsetPx;
+    const view = {
+      left: this.#rect.x + CHEVRON_WIDTH,
+      right: this.#rect.x + CHEVRON_WIDTH + innerWidth,
+      top: this.#rect.y,
+      bottom: this.#rect.y + this.#rect.height,
+    };
+    const dx = Math.max(view.left - (x + m.cardWidth), x - view.right, 0);
+    const dy = Math.max(view.top - (y + m.cardHeight), y - view.bottom, 0);
+    return dx + dy;
+  }
+
   #destroyLive(): void {
     for (const live of this.#live.values()) this.#destroyShelf(live);
     this.#live.clear();
@@ -420,7 +460,7 @@ export class McShelfRoster<T> {
     live.chevronRight?.destroy();
     // Rows' objects are destroyed one by one rather than left to `container.destroy(true)`: a row may hand back an
     // object that something else also parents, and its own `destroy` is what releases anything it holds.
-    for (const row of live.cardRows.values()) for (const o of row.objects) o.destroy();
+    this.#dropRows(live);
     live.container.destroy(true);
   }
 
@@ -480,6 +520,7 @@ export class McShelfRoster<T> {
       container,
       cards,
       cardRows: new Map(),
+      faceTickets: new Map(),
       chevronLeft: null,
       chevronRight: null,
     };
@@ -495,8 +536,7 @@ export class McShelfRoster<T> {
     const cardStep = m.cardWidth + m.cardGap;
     if (shelf.collapsed) {
       // A collapsed shelf is its header band alone: no cards, no chevrons.
-      for (const row of live.cardRows.values()) for (const o of row.objects) o.destroy();
-      live.cardRows.clear();
+      this.#dropRows(live);
       live.chevronLeft?.destroy();
       live.chevronRight?.destroy();
       live.chevronLeft = null;
@@ -509,16 +549,21 @@ export class McShelfRoster<T> {
     const rowY = this.#rect.y + (this.#tops().tops[shelfIndex] ?? 0) + m.headerHeight + m.headerToCardsGap;
     live.cards.x = -hs.offsetPx;
 
-    for (const [itemIndex, row] of live.cardRows) {
-      if (itemIndex >= hWindow.start && itemIndex < hWindow.end) continue;
-      for (const o of row.objects) o.destroy();
-      live.cardRows.delete(itemIndex);
-    }
+    this.#dropRows(live, (itemIndex) => itemIndex < hWindow.start || itemIndex >= hWindow.end);
+    const faces = cardFaces(this.#scene);
     for (let itemIndex = hWindow.start; itemIndex < hWindow.end; itemIndex++) {
-      if (live.cardRows.has(itemIndex)) continue;
+      if (live.cardRows.has(itemIndex)) {
+        const tickets = live.faceTickets.get(itemIndex);
+        if (tickets) faces.reprioritize(tickets, this.#facePriority(live.index, itemIndex));
+        continue;
+      }
       const x = this.#rect.x + CHEVRON_WIDTH + itemIndex * cardStep;
       const cardRect: Rect = { x, y: rowY, width: m.cardWidth, height: m.cardHeight };
-      const row = this.#renderCard(shelf.items[itemIndex]!, shelfIndex, itemIndex, cardRect);
+      // Faces still baking are queued by distance from the view (on screen first) and cancelled if the row leaves.
+      const { result: row, tickets } = faces.track(this.#facePriority(shelfIndex, itemIndex), () =>
+        this.#renderCard(shelf.items[itemIndex]!, shelfIndex, itemIndex, cardRect),
+      );
+      if (tickets.length > 0) live.faceTickets.set(itemIndex, tickets);
       live.cards.add(row.objects as Phaser.GameObjects.GameObject[]);
       live.cardRows.set(itemIndex, row);
     }

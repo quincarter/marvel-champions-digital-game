@@ -4,10 +4,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CardFaceBaker, inlineFontBytes } from "./card-face-baker.js";
 import type { CardFaceSpec } from "./card-face.js";
 
+const gate = vi.hoisted(() => ({
+  hold: false,
+  started: [] as { id: number; finish: () => void }[],
+}));
 vi.mock("./card-face-bake.js", () => ({
   ArtBitmaps: class {},
   // 4000 x 1500 x 4 = 24 MB a face: four fill the 96 MB budget.
-  bakeCardFace: () => Promise.resolve({ width: 4000, height: 1500, close() {} }),
+  bakeCardFace: (spec: { id: number }) => {
+    const bitmap = { width: 4000, height: 1500, close() {} };
+    if (!gate.hold) return Promise.resolve(bitmap);
+    return new Promise((resolve) => gate.started.push({ id: spec.id, finish: () => resolve(bitmap) }));
+  },
 }));
 vi.mock("./bitmap-canvas.js", () => ({
   // As the real thing does, leaves the bitmap detached: width and height read 0 afterwards.
@@ -37,6 +45,8 @@ function holder() {
 }
 
 beforeEach(() => {
+  gate.hold = false;
+  gate.started.length = 0;
   vi.stubGlobal("requestAnimationFrame", (fn: () => void) => setTimeout(fn, 0));
 });
 
@@ -74,6 +84,70 @@ describe("CardFaceBaker budget", () => {
     expect(baker.request(spec(5))).not.toBeNull();
     // 1 was the coldest, so it went (asking for it again queues a re-bake and answers null).
     expect(baker.request(spec(1))).toBeNull();
+  });
+});
+
+describe("CardFaceBaker queue (inline path)", () => {
+  const startedIds = () => gate.started.map((job) => job.id);
+
+  it("bakes at most IN_FLIGHT at a time, most urgent first, and the rest as slots free up", async () => {
+    gate.hold = true;
+    const { game } = fakeGame();
+    const baker = new CardFaceBaker(game);
+    for (const [n, priority] of [
+      [1, 900],
+      [2, 800],
+      [3, 0],
+      [4, 10],
+    ] as const) {
+      baker.track(priority, () => baker.request(spec(n)));
+    }
+    await settle();
+    expect(startedIds()).toEqual([1, 2]); // the worker-less baker went inline before anything was queued
+    gate.started.shift()!.finish();
+    await settle();
+    expect(startedIds()).toEqual([2, 3]);
+    gate.started.shift()!.finish();
+    await settle();
+    expect(startedIds()).toEqual([3, 4]);
+    expect(baker.queued).toBe(0);
+  });
+
+  it("drops a queued face whose tile was released, but not one already baking", async () => {
+    gate.hold = true;
+    const { game } = fakeGame();
+    const baker = new CardFaceBaker(game);
+    const tickets = [1, 2, 3, 4].map((n) => baker.track(n, () => baker.request(spec(n))).tickets);
+    await settle();
+    expect(startedIds()).toEqual([1, 2]);
+    for (const t of tickets) baker.release(t);
+    expect(baker.queued).toBe(0);
+    gate.started.shift()!.finish();
+    gate.started.shift()!.finish();
+    await settle();
+    expect(startedIds()).toEqual([]);
+    // 3 was dropped, so asking again starts a fresh bake.
+    expect(baker.request(spec(3))).toBeNull();
+    await settle();
+    expect(startedIds()).toEqual([3]);
+  });
+
+  it("keeps a face another tile still waits on, and re-prioritises a queued one", async () => {
+    gate.hold = true;
+    const { game } = fakeGame();
+    const baker = new CardFaceBaker(game);
+    baker.request(spec(1));
+    baker.request(spec(2));
+    const shared1 = baker.track(500, () => baker.request(spec(3))).tickets;
+    const shared2 = baker.track(500, () => baker.request(spec(3))).tickets;
+    const other = baker.track(100, () => baker.request(spec(4))).tickets;
+    baker.release(shared1);
+    expect(baker.queued).toBe(2);
+    baker.reprioritize(shared2, 0);
+    gate.started.shift()!.finish();
+    await settle();
+    expect(startedIds()).toEqual([2, 3]);
+    expect(other).toHaveLength(1);
   });
 });
 
