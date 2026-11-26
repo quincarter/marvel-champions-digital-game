@@ -703,7 +703,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Find",
     definition:
-      "An instruction to search every game area a card could be in (play areas, set-aside area, decks, discard piles) for a specific card. It skips facedown encounter cards in play areas (dealt or boost cards), the victory display, cards removed from the game and anything outside the game. A minion found already in play engages you and resolves When Revealed and its keywords, but keeps its tokens and attachments and does not enter play again.",
+      "An instruction to search every game area (play areas, set-aside area, decks, discard piles) for a specific card. It skips facedown encounter cards in play areas (dealt or boost cards), the victory display, cards removed from the game and anything outside the game. A minion found already in play engages you and resolves When Revealed and its keywords, but keeps its tokens and attachments and does not enter play again.",
     sources: [
       { kind: "rrg", page: 19 },
       { kind: "ruling", date: "December 17, 2025 - Ruling 4" },
