@@ -28,6 +28,7 @@ import type { Rect } from "../view/layout.js";
 import { CHROME_SCENES } from "../scenes/keys.js";
 import { sceneTakesPresses } from "./activation-gate.js";
 import { cancelPressesWithin } from "@mc/ui";
+import { drawnChromeBoxes, type DrawnObject } from "./chrome-holes.js";
 import { uiLayer } from "./ui-layer.js";
 
 /** The camera fade's current darkness, 0 (none) to 1 (black), as `Phaser.Cameras.Scene2D.Effects.Fade` holds it. */
@@ -229,21 +230,16 @@ export function clipWithHoles(box: Rect, holes: readonly Rect[]): string | null 
 }
 
 /** The boxes a chrome scene draws (a toast, a corner button) while it is up, in game coordinates. */
-function chromeBoxes(game: Phaser.Game): Rect[] {
+function chromeBoxes(game: Phaser.Game, region: Rect): Rect[] {
   const boxes: Rect[] = [];
   for (const scene of game.scene.scenes) {
     const drawn = scene.sys.isActive() || scene.sys.isPaused();
     if (!CHROME_SCENES.has(scene.sys.settings.key) || !drawn || !scene.sys.settings.visible) continue;
-    for (const object of scene.children.list) {
-      const shown = object as unknown as {
-        visible?: boolean;
-        alpha?: number;
-        getBounds?: () => { x: number; y: number; width: number; height: number };
-      };
-      if (shown.visible === false || shown.alpha === 0 || !shown.getBounds) continue;
-      const b = shown.getBounds();
-      if (b.width > 0 && b.height > 0) boxes.push({ x: b.x, y: b.y, width: b.width, height: b.height });
-    }
+    const camera = scene.cameras?.main;
+    // A scene fading out (or fully dark) draws nothing, so its objects cut nothing.
+    if (camera && regionOpacity(camera.fadeEffect as unknown as FadeLike, camera.alpha) <= 0) continue;
+    const view = { x: 0, y: 0, width: camera?.width ?? region.width, height: camera?.height ?? region.height };
+    boxes.push(...drawnChromeBoxes(scene.children.list as unknown as DrawnObject[], view));
   }
   return boxes;
 }
@@ -489,7 +485,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     }
     const clip = shown
       ? clipWithHoles(this.#rect, [
-          ...chromeBoxes(this.#scene.game),
+          ...chromeBoxes(this.#scene.game, this.#rect),
           ...(typeof this.#holes === "function" ? this.#holes() : this.#holes),
           ...holesAbove(scenes, this.#scene.sys.settings.key),
         ])

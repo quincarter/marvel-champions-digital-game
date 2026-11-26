@@ -539,4 +539,16 @@ describe("mc-sheet drawings, QR codes and sliders", () => {
     expect(sheet.renderRoot.querySelector(".missing")!.textContent).toBe("No picture");
     sheet.remove();
   });
+
+  it("draws an aspect chip at its point with its label", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [{ kind: "chip", key: "c", x: 16, y: 12, aspect: "leadership", label: "Liderazgo" }];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const chip = sheet.elementOf("c")!;
+    expect(chip.tagName).toBe("MC-ASPECT-CHIP");
+    expect(chip.style.left).toBe("16px");
+    expect((chip as unknown as { label: string }).label).toBe("Liderazgo");
+    sheet.remove();
+  });
 });

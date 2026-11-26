@@ -111,3 +111,13 @@ describe("SheetBuilder comic parts", () => {
     expect(b.nodes[4]).toMatchObject({ kind: "tap", key: "mode:epic", track: true });
   });
 });
+
+describe("SheetBuilder chips", () => {
+  it("places an aspect chip at its point minus the origin", () => {
+    const b = new SheetBuilder({} as never, { x: 10, y: 20 }, () => false);
+    b.chip(30, 50, "justice", "Justicia", { height: 22, size: 12 });
+    expect(b.nodes).toEqual([
+      { kind: "chip", x: 20, y: 30, aspect: "justice", label: "Justicia", height: 22, size: 12 },
+    ]);
+  });
+});
