@@ -65,6 +65,31 @@ describe("divideSheetOf", () => {
 });
 
 describe("damage divided among minions engaged with different seats (issue #1001)", () => {
+  test("a one-seat game names no seat, on the tiles or in the tally", async () => {
+    const solo = new SessionStore(new LocalEngineHost());
+    await solo.start({
+      scenarioId: "ultron",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
+    for (let step = 0; step < 12 && solo.state.legal?.actions.kind === "choice"; step++) {
+      const { choice: setup } = solo.state.legal.actions;
+      await solo.resolveChoice(setup.options.slice(0, setup.minSelections).map((option) => option.optionId));
+    }
+    const game = solo.state.game!;
+    const drones = cardsInPlay(game).filter((id) => game.instances[id]?.facedownAs?.kind === "minion");
+    expect(drones.length).toBeGreaterThan(0);
+    const divide = {
+      ...choice,
+      prompt: { kind: "divide", what: "damage", amount: 2 },
+      options: drones.map((id) => ({ optionId: `${id}#1`, label: id, ref: { kind: "card", instanceId: id } })),
+    } as unknown as PendingChoice;
+    const sheet = divideSheetOf(game, divide, [`${drones[0]}#1`])!;
+    expect(drones.map((id) => sheet.labels.get(`${id}#1`)?.engaged)).toEqual(drones.map(() => null));
+    for (const form of sheet.tallies) expect(form).not.toContain("vs ");
+  }, 120_000);
+
   test("each Drone's tile and its tally say who it is engaged with", async () => {
     const two = new SessionStore(new LocalEngineHost());
     await startEngagedTargetGame(two);
