@@ -218,6 +218,7 @@ import { applyFindCard, findCandidates } from "./find.js";
 import { putIntoPlayHostCandidates } from "./reveal.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
+import { endedAttackAssignment } from "./eliminated-attack.js";
 import { eachEncounterCard, selectCards, shuffleSeparateDeck } from "./cards.js";
 import {
   abilityFrame,
@@ -3907,6 +3908,10 @@ function executeDealIndirectDamage(
   effect: Extract<EffectSpec, { kind: "dealIndirectDamage" }>,
   context: EffectContext,
 ): void {
+  // The enemy attack this damage is from was ended by a player's elimination (RRG 1.8 p. 34): nothing is assigned.
+  const withoutAssignment = (vars: Frame<"effects">["vars"]) =>
+    Object.fromEntries(Object.entries(vars).filter(([key]) => !key.startsWith(INDIRECT)));
+  if (effect.fromAttack === true && endedAttackAssignment(ctx, frame, withoutAssignment)) return;
   const vars: Record<string, number> = { ...frame.vars };
   vars[`${INDIRECT}amount`] ??= Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
   const amount = vars[`${INDIRECT}amount`] ?? 0;
@@ -4015,6 +4020,8 @@ function executeDivideDamageEvenly(
   effect: Extract<EffectSpec, { kind: "divideDamageEvenly" }>,
   context: EffectContext,
 ): void {
+  // The enemy attack this damage is from was ended by a player's elimination (RRG 1.8 p. 34): nothing is divided.
+  if (effect.fromAttack === true && endedAttackAssignment(ctx, frame, (vars) => vars)) return;
   const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
   const characters = resolvePlayers(ctx.state, effect.to, context).flatMap((p) => charactersControlledBy(ctx, p));
   const each = characters.length > 0 ? Math.floor(amount / characters.length) : 0;

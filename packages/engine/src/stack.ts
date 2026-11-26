@@ -496,6 +496,12 @@ export type StackFrame =
         /** What applying it did (`amount` taken, `excessDealt`), for its response window's results. */
         readonly vars: Vars;
       }[];
+      /**
+       * An enemy attack this frame assigns or deals damage for was ended by a player's elimination before that damage
+       * was dealt (RRG 1.8 "Player Elimination", p. 34; `markEnemyAttacksUnderway`, `resolve/eliminated-attack.ts`):
+       * the attack's damage it still holds is not dealt. Absent otherwise.
+       */
+      readonly enemyAttackEndedByElimination?: true;
       readonly stage: "interrupts" | "apply" | "responses" | "done";
       readonly cursor: number;
       readonly reportTo: ReportTarget | null;
@@ -654,6 +660,12 @@ export type StackFrame =
       readonly kind: "effects";
       readonly effects: readonly EffectSpec[];
       readonly cursor: number;
+      /**
+       * An enemy attack this frame assigns or deals damage for was ended by a player's elimination before that damage
+       * was dealt (RRG 1.8 "Player Elimination", p. 34; `markEnemyAttacksUnderway`, `resolve/eliminated-attack.ts`):
+       * the attack's damage it still holds is not dealt. Absent otherwise.
+       */
+      readonly enemyAttackEndedByElimination?: true;
       readonly bindings: Bindings;
       readonly vars: Vars;
       /** "That player" inside `forEachPlayer`. */

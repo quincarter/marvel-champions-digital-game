@@ -18,7 +18,9 @@ import { flat } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "../abilities.js";
 import type { Command } from "../commands.js";
-import { replay, startSession } from "../engine.js";
+import { createCtx } from "../ctx.js";
+import { applyCommand, replay, startSession } from "../engine.js";
+import { runFlow } from "../flow.js";
 import type { GameEvent } from "../events.js";
 import { playerId, type InstanceId, type PlayerId } from "../ids.js";
 import { locateCard, mustInstance, mustPlayer } from "../query.js";
@@ -27,7 +29,8 @@ import type { GameState } from "../state.js";
 import { depsOf, stubAbility, type StubAbility } from "../testing/abilities.js";
 import { driveSession } from "../testing/drive.js";
 import { stubAlly, stubMainScheme, stubSupport, stubTreachery, stubVillain } from "../testing/fixtures.js";
-import { defaultPick } from "../testing/scenario.js";
+import { defaultPick, settle, settleUntil } from "../testing/scenario.js";
+import { eliminatePlayer } from "./defeat.js";
 import { copiesOf, gameAtFirstTurn, P1, P2, playerCardIntoPlay } from "../testing/wave3.js";
 
 const KILL = 99;
@@ -91,6 +94,26 @@ const THIRD_BOOST = stubAbility("third.boost", { trigger: { kind: "boost" }, eff
 /** "Boost: Deal 99 damage to P1's hero." (P1 by seat, not "the first player", which passes on as P1 is eliminated.) */
 const P1_BOOST = stubAbility("p1.boost", { trigger: { kind: "boost" }, effects: [killHeroOf(P1)] });
 
+/** "Forced Interrupt: When an ally would take damage from an attack, deal 99 damage to the third player's hero." */
+const ALLY_HIT_THIRD = stubAbility("ally-hit-third.forced-interrupt", {
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "dealDamage", targetIs: { categories: ["ally"] }, fromAttack: true },
+  },
+  effects: [killHeroOf(P3)],
+});
+/** "The villain's attacks deal indirect damage." (Starshark's rule, on the villain.) */
+const INDIRECT_RULE = stubAbility("indirect.constant", {
+  trigger: { kind: "constant", rules: [{ kind: "attacksDealIndirectDamage", attacker: { self: true } }] },
+  effects: [],
+});
+/** "Divide damage from the villain's attack among each character the attacked player controls as evenly as possible." */
+const EVENLY_RULE = stubAbility("evenly.constant", {
+  trigger: { kind: "constant", rules: [{ kind: "attacksDividedEvenly", attacker: { self: true } }] },
+  effects: [],
+});
+
 /** "Boost: Deal 99 damage to your hero." ("You" is the defending player, RRG 1.8 "Defend, Defense", p. 16.) */
 const AMBUSH_BOOST = stubAbility("ambush.boost", {
   trigger: { kind: "boost" },
@@ -147,6 +170,9 @@ const deps: EngineDeps = depsOf(
   villainAttacksEach,
   villainOverkillsYou,
   RECOIL,
+  ALLY_HIT_THIRD,
+  INDIRECT_RULE,
+  EVENLY_RULE,
 );
 
 interface TableOptions {
@@ -161,6 +187,8 @@ interface TableOptions {
   readonly atk?: number;
   /** P1 also has the 1-hit-point Twig in play. */
   readonly twig?: boolean;
+  /** The villain's attacks deal indirect damage, or are divided evenly. */
+  readonly damage?: "indirect" | "evenly";
 }
 
 /**
@@ -171,6 +199,7 @@ function table(options: TableOptions) {
   const abilities = [
     ...(options.interrupt ? [GUNFIRE.ref] : []),
     ...(options.villainAbility ? [options.villainAbility.ref] : []),
+    ...(options.damage === "indirect" ? [INDIRECT_RULE.ref] : options.damage === "evenly" ? [EVENLY_RULE.ref] : []),
   ];
   const villain = stubVillain({
     id: "boss",
@@ -198,6 +227,14 @@ function table(options: TableOptions) {
   return { state, wall: wall.id, button: button.id, twig: twig?.id ?? null };
 }
 
+/** Indirect damage assigned to the Twig first (its 1 point), the rest to the identity. */
+function twigFirst(state: GameState, twig: InstanceId): readonly string[] {
+  const choice = state.pendingChoice!;
+  const mine = (id: string) => id.startsWith(`${twig}#`);
+  const sorted = [...choice.options].sort((a, b) => Number(mine(b.optionId)) - Number(mine(a.optionId)));
+  return sorted.slice(0, choice.minSelections).map((option) => option.optionId);
+}
+
 /** Uses the button; Declare Defender is answered by `defend` (an instance id, or "decline"). */
 function attack(options: TableOptions, defend: (state: GameState) => string = () => "decline") {
   const start = table(options);
@@ -209,7 +246,11 @@ function attack(options: TableOptions, defend: (state: GameState) => string = ()
     payment: [],
   };
   const pick = (state: GameState): readonly string[] =>
-    state.pendingChoice?.prompt.kind === "declareDefender" ? [defend(state)] : defaultPick(state);
+    state.pendingChoice?.prompt.kind === "declareDefender"
+      ? [defend(state)]
+      : state.pendingChoice?.prompt.kind === "assignIndirectDamage" && start.twig
+        ? twigFirst(state, start.twig)
+        : defaultPick(state);
   const run = driveSession(startSession(start.state), deps, [command], pick);
   const replayed = replay(run.session.log, deps);
   if (!replayed.ok) throw new Error(replayed.error.message);
@@ -387,5 +428,134 @@ describe("an attack whose own damage eliminates a player has dealt that damage",
     expect(villainDamage(state)).toBe(1);
     expect(mustPlayer(state, P2).eliminated).toBe(false);
     expect(state.outcome).toBeNull();
+  });
+});
+
+/**
+ * An attack whose damage is handed to an effect that assigns it (indirect, Starshark; divided evenly, Bombshell) is
+ * still that attack (RRG 1.8 "Player Elimination", p. 34; "Indirect Damage", p. 24: assigned, then "resolved
+ * simultaneously"). An elimination before the shares are dealt ends it: none is dealt, nobody is asked to assign any
+ * more. Once they are dealt, they stay dealt.
+ */
+describe("an enemy attack whose damage is assigned (indirect, divided evenly) ends with a player's elimination", () => {
+  const resolvedAttacked = (events: readonly GameEvent[]) =>
+    of(events, "triggerEvent").filter((e) => e.phase === "resolved" && e.event.kind === "characterAttacked");
+
+  it("indirect: a third player eliminated in a share's interrupt window: no share is dealt, nothing is attacked", () => {
+    const { state, events, twig } = attack({
+      interrupt: false,
+      boost: "blank",
+      damage: "indirect",
+      twig: true,
+      villainAbility: ALLY_HIT_THIRD,
+      players: 3,
+    });
+    expect(of(events, "choiceRequested").some((e) => e.choice.prompt.kind === "assignIndirectDamage")).toBe(true);
+    expect(of(events, "playerEliminated")).toMatchObject([{ playerId: P3 }]);
+    expect(of(events, "activationSkipped")).toMatchObject([{ activation: "attack", reason: "playerEliminated" }]);
+    // The Twig's share's window eliminated P3; the hero's share, assigned with it, is not dealt either.
+    expect(mustInstance(state, twig!).damage).toBe(0);
+    expect(mustInstance(state, heroOf(state, P1)).damage).toBe(0);
+    expect(resolvedAttacked(events)).toEqual([]);
+    expect([P1, P2].map((p) => mustPlayer(state, p).eliminated)).toEqual([false, false]);
+    expect(state.outcome).toBeNull();
+  });
+
+  it("divided evenly: a third player eliminated in a share's interrupt window: no share is dealt", () => {
+    const { state, events, twig } = attack({
+      interrupt: false,
+      boost: "blank",
+      damage: "evenly",
+      twig: true,
+      villainAbility: ALLY_HIT_THIRD,
+      players: 3,
+    });
+    expect(of(events, "playerEliminated")).toMatchObject([{ playerId: P3 }]);
+    expect(of(events, "activationSkipped")).toMatchObject([{ activation: "attack", reason: "playerEliminated" }]);
+    expect(mustInstance(state, twig!).damage).toBe(0);
+    expect(mustInstance(state, heroOf(state, P1)).damage).toBe(0);
+    expect(resolvedAttacked(events)).toEqual([]);
+  });
+
+  it("control: the same indirect attack with nobody eliminated deals both shares", () => {
+    const { state, events, twig } = attack({
+      interrupt: false,
+      boost: "blank",
+      damage: "indirect",
+      twig: true,
+      players: 3,
+    });
+    expect(of(events, "playerEliminated")).toEqual([]);
+    expect(mustInstance(state, heroOf(state, P1)).damage).toBe(3);
+    // The Twig's 1 point defeated it.
+    expect(locateCard(state, twig!)).toMatchObject({ kind: "discard" });
+  });
+
+  it("indirect, already dealt: shares that eliminate P1 as they resolve stay dealt, and the attack finishes", () => {
+    const { state, events } = attack({
+      interrupt: false,
+      boost: "blank",
+      damage: "indirect",
+      twig: true,
+      atk: KILL,
+      villainAbility: RECOIL,
+    });
+    const hero = heroOf(state, P1);
+    expect(of(events, "playerEliminated")).toMatchObject([{ playerId: P1 }]);
+    expect(of(events, "activationSkipped")).toEqual([]);
+    expect(of(events, "damageDealt").some((e) => e.targetInstanceId === hero && e.amount > 0)).toBe(true);
+    expect(
+      resolvedAttacked(events).map((e) => e.event.kind === "characterAttacked" && e.event.targetInstanceId),
+    ).toEqual([hero]);
+    expect(Object.values(state.instances).find((i) => i.cardId === "boss")!.damage).toBe(1);
+    expect(mustPlayer(state, P2).eliminated).toBe(false);
+    expect(state.outcome).toBeNull();
+  });
+
+  /** The indirect attack on P1, stopped at P1's assignment of its 4 damage. */
+  function atAssignment(players: 2 | 3) {
+    const start = table({ interrupt: false, boost: "blank", damage: "indirect", twig: true, players });
+    const used = applyCommand(
+      start.state,
+      {
+        type: "useAbility",
+        playerId: P1,
+        cardInstanceId: start.button,
+        abilityId: villainAttacksYou.ref.id as Extract<Command, { type: "useAbility" }>["abilityId"],
+        payment: [],
+      },
+      deps,
+    );
+    if (!used.ok) throw new Error(used.error.message);
+    const state = settleUntil(used.state, "assignIndirectDamage", deps);
+    expect(state.pendingChoice).toMatchObject({ playerId: P1, prompt: { kind: "assignIndirectDamage", amount: 4 } });
+    return { state, twig: start.twig! };
+  }
+
+  // A safeguard: no rule eliminates a player while this assignment choice is open (a lone concede refuses while a
+  // choice is pending), so these call eliminatePlayer on the paused state directly.
+  it("indirect, mid-assignment: a player eliminated while P1 is assigning withdraws the choice; nothing is dealt", () => {
+    const { state, twig } = atAssignment(3);
+    const ctx = createCtx(state, deps);
+    eliminatePlayer(ctx, P3);
+    expect(ctx.state.pendingChoice).toBeNull();
+    runFlow(ctx);
+    expect(ctx.state.pendingChoice?.prompt.kind).not.toBe("assignIndirectDamage");
+    const after = settle(ctx.state, defaultPick, deps);
+    expect(ctx.events.filter((e) => e.type === "activationSkipped")).toMatchObject([
+      { activation: "attack", reason: "playerEliminated" },
+    ]);
+    expect(mustInstance(after, twig).damage).toBe(0);
+    expect(mustInstance(after, heroOf(after, P1)).damage).toBe(0);
+    expect(after.outcome).toBeNull();
+  });
+
+  it("indirect, mid-assignment: the assigning player eliminated is left with no choice", () => {
+    const { state } = atAssignment(2);
+    const ctx = createCtx(state, deps);
+    eliminatePlayer(ctx, P1);
+    runFlow(ctx);
+    expect(ctx.state.pendingChoice?.playerId ?? null).not.toBe(P1);
+    expect(ctx.state.outcome).toBeNull();
   });
 });
