@@ -80,3 +80,37 @@ export function hostCursorOf(args: {
 /** The cursor to send next: null when it says nothing new (the room spends a limit on every message). */
 export const cursorToSend = (last: HostCursor | null, next: HostCursor): HostCursor | null =>
   last !== null && last.key === next.key && last.at === next.at && last.state === next.state ? null : next;
+
+/**
+ * A seated player joined the room, or came back on a new connection (a reconnect is a new participant id), since
+ * `before`: the host tells the room its screen's cursor again (#1017). Watchers are left out, so a stream of them does
+ * not spend the room's limit on cursors. The room keeps the cursor in memory only, and a Durable
+ * Object that went idle forgets it, so a guest that reconnected after the host's screen closed heard nothing, and its
+ * screen, which only the host's closes, stayed open until Skip.
+ */
+export function someoneArrived(
+  before: readonly { readonly id: string; readonly seats: readonly string[] }[],
+  after: readonly { readonly id: string; readonly seats: readonly string[] }[],
+): boolean {
+  const known = new Set(before.filter((p) => p.seats.length > 0).map((p) => p.id));
+  return after.some((p) => p.seats.length > 0 && !known.has(p.id));
+}
+
+/**
+ * Whether a guest's screen still waits on the host's (#1017). It follows the host while the lobby says the host leads,
+ * except when it has nothing of the host's to follow (no cursor for this phase: the guest reconnected, the room forgot
+ * it) after the phase is over in this device's own game and every step of it is known here. Then nothing would ever
+ * move or close it but Skip, so it plays the rest at this player's own pace, with its own controls. A cursor that
+ * arrives again takes the screen back.
+ */
+export function followsHostNow(args: {
+  readonly followsRoom: boolean;
+  readonly cursor: RoomVillainCursor | null;
+  readonly phaseOver: boolean;
+  readonly complete: boolean;
+}): boolean {
+  if (!args.followsRoom) return false;
+  // A reconnect can open a short window before the host's resent cursor arrives; a guest with its own auto-advance on
+  // may close its recap in it, a little ahead of the host, which is better than a screen that never closes.
+  return !(args.cursor === null && args.phaseOver && args.complete);
+}

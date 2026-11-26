@@ -75,7 +75,7 @@ import {
   type SealedScenarios,
 } from "../live/competitive-start.js";
 import { setSeatContextSource } from "../view/seat-context.js";
-import { cursorToSend } from "../view/villain-pacing.js";
+import { cursorToSend, someoneArrived } from "../view/villain-pacing.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
 export type {
@@ -224,6 +224,14 @@ function publish(next: RoomState): void {
       postRoomCommand({ kind: "room-activity", step, ...(scenario ? { scenario } : {}) });
     }
     if (next.role === "host" && lastCursor) postRoomCommand({ kind: "room-villain-cursor", ...lastCursor });
+  } else if (
+    next.role === "host" &&
+    next.connection === "connected" &&
+    lastCursor &&
+    someoneArrived(prev.participants, next.participants)
+  ) {
+    // A guest joined or reconnected: the room may have forgotten the cursor while it sat idle, closed included (#1017).
+    postRoomCommand({ kind: "room-villain-cursor", ...lastCursor });
   }
   if (next.connection === "ended" && next.code && roomIsOver(next.problem)) forgetRoom(next.code);
   // `?room=<CODE>` follows the room, whichever way it was entered (hosted, typed code, link, recent room, reload).

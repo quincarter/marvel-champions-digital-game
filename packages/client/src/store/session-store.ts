@@ -307,6 +307,9 @@ export class SessionStore {
         return false;
       }
       const drawsAfter = this.#state.game?.rng.draws;
+      // A room guest's move that landed inside a catch-up batch already came with the batch's whole trail (#1017):
+      // appending it again would put the trail one past the version, and every trail index after it one command off.
+      if (this.#state.commandTrail.length >= this.#state.version) return true;
       // The host's update already landed through #absorb, which cleared inFlight; append this command to the
       // trail after, so it lines up with `commandTrail.length === version` the same way `#absorb` already holds.
       this.#set({

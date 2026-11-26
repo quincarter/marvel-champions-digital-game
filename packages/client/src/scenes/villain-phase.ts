@@ -272,10 +272,19 @@ import { t } from "../i18n/translate.js";
 import { seatContext, seatNoRewind } from "../view/seat-context.js";
 import type { RoomVillainCursor } from "../live/room-state.js";
 import { onRoomState, reportVillainCursor } from "../platform/room.js";
-import { cursorFor, followPlan, followsHost, hostCursorOf, pacingOf, phaseKeyOf } from "../view/villain-pacing.js";
+import { eventsToTakeIn, gamesForTakeIn } from "../view/villain-phase-catch-up.js";
+import { heldElsewhere, narrationViewer } from "../view/seat-gate.js";
+import {
+  cursorFor,
+  followPlan,
+  followsHost,
+  followsHostNow,
+  hostCursorOf,
+  pacingOf,
+  phaseKeyOf,
+} from "../view/villain-pacing.js";
 import { whoseTurnOf } from "../view/whose-turn.js";
 import { handVisibleHere } from "./hand-privacy-here.js";
-import { heldElsewhere } from "../view/seat-gate.js";
 import {
   abilityName,
   drawInterruptAnswer,
@@ -449,7 +458,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#revealed = 0;
     this.#version = -2;
     if (data?.seed && !data.review) {
-      this.#walkthrough = walkthroughFromSeed(data.seed, 1, data.surgeDealt, appSession().store.state.perspectiveId);
+      this.#walkthrough = walkthroughFromSeed(data.seed, 1, data.surgeDealt, this.#viewer(appSession().store.state));
       // The store already stands at the end of the seed's commands: nothing more to take in until the next command.
       this.#version = seedVersionOf(data.seed);
     }
@@ -548,7 +557,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#roomOff = onRoomState((room) => {
       if (room.villainCursor === cursorSeen) return;
       cursorSeen = room.villainCursor;
-      if (!this.#following() || this.#motion.leaving) return;
+      // `#followsRoom`, not `#following`: a cursor that went away may hand the screen to the guest (#1017).
+      if (!this.#followsRoom() || this.#motion.leaving) return;
       this.#syncTiming();
       this.#draw();
     });
@@ -686,8 +696,30 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * replay are the player's own and never follow.
    */
   #following(): boolean {
+    if (!this.#followsRoom()) return false;
+    // Nothing of the host's left to follow once the phase is over here: play on alone rather than wait for Skip (#1017).
+    return followsHostNow({
+      followsRoom: true,
+      cursor: this.#hostCursor(),
+      // Before the first state arrives nothing is known to be over.
+      phaseOver: !!this.#latest?.game && this.#latest.game.step.phase !== "villain",
+      complete: this.#walkthrough.complete,
+    });
+  }
+
+  /** The lobby says the host leads this (guest's, live) screen, whether or not there is a cursor to follow right now. */
+  #followsRoom(): boolean {
     if (this.#review || activeReplay()) return false;
     return followsHost(seatContext());
+  }
+
+  /**
+   * Whose eyes the phase's narration reads through: in a room, this device's own hero rather than whoever must act, so
+   * another seat's defend reads "Rhino attacks Ava's hero · Ava declares a defender", not "you" (#1017).
+   */
+  #viewer(state: { readonly perspectiveId: PlayerId | null }): PlayerId | null {
+    const room = seatContext();
+    return narrationViewer(room?.room ?? null, state.perspectiveId, room?.seatGame ?? false);
   }
 
   /** The host's cursor, when it is about this phase (a cursor left from another phase is ignored). */
@@ -838,7 +870,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       walkthrough: this.#walkthrough,
       before: this.#before,
       after: game,
-      viewer: this.#latest?.perspectiveId ?? null,
+      viewer: this.#latest ? this.#viewer(this.#latest) : null,
     };
   }
 
@@ -974,24 +1006,30 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
 
     if (state.version !== this.#version) {
+      // A guest's catch-up (a batch of the host's moves, a reconnect's log) carries no events of its own: the commands
+      // it skipped are taken from the trail, so the screen does not stay on the last step it knew (#1017).
+      const takeIn = eventsToTakeIn(this.#version, state);
       this.#version = state.version;
-      const before = totalBeatsOf(this.#walkthrough);
-      this.#walkthrough = appendWalkthrough(
-        this.#walkthrough,
-        state.lastEvents,
-        state.game,
-        state.perspectiveId,
-        gameDeps(),
-        state.lastStates,
-      );
-      const after = totalBeatsOf(this.#walkthrough);
-      // A fresh villain phase clears the previous one's beats (the walkthrough
-      // shows one phase at a time) — the reveal cursor follows suit.
-      if (after < before) {
-        this.#revealed = 0;
-        this.#released = new Set();
-        this.#recapExpanded = false;
-      }
+      const tables = gamesForTakeIn(takeIn, state.game);
+      takeIn.forEach((events, i) => {
+        const before = totalBeatsOf(this.#walkthrough);
+        const round = this.#walkthrough.round;
+        this.#walkthrough = appendWalkthrough(
+          this.#walkthrough,
+          events,
+          tables[i] ?? state.game!,
+          this.#viewer(state),
+          gameDeps(),
+          takeIn.length === 1 ? state.lastStates : undefined,
+        );
+        // A fresh villain phase clears the previous one's beats (the walkthrough shows one phase at a time), the reveal
+        // cursor follows suit. Checked after each command: one catch-up can close a phase and open the next.
+        if (totalBeatsOf(this.#walkthrough) < before || this.#walkthrough.round !== round) {
+          this.#revealed = 0;
+          this.#released = new Set();
+          this.#recapExpanded = false;
+        }
+      });
     }
 
     this.#latest = state;

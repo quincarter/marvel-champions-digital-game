@@ -33,6 +33,7 @@ import { extras } from "../progression/progression.js";
 import { earnedSongsOf, musicGainOf, nextShuffled } from "../view/music-player.js";
 import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
 import { onMixerChange, startMixerWatch, stopMixerWatch } from "../platform/app-volume.js";
+import { VoiceLevels, fadeOf } from "./voice-level.js";
 import { onAppBackgroundChange } from "../platform/app-background.js";
 import { NativeSound, nativeAudio, nativeAudioPending, setNativeMuted } from "./native-audio.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
@@ -148,6 +149,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #ambient: (() => void) | null = null;
   readonly #listeners = new Set<(track: Track) => void>();
   readonly #pauseListeners = new Set<() => void>();
+  /** The level last set on each song, so a fade never reads a fresh sound's own volume (#1018, `voice-level.ts`). */
+  readonly #levels = new VoiceLevels<Voice>();
 
   constructor() {
     super(SCENES.music);
@@ -444,7 +447,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
       const sound = this.#currentSound as (Voice & { volume?: number }) | null;
       if (sound && "volume" in sound) {
         this.tweens.killTweensOf(sound);
-        sound.volume = volume;
+        this.#setLevel(sound, volume);
       }
     }
     const was = this.#shuffleOn;
@@ -508,16 +511,36 @@ export class MusicScene extends Phaser.Scene implements MusicController {
       sound.stop();
       sound.destroy();
     } else {
-      this.tweens.add({
-        targets: sound,
-        volume: 0,
-        duration,
-        onComplete: () => {
-          sound.stop();
-          sound.destroy();
-        },
+      this.#fade(sound, 0, duration, () => {
+        sound.stop();
+        sound.destroy();
       });
     }
+  }
+
+  /** Sets a song's volume and remembers it as the level its next fade starts from. */
+  #setLevel(sound: Voice, level: number): void {
+    (sound as Voice & { volume: number }).volume = level;
+    this.#levels.set(sound, level);
+  }
+
+  /**
+   * Fades a song to `to` from the level the game last set on it, never from the sound's own reading: a fresh Web Audio
+   * sound reads as full volume until the browser renders it, and a fade from there started songs loud (#1018).
+   */
+  #fade(sound: Voice, to: number, duration: number, onComplete?: () => void): void {
+    const { from, to: level } = fadeOf(this.#levels, sound, to);
+    this.#setLevel(sound, from);
+    this.tweens.add({
+      targets: sound,
+      volume: { from, to: level },
+      duration,
+      onUpdate: (_tween: unknown, _target: unknown, _key: unknown, current: number) => this.#levels.set(sound, current),
+      onComplete: () => {
+        this.#levels.set(sound, level);
+        onComplete?.();
+      },
+    });
   }
 
   #requestTrack(track: Track): void {
@@ -557,14 +580,9 @@ export class MusicScene extends Phaser.Scene implements MusicController {
         oldSound.stop();
         oldSound.destroy();
       } else {
-        this.tweens.add({
-          targets: oldSound,
-          volume: 0,
-          duration,
-          onComplete: () => {
-            oldSound.stop();
-            oldSound.destroy();
-          },
+        this.#fade(oldSound, 0, duration, () => {
+          oldSound.stop();
+          oldSound.destroy();
         });
       }
     }
@@ -572,6 +590,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     // Start new track. A shuffled song plays once and hands on to the next; any other loops.
     const shuffling = this.#mode === "shuffle";
     const newSound = this.#add(track.key, { loop: !shuffling, volume: duration > 0 ? 0 : this.#targetVolume });
+    this.#levels.set(newSound, duration > 0 ? 0 : this.#targetVolume);
     newSound.once(Phaser.Sound.Events.COMPLETE, () => {
       if (this.#currentSound !== newSound) return;
       // Shuffle was turned off while the song played: it loops on as the jukebox's.
@@ -585,12 +604,6 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     if (!this.#paused) startMixerWatch();
     for (const listener of this.#listeners) listener(track);
 
-    if (duration > 0) {
-      this.tweens.add({
-        targets: newSound,
-        volume: this.#targetVolume,
-        duration,
-      });
-    }
+    if (duration > 0) this.#fade(newSound, this.#targetVolume, duration);
   }
 }
