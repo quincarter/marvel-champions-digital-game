@@ -432,8 +432,8 @@ describe("mc-sheet drawings, QR codes and sliders", () => {
     expect(steps).toEqual([{ key: "size", direction: 1 }]);
     const track = sheet.elementOf("size:track")!;
     track.getBoundingClientRect = () =>
-      ({ left: 0, width: 100, top: 0, right: 100, bottom: 30, height: 30, x: 0, y: 0 }) as DOMRect;
-    const at = { bubbles: true, composed: true, clientX: 25, clientY: 5, pointerId: 1, button: 0 };
+      ({ left: 0, width: 118, top: 0, right: 118, bottom: 30, height: 30, x: 0, y: 0 }) as DOMRect;
+    const at = { bubbles: true, composed: true, clientX: 34, clientY: 5, pointerId: 1, button: 0 };
     track.dispatchEvent(new PointerEvent("pointerdown", at));
     track.dispatchEvent(new PointerEvent("pointerup", at));
     expect(slides).toEqual([{ key: "size", share: 0.25, commit: true }]);
@@ -462,6 +462,59 @@ describe("mc-sheet drawings, QR codes and sliders", () => {
     track.dispatchEvent(new PointerEvent("pointerdown", at(5)));
     track.dispatchEvent(new PointerEvent("pointermove", at(40)));
     track.dispatchEvent(new PointerEvent("pointerup", at(40)));
+    expect(slides).toEqual([]);
+    sheet.remove();
+  });
+
+  const sliderSheet = async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "slider",
+        key: "size",
+        rect: rect(0, 0, 300, 30),
+        share: 0,
+        label: "75%",
+        ground: "ink",
+        stepLabels: ["−", "+"],
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const slides: unknown[] = [];
+    sheet.addEventListener("mc-slide", (event) => slides.push((event as CustomEvent).detail));
+    const track = sheet.elementOf("size:track")!;
+    track.getBoundingClientRect = () =>
+      ({ left: 0, width: 118, top: 0, right: 118, bottom: 30, height: 30, x: 0, y: 0 }) as DOMRect;
+    return { sheet, slides, track };
+  };
+
+  it("keeps the value when the knob at the minimum end is tapped on its outer half", async () => {
+    const { sheet, slides, track } = await sliderSheet();
+    const at = { bubbles: true, composed: true, clientX: 3, clientY: 5, pointerId: 1, button: 0 };
+    track.dispatchEvent(new PointerEvent("pointerdown", at));
+    track.dispatchEvent(new PointerEvent("pointerup", at));
+    expect(slides).toEqual([{ key: "size", share: 0, commit: true }]);
+    sheet.remove();
+  });
+
+  it("commits nothing when a mouse press leaves the track and is released elsewhere, then hovers back across", async () => {
+    const { sheet, slides, track } = await sliderSheet();
+    const at = (clientX: number, buttons: number) => ({
+      bubbles: true,
+      composed: true,
+      clientX,
+      clientY: 5,
+      pointerId: 1,
+      button: 0,
+      buttons,
+      pointerType: "mouse",
+    });
+    track.dispatchEvent(new PointerEvent("pointerdown", at(40, 1)));
+    // Released far off the track: the press ended there, not here.
+    track.dispatchEvent(new PointerEvent("pointerup", { ...at(400, 0), clientY: 200 }));
+    track.dispatchEvent(new PointerEvent("pointermove", at(70, 0)));
+    track.dispatchEvent(new PointerEvent("pointermove", at(90, 0)));
     expect(slides).toEqual([]);
     sheet.remove();
   });

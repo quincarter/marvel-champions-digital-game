@@ -465,10 +465,14 @@ export class McSheet extends LitElement {
   /** The press that is on a slider's track now: where it began, and whether it turned into a drag or the page's scroll. */
   readonly #slides = new Map<string, { x: number; y: number; mode: "none" | "drag" | "scroll"; id: number }>();
 
-  /** The share of the track's box a pointer is across (in the page's own pixels, whatever the scale). */
-  #shareAt(track: HTMLElement, clientX: number): number {
+  /**
+   * The share of the bar a pointer is across, in the page's own pixels whatever the scale. The track's hit box is the
+   * bar plus a knob's radius each side, so the bar starts `knob` in from its edge.
+   */
+  #shareAt(track: HTMLElement, clientX: number, knob: number): number {
     const box = track.getBoundingClientRect();
-    return box.width > 0 ? Math.min(1, Math.max(0, (clientX - box.left) / box.width)) : 0;
+    const bar = box.width - knob * 2;
+    return bar > 0 ? Math.min(1, Math.max(0, (clientX - box.left - knob) / bar)) : 0;
   }
 
   #emitSlide(key: string, share: number, commit: boolean): void {
@@ -494,25 +498,41 @@ export class McSheet extends LitElement {
     const trackBox = (event: PointerEvent): HTMLElement => event.currentTarget as HTMLElement;
     const down = (event: PointerEvent): void => {
       this.#slides.set(key, { x: event.clientX, y: event.clientY, mode: "none", id: event.pointerId });
+      // Held from the press on, so the release is heard wherever it lands and a press that leaves the track ends here.
+      trackBox(event).setPointerCapture?.(event.pointerId);
     };
     const move = (event: PointerEvent): void => {
       const press = this.#slides.get(key);
       if (!press || press.id !== event.pointerId) return;
+      // A mouse or pen moving with no button down is hovering: its press ended unseen, so nothing it does is a drag.
+      if (event.buttons === 0 && event.pointerType !== "touch") {
+        this.#slides.delete(key);
+        return;
+      }
       if (press.mode === "none") {
         const dx = Math.abs(event.clientX - press.x);
         const dy = Math.abs(event.clientY - press.y);
         if (dx <= slop && dy <= slop) return;
         // Up or down is the page's scroll; sideways is this slider's drag.
         press.mode = dy > dx ? "scroll" : "drag";
-        if (press.mode === "drag") trackBox(event).setPointerCapture(event.pointerId);
       }
-      if (press.mode === "drag") this.#emitSlide(key, this.#shareAt(trackBox(event), event.clientX), false);
+      if (press.mode === "drag") this.#emitSlide(key, this.#shareAt(trackBox(event), event.clientX, KNOB), false);
     };
     const up = (event: PointerEvent): void => {
       const press = this.#slides.get(key);
       this.#slides.delete(key);
       if (!press || press.id !== event.pointerId || press.mode === "scroll") return;
-      this.#emitSlide(key, this.#shareAt(trackBox(event), event.clientX), true);
+      if (press.mode === "none") {
+        // A tap: press and release both on the track.
+        const box = trackBox(event).getBoundingClientRect();
+        const inside =
+          event.clientX >= box.left &&
+          event.clientX <= box.right &&
+          event.clientY >= box.top &&
+          event.clientY <= box.bottom;
+        if (!inside) return;
+      }
+      this.#emitSlide(key, this.#shareAt(trackBox(event), event.clientX, KNOB), true);
     };
     const cancel = (): void => {
       this.#slides.delete(key);

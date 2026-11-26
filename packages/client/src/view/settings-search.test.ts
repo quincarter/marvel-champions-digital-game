@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { useEnglish } from "../i18n/test-language.js";
 import { defaultSettings } from "../settings.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
 import { prepareDocuments, rankDocuments } from "./deck-search.js";
@@ -131,6 +132,7 @@ describe("SettingsSearchHost", () => {
       unlocks: { progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS },
       globalConsent: "unset",
       controls: false,
+      language: "en",
     });
     const [best] = host.search("dark mode");
     expect(best?.entry.id).toBe("setting:dark-mode");
@@ -185,5 +187,25 @@ describe("markedLineOf", () => {
       expect(end).toBeGreaterThan(start);
       expect(end).toBeLessThanOrEqual(30);
     }
+  });
+});
+
+describe("the search index in Spanish", () => {
+  afterEach(useEnglish);
+
+  it("finds the Save data rows by their Spanish names once told the language", () => {
+    (globalThis as { __CARD_LANGS__?: string }).__CARD_LANGS__ = "en,es";
+    const host = new SettingsSearchHost();
+    host.index({
+      tabs: [],
+      rows: [],
+      settings: defaultSettings(),
+      pad: null,
+      unlocks: { progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS },
+      globalConsent: "unset",
+      controls: true,
+      language: "es",
+    });
+    expect(host.search("Exportar")[0]?.entry.id).toMatch(/export/);
   });
 });

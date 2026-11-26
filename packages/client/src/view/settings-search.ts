@@ -18,6 +18,8 @@ import {
   type PreparedDocument,
   type SearchDocument,
 } from "./deck-search.js";
+import { setArtLanguage } from "../art/art-source.js";
+import type { CardLanguage } from "../art/card-language.js";
 import { t } from "../i18n/translate.js";
 import type { TextRange } from "./settings-search-line.js";
 import type { SettingsItemId, SettingsTabId } from "./settings-sections.js";
@@ -403,6 +405,8 @@ export interface SettingsSearchIndexInput {
   readonly unlocks: UnlocksInput;
   readonly globalConsent: GlobalConsent;
   readonly controls: boolean;
+  /** The player's language: the worker has none of its own, so the pages' text is worded in this one. */
+  readonly language: CardLanguage;
   /** Entries of the caller's own, searched with the rest (Pause's Reference rows). */
   readonly extra?: readonly SettingsSearchEntry[];
 }
@@ -430,6 +434,7 @@ export class SettingsSearchHost {
 
   index(input: SettingsSearchIndexInput): void {
     const { settings, pad, globalConsent, controls } = input;
+    setArtLanguage(input.language);
     const { family, swap } = controllerStateOf(settings, pad);
     const entries = [
       ...settingsRowEntriesOf(input.tabs, new Map(input.rows)),

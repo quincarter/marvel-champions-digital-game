@@ -98,6 +98,7 @@ import { concedeRouteOf } from "../view/competitive-concede.js";
 import { SCENES } from "./keys.js";
 import type { PlayerStatsData } from "./player-stats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { artLanguageNow } from "../art/art-source.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import type { BoardScene } from "./board.js";
 import { withLevel } from "../guide/guide-prefs.js";
@@ -1361,6 +1362,7 @@ export class PauseOverlay extends Phaser.Scene {
       unlocks: { progress, prefs, devUnlockAll, achievementPoints },
       globalConsent: readConsent(),
       controls: controlsShown(),
+      language: artLanguageNow(),
       extra: this.#referenceEntries(),
     };
   }

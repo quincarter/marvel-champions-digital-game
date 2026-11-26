@@ -199,6 +199,8 @@ import type { PlayerStatsData } from "./player-stats.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
 import type { RulesSceneData } from "./rules.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { onLanguageChange } from "../language-change.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { applyEarnedItems, earnedItems, earnedPromoSets, unlocks } from "../progression/progression.js";
 import { heroPromoShown } from "../view/hero-art-choice.js";
@@ -390,7 +392,10 @@ export class SettingsOverlay extends Phaser.Scene {
     }
     // The top-of-screen dark mode toggle (#459) flips the same setting as the Dark mode row: the row follows it.
     const unsubscribeScheme = onColorSchemeChange(() => this.#redrawIfOpen());
+    // A language switch rewords the pages the search indexes: index them again.
+    const offSearchLanguage = onLanguageChange(() => this.#refreshSearch());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offSearchLanguage();
       this.scale.off("resize", onResize, this);
       unsubscribeGuide();
       unsubscribePowerSaving();
@@ -504,6 +509,7 @@ export class SettingsOverlay extends Phaser.Scene {
       unlocks: { progress, prefs, devUnlockAll, achievementPoints },
       globalConsent: readConsent(),
       controls: controlsShown(),
+      language: artLanguageNow(),
     });
   }
 
