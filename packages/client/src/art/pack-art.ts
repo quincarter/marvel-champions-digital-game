@@ -262,11 +262,12 @@ export function releasePackArt(key: string): void {
 /**
  * `source` as it stands now. A source held from before `releasePackArt` carries a revoked blob URL; asking for that
  * would fail the load and mark the picture missing. This gives the fresh URL (reading it from the store again, and
- * null until it arrives, when the change is announced). A source this module did not hand out is returned as it is.
+ * null until it arrives, when the change is announced). A pack source whose pack was removed or upgraded is null; any other source is returned as it is.
  */
 export function currentPackArt(source: ArtSource): ArtSource | null {
   const info = fileOfKey.get(source.key);
-  if (!info) return source;
+  // A pack key no longer tracked: its pack was uninstalled or upgraded and the store revoked the URL.
+  if (!info) return isPackArtKey(source.key) ? null : source;
   const url = urls.get(source.key);
   if (url !== undefined) return url === source.url ? source : { key: source.key, url };
   const pack = packs.get(info.id);
