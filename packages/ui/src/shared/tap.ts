@@ -22,6 +22,24 @@ function contains(rect: DOMRect, x: number, y: number): boolean {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
+/** The clipping ancestors (scroll viewports) among a press's path: a point outside one is not on the control. */
+function clippingAncestors(path: readonly Element[], element: Element): readonly Element[] {
+  return path.filter((node) => {
+    if (node === element) return false;
+    const { overflowX, overflowY } = getComputedStyle(node);
+    return [overflowX, overflowY].some((value) => value !== "visible" && value !== "");
+  });
+}
+
+/**
+ * Whether the point is on `element` and inside every clipping ancestor, by their boxes now. Touch pointers are
+ * captured at the press, so a release (or a timer) can see a finger that has left the element with no pointerleave:
+ * this checks where it actually is.
+ */
+function pointOnControl(element: Element, clips: readonly Element[], x: number, y: number): boolean {
+  return [element, ...clips].every((node) => contains(node.getBoundingClientRect(), x, y));
+}
+
 /** Calls `handler` on each tap on `element`; returns the function that stops listening. */
 export function onTap(
   element: HTMLElement,
@@ -51,13 +69,10 @@ export function onTap(
       .composedPath()
       .filter((node): node is Element => node instanceof Element)
       .map((node) => [node, node.scrollTop, node.scrollLeft] as const);
-    const clips = offsets
-      .map(([node]) => node)
-      .filter((node) => {
-        if (node === element) return false;
-        const { overflowX, overflowY } = getComputedStyle(node);
-        return [overflowX, overflowY].some((value) => value !== "visible" && value !== "");
-      });
+    const clips = clippingAncestors(
+      offsets.map(([node]) => node),
+      element,
+    );
     press = { id: event.pointerId, x: event.clientX, y: event.clientY, scrolled: false, offsets, clips };
     // Any scroll under way (a list this control sits in) cancels the press: a swipe, not a tap.
     window.addEventListener("scroll", onScroll, true);
@@ -70,10 +85,8 @@ export function onTap(
     if (options.enabled?.() === false) return;
     if (held.offsets.some(([node, top, left]) => node.scrollTop !== top || node.scrollLeft !== left)) return;
     if (Math.hypot(event.clientX - held.x, event.clientY - held.y) > TAP_SLOP_PX) return;
-    // Touch pointers are captured at the press, so the release arrives here even from outside the element (and
-    // pointerleave is suppressed): check where the finger actually lifted.
-    if (![element, ...held.clips].every((node) => contains(node.getBoundingClientRect(), event.clientX, event.clientY)))
-      return;
+    // The release arrives here even from outside the element (and pointerleave is suppressed): check where it lifted.
+    if (!pointOnControl(element, held.clips, event.clientX, event.clientY)) return;
     handler(event);
   };
   const move = (event: PointerEvent): void => {
@@ -122,6 +135,8 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
     timer: ReturnType<typeof setTimeout>;
     /** Where every element under the press stood: a list can scroll under a held pointer that never moves. */
     offsets: readonly (readonly [Element, number, number])[];
+    /** The clipping ancestors the press went through, as `onTap` keeps them. */
+    clips: readonly Element[];
   } | null = null;
   /** The pointer whose hold fired and whose release is still to come; cleared by that release or the next press. */
   let fired: number | null = null;
@@ -138,6 +153,10 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
       .composedPath()
       .filter((node): node is Element => node instanceof Element)
       .map((node) => [node, node.scrollTop, node.scrollLeft] as const);
+    const clips = clippingAncestors(
+      offsets.map(([node]) => node),
+      element,
+    );
     const timer = setTimeout(() => {
       const now = press;
       if (now?.id !== held.id) return;
@@ -146,10 +165,13 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
       if (Math.hypot(now.lastX - now.x, now.lastY - now.y) > HOLD_SLOP_PX) return;
       // The content moved under a still pointer (wheel, trackpad, programmatic scroll): not the card pressed any more.
       if (now.offsets.some(([node, top, left]) => node.scrollTop !== top || node.scrollLeft !== left)) return;
+      // A captured touch suppresses pointerleave: a finger that rolled just off the card (within the slop) or out of
+      // the scroll viewport that clips it is no longer on the card, so no Inspect.
+      if (!pointOnControl(element, now.clips, now.lastX, now.lastY)) return;
       fired = held.id;
       handler(event);
     }, HOLD_MS);
-    press = { ...held, lastX: held.x, lastY: held.y, timer, offsets };
+    press = { ...held, lastX: held.x, lastY: held.y, timer, offsets, clips };
   };
   const move = (event: PointerEvent): void => {
     if (press?.id !== event.pointerId) return;
