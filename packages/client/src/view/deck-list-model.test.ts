@@ -100,13 +100,12 @@ describe("deckRowIndexOf", () => {
   });
 });
 
-describe("not-ready packs", () => {
-  test.each(["63001a", "64001a"])("a LEGAL deck led by %s says Not ready yet and is never seatable", (identity) => {
+describe("released packs (Elektra, Iron Fist, 2026-11-25)", () => {
+  test.each(["63001a", "64001a"])("a LEGAL deck led by %s is seatable", (identity) => {
     const deck = legalDeckFor(identity);
     const option = deckOptionOf(deck, POOL_CARDS, CORE_POOL_VERSION, POOL_DEPS);
     expect(option.legal).toBe(true);
-    expect(option.seatable).toBe(false);
-    expect(option.blockedReason).toBe(NOT_READY_REASON);
-    expect(NOT_READY_REASON).toBe("Not ready yet");
+    expect(option.seatable).toBe(true);
+    expect(option.blockedReason).not.toBe(NOT_READY_REASON);
   });
 });
