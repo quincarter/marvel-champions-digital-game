@@ -449,6 +449,8 @@ export class DecksScene extends Phaser.Scene {
   #poolList: McVirtualList | null = null;
   /** A scan drawn outside the pool grid this draw was not on hand yet, so its arrival redraws the screen. */
   #paneArtMissing = false;
+  /** The scans drawn outside the pool grid this draw, asked for again on each arrival. */
+  #paneArt: ArtSource[] = [];
   #poolListScroll = new ListScroll();
   /** The author's notes in a community deck's detail rail: a list of wrapped lines, so a long write-up scrolls. */
   #notesList: McVirtualList | null = null;
@@ -762,8 +764,11 @@ export class DecksScene extends Phaser.Scene {
    * face's source.
    */
   #artArrived(why: ArtRedraw): void {
-    // "all": a new card language or a pack's pictures, so every tile may have a new source.
-    if (why === "all" || this.#paneArtMissing) {
+    // "all": a new card language or a pack's pictures, so every tile may have a new source. A pane picture is asked
+    // for again (so the cache counts it as in use); one the cache evicted anyway is drawn again with the screen.
+    const art = cardArt(this);
+    const paneEvicted = this.#paneArt.some((source) => !art.request(this, source) && !art.isMissing(source.key));
+    if (why === "all" || this.#paneArtMissing || paneEvicted) {
       this.#rebuild();
       return;
     }
@@ -774,12 +779,16 @@ export class DecksScene extends Phaser.Scene {
   /** A scan outside the pool grid; one still on its way marks the screen to be drawn again when it lands. */
   #drawPaneArt(source: ArtSource | null | undefined, rect: Rect): void {
     const art = cardArt(this);
-    if (drawArt(this, art.request(this, source ?? null), rect)) return;
+    if (drawArt(this, art.request(this, source ?? null), rect)) {
+      if (source) this.#paneArt.push(source);
+      return;
+    }
     if (source && !art.isMissing(source.key)) this.#paneArtMissing = true;
   }
 
   #rebuild(): void {
     this.#paneArtMissing = false;
+    this.#paneArt = [];
     // The deck's options, when up, redraw with this draw's statuses (#958 review).
     if (this.scene.isActive(SCENES.deckActions))
       this.time.delayedCall(0, () => (this.scene.get(SCENES.deckActions) as DeckActionsSheet | null)?.refresh());
