@@ -257,6 +257,11 @@ export class SheetGlyphs {
       x = point.x;
       y = point.y;
     }
+    // The glyph is decoration; the chord is exposed on the button it presses (real keyboard keys only).
+    const keys = specs
+      .filter((spec) => spec.kind === "key" && spec.label !== "Hold")
+      .map((spec) => (spec.label === "Esc" ? "Escape" : spec.label));
+    const keyshortcuts = keys.length ? keys.join("+") : undefined;
     builder.button({
       key,
       rect,
@@ -268,6 +273,7 @@ export class SheetGlyphs {
       // The word makes room only while the glyph is open; folded away it is back where the button put it.
       ...(open ? { labelShift: shift } : {}),
       ...(snapshot.settings.reducedMotion ? { still: true } : {}),
+      ...(keyshortcuts ? { keyshortcuts } : {}),
     });
     builder.glyph({
       x,

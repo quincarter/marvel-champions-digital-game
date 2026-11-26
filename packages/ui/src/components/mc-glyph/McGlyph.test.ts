@@ -104,6 +104,30 @@ describe("mc-glyph", () => {
     open.remove();
   });
 
+  it("hides a folded glyph from assistive tech but keeps its label, and exposes it again when open", async () => {
+    const glyph = await make({});
+    expect(glyph.hasAttribute("aria-hidden")).toBe(false);
+    expect(glyph.getAttribute("role")).toBe("img");
+    glyph.openness = 0;
+    await glyph.updateComplete;
+    expect(glyph.getAttribute("aria-hidden")).toBe("true");
+    expect(glyph.getAttribute("aria-label")).toBe("Esc");
+    glyph.openness = 1;
+    await glyph.updateComplete;
+    expect(glyph.hasAttribute("aria-hidden")).toBe(false);
+    glyph.remove();
+  });
+
+  it("rounds a pad pill without bundled art and keeps a keyboard key square", async () => {
+    const pill = await make({ specs: [{ kind: "pad", label: "LB", shape: "shoulder" }] });
+    const pillRect = pill.shadowRoot!.querySelector("svg rect")!;
+    expect(parseFloat(pillRect.getAttribute("rx")!)).toBeGreaterThan(0);
+    pill.remove();
+    const key = await make({ specs: [{ kind: "key", label: "Esc" }] });
+    expect(key.shadowRoot!.querySelector("svg rect")!.hasAttribute("rx")).toBe(false);
+    key.remove();
+  });
+
   it("gives every glyph its own picture ids", async () => {
     const specs: GlyphSpec[] = [{ kind: "pad", label: "LB", shape: "shoulder", art: { source: art, colored: false } }];
     const one = await make({ specs });

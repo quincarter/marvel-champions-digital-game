@@ -83,6 +83,10 @@ export class McGlyph extends LitElement {
     this.style.height = `${this.height}px`;
     this.style.opacity = String(open);
     this.setAttribute("role", "img");
+    // Folded away (openness 0) the glyph is invisible: hide it from assistive tech too. The shortcut itself is
+    // exposed on the button it belongs to (`aria-keyshortcuts`, set by the client). The label stays for counting.
+    if (open === 0) this.setAttribute("aria-hidden", "true");
+    else this.removeAttribute("aria-hidden");
     this.setAttribute("aria-label", this.specs.map((spec) => spec.label).join(" + "));
   }
 
@@ -139,7 +143,7 @@ export class McGlyph extends LitElement {
     const cy = height / 2;
     const shape = cell.round
       ? svg`<circle cx=${cx} cy=${cy} r=${height / 2 - 1} fill=${body} stroke=${ring} stroke-width="2"></circle>`
-      : svg`<rect x="1" y="1" width=${width - 2} height=${height - 2} fill=${body} stroke=${ring} stroke-width="2"></rect>${
+      : svg`<rect x="1" y="1" width=${width - 2} height=${height - 2} rx=${spec.kind === "pad" ? (height - 2) / 2 : nothing} fill=${body} stroke=${ring} stroke-width="2"></rect>${
           spec.kind === "key"
             ? svg`<line x1="0" y1=${height - 1} x2=${width} y2=${height - 1} stroke="var(--mc-line-ink)" stroke-width="4"></line>`
             : nothing
