@@ -3,6 +3,9 @@ import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { tapped } from "../../shared/tapped.js";
 import "../mc-button/mc-button.js";
+import "../mc-glyph/mc-glyph.js";
+import type { GlyphSpec } from "../mc-glyph/glyph-layout.js";
+import type { McGlyphGround } from "../mc-glyph/McGlyph.js";
 import type { McButtonKind } from "../mc-button/McButton.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
 
@@ -81,6 +84,24 @@ export interface SheetButton {
   readonly plain?: boolean;
   /** The label's px size. */
   readonly size?: number;
+  /** How far the label slides right to make room for a glyph beside it (px; eased when it changes). */
+  readonly labelShift?: number;
+}
+
+/** A key or controller-button glyph (`mc-glyph`) at its left edge `x`, vertically centered on `y`. Never takes a press. */
+export interface SheetGlyph {
+  readonly kind: "glyph";
+  readonly x: number;
+  readonly y: number;
+  readonly specs: readonly GlyphSpec[];
+  /** The glyph's height in px, already scaled by the hint size setting. */
+  readonly height: number;
+  readonly ground: McGlyphGround;
+  /** 0 (folded away) to 1 (open). */
+  readonly openness: number;
+  /** No fold animation (reduced motion). */
+  readonly still?: boolean;
+  readonly key?: string;
 }
 
 /** An invisible area a tap presses (a card, a row). */
@@ -99,7 +120,7 @@ export interface SheetScroll {
   readonly nodes: readonly SheetNode[];
 }
 
-export type SheetNode = SheetBox | SheetDots | SheetText | SheetButton | SheetTap | SheetScroll;
+export type SheetNode = SheetBox | SheetDots | SheetText | SheetButton | SheetGlyph | SheetTap | SheetScroll;
 
 /**
  * A part's identity across redraws: its key when it has one (a button, a tap area, a scroller), so a press in flight or a
@@ -263,7 +284,7 @@ export class McSheet extends LitElement {
         return html`<mc-button
           class="part"
           data-key=${node.key}
-          style=${`${px(node.rect)}${node.size ? `;--mc-button-size:${node.size}px` : ""}`}
+          style=${`${px(node.rect)}${node.size ? `;--mc-button-size:${node.size}px` : ""};--mc-label-shift:${node.labelShift ?? 0}px`}
           kind=${node.look}
           .label=${node.label}
           ?selected=${node.selected ?? false}
@@ -274,6 +295,17 @@ export class McSheet extends LitElement {
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
           @mc-press=${() => this.#activate(node.key)}
         ></mc-button>`;
+      case "glyph":
+        return html`<mc-glyph
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${`left:${node.x}px;top:${node.y - node.height / 2}px`}
+          .specs=${node.specs}
+          .height=${node.height}
+          .ground=${node.ground}
+          .openness=${node.openness}
+          ?still=${node.still ?? false}
+        ></mc-glyph>`;
       case "tap":
         return html`<div
           class="part tap"

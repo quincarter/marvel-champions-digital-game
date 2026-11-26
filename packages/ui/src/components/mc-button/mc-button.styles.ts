@@ -41,6 +41,14 @@ export const McButtonStyles = css`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    /* A glyph beside the word slides it over (the sheet sets the shift; it eases like the glyph does). */
+    transform: translateX(var(--mc-label-shift, 0px));
+    transition: transform 160ms cubic-bezier(0.5, 1, 0.89, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .label {
+      transition: none;
+    }
   }
   /* Bangers labels: the back button, a call to action. */
   :host([display]) .label {

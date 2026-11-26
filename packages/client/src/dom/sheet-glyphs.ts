@@ -1,0 +1,196 @@
+/**
+ * `SheetGlyphs`: the key and button glyphs of a screen drawn as an `mc-sheet` (`docs/controller-support.md`, decisions
+ * 5, 6 and 8). The DOM counterpart of `ui/glyph-hints.ts`: the same shortcuts, specs (`view/input-glyph-model.ts`),
+ * placement rules (`view/glyph-placement.ts`), hint size setting and input-set logic, drawn by the shared `mc-glyph`.
+ *
+ * A scene registers a glyph while it builds its parts (`button`, called where it called `builder.button`), and the
+ * hints keep it current without per-frame work: a new input device or setting redraws the scene when something the
+ * glyphs show changed (`redraw`), and the mouse moving or resting only flips the glyph's openness, which `mc-glyph`
+ * animates itself (CSS, the Phaser glyph's 140ms / 180ms). Nothing is drawn while no keyboard or pad is in use, and
+ * never on touch.
+ */
+import type Phaser from "phaser";
+import type { McGlyphGround } from "@mc/ui";
+import { layoutGlyph } from "@mc/ui";
+import { typeRole, type TypeSpec } from "../tokens.js";
+import { bindInputHints, type InputHints, type InputHintsSnapshot } from "../ui/input-hints.js";
+import {
+  glyphBesideLabel,
+  glyphHeightFor,
+  glyphOutsideButton,
+  glyphRect,
+  hangIsClear,
+  scaledGlyphHeight,
+  specsSignature,
+} from "../view/glyph-placement.js";
+import { glyphsForShortcut, type GlyphSpec } from "../view/input-glyph-model.js";
+import { glyphSetOf, glyphsExpanded } from "../view/input-mode.js";
+import { uiSpecOf } from "../view/glyph-ui-spec.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
+import type { Rect } from "../view/layout.js";
+import type { SheetBuilder } from "./sheet-builder.js";
+
+type GlyphSet = "keyboard" | "pad";
+
+/** The specs for several shortcuts side by side, skipping any with no glyph on this input. */
+function specsFor(ids: readonly ShortcutId[], snapshot: InputHintsSnapshot): readonly GlyphSpec[] | null {
+  const out: GlyphSpec[] = [];
+  for (const id of ids) out.push(...(glyphsForShortcut(id, snapshot.state, snapshot.settings, null) ?? []));
+  return out.length > 0 ? out : null;
+}
+
+export interface SheetGlyphButton {
+  readonly key: string;
+  readonly rect: Rect;
+  readonly label: string;
+  readonly look: "primary" | "secondary" | "quiet" | "onInk";
+  readonly type?: TypeSpec;
+  readonly selected?: boolean;
+  readonly disabled?: string | true;
+  /** The shortcuts the glyph shows (their keys on a keyboard, their buttons on a pad). */
+  readonly ids: readonly ShortcutId[];
+  readonly ground?: McGlyphGround;
+  /** Which shortcuts the glyph shows right now (null: none), when that changes with the screen's state. */
+  readonly idsNow?: (set: GlyphSet) => readonly ShortcutId[] | null;
+}
+
+interface Registered {
+  readonly entry: SheetGlyphButton;
+}
+
+export class SheetGlyphs {
+  readonly #scene: Phaser.Scene;
+  readonly #redraw: () => void;
+  readonly #obstacles: () => readonly Rect[];
+  readonly #binding: InputHints;
+  #entries: Registered[] = [];
+  #snapshot: InputHintsSnapshot | null = null;
+  #signature = "";
+
+  /**
+   * `redraw` rebuilds the scene's sheet; it is called when what the glyphs show changed. `obstacles` are the rects a
+   * hanging glyph must not cover, read when it is placed.
+   */
+  constructor(scene: Phaser.Scene, redraw: () => void, obstacles: () => readonly Rect[] = () => []) {
+    this.#scene = scene;
+    this.#redraw = redraw;
+    this.#obstacles = obstacles;
+    this.#binding = bindInputHints(scene, (snapshot) => {
+      this.#snapshot = snapshot;
+      if (this.#entries.length === 0) return;
+      const signature = this.#signatureOf(snapshot);
+      if (signature === this.#signature) return;
+      this.#signature = signature;
+      this.#redraw();
+    });
+  }
+
+  /** Forget every registered glyph: call at the start of the scene's draw. */
+  reset(): void {
+    this.#entries = [];
+  }
+
+  /** Re-reads now (the screen's state, a `idsNow`, changed). */
+  refresh(): void {
+    this.#binding.refresh();
+  }
+
+  dispose(): void {
+    this.#binding.dispose();
+  }
+
+  /** How many glyphs are registered (tests). */
+  get count(): number {
+    return this.#entries.length;
+  }
+
+  #specsOf(entry: SheetGlyphButton, snapshot: InputHintsSnapshot): readonly GlyphSpec[] | null {
+    const set = glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource);
+    if (set === null) return null;
+    const ids = entry.idsNow ? entry.idsNow(set) : entry.ids;
+    return ids ? specsFor(ids, snapshot) : null;
+  }
+
+  /** Everything the drawn glyphs depend on, so an input change that alters none of it redraws nothing. */
+  #signatureOf(snapshot: InputHintsSnapshot): string {
+    const parts = this.#entries.map(({ entry }) => specsSignature(this.#specsOf(entry, snapshot)));
+    const { glyphSize, reducedMotion } = snapshot.settings;
+    return [glyphsExpanded(snapshot.state), glyphSize, reducedMotion, ...parts].join("/");
+  }
+
+  /**
+   * A button with its glyph beside the word (the pair centered, the word sliding over to make room), or hung just
+   * outside when the pair does not fit, or not drawn when that spot would cover something. Call where the scene
+   * called `builder.button`.
+   */
+  button(builder: SheetBuilder, entry: SheetGlyphButton): void {
+    this.#entries.push({ entry });
+    const { key, rect, label, look, type, selected, disabled } = entry;
+    const plain = (): void =>
+      builder.button({
+        key,
+        rect,
+        label,
+        look,
+        ...(type ? { type } : {}),
+        ...(selected ? { selected } : {}),
+        ...(disabled !== undefined ? { disabled } : {}),
+      });
+    const snapshot = this.#snapshot;
+    const specs = snapshot ? this.#specsOf(entry, snapshot) : null;
+    if (!snapshot || !specs) {
+      plain();
+      return;
+    }
+    const open = glyphsExpanded(snapshot.state);
+    const height = scaledGlyphHeight(glyphHeightFor(rect.height), snapshot.settings.glyphSize);
+    const { fullWidth } = layoutGlyph(specs.map(uiSpecOf), height);
+    // The word's real drawn width, measured in the DOM in the button's own type.
+    const word = builder.measure(label, type ?? typeRole.label).width;
+    const beside = glyphBesideLabel(
+      rect,
+      { cx: rect.x + rect.width / 2, width: word, minX: rect.x, maxX: rect.x + rect.width },
+      fullWidth,
+      fullWidth,
+      1,
+    );
+    let x: number;
+    let y: number;
+    let shift = 0;
+    if (beside) {
+      x = beside.x;
+      y = beside.y;
+      shift = beside.labelShift;
+    } else {
+      const view = this.#scene.scale.gameSize;
+      const point = glyphOutsideButton(rect, fullWidth, height, { x: 0, y: 0, width: view.width, height: view.height });
+      if (!hangIsClear(glyphRect(point, fullWidth, height), this.#obstacles())) {
+        plain();
+        return;
+      }
+      x = point.x;
+      y = point.y;
+    }
+    builder.button({
+      key,
+      rect,
+      label,
+      look,
+      ...(type ? { type } : {}),
+      ...(selected ? { selected } : {}),
+      ...(disabled !== undefined ? { disabled } : {}),
+      // The word makes room only while the glyph is open; folded away it is back where the button put it.
+      ...(open ? { labelShift: shift } : {}),
+    });
+    builder.glyph({
+      x,
+      y,
+      specs: specs.map(uiSpecOf),
+      height,
+      ground: entry.ground ?? "ink",
+      openness: open ? 1 : 0,
+      still: snapshot.settings.reducedMotion,
+      key: `glyph:${key}`,
+    });
+  }
+}

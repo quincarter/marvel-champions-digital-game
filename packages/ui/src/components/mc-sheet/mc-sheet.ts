@@ -13,6 +13,7 @@ export type {
   SheetBox,
   SheetButton,
   SheetDots,
+  SheetGlyph,
   SheetNode,
   SheetRect,
   SheetScroll,

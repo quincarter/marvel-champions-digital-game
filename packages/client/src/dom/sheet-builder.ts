@@ -9,7 +9,7 @@
  *   same font the sheet draws it in (`measure`).
  * - Coordinates are the screen's; the builder subtracts the sheet's own origin.
  */
-import type { SheetNode, SheetRect } from "@mc/ui";
+import type { GlyphSpec as UiGlyphSpec, McGlyphGround, SheetNode, SheetRect } from "@mc/ui";
 import { accent, font, signal, status, surface, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { uiLayer } from "./ui-layer.js";
@@ -208,9 +208,12 @@ export class SheetBuilder {
     readonly disabled?: string | true;
     readonly framed?: boolean;
     readonly type?: TypeSpec;
+    /** The label slides right by this many px to make room for a glyph beside it. */
+    readonly labelShift?: number;
   }): void {
     const type = options.type;
     this.nodes.push({
+      ...(options.labelShift ? { labelShift: options.labelShift } : {}),
       kind: "button",
       key: options.key,
       rect: this.#rect(options.rect),
@@ -222,6 +225,30 @@ export class SheetBuilder {
       ...(type?.family === font.display ? { display: true } : {}),
       ...(type && !type.uppercase && type.family !== font.display ? { plain: true } : {}),
       ...(type ? { size: this.#desktop() && type.size <= 12 ? Math.min(13, type.size + 2) : type.size } : {}),
+    });
+  }
+
+  /** A key or controller-button glyph (`mc-glyph`) with its left edge at `x` and vertical center at `y`. */
+  glyph(options: {
+    readonly x: number;
+    readonly y: number;
+    readonly specs: readonly UiGlyphSpec[];
+    readonly height: number;
+    readonly ground: McGlyphGround;
+    readonly openness: number;
+    readonly still?: boolean;
+    readonly key?: string;
+  }): void {
+    this.nodes.push({
+      kind: "glyph",
+      x: options.x - this.#origin.x,
+      y: options.y - this.#origin.y,
+      specs: options.specs,
+      height: options.height,
+      ground: options.ground,
+      openness: options.openness,
+      ...(options.still ? { still: true } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
     });
   }
 

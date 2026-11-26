@@ -7,6 +7,7 @@
 import Phaser from "phaser";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { PopupSheet } from "../dom/popup-sheet.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { t } from "../i18n/translate.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
@@ -38,6 +39,7 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
   #data!: EndTurnConfirmData;
   #route: FocusRoute | null = null;
   #panel!: PopupSheet;
+  #glyphs!: SheetGlyphs;
 
   constructor() {
     super(SCENES.endTurnConfirm);
@@ -54,12 +56,16 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
       else if (key === "cancel") this.#answer(false);
     });
     // Start is "forward" and ends the turn. Not `primary`: that would let A with nothing focused skip this confirm.
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
+      // End turn's glyph is A while it has the ring and Start otherwise: the ring moved, so read it again.
+      onFocusChange: () => this.#glyphs.refresh(),
       onCancel: () => this.#answer(false),
       onPause: () => this.#answer(true),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#glyphs.dispose();
       this.scale.off("resize", onResize, this);
       if (from) from.input.enabled = true;
     });
@@ -75,6 +81,7 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
 
   #draw(): void {
     destroyChildren(this);
+    this.#glyphs.reset();
 
     const { width, height } = this.scale.gameSize;
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
@@ -108,19 +115,24 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     const buttonY = box.y + box.height - 20 - buttonHeight;
     const keepRect: Rect = { x: box.x + 20, y: buttonY, width: buttonWidth, height: buttonHeight };
     const endRect: Rect = { x: keepRect.x + buttonWidth + 12, y: buttonY, width: buttonWidth, height: buttonHeight };
-    b.button({
+    this.#glyphs.button(b, {
       key: "cancel",
       rect: keepRect,
       label: this.#data.cancelLabel ?? t("confirm.keepPlaying"),
       look: "secondary",
       type: buttonType,
+      ids: ["cancel"],
+      ground: "paper",
     });
-    b.button({
+    this.#glyphs.button(b, {
       key: "ok",
       rect: endRect,
       label: this.#data.confirmLabel ?? t("confirm.endTurn"),
       look: "primary",
       type: buttonType,
+      ids: ["activate"],
+      ground: "ink",
+      idsNow: (set) => (this.#route?.focused === "ok" ? ["activate"] : set === "pad" ? ["confirm"] : null),
     });
     this.#panel.mount(b, width, height);
     const stops = new Map([
