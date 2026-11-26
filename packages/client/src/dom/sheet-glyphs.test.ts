@@ -150,4 +150,21 @@ describe("SheetGlyphs", () => {
     deliver(snapshot(keyboard));
     expect(redraws).toBe(1);
   });
+
+  it("redraws when the pad family changes but the shortcut keeps the same label", () => {
+    const glyphs = make();
+    const pad: InputModeState = {
+      ...INITIAL_INPUT_MODE,
+      mode: "pad",
+      pad: { family: "xbox", steam: false, handheld: false },
+    };
+    const activate: SheetGlyphButton = { ...entry, ids: ["activate"] };
+    deliver(snapshot(pad, { padGlyphFamily: "xbox" }));
+    glyphs.reset();
+    glyphs.button(stubBuilder().builder, activate);
+    redraws = 0;
+    // Xbox and Switch both call it "A", but draw a different picture (and Xbox its color).
+    deliver(snapshot(pad, { padGlyphFamily: "nintendo" }));
+    expect(redraws).toBe(1);
+  });
 });
