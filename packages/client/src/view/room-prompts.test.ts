@@ -133,3 +133,39 @@ describe("room chat unread", () => {
     resetChatRead();
   });
 });
+
+describe("Each player Undo (GarethMagis, 2026-11-25)", () => {
+  const own = { ...settings, undo: "own" as const };
+  const ask = {
+    id: "r1",
+    from: "g1",
+    name: "Ava",
+    what: "undo" as const,
+    note: "",
+    base: 12,
+    target: 11,
+    moves: "0123456789abcdef",
+  };
+
+  it("puts no guest Undo to the host, which does it by itself; a change is still asked", () => {
+    expect(roomPromptsOf(hostRoom({ settings: own, requests: [ask] }), null)).toEqual([]);
+    const change = { id: "r2", from: "g1", name: "Ava", what: "adjust" as const, note: "" };
+    expect(roomPromptsOf(hostRoom({ settings: own, requests: [change] }), null).map((p) => p.kind)).toEqual([
+      "request",
+    ]);
+    // An Undo asked without its table (under Ask, before the host switched) is still the host's to answer.
+    const { base: _base, target: _target, moves: _moves, ...unbound } = ask;
+    expect(roomPromptsOf(hostRoom({ settings: own, requests: [unbound] }), null).map((p) => p.kind)).toEqual([
+      "request",
+    ]);
+  });
+
+  it("tells the guest nothing while it is done, and says why when the move could not be taken back", () => {
+    const guest = { ...NO_ROOM, role: "guest" as const, settings: own };
+    for (const status of ["waiting", "accepted"] as const) {
+      expect(roomPromptsOf({ ...guest, myRequest: { what: "undo", status, seq: 1 } }, null)).toEqual([]);
+    }
+    const failed = { ...guest, myRequest: { what: "undo" as const, status: "declined" as const, seq: 2 } };
+    expect(promptViewOf(roomPromptsOf(failed, null))?.titleKey).toBe("prompt.ownUndoFailed");
+  });
+});

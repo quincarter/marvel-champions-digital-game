@@ -5,9 +5,11 @@ import {
   cursorToSend,
   followPlan,
   followsHost,
+  followsHostNow,
   hostCursorOf,
   pacingOf,
   phaseKeyOf,
+  someoneArrived,
 } from "./villain-pacing.js";
 
 const cursor = (at: number, state: RoomVillainCursor["state"] = "playing", key = "3"): RoomVillainCursor => ({
@@ -112,5 +114,33 @@ describe("the host's cursor", () => {
     expect(cursorToSend(a, { ...a, at: 2 })).toEqual({ ...a, at: 2 });
     expect(cursorToSend(a, { ...a, state: "closed" })?.state).toBe("closed");
     expect(cursorToSend(a, { ...a, key: "4" })?.key).toBe("4");
+  });
+});
+
+describe("a guest's screen after a reconnect (#1017)", () => {
+  const over = { followsRoom: true, cursor: null, phaseOver: true, complete: true };
+
+  it("plays on alone once the phase is over here and there is no host cursor to follow", () => {
+    expect(followsHostNow(over)).toBe(false);
+  });
+
+  it("keeps following while the host's cursor is there, or the phase is still running or still arriving", () => {
+    expect(followsHostNow({ ...over, cursor: cursor(4) })).toBe(true);
+    expect(followsHostNow({ ...over, phaseOver: false })).toBe(true);
+    expect(followsHostNow({ ...over, complete: false })).toBe(true);
+  });
+
+  it("never follows where the lobby does not say the host leads", () => {
+    expect(followsHostNow({ ...over, followsRoom: false, cursor: cursor(4) })).toBe(false);
+  });
+
+  it("tells the host to send its cursor again when a seated player joins or reconnects on a new id", () => {
+    const host = { id: "h", seats: ["s1"] };
+    const ava = (id: string) => ({ id, seats: ["s2"] });
+    expect(someoneArrived([host, ava("g1")], [host, ava("g1")])).toBe(false);
+    expect(someoneArrived([host, ava("g1")], [host, ava("g2")])).toBe(true);
+    expect(someoneArrived([host, ava("g1")], [host])).toBe(false);
+    // A watcher coming and going says nothing new.
+    expect(someoneArrived([host], [host, { id: "w1", seats: [] }])).toBe(false);
   });
 });

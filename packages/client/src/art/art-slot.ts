@@ -22,6 +22,11 @@ export interface SlotParent {
 export interface ArtSlotDeps {
   /** The texture key when the scan is on hand, else null (and the scan is asked for). */
   readonly request: () => string | null;
+  /**
+   * What the texture behind `key` is right now (the texture manager's object). A scan evicted and loaded again under
+   * the same key is a new texture: a picture drawn from the old one must be drawn again.
+   */
+  readonly identity: (key: string) => unknown;
   /** Draws the scan into the slot (`drawArt`). */
   readonly draw: (key: string) => Phaser.GameObjects.GameObject | null;
   /** Where an object with no container sits: the scene's display list. */
@@ -45,6 +50,8 @@ export function placeArtSlot(
   /** What the slot shows now: the picture, or the stand-in until it arrives. */
   let shown = drawn ?? placeholder();
   let isPicture = drawn !== null;
+  /** The texture the shown picture was drawn from. */
+  let drawnFrom = drawn && key ? deps.identity(key) : null;
   objects.push(shown);
 
   /** Puts `next` where `shown` is, in the row's objects and on screen, and destroys `shown`. */
@@ -66,7 +73,16 @@ export function placeArtSlot(
     // one must count as in use.
     const now = deps.request();
     if (isPicture) {
-      if (now) return true;
+      if (now && deps.identity(now) === drawnFrom) return true;
+      if (now) {
+        // Evicted and loaded again between two refreshes: the picture still points at the removed texture.
+        const again = deps.draw(now);
+        if (again) {
+          swap(again);
+          drawnFrom = deps.identity(now);
+          return true;
+        }
+      }
       // Evicted anyway (asked for again just now): the stand-in goes back until the scan is in again.
       swap(placeholder());
       isPicture = false;
@@ -77,6 +93,7 @@ export function placeArtSlot(
     if (!picture) return false;
     swap(picture);
     isPicture = true;
+    drawnFrom = deps.identity(now);
     return true;
   };
 }
@@ -94,6 +111,7 @@ export function drawArtSlot(
   return placeArtSlot(
     {
       request: () => art.request(scene, source ?? null),
+      identity: (key) => (scene.textures.exists(key) ? scene.textures.get(key) : null),
       draw: (key) => drawArt(scene, key, rect, options),
       sceneList: scene.children as unknown as SlotParent,
     },

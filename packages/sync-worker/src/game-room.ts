@@ -2688,7 +2688,7 @@ export class GameRoomLogic {
       }
     }
     const playMode = patch?.playMode ?? settings.playMode;
-    // Switching to Host control without naming one starts at Ask; Strict forces Off, whatever was sent.
+    // Switching to Host control without naming one starts at Own (each player undoes their own moves); Strict forces Off.
     const undoChoice = patch?.undo ?? (playMode !== settings.playMode ? undefined : settings.undo);
     const next: LobbySettings = {
       ...settings,
@@ -3562,6 +3562,10 @@ export class GameRoomLogic {
     if (!taken) return this.refuse(socket, "rate-limited", askId);
     await this.ensureLoaded(table);
     if (!table.hasHeader || table.ended) return this.refuse(socket, "out-of-order", askId);
+    // A bound Undo asked on a log the room has since cut or replaced is for a table that is gone.
+    if (message.kind === "request" && message.epoch !== undefined && message.epoch !== table.epoch) {
+      return this.refuse(socket, "out-of-order", askId);
+    }
     const host = this.hostOf(table.id);
     if (!host) return this.refuse(socket, "no-such-participant", askId);
     if (message.kind === "propose") {
@@ -3589,6 +3593,11 @@ export class GameRoomLogic {
       what: message.what,
       note,
       ...(message.rid === undefined ? {} : { rid: message.rid }),
+      ...(message.base === undefined ? {} : { base: message.base }),
+      ...(message.target === undefined ? {} : { target: message.target }),
+      ...(message.moves === undefined ? {} : { moves: message.moves }),
+      // The epoch it was admitted in: the host can tell it from a later log (`epoch` on its own table's messages).
+      ...(message.base === undefined ? {} : { epoch: table.epoch }),
     });
   }
 

@@ -30,6 +30,7 @@ describe("placeArtSlot", () => {
           asked++;
           return "scan";
         },
+        identity: () => "texture",
         draw: () => picture,
         sceneList: new FakeParent(),
       },
@@ -60,6 +61,7 @@ describe("placeArtSlot", () => {
     const fill = placeArtSlot(
       {
         request: () => onHand,
+        identity: () => "texture",
         draw: () => picture,
         sceneList: { getIndex: (c) => list.getIndex(c), moveTo: list.moveTo },
       },
@@ -82,7 +84,7 @@ describe("placeArtSlot", () => {
     const objects: Phaser.GameObjects.GameObject[] = [before];
     const picture = fake("picture");
     const fill = placeArtSlot(
-      { request: () => onHand, draw: () => picture, sceneList: new FakeParent() },
+      { request: () => onHand, identity: () => "texture", draw: () => picture, sceneList: new FakeParent() },
       objects,
       () => standIn,
     );
@@ -108,6 +110,7 @@ describe("placeArtSlot", () => {
     const fill = placeArtSlot(
       {
         request: () => onHand,
+        identity: () => "texture",
         draw: () => {
           drawn++;
           return fake("picture");
@@ -136,6 +139,7 @@ describe("placeArtSlot", () => {
     const fill = placeArtSlot(
       {
         request: () => onHand,
+        identity: () => "texture",
         draw: () => {
           const picture = fake(`picture ${pictures.length}`);
           pictures.push(picture);
@@ -162,5 +166,39 @@ describe("placeArtSlot", () => {
     expect(fill()).toBe(true);
     expect(objects).toEqual([pictures[1]]);
     expect(standIns[0]!.active).toBe(false);
+  });
+
+  it("draws the picture again when its scan was evicted and loaded again between two refreshes", () => {
+    let texture = "first";
+    const container = new FakeParent();
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const pictures: Phaser.GameObjects.GameObject[] = [];
+    const fill = placeArtSlot(
+      {
+        request: () => "scan",
+        identity: () => texture,
+        draw: () => {
+          const picture = fake(`picture ${pictures.length}`);
+          (picture as unknown as { parentContainer: unknown }).parentContainer = container;
+          pictures.push(picture);
+          return picture;
+        },
+        sceneList: new FakeParent(),
+      },
+      objects,
+      () => fake("stand-in"),
+    );
+    container.list.push(pictures[0]!);
+    expect(fill()).toBe(true);
+    expect(pictures).toHaveLength(1);
+
+    // Same key, new texture: present, evicted and loaded again before this refresh.
+    texture = "second";
+    expect(fill()).toBe(true);
+    expect(pictures).toHaveLength(2);
+    expect(pictures[0]!.active).toBe(false);
+    expect(objects).toEqual([pictures[1]]);
+    expect(fill()).toBe(true);
+    expect(pictures).toHaveLength(2);
   });
 });

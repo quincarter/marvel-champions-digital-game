@@ -3095,8 +3095,13 @@ export class BoardScene extends Phaser.Scene {
   /** True while the hero who must act sits behind a seat this device does not act for (#881). */
   #held(state: SessionState): boolean {
     if (this.#replay) return false;
+    const seatGame = activeSeat() !== null;
+    // Acting off turn for a hero this device holds (Act): the table is this device's to use, whoever's turn it is.
+    // Before, a guest's board stayed read-only through another seat's turn, so Act opened a table nothing could be
+    // done on (GarethMagis, 2026-11-25).
+    if (state.offTurnSeat !== null && !heldElsewhere(this.#room, state.offTurnSeat, seatGame)) return false;
     const acting = actingOf(state.game);
-    return heldElsewhere(this.#room, acting?.playerId ?? null, activeSeat() !== null);
+    return heldElsewhere(this.#room, acting?.playerId ?? null, seatGame);
   }
 
   /**
