@@ -66,3 +66,15 @@ describe("onTap", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 });
+
+describe("onTap on an element with no box", () => {
+  it("still taps: a box it can't measure doesn't refuse the release", () => {
+    const element = document.createElement("div");
+    document.body.append(element);
+    const handler = vi.fn();
+    onTap(element, handler);
+    fire(element, "pointerdown", 10, 10);
+    fire(element, "pointerup", 10, 10);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+});

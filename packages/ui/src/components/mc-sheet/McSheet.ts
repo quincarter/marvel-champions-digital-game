@@ -260,7 +260,9 @@ export class McSheet extends LitElement {
         const size =
           node.small && node.size <= 12 ? `var(--mc-small-${Math.round(node.size)}, ${node.size}px)` : `${node.size}px`;
         const width =
-          node.wrapWidth !== undefined ? `width:${node.wrapWidth}px;white-space:pre-wrap` : "white-space:pre";
+          node.wrapWidth !== undefined
+            ? `width:${node.wrapWidth}px;white-space:pre-wrap;overflow-wrap:anywhere`
+            : "white-space:pre";
         const style = [
           `left:${node.x}px`,
           `top:${node.y}px`,
