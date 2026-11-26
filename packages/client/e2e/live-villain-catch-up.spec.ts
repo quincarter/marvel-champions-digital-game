@@ -92,6 +92,12 @@ test("a guest's villain phase screen takes a catch-up batch and closes with the 
     60000,
   );
   const guest = await open(browser, baseURL!, `/?screen=room-play-guest&code=${code}&name=Ava`);
+  // What went wrong on the guest's device, if anything (a seat worker that fails takes the guest out of the room).
+  const guestErrors: string[] = [];
+  guest.page.on("pageerror", (error) => guestErrors.push(String(error)));
+  guest.page.on("console", (message) => {
+    if (message.type() === "error" || /seat|room/i.test(message.text())) guestErrors.push(message.text().slice(0, 300));
+  });
   try {
     await waitForScene(host.page, "SetupDeal", 60000);
     await waitForScene(guest.page, "SetupDeal", 60000);
@@ -124,15 +130,21 @@ test("a guest's villain phase screen takes a catch-up batch and closes with the 
         released = true;
       }
       if (released && h.length === 0 && g.length === 0) break;
-      if (hostChoice) await answerChoiceSheet(host.page).catch(() => undefined);
-      else {
-        const label = HOST_BUTTONS.find((b) => h.some((t) => t.startsWith(b)));
+      // A card opened to read (a stray press on the table) is closed first.
+      if ((await visibleTexts(host.page)).some((t) => /^RULES & STATE$/i.test(t.text))) {
+        await host.page.keyboard.press("Escape");
+        continue;
+      }
+      // The phase's own controls first; a decision sheet only when the phase panel offers nothing to press.
+      const label = HOST_BUTTONS.find((b) => h.some((t) => t.startsWith(b)));
+      if (label && (label !== "START PLAYER PHASE" || guestReachedRecap || !released)) {
         // The host closes the recap only once the guest's screen has caught up to it.
-        if (label && (label !== "START PLAYER PHASE" || guestReachedRecap || !released)) {
-          await clickText(host.page, label, { sceneKey: "VillainPhaseOverlay", timeoutMs: 3000 }).catch(
-            () => undefined,
-          );
-        }
+        await clickText(host.page, label, { sceneKey: "VillainPhaseOverlay", timeoutMs: 3000 }).catch(() => undefined);
+      }
+      // ANSWER opens the decision sheet; a decision with nothing on the phase panel to press is answered as it stands.
+      if (label === "ANSWER" || (!label && hostChoice)) {
+        await host.page.waitForTimeout(600);
+        await answerChoiceSheet(host.page).catch(() => undefined);
       }
       if (g.some((t) => t.startsWith("ANSWER"))) {
         // The guest's own defend: from here to the end of the phase the host's moves reach the room as one batch.
@@ -144,9 +156,12 @@ test("a guest's villain phase screen takes a catch-up batch and closes with the 
           () => undefined,
         );
       }
-      if (guestChoice) await answerChoiceSheet(guest.page).catch(() => undefined);
+      // The guest answers only its own defend; after that its screen just follows (no stray press on its recap).
+      if (guestChoice && !released && !g.some((t) => t.startsWith("RECAP")))
+        await answerChoiceSheet(guest.page).catch(() => undefined);
       await host.page.waitForTimeout(400);
     }
+    if (guestErrors.length > 0) console.log("guest console:", guestErrors.join(" || "));
     expect(released, "the host's moves were held and handed on as one batch").toBe(true);
     expect(guestReachedRecap, "the guest's screen reached the recap after the batch").toBe(true);
     expect(wordedAsGuests, "the host's defend worded as the guest's own").toEqual([]);
