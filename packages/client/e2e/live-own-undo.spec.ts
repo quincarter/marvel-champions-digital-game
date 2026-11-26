@@ -47,14 +47,7 @@ const flipToHero = (page: Page): Promise<unknown> =>
   });
 
 const yourTurn = async (page: Page): Promise<boolean> =>
-  (await visibleTexts(page)).some(
-    (t) =>
-      t.scene === "Board" &&
-      t.text
-        .replace(/^[^\w]+/, "")
-        .trim()
-        .startsWith("Your turn"),
-  );
+  (await visibleTexts(page)).some((t) => t.scene === "Board" && t.text.replace(/^[^\w]+/, "").trim() === "Your turn");
 
 test("a guest's Undo takes back its own move at once, with nothing for the host to answer", async ({
   browser,
@@ -89,8 +82,9 @@ test("a guest's Undo takes back its own move at once, with nothing for the host 
       60000,
     );
     const form = async (): Promise<string | undefined> =>
-      (await visibleTexts(guest.page)).find((t) => t.scene === "Board" && /^(HERO|ALTER-EGO) · LEADERSHIP/.test(t.text))
-        ?.text;
+      (await visibleTexts(guest.page)).find(
+        (t) => t.scene === "Board" && /^(HERO|ALTER-EGO) ·\s*LEADERSHIP/.test(t.text),
+      )?.text;
     expect(await form()).toMatch(/^ALTER-EGO/);
     await flipToHero(guest.page);
     await waitFor(async () => ((await form())?.startsWith("HERO") ? true : null), "the guest in hero form", 30000);

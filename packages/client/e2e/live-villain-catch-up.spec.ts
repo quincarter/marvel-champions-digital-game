@@ -53,14 +53,7 @@ const texts = async (page: Page, scene: string): Promise<string[]> =>
   (await visibleTexts(page)).filter((t) => t.scene === scene).map((t) => t.text);
 
 const yourTurn = async (page: Page): Promise<boolean> =>
-  (await visibleTexts(page)).some(
-    (t) =>
-      t.scene === "Board" &&
-      t.text
-        .replace(/^[^\w]+/, "")
-        .trim()
-        .startsWith("Your turn"),
-  );
+  (await visibleTexts(page)).some((t) => t.scene === "Board" && t.text.replace(/^[^\w]+/, "").trim() === "Your turn");
 
 /** Ends this seat's turn in hero form, answering the confirm and the end-of-turn discard. */
 async function playTurn(page: Page, label: string): Promise<void> {
