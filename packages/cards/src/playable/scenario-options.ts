@@ -170,6 +170,9 @@ export interface SkirmishOffer {
  * A villain chosen at setup by its set (Fear No Evil's Underling villains, MC60 p. 5; issue #995) is one villain, so the
  * chosen option's stages and victory are read as the scenario's own: `villainSetId`, or the default when it is absent.
  * A choice keyed by card (Shadowland's Dark Protégé villains) is drawn by the engine at setup, so it offers none.
+ * Every version is offered ("any one version", RRG 1.8 p. 29), even where a later stage leans on a card only an earlier
+ * one finds: Electro III never finds Electric Charge, so it stays set aside and his charge effects do nothing (settled by
+ * the rules expert on PR #1020's review).
  *
  * A Civil War leader's stage II or IV prints no Setup, and picking it runs none: RRG 1.8 p. 29 removes the other versions
  * at step 8, and step 12c resolves Setup only on the villain in play. A Permanent attachment stays set aside (p. 32),

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { PLAYABLE_SCENARIO_RECORDS } from "../modular-pool.js";
 import { PLAYABLE_DEPS, playableScenario } from "./index.js";
 import { playableScenarioOffer } from "./scenario-options.js";
+import { firstLegal, settle } from "../testing/harness.js";
 
 const seats = [{ starterDeckId: CORE_STARTER_DECKS[0]!.id }];
 const build = (scenarioId: string, modes: PlayModes) =>
@@ -106,6 +107,34 @@ describe("skirmish mode", () => {
           modes: { skirmish: { villainVersion: "1" } },
         }),
       ).toThrow(/no skirmish mode/);
+    });
+
+    it("plays Electro III without Electric Charge, which only stages I and II find (RRG 1.8 p. 29)", () => {
+      // Skirmish puts "only the chosen version" into play: Electro III's When Revealed places counters on Electric
+      // Charge but never finds it, so the Permanent card stays set aside and Electro's charge effects do nothing.
+      const charge = (villainVersion: string) => {
+        const config = playableScenario("art-museum-heist", {
+          players: seats,
+          seed: 1,
+          villainSetId: "electro",
+          modes: { expert: true, skirmish: { villainVersion } },
+        });
+        const game = createGame(config, PLAYABLE_DEPS);
+        if (!game.ok) throw new Error("no game");
+        // Through setup to the first player turn.
+        const state = settle(game.state, firstLegal, (s) => s.step.phase === "player", PLAYABLE_DEPS);
+        const villain = state.villains[0]!;
+        const card = Object.values(state.instances).find((i) => (i.cardId as string) === "60079");
+        return { stage: villain.stageIndex, attachedTo: card?.attachedTo ?? null, villainId: villain.instanceId, card };
+      };
+      const two = charge("2");
+      expect(two.stage).toBe(1);
+      expect(two.attachedTo).toBe(two.villainId);
+      expect(two.card?.counters["charge"]).toBe(2);
+      const three = charge("3");
+      expect(three.stage).toBe(2);
+      expect(three.attachedTo).toBeNull();
+      expect(three.card?.counters["charge"] ?? 0).toBe(0);
     });
 
     it("is not offered at Kingpin, one double-sided villain card per mode", () => {
