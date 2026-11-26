@@ -1,0 +1,3 @@
+kind: Fixed
+body: Watch live (the Discord button and a game's watch link) opens a game played in a room again; it said the game wasn't open any more (#1021).
+time: 2026-11-25T20:30:51.8083888-05:00

@@ -35,6 +35,8 @@ export type WatchAction =
   | { readonly kind: "waiting" }
   /** The room turned this watcher away: it is full. */
   | { readonly kind: "refused" }
+  /** The room has no such table (a watch link to an Epic table that is gone, #1021): nothing will come to wait for. */
+  | { readonly kind: "missing" }
   | { readonly kind: "presence"; readonly hostConnected: boolean; readonly watchers: number }
   | { readonly kind: "closed"; readonly reason: "ended" | "idle" | "disabled" | "host" };
 
@@ -169,6 +171,9 @@ export class WatchFeed {
     switch (message.kind) {
       case "welcome": {
         const table = message.tables.find((t) => t.id === this.#table);
+        // The first table may not be listed before its host starts it; any other table is the lobby's, so a room that does
+        // not list it has no such table (#1021).
+        if (!table && this.#table !== FIRST_TABLE) return [{ kind: "missing" }];
         this.#watchers = message.participants.filter((p) => p.role === "watcher").length;
         this.#hostConnected = table?.hostConnected ?? false;
         return table?.hasHeader ? this.#presence() : [{ kind: "waiting" }, ...this.#presence()];
@@ -183,7 +188,9 @@ export class WatchFeed {
       case "closed":
         return [{ kind: "closed", reason: message.reason }];
       case "refused":
-        return message.reason === "full" ? [{ kind: "refused" }] : [];
+        if (message.reason === "full") return [{ kind: "refused" }];
+        // The table this watcher asked to follow is not the room's.
+        return message.reason === "no-such-table" ? [{ kind: "missing" }] : [];
       default:
         return [];
     }
