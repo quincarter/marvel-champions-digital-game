@@ -129,6 +129,8 @@ describe("damage divided among minions engaged with different seats (issue #1001
     expect(sheet.labels.get("twin#1")?.name).toBe(`${nameOf(scheme)} #2`);
     expect(sheet.labels.get(`${scheme}#1`)?.name).toBe(`${nameOf(scheme)} #1`);
     expect(sheet.tally).toBe(`${nameOf(scheme)} #2 1 · 2 to place`);
+    // Every tally form keeps the copy number, the compact one included.
+    for (const form of sheet.tallies) expect(form).toContain(`${nameOf(scheme)} #2 1`);
   }, 120_000);
 });
 

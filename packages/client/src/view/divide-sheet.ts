@@ -128,7 +128,7 @@ export function divideSheetOf(
   const seatOnly = new Map(
     order.map((instanceId) => {
       const engaged = engagedBy.get(instanceId);
-      return [instanceId, engaged ? engagedNoteForms(engaged, seats).at(-1)! : cardName(state, instanceId)] as const;
+      return [instanceId, engaged ? engagedNoteForms(engaged, seats).at(-1)! : named(instanceId)] as const;
     }),
   );
   const briefOf = (instanceId: InstanceId): string => {
