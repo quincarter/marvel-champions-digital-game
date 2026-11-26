@@ -1,5 +1,5 @@
 /**
- * Settings ▸ Unlocks: champion points, the t("unlocks.all.title") switch, one switch per campaign, then every wave in
+ * Settings ▸ Unlocks: champion points, the "Unlock everything" switch, one switch per campaign, then every wave in
  * release order with what opens it and one row per scenario and hero in it. Pure, so the wording, each switch's state and what a
  * tap costs are tested without a canvas; the scene (`scenes/unlocks.ts`) only draws these rows, asks before
  * anything costs points, and saves what a tap changes.
@@ -99,7 +99,7 @@ export function unlockAllRowOf(unlocks: Unlocks): UnlockAllRow {
   return { title: t("unlocks.all.title"), detail, on: unlocks.prefs.unlockAll };
 }
 
-/** Settings ▸ Unlocks' t("unlocks.pnp.title") switch: its own opt-in, apart from Unlock everything. */
+/** Settings ▸ Unlocks' "Official print-and-play sets" switch: its own opt-in, apart from Unlock everything. */
 export function printAndPlayRowOf(unlocks: Unlocks): UnlockAllRow {
   return {
     title: t("unlocks.pnp.title"),

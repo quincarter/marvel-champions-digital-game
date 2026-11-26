@@ -60,7 +60,7 @@ export class SyncStatusStore {
   }
 }
 
-/** t("sync.ago.now"), "2 min ago", "3 h ago", "5 days ago". */
+/** "just now", "2 min ago", "3 h ago", "5 days ago". */
 export function agoText(then: number, now: number): string {
   const seconds = Math.max(0, Math.floor((now - then) / 1000));
   if (seconds < 45) return t("sync.ago.now");

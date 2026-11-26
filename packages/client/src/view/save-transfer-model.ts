@@ -100,7 +100,7 @@ export interface Countdown {
   readonly expired: boolean;
 }
 
-/** "Expires in 14:32" while the code is good, then t("saveData.transfer.expired"). Rounds up, so 0:00 is never shown live. */
+/** "Expires in 14:32" while the code is good, then "This code has expired". Rounds up, so 0:00 is never shown live. */
 export function countdownOf(expiresAt: number, now: number): Countdown {
   const left = expiresAt - now;
   if (left <= 0) return { text: t("saveData.transfer.expired"), expired: true };

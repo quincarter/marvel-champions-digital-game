@@ -231,7 +231,7 @@ export class SaveDataOverlay extends Phaser.Scene {
     else this.#set({ kind: "confirm", file: picked.file }, NO_STATUS);
   }
 
-  /** Uploads the save and shows its code. Also t("saveData.newCode") once a code has run out. */
+  /** Uploads the save and shows its code. Also "New code" once a code has run out. */
   async #send(): Promise<void> {
     // A new code is asked for from the menu, or from a Send screen whose code has run out; never mid-request.
     const from = this.#step;
