@@ -28,12 +28,12 @@ import { elektraGame, elektraHeroGame } from "./elektra.testing.js";
 vi.setConfig({ testTimeout: 120_000 });
 
 /**
- * Play-throughs of Conditioned by the Hand 63040 and Aka 63041 (PROVISIONAL text, see obligation-nemesis.ts) with
+ * Play-throughs of Conditioned by the Hand 63028 and Aka 63029 with
  * Elektra herself seated (`elektra.testing.ts`): the obligation staged in P1's play area as if drawn earlier.
  */
 const MOON_KNIGHT = "63039"; // an ally with 5 hit points
 const OBLIG = "oblig" as InstanceId;
-const ACTION = "63040.conditioned-by-the-hand-action";
+const ACTION = "63028.conditioned-by-the-hand-action";
 
 const step = (s: GameState, command: Parameters<typeof applyCommand>[1]): GameState => {
   const r = applyCommand(s, command, DEPS);
@@ -50,7 +50,7 @@ function withAlly(state: GameState): { state: GameState; id: InstanceId } {
 }
 /** Conditioned by the Hand in P1's play area, faceup, held by P1 (the luke_cage `injury()` shape). */
 function withObligation(state: GameState): GameState {
-  const placed = engageMinion(state, "63040", "oblig");
+  const placed = engageMinion(state, "63028", "oblig");
   return patchInstance(placed, OBLIG, { engagedWith: null, ownerId: P1, controllerId: P1 });
 }
 
@@ -71,7 +71,7 @@ function endPlayerPhase(state: GameState): { prompt: readonly string[] | null; s
   return { prompt, state: s };
 }
 
-describe("63040 Conditioned by the Hand: Forced Response (Hero)", () => {
+describe("63028 Conditioned by the Hand: Forced Response (Hero)", () => {
   it("hero form: at the end of the player phase offers allies and other identities, not her own, and the target takes exactly 3", () => {
     const hero = withAlly(withObligation(elektraHeroGame({ withSpiderMan: true })));
     const { prompt, state } = endPlayerPhase(hero.state);
@@ -99,7 +99,7 @@ describe("63040 Conditioned by the Hand: Forced Response (Hero)", () => {
   });
 });
 
-describe("63040 Conditioned by the Hand: Alter-Ego Action", () => {
+describe("63028 Conditioned by the Hand: Alter-Ego Action", () => {
   const offered = (s: GameState): boolean => {
     const actions = legalActions(s, P1, DEPS);
     return actions.kind === "turn" && actions.legal.some((a) => JSON.stringify(a.example).includes(ACTION));
@@ -139,12 +139,12 @@ function onTop(state: GameState, code: string): { state: GameState; id: Instance
   };
 }
 
-describe("63041 Aka: Boost, deal this card to the Elektra Natchios player as a facedown encounter card", () => {
+describe("63029 Aka: Boost, deal this card to the Elektra Natchios player as a facedown encounter card", () => {
   it.each([
     ["hero", () => elektraHeroGame()],
     ["alter-ego", () => elektraGame()],
   ])("%s form: Rhino's boost card Aka is dealt to her and revealed, ending engaged with her", (_form, make) => {
-    const aka = onTop(make(), "63041");
+    const aka = onTop(make(), "63029");
     const decline: Picker = (s) => (s.pendingChoice!.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s));
     const after = settle(step(aka.state, endTurn(P1)), decline, undefined, DEPS);
     expect(inst(after, aka.id).engagedWith).toBe(P1);

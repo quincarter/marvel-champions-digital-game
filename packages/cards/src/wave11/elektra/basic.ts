@@ -25,9 +25,12 @@ import { FNE_ASPECT_BASIC_BASIC } from "../fne/aspect-basic/basic.js";
 /**
  * Wave 11 scripting module `elektra/basic` (docs/phase7-elektra-iron-fist.md).
  *
- * Cards (3):
+ * Cards (6):
  * - 63022 Stone (ally)
  * - 63023 Hunting Shadows (event)
+ * - 63024 Energy (resource, no ability)
+ * - 63025 Genius (resource, no ability)
+ * - 63026 Strength (resource, no ability)
  * - 63027 Dance with the Devil (upgrade)
  *
  * Reprints, aliased to the original card's script: 63027.

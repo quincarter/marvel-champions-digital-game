@@ -149,6 +149,16 @@ export const CREDITS: readonly CreditEntry[] = [
     url: "https://github.com/bluefireF5ran",
   },
   {
+    id: "card-scans-elektra-iron-fist",
+    group: "card-art",
+    title: "Elektra and Iron Fist card scans",
+    shownIn: "Every Elektra and Iron Fist hero pack card, in English and Spanish",
+    credit:
+      "The English and Spanish scans of the Elektra and Iron Fist hero packs, contributed by bluefireF5ran (github.com/bluefireF5ran).",
+    notice: FFG_MARVEL,
+    url: "https://github.com/bluefireF5ran",
+  },
+  {
     id: "card-scans-es",
     group: "card-art",
     title: "Spanish card scans",

@@ -34,6 +34,8 @@ import {
   SHADOWLAND_SCENARIOS,
   JJ_STARTER_DECKS,
   LUKE_CAGE_STARTER_DECKS,
+  ELEKTRA_STARTER_DECKS,
+  IRON_FIST_STARTER_DECKS,
   MUT_GEN_SCENARIOS,
   MOJO_SCENARIOS,
   poolVersionOf,
@@ -116,6 +118,8 @@ describe("POOL_STARTER_DECKS", () => {
         ...FNE_STARTER_DECKS,
         ...JJ_STARTER_DECKS,
         ...LUKE_CAGE_STARTER_DECKS,
+        ...ELEKTRA_STARTER_DECKS,
+        ...IRON_FIST_STARTER_DECKS,
       ].map((d) => d.id),
     );
     expect(POOL_STARTER_DECKS.length).toBe(
@@ -129,7 +133,9 @@ describe("POOL_STARTER_DECKS", () => {
         WAVE10_STARTER_DECKS.length +
         FNE_STARTER_DECKS.length +
         JJ_STARTER_DECKS.length +
-        LUKE_CAGE_STARTER_DECKS.length,
+        LUKE_CAGE_STARTER_DECKS.length +
+        ELEKTRA_STARTER_DECKS.length +
+        IRON_FIST_STARTER_DECKS.length,
     );
     expect(WAVE10_STARTER_DECKS.map((d) => d.id)).toEqual([
       "tigra-aggression",

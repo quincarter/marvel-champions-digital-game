@@ -15,8 +15,9 @@ const ELEKTRA_FIXTURE: StarterDeck = {
   identityCardId: "63001a" as StarterDeck["identityCardId"],
 };
 
+// No pack is not-ready since Elektra and Iron Fist were released (2026-11-25), so every seat here is ready.
 describe("notReadySeatIdentity", () => {
-  test("a starterDeckId seat whose deck is led by Elektra is found", () => {
+  test("a starterDeckId seat whose deck is led by Elektra is no longer flagged", () => {
     const found = notReadySeatIdentity(
       [{ starterDeckId: "fixture-elektra" }],
       [],
@@ -24,10 +25,10 @@ describe("notReadySeatIdentity", () => {
       CARDS_BY_ID,
       BASE_IDS,
     );
-    expect(found?.id as string).toBe("63001a");
+    expect(found).toBeNull();
   });
 
-  test("an explicit identity seat is found; ready heroes and unknown deck ids are not", () => {
+  test("explicit identity seats, ready heroes and unknown deck ids are not flagged", () => {
     expect(
       notReadySeatIdentity(
         [{ identityCardId: "64001a", deck: [], aspects: [] }] as never,
@@ -36,7 +37,7 @@ describe("notReadySeatIdentity", () => {
         CARDS_BY_ID,
         BASE_IDS,
       ),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       notReadySeatIdentity(
         [{ starterDeckId: CORE_STARTER_DECKS[0]!.id as string }],
