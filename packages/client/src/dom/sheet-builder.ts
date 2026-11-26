@@ -233,11 +233,13 @@ export class SheetBuilder {
     readonly labelShift?: number;
     /** The label slides with no animation (reduced motion). */
     readonly still?: boolean;
+    readonly keyshortcuts?: string;
   }): void {
     const type = options.type;
     this.nodes.push({
       ...(options.labelShift ? { labelShift: options.labelShift } : {}),
       ...(options.still ? { still: true } : {}),
+      ...(options.keyshortcuts ? { keyshortcuts: options.keyshortcuts } : {}),
       kind: "button",
       key: options.key,
       rect: this.#rect(options.rect),

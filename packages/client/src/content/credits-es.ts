@@ -141,9 +141,9 @@ export const CREDITS_ES: Readonly<Record<string, CreditTextEs>> = {
     notice: "Marvel Champions pertenece a Fantasy Flight Games. Ilustraciones y personajes (c) Marvel.",
   },
   "teamup-art": {
-    shownIn: "El tablero, la primera vez que se activa un Team-Up",
+    shownIn: "El tablero, la primera vez que se activa una carta de Equipo",
     credit:
-      "Una imagen de presentación y una insignia por cada pareja de Team-Up. Todavía no constan el artista ni la fuente original. La imagen de Iron Fist y Luke Cage no lleva firma; se desconoce su artista.",
+      "Una imagen de presentación y una insignia por cada pareja de Equipo. Todavía no constan el artista ni la fuente original. La imagen de Iron Fist y Luke Cage no lleva firma; se desconoce su artista.",
     notice: "Marvel Champions pertenece a Fantasy Flight Games. Ilustraciones y personajes (c) Marvel.",
   },
   "pack-art": {

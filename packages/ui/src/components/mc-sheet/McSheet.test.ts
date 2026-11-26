@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import "./mc-sheet.js";
 import type { SheetNode } from "./McSheet.js";
 
@@ -160,6 +160,57 @@ describe("mc-sheet", () => {
         const marked = element.querySelectorAll("mark");
         expect(marked).toHaveLength(1);
         expect(marked[0]!.textContent).toBe("Spider-Man (Peter Parker)".slice(marks[0].start, marks[0].end));
+        sheet.remove();
+      });
+    }
+  });
+
+  describe("fitWidth cutting", () => {
+    const fit = (text: string): SheetNode => ({
+      kind: "text",
+      key: "label",
+      x: 0,
+      y: 0,
+      text,
+      font: "body",
+      size: 8,
+      weight: 400,
+      color: "#fff",
+      fitWidth: 60,
+    });
+    // Ten pixels a UTF-16 unit, so a cut is judged by what it leaves.
+    const unitWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth");
+    beforeAll(() =>
+      Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+        configurable: true,
+        get(this: HTMLElement) {
+          return (this.textContent ?? "").length * 10;
+        },
+      }),
+    );
+    afterAll(() => {
+      if (unitWidth) Object.defineProperty(HTMLElement.prototype, "scrollWidth", unitWidth);
+      else delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+    });
+
+    for (const [name, text] of [
+      ["an emoji", "ab😀😀😀😀"],
+      ["a decomposed Spanish accent", "Peñáñóñ".normalize("NFD")],
+    ] as const) {
+      it(`never cuts inside ${name}`, async () => {
+        const sheet = document.createElement("mc-sheet");
+        sheet.nodes = [fit(text)];
+        document.body.append(sheet);
+        await sheet.updateComplete;
+        const shown = sheet.elementOf("label")!.textContent!;
+        expect(shown.endsWith("…")).toBe(true);
+        const kept = shown.slice(0, -1);
+        expect(text.startsWith(kept)).toBe(true);
+        // No lone surrogate, and the next character of the source is not a combining mark or a low surrogate.
+        const before = kept.charCodeAt(kept.length - 1);
+        const after = text.charCodeAt(kept.length);
+        expect(before >= 0xd800 && before <= 0xdbff).toBe(false);
+        expect((after >= 0xdc00 && after <= 0xdfff) || (after >= 0x300 && after <= 0x36f)).toBe(false);
         sheet.remove();
       });
     }

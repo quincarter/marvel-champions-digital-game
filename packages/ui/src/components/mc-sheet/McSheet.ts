@@ -1,6 +1,7 @@
 import { html, LitElement, nothing, svg, type PropertyDeclarations } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
+import { graphemesOf } from "../../shared/graphemes.js";
 import { tapped } from "../../shared/tapped.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
@@ -94,6 +95,8 @@ export interface SheetButton {
   readonly labelShift?: number;
   /** No label slide (reduced motion). */
   readonly still?: boolean;
+  /** The keyboard chord that presses this button, as `aria-keyshortcuts` (e.g. "Escape", "Control+K"). */
+  readonly keyshortcuts?: string;
 }
 
 /** A key or controller-button glyph (`mc-glyph`) at its left edge `x`, vertically centered on `y`. Never takes a press. */
@@ -247,18 +250,21 @@ export class McSheet extends LitElement {
         words.data = shown;
         if (text.scrollWidth <= width) continue;
       }
+      // Cut on grapheme boundaries, never inside an emoji or between a letter and its accent.
+      const letters = graphemesOf(shown);
+      const head = (length: number): string => `${letters.slice(0, length).join("").trimEnd()}…`;
       let short = 1;
-      let long = shown.length - 1;
+      let long = letters.length - 1;
       let best = 1;
       while (short <= long) {
         const length = (short + long) >> 1;
-        words.data = `${shown.slice(0, length).trimEnd()}…`;
+        words.data = head(length);
         if (text.scrollWidth <= width) {
           best = length;
           short = length + 1;
         } else long = length - 1;
       }
-      words.data = `${shown.slice(0, best).trimEnd()}…`;
+      words.data = head(best);
     }
   }
 
@@ -354,6 +360,7 @@ export class McSheet extends LitElement {
           ?still=${node.still ?? false}
           ?disabled=${node.disabled !== undefined}
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
+          aria-keyshortcuts=${node.keyshortcuts ?? nothing}
           @mc-press=${() => this.#activate(node.key)}
         ></mc-button>`;
       case "glyph":
