@@ -60,6 +60,8 @@ export interface SheetText {
   readonly fitWidth?: number;
   /** A key the e2e and focus code can find the text by. */
   readonly key?: string;
+  /** Letter ranges (`start` to `end`, exclusive) marked as a search match: a band behind them and a line under. */
+  readonly marks?: readonly { readonly start: number; readonly end: number }[];
 }
 
 /** A button: the client's `McButton` skins, pressed by a tap. */
@@ -74,6 +76,8 @@ export interface SheetButton {
   readonly framed?: boolean;
   /** A Bangers label. */
   readonly display?: boolean;
+  /** A label in its own case with no tracking (a row title). */
+  readonly plain?: boolean;
   /** The label's px size. */
   readonly size?: number;
 }
@@ -138,20 +142,60 @@ export class McSheet extends LitElement {
   }
 
   override updated(): void {
-    // One-line texts shrink to fit their width, as Phaser's `fitText` does.
+    // One-line texts shrink to fit their width, as Phaser's `fitText` does: smaller down to the floor, then without a
+    // closing parenthetical ("Spider-Man (Peter Parker)"), then cut with an ellipsis.
     for (const text of this.renderRoot.querySelectorAll<HTMLElement>("[data-fit]")) {
-      text.style.fontSize = "";
+      const words = [...text.childNodes].find((node): node is Text => node.nodeType === Node.TEXT_NODE);
+      const full = text.dataset.full ?? words?.data ?? "";
+      if (words) words.data = full;
+      text.style.fontSize = text.dataset.size ?? "";
       const width = Number(text.dataset.fit);
-      let size = parseFloat(getComputedStyle(text).fontSize);
-      while (text.scrollWidth > width && size > 6) {
-        size -= 0.5;
+      const style = getComputedStyle(text);
+      let size = parseFloat(style.fontSize);
+      // The client's caption floor (8px, grown on desktop like every small size) before the text is cut short.
+      const floor = parseFloat(style.getPropertyValue("--mc-small-8")) || 8;
+      while (text.scrollWidth > width && size > floor) {
+        size = Math.max(floor, size - 0.5);
         text.style.fontSize = `${size}px`;
       }
+      if (!words || text.scrollWidth <= width) continue;
+      let shown = full;
+      const asideless = full.replace(/\s*\([^)]*\)\s*$/, "");
+      if (asideless !== full && asideless !== "") {
+        shown = asideless;
+        words.data = shown;
+        if (text.scrollWidth <= width) continue;
+      }
+      let short = 1;
+      let long = shown.length - 1;
+      let best = 1;
+      while (short <= long) {
+        const length = (short + long) >> 1;
+        words.data = `${shown.slice(0, length).trimEnd()}…`;
+        if (text.scrollWidth <= width) {
+          best = length;
+          short = length + 1;
+        } else long = length - 1;
+      }
+      words.data = `${shown.slice(0, best).trimEnd()}…`;
     }
   }
 
   override render() {
     return html`${this.nodes.map((node) => this.#node(node))}`;
+  }
+
+  /** `text` with its marked ranges in `mark` elements, written without whitespace between the parts. */
+  #marked(text: string, marks: readonly { readonly start: number; readonly end: number }[]): unknown[] {
+    const parts: unknown[] = [];
+    let at = 0;
+    for (const { start, end } of marks) {
+      if (start > at) parts.push(text.slice(at, start));
+      parts.push(html`<mark>${text.slice(start, end)}</mark>`);
+      at = end;
+    }
+    if (at < text.length) parts.push(text.slice(at));
+    return parts;
   }
 
   #node(node: SheetNode): unknown {
@@ -201,8 +245,10 @@ export class McSheet extends LitElement {
           class="part text"
           data-key=${node.key ?? nothing}
           data-fit=${node.fitWidth ?? nothing}
+          data-size=${node.fitWidth !== undefined ? size : nothing}
+          data-full=${node.fitWidth !== undefined ? node.text : nothing}
           style=${style}
-          >${node.text}</span
+          >${node.marks?.length ? this.#marked(node.text, node.marks) : node.text}</span
         >`;
       }
       case "button":
@@ -215,6 +261,7 @@ export class McSheet extends LitElement {
           ?selected=${node.selected ?? false}
           ?framed=${node.framed ?? false}
           ?display=${node.display ?? false}
+          ?plain=${node.plain ?? false}
           ?disabled=${node.disabled !== undefined}
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
           @mc-press=${() => this.#activate(node.key)}

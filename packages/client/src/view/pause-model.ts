@@ -8,6 +8,7 @@ import type { PlayableScenarioOffer } from "@mc/cards";
 import type { GameState, PlayerId } from "@mc/engine";
 import type { Scenario } from "@mc/content";
 import type { SessionConfig } from "../engine/host.js";
+import { t } from "../i18n/translate.js";
 import { civilWarKindOf, describeCivilWar } from "./civil-war-label.js";
 import { blindRevealOf, blindSheetLines } from "./civil-war-blind.js";
 import { difficultyLabelOf } from "./difficulty-label.js";
@@ -87,22 +88,22 @@ function phaseLabelOf(state: GameState, config: SessionConfig | null): string {
   if (state.outcome) return seatResultLabel(seatResultOf(state.outcome, state.teams, config?.localSeats));
   switch (state.step.phase) {
     case "setup":
-      return "Setup";
+      return t("pause.phase.setup");
     case "player":
-      return "Player phase";
+      return t("pause.phase.player");
     case "villain":
-      return "Villain phase";
+      return t("pause.phase.villain");
     default:
-      return "Game over";
+      return t("pause.phase.over");
   }
 }
 
 /** " · Seed 54472" for the end of a status line, or nothing when the game has no seed on hand. */
-export const seedSuffixOf = (status: PauseStatus): string => (status.seed === null ? "" : ` · Seed ${status.seed}`);
+export const seedSuffixOf = (status: PauseStatus): string =>
+  status.seed === null ? "" : ` · ${t("pause.seed", { seed: status.seed })}`;
 
 /** " · Adjusted: not counted toward stats" for the end of a status line of a game stepped outside the rules; else nothing. */
-export const adjustedSuffixOf = (status: PauseStatus): string =>
-  status.adjusted ? " · Adjusted: not counted toward stats" : "";
+export const adjustedSuffixOf = (status: PauseStatus): string => (status.adjusted ? ` · ${t("pause.adjusted")}` : "");
 
 export function pauseStatusOf(
   game: GameState,

@@ -59,6 +59,8 @@ export interface TextOptions {
   readonly align?: "left" | "center" | "right";
   readonly letterSpacing?: number;
   readonly key?: string;
+  /** Letter ranges drawn as a search match. */
+  readonly marks?: readonly { readonly start: number; readonly end: number }[];
 }
 
 /** The size a text takes, measured in the DOM in the font the sheet draws it in. */
@@ -165,6 +167,7 @@ export class SheetBuilder {
       ...(options.wrapWidth !== undefined ? { wrapWidth: options.wrapWidth } : {}),
       ...(options.fitWidth !== undefined ? { fitWidth: options.fitWidth } : {}),
       ...(options.key !== undefined ? { key: options.key } : {}),
+      ...(options.marks?.length ? { marks: options.marks } : {}),
     };
     const familyName = fontKey === "display" ? font.display : fontKey === "mono" ? font.mono : font.body;
     const css: Record<string, string> = {
@@ -217,6 +220,7 @@ export class SheetBuilder {
       ...(options.disabled !== undefined ? { disabled: options.disabled } : {}),
       ...(options.framed ? { framed: true } : {}),
       ...(type?.family === font.display ? { display: true } : {}),
+      ...(type && !type.uppercase && type.family !== font.display ? { plain: true } : {}),
       ...(type ? { size: this.#desktop() && type.size <= 12 ? Math.min(13, type.size + 2) : type.size } : {}),
     });
   }

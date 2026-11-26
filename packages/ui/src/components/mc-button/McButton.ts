@@ -17,6 +17,7 @@ export type McButtonKind = "primary" | "secondary" | "quiet" | "onInk";
  * @attr disabled - Unavailable: kept in place, dimmed, presses do nothing. `reason` says why, as a tooltip.
  * @attr framed - The inner paper frame an "on" switch carries.
  * @attr display - A Bangers label.
+ * @attr plain - A label in its own case, with no tracking (a row title, as against the capitals of a label).
  * @fires mc-press - A tap on an enabled button.
  */
 export class McButton extends LitElement {
@@ -29,6 +30,7 @@ export class McButton extends LitElement {
     disabled: { type: Boolean, reflect: true },
     framed: { type: Boolean, reflect: true },
     display: { type: Boolean, reflect: true },
+    plain: { type: Boolean, reflect: true },
     reason: { type: String },
   };
 
@@ -38,8 +40,10 @@ export class McButton extends LitElement {
   declare disabled: boolean;
   declare framed: boolean;
   declare display: boolean;
+  declare plain: boolean;
   declare reason: string;
   #stopTap: (() => void) | null = null;
+  #resize: ResizeObserver | null = null;
 
   constructor() {
     super();
@@ -49,6 +53,7 @@ export class McButton extends LitElement {
     this.disabled = false;
     this.framed = false;
     this.display = false;
+    this.plain = false;
     this.reason = "";
   }
 
@@ -59,12 +64,42 @@ export class McButton extends LitElement {
       () => this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true })),
       { enabled: () => !this.disabled },
     );
+    // The label is fitted to the button's own width, so a button sized after the fact (by its sheet) refits.
+    if (typeof ResizeObserver !== "undefined") {
+      this.#resize = new ResizeObserver(() => this.#fit());
+      this.#resize.observe(this);
+    }
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#stopTap?.();
     this.#stopTap = null;
+    this.#resize?.disconnect();
+    this.#resize = null;
+  }
+
+  override updated(): void {
+    this.#fit();
+  }
+
+  /**
+   * No label runs past its own button: it shrinks (down to the caption floor) to fit with 16px to spare, as the
+   * client's Phaser `McButton` fits it. What still doesn't fit is cut with an ellipsis by the stylesheet.
+   */
+  #fit(): void {
+    const label = this.renderRoot.querySelector<HTMLElement>(".label");
+    if (!label || this.clientWidth === 0) return;
+    label.style.fontSize = "";
+    const style = getComputedStyle(label);
+    const floor = parseFloat(style.getPropertyValue("--mc-small-8")) || 8;
+    const room = this.clientWidth - 16;
+    let size = parseFloat(style.fontSize);
+    // An ellipsis-clipped label reports its full width as scrollWidth, so the loop measures the overflow itself.
+    while (label.scrollWidth > room && size > floor) {
+      size = Math.max(floor, size - 0.5);
+      label.style.fontSize = `${size}px`;
+    }
   }
 
   override render() {

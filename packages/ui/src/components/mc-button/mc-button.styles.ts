@@ -49,6 +49,12 @@ export const McButtonStyles = css`
     letter-spacing: 2px;
   }
 
+  /* A row title (the client's rowTitle type): its own case, no tracking. */
+  :host([plain]) .label {
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
   :host([kind="secondary"][selected]) {
     --fill: var(--mc-fill-ink);
     --ink: var(--mc-text-paper);
