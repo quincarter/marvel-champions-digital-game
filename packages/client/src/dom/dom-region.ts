@@ -38,11 +38,12 @@ export function regionOpacity(fade: FadeLike | undefined, cameraAlpha: number): 
 /** The slice of a scene the cover check reads. */
 export interface SceneLike {
   readonly key: string;
+  /** Drawn this frame: running, or paused (a paused scene still renders); not sleeping or stopped. */
   readonly active: boolean;
   readonly visible: boolean;
 }
 
-/** Whether a scene drawn above `key` (later in `scenes`, the draw order) is up and isn't chrome. */
+/** Whether a scene drawn above `key` (later in `scenes`, the draw order) is drawn and isn't chrome. */
 export function coveredAbove(scenes: readonly SceneLike[], key: string, chrome: ReadonlySet<string>): boolean {
   const at = scenes.findIndex((scene) => scene.key === key);
   if (at < 0) return false;
@@ -58,7 +59,7 @@ export function sceneLayerState(scene: Phaser.Scene): { readonly shown: boolean;
   const settings = scene.sys.settings;
   const scenes: SceneLike[] = scene.game.scene.scenes.map((other) => ({
     key: other.sys.settings.key,
-    active: other.sys.isActive(),
+    active: other.sys.isActive() || other.sys.isPaused(),
     visible: other.sys.settings.visible,
   }));
   const shown = settings.visible && scene.sys.isActive() && !coveredAbove(scenes, settings.key, CHROME_SCENES);
@@ -141,7 +142,8 @@ export function clipWithHoles(box: Rect, holes: readonly Rect[]): string | null 
 function chromeBoxes(game: Phaser.Game): Rect[] {
   const boxes: Rect[] = [];
   for (const scene of game.scene.scenes) {
-    if (!CHROME_SCENES.has(scene.sys.settings.key) || !scene.sys.isActive() || !scene.sys.settings.visible) continue;
+    const drawn = scene.sys.isActive() || scene.sys.isPaused();
+    if (!CHROME_SCENES.has(scene.sys.settings.key) || !drawn || !scene.sys.settings.visible) continue;
     for (const object of scene.children.list) {
       const shown = object as unknown as {
         visible?: boolean;
