@@ -33,6 +33,7 @@ import {
   type ValueSpec,
 } from "@mc/engine";
 import type { AbilityId } from "@mc/content";
+import { t, type MessageKey } from "../i18n/translate.js";
 import { cardName } from "./names.js";
 
 /** The engine's refusal sentence for any ability whose condition is unmet: what a reason falls back to. */
@@ -128,13 +129,21 @@ function noTargetClause(state: GameState, query: TargetQuery, context: TargetCon
     if (candidates.length !== 1) return null;
     const blocked = candidates[0]!;
     const name = cardName(state, blocked);
-    if (hasKeyword(state, blocked, "stalwart", context.deps)) return `${name} is stalwart and cannot be ${status}`;
+    if (hasKeyword(state, blocked, "stalwart", context.deps)) return stalwartWords(name, status);
     // Said only when the card holds one: another rule ("cannot be stunned", `cannotHaveStatus`) is not worded here.
-    if ((state.instances[blocked]?.statuses[status] ?? 0) > 0) return `${name} is already ${status}`;
+    if ((state.instances[blocked]?.statuses[status] ?? 0) > 0) return alreadyWords(name, status);
     return null;
   }
   return noMatchClause(query);
 }
+
+/** "Jessica Jones is stalwart and cannot be confused" (RRG 1.8 "Stalwart", p. 40). */
+const stalwartWords = (name: string, status: "confused" | "stunned"): string =>
+  t("refusal.stalwart", { name, status: t(`refusal.status.${status}` as MessageKey) });
+
+/** "Jessica Jones is already confused". */
+const alreadyWords = (name: string, status: "confused" | "stunned"): string =>
+  t("refusal.already", { name, status: t(`refusal.status.${status}` as MessageKey) });
 
 /** A trait as cards print it in a sentence: "Avenger", "X-Men", and an acronym ("S.H.I.E.L.D.") as it is. */
 const traitWord = (trait: string): string =>
@@ -193,7 +202,12 @@ export function queryNounOf(query: TargetQuery, payer = false): QueryNoun | null
   const controller = query.controller;
   if (!noun || !known || (controller !== undefined && controller !== "you" && controller !== "any")) return null;
   const anyone = controller === "any" || (controller === undefined && !payer);
-  return { noun: query.trait ? `${traitWord(query.trait)} ${noun}` : noun, other, anyone };
+  const word = t(`refusal.noun.${noun}` as MessageKey);
+  return {
+    noun: query.trait ? t("refusal.noun.withTrait", { trait: traitWord(query.trait), noun: word }) : word,
+    other,
+    anyone,
+  };
 }
 
 /**
@@ -203,12 +217,14 @@ export function queryNounOf(query: TargetQuery, payer = false): QueryNoun | null
 function noMatchClause(
   query: TargetQuery,
   /** A cost's pick: its cards are the payer's (`queryNounOf`), "ready" ones (`readiness`), "other" than the card. */
-  pick: { readonly other: boolean; readonly readiness: string } | null = null,
+  pick: { readonly other: boolean; readonly readiness: "ready" | "exhausted" | "" } | null = null,
 ): string | null {
   const kind = queryNounOf(query, pick !== null);
   if (!kind) return null;
-  const noun = `${kind.other || pick?.other ? "other " : ""}${pick?.readiness ?? ""}${kind.noun}`;
-  return kind.anyone ? `there is no ${noun} in play` : `you control no ${noun}`;
+  let noun = kind.noun;
+  if (pick?.readiness) noun = t(`refusal.noun.${pick.readiness}` as MessageKey, { noun });
+  if (kind.other || pick?.other) noun = t("refusal.noun.other", { noun });
+  return t(kind.anyone ? "refusal.noneInPlay" : "refusal.youControlNone", { noun });
 }
 
 /**
@@ -246,7 +262,7 @@ export function targetRefusalReason(
       : [firstTargetQuery(effects)];
   const clauses = queries.map((query) => (query ? noTargetClause(state, query, context) : null));
   if (clauses.length === 0 || clauses.some((clause) => clause === null)) return null;
-  return clauses.join(", and ");
+  return clauses.join(t("refusal.and"));
 }
 
 type ChooseOneOption = Extract<EffectSpec, { kind: "chooseOne" }>["options"][number];
@@ -278,13 +294,14 @@ function conditionClause(condition: Predicate | undefined): string | null {
   ) {
     const counted = condition.left.query as TargetQuery & { readonly host?: { readonly kind?: string } };
     if (counted.host?.kind === "self" && Object.keys(counted).every((key) => key === "host" || key === "facedown"))
-      return "no card is attached here";
+      return t("refusal.noAttached");
   }
   if (condition?.kind !== "exists") return null;
   const query = condition.query as TargetQuery;
   // An option offered only while a named card is in play (`inPlay(name)`): "Place 2 infamy counters on Criminal
   // Enterprise" once that card has flipped (Hired Gun `gob` 02007, #967).
-  if (typeof query.name === "string" && Object.keys(query).length === 1) return `${query.name} is not in play`;
+  if (typeof query.name === "string" && Object.keys(query).length === 1)
+    return t("refusal.notInPlay", { name: query.name });
   const categories = query.categories ?? [];
   if (
     categories.length === 1 &&
@@ -292,16 +309,16 @@ function conditionClause(condition: Predicate | undefined): string | null {
     query.hasThreat === true &&
     Object.keys(query).length === 2
   )
-    return "no scheme has threat on it";
+    return t("refusal.noSchemeThreat");
   return null;
 }
 
 /** What each engine reason means, when nothing more specific can be said. */
-const OPTION_REASON_WORDS: Readonly<Record<OptionUnavailableReason, string>> = {
-  condition: "its condition is not met",
-  cannotChoose: "a card in play says you cannot choose it",
-  cannotPay: "you cannot pay its cost",
-  noTarget: "it has no valid target",
+const OPTION_REASON_WORDS: Readonly<Record<OptionUnavailableReason, MessageKey>> = {
+  condition: "refusal.reason.condition",
+  cannotChoose: "refusal.reason.cannotChoose",
+  cannotPay: "refusal.reason.cannotPay",
+  noTarget: "refusal.reason.noTarget",
 };
 
 /**
@@ -325,11 +342,11 @@ export function unavailableOptionReasons(
     if (reason === "noTarget" && missing?.blocked) {
       const { instanceId, status, cause } = missing.blocked;
       const name = cardName(state, instanceId);
-      why = cause === "stalwart" ? `${name} is stalwart and cannot be ${status}` : `${name} is already ${status}`;
+      why = cause === "stalwart" ? stalwartWords(name, status) : alreadyWords(name, status);
     } else if (reason === "noTarget" && missing) {
       why = missing.target.canTakeStatus === undefined ? noMatchClause(missing.target) : null;
     }
-    return { index, label, why: why ?? OPTION_REASON_WORDS[reason] };
+    return { index, label, why: why ?? t(OPTION_REASON_WORDS[reason]) };
   });
 }
 
@@ -338,9 +355,9 @@ export const unavailableOptionLines = (state: GameState, unavailable: Unavailabl
   unavailableOptionReasons(state, unavailable, deps).map(({ label, why }) => `${label}: ${why}`);
 
 /** How each kind of in-play cost pick words the card it needs ("no other ready Avenger ally"). */
-const PICK_WORD: Partial<Record<InPlayCostMode, string>> = {
-  exhaust: "ready ",
-  ready: "exhausted ",
+const PICK_WORD: Partial<Record<InPlayCostMode, "ready" | "exhausted" | "">> = {
+  exhaust: "ready",
+  ready: "exhausted",
   return: "",
   discard: "",
 };
@@ -407,7 +424,14 @@ export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps:
         ? [missing]
         : [];
     const clauses = [...short.map(({ clause }) => clause), ...targetless];
-    return clauses.length > 0 ? [`${titleCase(trigger.kind)} can't be used right now: ${clauses.join(", and ")}`] : [];
+    return clauses.length > 0
+      ? [
+          t("refusal.idle", {
+            kind: t(`notice.timingCap.${trigger.kind}` as MessageKey),
+            why: clauses.join(t("refusal.and")),
+          }),
+        ]
+      : [];
   });
 }
 
@@ -415,11 +439,11 @@ export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps:
 const ENTERING: ReadonlySet<string> = new Set(["cardEntersPlay", "cardPlayed", "cardBeingPlayed"]);
 
 /** What each `abilityNotOffered` reason means, when nothing more specific can be said. */
-const UNOFFERED_WORDS: Readonly<Record<"noTarget" | "cannotPay" | "period", string>> = {
-  noTarget: "it has no valid target",
+const UNOFFERED_WORDS: Readonly<Record<"noTarget" | "cannotPay" | "period", MessageKey>> = {
+  noTarget: "refusal.reason.noTarget",
   // RRG 1.8 "Lasting Effects" (p. 26), #970: all it gives would last to the end of a turn or player phase not under way.
-  period: "it only lasts to the end of a turn or player phase, so it can only be used during one",
-  cannotPay: "you cannot pay its cost",
+  period: "refusal.reason.period",
+  cannotPay: "refusal.reason.cannotPay",
 };
 
 /**
@@ -441,7 +465,7 @@ export function unofferedReason(
       : reason === "cannotPay"
         ? exhaustCostClause(deps.abilities[abilityId]?.cost, state, instanceId, deps)
         : null;
-  return specific ?? UNOFFERED_WORDS[reason];
+  return specific ?? t(UNOFFERED_WORDS[reason]);
 }
 
 /** The ability's printed name ("New Labors of Hercules"), or "This ability" when the card does not print one. */

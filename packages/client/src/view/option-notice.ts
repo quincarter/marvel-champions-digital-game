@@ -5,7 +5,7 @@
  * offered (`unavailableOptionReasons`, from what the engine recorded). Nothing here decides anything: it reads events.
  */
 import type { EngineDeps, GameEvent, GameState, PlayerId } from "@mc/engine";
-import { t } from "../i18n/translate.js";
+import { t, type MessageKey } from "../i18n/translate.js";
 import { abilityNameOf, unavailableOptionReasons, unofferedReason } from "./ability-refusal.js";
 import { cardName } from "./names.js";
 
@@ -78,7 +78,8 @@ export function unofferedNoticesOf(
     const name = cardName(state, event.instanceId);
     const printed = abilityNameOf(state, event.instanceId, event.abilityId);
     const timing = t(event.timing === "interrupt" ? "notice.timing.interrupt" : "notice.timing.response");
-    const label = printed === "This ability" ? t("notice.notOffered.label", { name, timing }) : printed;
+    const label =
+      printed === "This ability" ? t(`notice.notOffered.label.${event.timing}` as MessageKey, { name }) : printed;
     const why = unofferedReason(state, event.instanceId, event.playerId, event.abilityId, event.reason, deps);
     const notice: OptionNotice = {
       title: t("notice.notOffered.title", { name, timing }),

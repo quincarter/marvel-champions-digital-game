@@ -44,6 +44,8 @@ const INK = surface.ink.hex;
 const PAPER = surface.paper.hex;
 const RED = accent.heroRed.hex;
 const YELLOW = signal.caution.hex;
+/** Taglines keep their case (Phaser did not capitalise them). */
+const TAGLINE = { ...typeRole.label, uppercase: false };
 
 export class RoomModePickerOverlay extends Phaser.Scene {
   #data: RoomModePickerData = { current: "standard", onChoose: () => undefined };
@@ -111,7 +113,7 @@ export class RoomModePickerOverlay extends Phaser.Scene {
 
   /** Shows the info of the mode under the pointer or the ring (null: the pick's). */
   #setOver(mode: RoomModeId | null): void {
-    if (mode === this.#over) return;
+    if (mode === this.#over || !this.sys.isActive()) return;
     this.#over = mode;
     this.#build();
   }
@@ -206,7 +208,12 @@ export class RoomModePickerOverlay extends Phaser.Scene {
         halves === 1
           ? art
           : { x: art.x + (i * art.width) / halves, y: art.y, width: art.width / halves, height: art.height };
-      b.image(slot, { src: villainPicture(id)?.url ?? null, fill: INK, cover: { x: 0.5, y: 0.3 } });
+      b.image(slot, {
+        src: villainPicture(id)?.url ?? null,
+        fill: INK,
+        cover: { x: 0.5, y: 0.3 },
+        key: `art:${mode}:${i}`,
+      });
     });
     if (halves > 1) {
       b.box({ x: art.x + art.width / 2 - 1.5, y: art.y, width: 3, height: art.height }, { fill: INK });
@@ -240,7 +247,7 @@ export class RoomModePickerOverlay extends Phaser.Scene {
     });
     if (l.tagline) {
       const nameHeight = b.measure(name, titleSpec).height;
-      b.text(band.x + band.width / 2, nameY + nameHeight + 2, t(copy.tagline), typeRole.label, {
+      b.text(band.x + band.width / 2, nameY + nameHeight + 2, t(copy.tagline), TAGLINE, {
         color: YELLOW,
         size: 12,
         italic: true,
@@ -310,7 +317,7 @@ export class RoomModePickerOverlay extends Phaser.Scene {
       origin: [0, 0.5],
       fitWidth: w * 0.5,
     });
-    b.text(info.x + info.width - pad, info.y + headH / 2, t(copy.tagline), typeRole.label, {
+    b.text(info.x + info.width - pad, info.y + headH / 2, t(copy.tagline), TAGLINE, {
       color: surface.inkOnHue.hex,
       size: compact ? 11 : 13,
       italic: true,
