@@ -3623,11 +3623,16 @@ export class ChoiceOverlay extends Phaser.Scene {
     const divided = divide?.labels.get(option.optionId);
     if (divided) {
       const caption = this.add
-        .text(0, 0, `${divided.name}\n${divided.holds} · point ${divided.ordinal}`, {
-          ...textStyle(typeRole.label, surface.paper.hex),
-          fontSize: "11px",
-          align: "center",
-        })
+        .text(
+          0,
+          0,
+          [divided.name, divided.engaged, `${divided.holds} · point ${divided.ordinal}`].filter(Boolean).join("\n"),
+          {
+            ...textStyle(typeRole.label, surface.paper.hex),
+            fontSize: "11px",
+            align: "center",
+          },
+        )
         .setOrigin(0.5);
       fitWrapped(caption, inner.width - 8, 4, 11);
       const bandHeight = Math.max(20, Math.ceil(caption.height) + 8);

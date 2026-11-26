@@ -6,13 +6,18 @@
  * is legal.
  */
 
-import type { ChoiceRef, GameState, InstanceId, PendingChoice } from "@mc/engine";
-import { threatOnCard } from "./board-model.js";
+import { isMinion, type ChoiceRef, type GameState, type InstanceId, type PendingChoice } from "@mc/engine";
+import { engagedNameOf, threatOnCard } from "./board-model.js";
 import { cardName } from "./names.js";
 
 export interface DivideOptionLabel {
   /** The card this point is for. */
   readonly name: string;
+  /**
+   * "vs Iron Man": who a minion is engaged with, in a game of more than one seat, so two facedown Drones taking a
+   * share of the damage read apart (issue #1001). Null for any other card, and in a one-seat game.
+   */
+  readonly engaged: string | null;
   /** "Threat 3", "Damage 2" — what the card holds now, before any of the division. */
   readonly holds: string;
   /** Which point of that card this tile is ("1", "2"...), so two tiles for one card still read apart. */
@@ -71,6 +76,7 @@ export function divideSheetOf(
     owner.set(option.optionId, instanceId);
     labels.set(option.optionId, {
       name: cardName(state, instanceId),
+      engaged: engagedOf(state, instanceId),
       holds: holdsOf(state, instanceId, what),
       ordinal: next,
     });
@@ -82,11 +88,18 @@ export function divideSheetOf(
   }
   const parts = order.flatMap((instanceId) => {
     const count = counts.get(instanceId);
-    return count ? [`${cardName(state, instanceId)} ${count}`] : [];
+    const engaged = engagedOf(state, instanceId);
+    return count ? [`${cardName(state, instanceId)}${engaged ? ` (${engaged})` : ""} ${count}`] : [];
   });
   const left = prompt.amount - selected.length;
   const tally = parts.length === 0 ? "" : `${parts.join(" · ")} · ${left > 0 ? `${left} to place` : "all placed"}`;
   return { labels, tally };
+}
+
+function engagedOf(state: GameState, instanceId: InstanceId): string | null {
+  if (!isMinion(state, instanceId)) return null;
+  const name = engagedNameOf(state, state.instances[instanceId]?.engagedWith ?? null);
+  return name ? `vs ${name}` : null;
 }
 
 function holdsOf(state: GameState, instanceId: InstanceId, what: string): string {

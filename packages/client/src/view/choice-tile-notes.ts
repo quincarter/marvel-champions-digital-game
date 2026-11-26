@@ -26,7 +26,10 @@ import { engagedChipWords } from "./engaged-chips.js";
 import { playedCardOf } from "./payment-sheet.js";
 import { exhaustTileOptionsOf, isSpendChoice, spendOptionNote } from "./spend-choice.js";
 
-/** Prompts whose tiles already speak for themselves: one point of a division, one keyword's turn. */
+/**
+ * Prompts whose tiles already speak for themselves: one point of a division (its band names the card, and who a
+ * minion is engaged with: `view/divide-sheet.ts`), one keyword's turn.
+ */
 const WORDED_PROMPTS: ReadonlySet<string> = new Set(["divide", "assignIndirectDamage", "orderKeywords"]);
 
 const refInstanceId = (ref: ChoiceRef): InstanceId | null =>
