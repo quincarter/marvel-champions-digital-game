@@ -1,0 +1,3 @@
+kind: Changed
+body: Roster card faces bake on-screen tiles first, two at a time, drop tiles that scrolled away before they start, and the art cache is capped by bytes, so scrolling the scenario rows no longer exhausts a phone's memory
+time: 2026-11-26T12:46:53.1553558-05:00
