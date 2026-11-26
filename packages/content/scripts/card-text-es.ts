@@ -118,6 +118,8 @@ const SPANISH_MATCHES_CORRECTED_ENGLISH = new Set(["12028"]);
  * - 60100 Conversion: "Attached minion's SCH is equal to its base THW"; the Spanish says only "su INT" (issue #995).
  * - 60189 Traffic Jam: the second bullet keeps "from a scheme" in English (issue #995).
  * - 48027 Azazel: "Kurt Wagner player" keeps an English word.
+ * - 60069 Raising the Stakes: "Otherwise, shuffle this card" reads "De no ser posible" (if that is not possible), so a
+ *   nonlethal attack would seem to keep the card in play; also "atque" for "ataque" (issue #995, Codex review).
  */
 const SPANISH_TEXT_CORRECTIONS: readonly (readonly [string, string, string])[] = [
   ["60100", "es igual a su INT y", "es igual a su INT básica y"],
@@ -127,6 +129,8 @@ const SPANISH_TEXT_CORRECTIONS: readonly (readonly [string, string, string])[] =
     "Quitar Amenaza de un Plan, en vez de eso la Amenaza se quita",
   ],
   ["48027", "Kurt Wagner player como", "Kurt Wagner como"],
+  ["60069", "Si este atque derrota", "Si este ataque derrota"],
+  ["60069", "De no ser posible, devuelve esta carta", "En caso contrario, devuelve esta carta"],
 ];
 
 /**

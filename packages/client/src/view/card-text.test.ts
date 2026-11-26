@@ -176,6 +176,12 @@ describe("the Inspect sheet in Spanish", () => {
       expect(text, id).toContain(`personaje ${trait})`);
       expect(text, id).not.toMatch(/[[\]]/);
     }
+    // Raising the Stakes returns to the encounter deck after any attack that defeats no friendly character ("Otherwise"),
+    // not only when removing it is impossible.
+    const stakes = cardInspectModel(card("60069"), { kind: "front" }).rulesText;
+    expect(stakes).toContain("Si este ataque derrota a un personaje amigo");
+    expect(stakes).toContain("En caso contrario, devuelve esta carta al mazo de Encuentros");
+    expect(stakes).not.toContain("De no ser posible");
     // MarvelCDB drops "base" from Conversion; the generator puts it back (SPANISH_TEXT_CORRECTIONS).
     expect(cardInspectModel(card("60100"), { kind: "front" }).rulesText).toContain("es igual a su INT básica y");
     const scheme = card("60121a");
