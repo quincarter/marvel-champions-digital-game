@@ -18,6 +18,7 @@
     "docs/cards_reference.md",
     "docs/rulings/marvel-champions-rulings-post-rrg-1-7.md",
     "docs/rules/mc_rulesreference_v16_compressed.md",
+    "docs/rules/es/**",
     "docs/rulings/**",
     "hallofheroes-llms.txt",
     ".changes/**",
