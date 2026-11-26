@@ -123,4 +123,38 @@ describe("mc-settings-body", () => {
     expect(keys).toEqual(["list:1", "list:close"]);
     body.remove();
   });
+
+  it("never presses another row's control when the rows change under a held press", async () => {
+    const { body, keys } = await mounted();
+    const held = body.elementOf("card-size:small")!;
+    const at = { bubbles: true, composed: true, clientX: 5, clientY: 5, pointerId: 1, button: 0 };
+    held.dispatchEvent(new PointerEvent("pointerdown", at));
+    // Another tab: a different row takes the same place.
+    body.model = {
+      height: 300,
+      headings: [],
+      rows: [
+        {
+          key: "row:fade-color",
+          rect: rect(0, 90, 400, 80),
+          title: "Fade color",
+          controls: [
+            {
+              kind: "cell",
+              key: "fade-color:ink",
+              rect: rect(2, 130, 100, 32),
+              label: "Ink",
+              selected: false,
+              fill: "paper",
+            },
+          ],
+        },
+      ],
+    };
+    await body.updateComplete;
+    expect(body.elementOf("fade-color:ink")).not.toBe(held);
+    held.dispatchEvent(new PointerEvent("pointerup", at));
+    expect(keys).toEqual([]);
+    body.remove();
+  });
 });

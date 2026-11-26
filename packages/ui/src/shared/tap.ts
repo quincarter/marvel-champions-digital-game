@@ -48,6 +48,8 @@ export function onTap(
     const held = press;
     end();
     if (!held || held.id !== event.pointerId || held.scrolled) return;
+    // Disabled while held (the state changed under the finger): the release does nothing.
+    if (options.enabled?.() === false) return;
     if (held.offsets.some(([node, top, left]) => node.scrollTop !== top || node.scrollLeft !== left)) return;
     if (Math.hypot(event.clientX - held.x, event.clientY - held.y) > TAP_SLOP_PX) return;
     handler(event);

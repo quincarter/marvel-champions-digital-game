@@ -1,4 +1,5 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
+import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { onTap } from "../../shared/tap.js";
 import { tapped } from "../../shared/tapped.js";
@@ -180,7 +181,12 @@ export class McSettingsBody extends LitElement {
               <span class="rule"></span>
             </div>`,
         )}
-        ${model.rows.map((row) => this.#row(row))} ${model.list ? this.#list(model.list, model.height) : nothing}
+        ${repeat(
+          model.rows,
+          (row) => row.key,
+          (row) => this.#row(row),
+        )}
+        ${model.list ? this.#list(model.list, model.height) : nothing}
       </div>
     </div>`;
   }
@@ -193,7 +199,9 @@ export class McSettingsBody extends LitElement {
         ${tapped(() => this.#activate(list.closeKey))}
       ></div>
       <div class="list scroller" style=${px(list.rect)}>
-        ${list.options.map(
+        ${repeat(
+          list.options,
+          (option) => option.key,
           (option) =>
             html`<mc-button
               class="option"
@@ -225,7 +233,11 @@ export class McSettingsBody extends LitElement {
             : nothing
         }
       </div>
-      ${row.controls.map((control) => this.#control(control, row.rect))}`;
+      ${repeat(
+        row.controls,
+        (control) => control.key,
+        (control) => this.#control(control, row.rect),
+      )}`;
   }
 
   /** A control, placed in content space (its rect is absolute, as the row's is). */

@@ -1,6 +1,11 @@
 /**
  * The Spanish app text (issue #390), over the English catalog (`en.ts`): a key missing here shows in English.
- * Game terms follow the Spanish Rules Reference translation (referenciamc.netlify.app) and the printed Spanish cards.
+ * Game terms follow the official Spanish Rules Reference (Asmodee's "Referencia" PDF) and the printed Spanish cards.
+ * The terms most often wrong, as the official reference prints them (checked 2026-11-26):
+ * - Thwart: intervención / intervenir (INT). Recover: recuperación (REC). Attack: ataque (ATQ).
+ * - Encounter deck: mazo de Encuentros. Boost icon: icono de Aumento. Star (boost) icon: icono de Estrella.
+ * - Facedown / face up: boca abajo / boca arriba ("poner boca arriba", never "voltear" for an encounter card).
+ * - Threat: Amenaza. Main scheme: plan principal.
  */
 import type { en } from "./en.js";
 
@@ -73,7 +78,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pastGames.result.conceded": "Rendición",
   "pastGames.result.tie": "Empate",
   "pastGames.reason.competitive": "Partida competitiva",
-  "pastGames.reason.encounterDeckExhausted": "Se agotó el mazo de encuentro",
+  "pastGames.reason.encounterDeckExhausted": "Se agotó el mazo de Encuentros",
   "pastGames.partialLog":
     "Esta versión solo puede reproducir los primeros {n} movimientos de esa partida, así que su registro termina ahí.",
   "pastGames.result.unfinished": "Sin terminar",
@@ -92,7 +97,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pastGames.fates.stood": "Resistieron: {names}",
   "pastGames.seat.fell": "cayó",
   "pastGames.seat.stood": "resistió",
-  "pastGames.seat.stats": "{damage} de daño · {thwart} de amenaza frustrada",
+  "pastGames.seat.stats": "{damage} de daño · {thwart} de amenaza retirada",
   "pastGames.seat.deck": "Mazo: {deck}",
   "pastGames.seat.top": "Más jugadas: {cards}",
   "pastGames.minutes": "{minutes} min",
@@ -763,7 +768,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.modes.epic.how":
     "Trickster Takeover: todas las mesas luchan a la vez contra el mismo Loki, Dios de las Mentiras. Las mesas pueden ayudarse entre sí.",
   "room.modes.epic.different":
-    "Un villano compartido, un anfitrión por mesa y poderes que atacan o frustran en otras mesas.",
+    "Un villano compartido, un anfitrión por mesa y poderes que atacan o intervienen en otras mesas.",
   "room.modes.epic.length": "Unas dos horas, según el límite de tiempo del organizador.",
   "room.modes.competitive.tagline": "Registro contra Resistencia.",
   "room.modes.competitive.who": "Dos equipos, uno o dos héroes por bando, jugado en una sala en línea.",
@@ -809,9 +814,9 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "epic.start.hostAway": "{name}, anfitrión de {table}, está ausente.",
   "epic.sheet.title": "Mesas",
   "epic.sheet.reach": "En tu grupo de mesas",
-  "epic.sheet.reachNone": "Desde aquí no se puede atacar ni frustrar nada de tu grupo de mesas.",
+  "epic.sheet.reachNone": "Desde aquí no se puede atacar ni intervenir en nada de tu grupo de mesas.",
   "epic.sheet.attack": "Atacar con {hero}",
-  "epic.sheet.thwart": "Frustrar con {hero}",
+  "epic.sheet.thwart": "Intervenir con {hero}",
   "epic.sheet.noHero": "Ningún héroe puede usar ese poder ahora.",
   "epic.sheet.watch": "Ver",
   "epic.sheet.watching": "Viendo",
@@ -1355,7 +1360,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Reproduce en orden aleatorio las canciones que has ganado en Extras, en los menús y las partidas. Las entradas, el fin de partida y los finales conservan la suya.",
   "settings.confirmEndTurn.title": "Confirmar antes de terminar el turno",
   "settings.confirmEndTurn.detail":
-    "Pregunta antes de Terminar turno si aún te queda un ataque, un frustrar o un recuperarse básico, a ti o a un aliado. Desactivado termina el turno al momento.",
+    "Pregunta antes de Terminar turno si tú o un aliado aún podéis hacer un ataque básico, una intervención básica o una recuperación básica. Desactivado termina el turno al momento.",
   "settings.notOffered.title": "Explicar habilidades no ofrecidas",
   "settings.notOffered.detail":
     "La primera vez que no se pueda usar la interrupción o respuesta de una carta (sin objetivo, o con un coste que no puedes pagar), explica por qué. El registro siempre lo dice.",
@@ -1365,12 +1370,12 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "settings.deckCountsHero.title": "Cartas restantes de tu mazo",
   "settings.deckCountsHero.detail":
     "Toca tu mazo para ver las cartas que quedan en él, con cuántas hay de cada una. Nunca en orden de robo.",
-  "settings.deckCountsEncounter.title": "Cartas restantes del mazo de encuentro",
+  "settings.deckCountsEncounter.title": "Cartas restantes del mazo de Encuentros",
   "settings.deckCountsEncounter.detail":
-    "Toca el mazo de encuentro para ver la misma lista. Puede nombrar cartas de un escenario que aún no conoces.",
-  "settings.boostAverage.title": "Media de potenciación del encuentro",
+    "Toca el mazo de Encuentros para ver la misma lista. Puede nombrar cartas de un escenario que aún no conoces.",
+  "settings.boostAverage.title": "Media de iconos de Aumento",
   "settings.boostAverage.detail":
-    "Al tocar el mazo de encuentro, muestra los iconos de potenciación por carta que quedan en él. Las potenciaciones de estrella se listan aparte.",
+    "Al tocar el mazo de Encuentros, muestra la media de iconos de Aumento por carta restante. Los iconos de Estrella se muestran aparte.",
   "settings.hoverHero.title": "Vista ampliada de héroes",
   "settings.hoverHero.detail":
     "Con ratón, al dejar el puntero sobre una carta de héroe se muestra la vista ampliada. Desactivado deja las cartas de héroe como están.",
@@ -1388,7 +1393,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Rechaza una copia que supere el límite de una carta (3 por título, Máximo 1 por mazo, la regla propia de un héroe). Desactivado te deja añadirla; el mazo aparece entonces como no válido.",
   "settings.extraModular.title": "Permitir conjuntos modulares adicionales",
   "settings.extraModular.detail":
-    "Regla de la casa, no del juego impreso. La preparación de la mesa deja entonces que un escenario use más conjuntos modulares de los que pide: los que nombra y los que añadas, todos barajados en el mazo de encuentro. Desactivado se ciñe al número del escenario.",
+    "Regla de la casa, no del juego impreso. La preparación de la mesa deja entonces que un escenario use más conjuntos modulares de los que pide: los que nombra y los que añadas, todos barajados en el mazo de Encuentros. Desactivado se ciñe al número del escenario.",
   "settings.showPrecons.title": "Mostrar mazos preconstruidos",
   "settings.showPrecons.detail":
     "Muestra los mazos preconstruidos en la pantalla Mazos. Desactivado los oculta ahí; Toma asiento sigue ofreciéndolos todos, para que siempre se pueda llenar una mesa.",
@@ -1436,7 +1441,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Te avisa si terminas el turno en forma de héroe sin un defensor preparado ante un ataque que parece letal.",
   "settings.warning.schemeClose.title": "Aviso de plan a punto",
   "settings.warning.schemeClose.detail":
-    "Te avisa si terminas el turno con el plan principal a una o dos de amenaza de completarse.",
+    "Te avisa si terminas el turno cuando al plan principal le faltan uno o dos puntos de Amenaza para completarse.",
   "settings.warning.flipDanger.title": "Aviso de cambio de forma",
   "settings.warning.flipDanger.detail":
     "Te avisa si cambias a alter ego (o sigues en él) cuando eso haría que se completara el plan.",
@@ -1452,13 +1457,13 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "settings.villainHold.title": "Detener cada carta de encuentro",
   "settings.villainHold.detail":
     "Mantiene en pantalla cada carta revelada hasta que la pases con un toque, aunque no tengas respuesta para ella.",
-  "settings.villainFlip.title": "Voltear cada carta de encuentro",
-  "settings.villainFlip.detail": "Se detiene en cada carta de encuentro boca abajo hasta que pulses Voltear carta.",
-  "settings.flipSpeed.title": "Animación de volteo",
+  "settings.villainFlip.title": "Poner boca arriba cada carta de encuentro",
+  "settings.villainFlip.detail": "Se detiene en cada carta de encuentro boca abajo hasta que pulses Poner boca arriba.",
+  "settings.flipSpeed.title": "Animación al ponerla boca arriba",
   "settings.flipSpeed.detail":
-    "Cuánto tarda en darse la vuelta una carta de encuentro boca abajo. Con No, se voltea al momento; sigues pulsando Voltear.",
+    "Cuánto tarda en ponerse boca arriba una carta de encuentro boca abajo. Con No, se pone boca arriba al momento; sigues pulsando Poner boca arriba.",
   "settings.flipSpeed.slowDetail": "1 segundo",
-  "settings.flipSpeed.offDetail": "Se voltea al momento",
+  "settings.flipSpeed.offDetail": "Se pone boca arriba al momento",
   "settings.beatSpeed.title": "Velocidad de los pasos",
   "settings.beatSpeed.detail": "Cuánto se queda cada paso en pantalla mientras la fase avanza sola.",
   "settings.beatSpeed.slowDetail": "Más tiempo en pantalla",
@@ -1475,7 +1480,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Lo alta que suena la música, frente a los efectos. En escritorio, el control deslizante del reproductor de música lo ajusta con más precisión.",
   "settings.effectsVolume.title": "Volumen de los efectos",
   "settings.effectsVolume.detail":
-    "Lo altos que suenan los efectos de sonido (ataques, frustraciones, cartas jugadas), frente a la música.",
+    "Lo altos que suenan los efectos de sonido (ataques, intervenciones, cartas jugadas), frente a la música.",
   "settings.cardHover.title": "Tamaño de carta al pasar el ratón",
   "settings.cardHover.detail":
     "Con ratón, deja el puntero sobre una carta de la mesa para verla más grande junto al puntero, con su estado. Con No, desaparece la vista ampliada.",
