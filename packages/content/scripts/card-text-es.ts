@@ -142,12 +142,16 @@ const correctedEnglish = (code: string): string => {
 
 const es = readCards(path.join(RAW, "es"));
 const en = readCards(RAW);
+// Faces MarvelCDB's English API lacks (Fear No Evil's encounter cards) were transcribed from scans into the curation's
+// `addedRecords`, which `export-added-records` writes here in the cache's own shape: their English is what the card
+// data prints, so a Spanish face is checked and fingerprinted against it like any other (issue #995).
+const transcribed = readCards(path.join(root, "packages/content/raw/hallofheroes"));
 const entries: [string, Record<string, string>][] = [];
 for (const [code, card] of es) {
   if (!poolCodes.has(code)) continue;
-  // A face the English cache lacks (Fear No Evil's records transcribed from scans, not in raw/marvelcdb/fne.json) has
-  // nothing to compare with: every Spanish field is kept, and one MarvelCDB left in English only repeats the English.
-  const english: RawCard = en.get(code) ?? { code };
+  // A face with no English record at all has nothing to compare with: only its name is kept, and one MarvelCDB left in
+  // English only repeats the English.
+  const english: RawCard = en.get(code) ?? transcribed.get(code) ?? { code };
   const fields: Record<string, string> = {};
   const name = (card.name ?? "").trim();
   if (name && !same(name, english.name ?? "")) fields.n = name;

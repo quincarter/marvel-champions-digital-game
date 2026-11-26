@@ -4,7 +4,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import type { AnyCard } from "@mc/content";
-import { defaultFaceFor, printedFaceCodeOf } from "../art/art-source.js";
+import { defaultFaceFor, printedFaceCodeOf, type CardFace } from "../art/art-source.js";
 import { CARD_TEXT_ES } from "../content/card-text-es.js";
 import { CARDS_BY_ID } from "../content/pool.js";
 import { useEnglish, useSpanish } from "../i18n/test-language.js";
@@ -153,6 +153,55 @@ describe("the Inspect sheet in Spanish", () => {
     await loadSpanish();
     const front = cardInspectModel(card("26002"), defaultFaceFor(card("26002")));
     expect(front.rulesText).toBe(cardTextDisplayEs(TABLE["26002"]!.t!));
+  });
+
+  it("prints the Spanish rules text on Fear No Evil's encounter cards, transcribed from scans (issue #995)", async () => {
+    useSpanish();
+    await loadSpanish();
+    // A villain stage, an attachment, a main scheme's setup side and its scheme side.
+    expect(cardInspectModel(card("60086"), { kind: "villainStage", sideIndex: 0, stageIndex: 0 }).rulesText).toMatch(
+      /Respuesta obligada: después de que Cabeza de Martillo ataque/,
+    );
+    expect(cardInspectModel(card("60089"), { kind: "front" }).rulesText).toMatch(/^Vincula esta carta a Cabeza/);
+    const scheme = card("60121a");
+    expect(cardInspectModel(scheme, { kind: "mainSchemeStage", stageIndex: 0, side: "A" }).rulesText).toMatch(
+      /^Contenido: el Villano Secuaz elegido/,
+    );
+    expect(cardInspectModel(scheme, { kind: "mainSchemeStage", stageIndex: 0, side: "B" }).rulesText).toMatch(
+      /^\[?.*X es 1 más que el número de Accesorio Arte/,
+    );
+  });
+
+  it("matches every Fear No Evil encounter face the table translates to the face's own English", async () => {
+    useSpanish();
+    await loadSpanish();
+    const faces = (c: AnyCard): CardFace[] => [
+      ...(c.type === "villain"
+        ? c.sides.flatMap((side, sideIndex) =>
+            side.stages.map((_, stageIndex) => ({ kind: "villainStage" as const, sideIndex, stageIndex })),
+          )
+        : c.type === "main_scheme"
+          ? c.stages.flatMap((_, stageIndex) =>
+              (["A", "B"] as const).map((side) => ({ kind: "mainSchemeStage" as const, stageIndex, side })),
+            )
+          : [{ kind: "front" as const }]),
+    ];
+    const encounter = [...CARDS_BY_ID.values()].filter(
+      (c) => (c.setCode as string) === "fne" && "encounterSetIds" in c,
+    );
+    expect(encounter.length).toBeGreaterThan(100);
+    const english: string[] = [];
+    let translated = 0;
+    for (const c of encounter)
+      for (const face of faces(c)) {
+        const code = printedFaceCodeOf(c, face);
+        const entry = code === null ? undefined : TABLE[code];
+        if (entry?.t === undefined) continue;
+        if (cardInspectModel(c, face).rulesText === cardTextDisplayEs(entry.t)) translated += 1;
+        else english.push(`${code}`);
+      }
+    expect(english).toEqual([]);
+    expect(translated).toBeGreaterThan(100);
   });
 
   it("shows a flavor only on the face whose English it translates", async () => {
