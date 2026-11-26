@@ -201,4 +201,69 @@ describe("placeArtSlot", () => {
     expect(fill()).toBe(true);
     expect(pictures).toHaveLength(2);
   });
+
+  describe("a big slot that draws the full-size copy", () => {
+    /** A slot over a table copy ("scan") with an optional full copy ("scan@full"), drawn from whichever is in. */
+    function bigSlot(textures: Map<string, string>) {
+      const container = new FakeParent();
+      const pictures: Phaser.GameObjects.GameObject[] = [];
+      const drawnFrom: (string | undefined)[] = [];
+      const key = (): string => (textures.has("scan@full") ? "scan@full" : "scan");
+      const fill = placeArtSlot(
+        {
+          request: () => (textures.has("scan") ? "scan" : null),
+          drawKey: key,
+          identity: (k) => textures.get(k) ?? null,
+          draw: () => {
+            const picture = fake(`picture ${pictures.length}`);
+            (picture as unknown as { parentContainer: unknown }).parentContainer = container;
+            pictures.push(picture);
+            drawnFrom.push(textures.get(key()));
+            return picture;
+          },
+          sceneList: new FakeParent(),
+        },
+        [],
+        () => fake("stand-in"),
+      );
+      container.list.push(pictures[0]!);
+      return { fill, pictures, drawnFrom };
+    }
+
+    it("upgrades the picture when the full copy arrives after the table copy was drawn", () => {
+      const textures = new Map([["scan", "table-texture"]]);
+      const { fill, pictures, drawnFrom } = bigSlot(textures);
+      expect(fill()).toBe(true);
+      expect(pictures).toHaveLength(1);
+
+      textures.set("scan@full", "full-texture");
+      expect(fill()).toBe(true);
+      expect(pictures).toHaveLength(2);
+      expect(pictures[0]!.active).toBe(false);
+      expect(drawnFrom).toEqual(["table-texture", "full-texture"]);
+      // Settled: no further redraw.
+      expect(fill()).toBe(true);
+      expect(pictures).toHaveLength(2);
+    });
+
+    it("draws again from the table copy when the full copy is evicted and the table copy stays", () => {
+      const textures = new Map([
+        ["scan", "table-texture"],
+        ["scan@full", "full-texture"],
+      ]);
+      const { fill, pictures, drawnFrom } = bigSlot(textures);
+      expect(fill()).toBe(true);
+      expect(pictures).toHaveLength(1);
+
+      textures.delete("scan@full");
+      expect(fill()).toBe(true);
+      expect(pictures).toHaveLength(2);
+      expect(drawnFrom).toEqual(["full-texture", "table-texture"]);
+
+      // Reloaded: a new full texture under the same key is drawn from again.
+      textures.set("scan@full", "full-texture-2");
+      expect(fill()).toBe(true);
+      expect(drawnFrom).toEqual(["full-texture", "table-texture", "full-texture-2"]);
+    });
+  });
 });
