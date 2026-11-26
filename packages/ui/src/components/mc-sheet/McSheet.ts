@@ -20,12 +20,16 @@ export interface SheetRect {
 /** A filled and/or outlined rectangle. A stroke is centered on the box's edge, as Phaser strokes it. */
 export interface SheetBox {
   readonly kind: "box";
+  /** A key the e2e and focus code can find the box by (a card whose place the focus ring follows). */
+  readonly key?: string;
   readonly rect: SheetRect;
   readonly fill?: string;
   readonly stroke?: string;
   readonly strokeWidth?: number;
   readonly dashed?: boolean;
   readonly opacity?: number;
+  /** A circle (a lesson's number badge): the box is square and fully rounded. */
+  readonly round?: boolean;
 }
 
 /** The table felt's dot grid over a box. */
@@ -62,6 +66,8 @@ export interface SheetText {
   readonly wrapWidth?: number;
   /** One line that shrinks to fit this width, as Phaser's `fitText` does. */
   readonly fitWidth?: number;
+  /** A wrapped text cut with an ellipsis after this many lines. */
+  readonly maxLines?: number;
   /** A key the e2e and focus code can find the text by. */
   readonly key?: string;
   /** Letter ranges (`start` to `end`, exclusive) marked as a search match: a band behind them and a line under. */
@@ -106,11 +112,35 @@ export interface SheetGlyph {
   readonly key?: string;
 }
 
-/** An invisible area a tap presses (a card, a row). */
+/**
+ * An invisible area a tap presses (a card, a row). With `inspect`, a press-and-hold or a right-click also raises
+ * `mc-inspect` (a card's "look at this"), and the release that ended a hold is not a tap.
+ */
 export interface SheetTap {
   readonly kind: "tap";
   readonly key: string;
   readonly rect: SheetRect;
+  readonly inspect?: boolean;
+  /** Names the card the area shows (the client's card hover popover reads it). */
+  readonly hover?: string;
+}
+
+/**
+ * A picture (a card scan) in a box: the whole picture fitted inside it, on `fill`. It loads when it scrolls near
+ * (`loading="lazy"`). With no `src`, or one that fails to load, the box says `missing` instead, as the client's
+ * card tiles say "no scan". `hover` names the card the picture shows (the client's card hover popover reads it).
+ */
+export interface SheetImage {
+  readonly kind: "image";
+  readonly rect: SheetRect;
+  readonly src: string | null;
+  readonly fill?: string;
+  /** What the box says while there is no picture (a missing scan), already translated. */
+  readonly missing?: string;
+  /** The text colour of `missing`. */
+  readonly color?: string;
+  readonly hover?: string;
+  readonly key?: string;
 }
 
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
@@ -122,7 +152,15 @@ export interface SheetScroll {
   readonly nodes: readonly SheetNode[];
 }
 
-export type SheetNode = SheetBox | SheetDots | SheetText | SheetButton | SheetGlyph | SheetTap | SheetScroll;
+export type SheetNode =
+  | SheetBox
+  | SheetDots
+  | SheetText
+  | SheetButton
+  | SheetGlyph
+  | SheetImage
+  | SheetTap
+  | SheetScroll;
 
 /**
  * A part's identity across redraws: its key when it has one (a button, a tap area, a scroller), so a press in flight or a
@@ -143,6 +181,7 @@ const px = (rect: SheetRect): string =>
  *
  * @element mc-sheet
  * @fires mc-activate - `detail.key`: a button or tap area was tapped.
+ * @fires mc-inspect - `detail.key`: a tap area with `inspect` was held or right-clicked.
  */
 export class McSheet extends LitElement {
   static override styles = [ThemeStyles, McSheetStyles];
@@ -152,6 +191,8 @@ export class McSheet extends LitElement {
   };
 
   declare nodes: readonly SheetNode[];
+  /** The pictures that failed to load, so their boxes say `missing` (and keep saying it across redraws). */
+  readonly #failed = new Set<string>();
 
   constructor() {
     super();
@@ -165,6 +206,10 @@ export class McSheet extends LitElement {
 
   #activate(key: string): void {
     this.dispatchEvent(new CustomEvent("mc-activate", { detail: { key }, bubbles: true, composed: true }));
+  }
+
+  #inspect(key: string): void {
+    this.dispatchEvent(new CustomEvent("mc-inspect", { detail: { key }, bubbles: true, composed: true }));
   }
 
   override connectedCallback(): void {
@@ -240,8 +285,9 @@ export class McSheet extends LitElement {
             ? `outline:${width}px ${node.dashed ? "dashed" : "solid"} ${node.stroke};outline-offset:${-width / 2}px`
             : "",
           node.opacity !== undefined ? `opacity:${node.opacity}` : "",
+          node.round ? "border-radius:50%" : "",
         ].join(";");
-        return html`<div class="part" style=${style}></div>`;
+        return html`<div class="part" data-key=${node.key ?? nothing} style=${style}></div>`;
       }
       case "dots": {
         const id = `dots-${node.spacing}-${node.radius}-${node.color.replace(/[^a-z0-9]/gi, "")}`;
@@ -271,6 +317,9 @@ export class McSheet extends LitElement {
           node.align ? `text-align:${node.align}` : "",
           width,
           node.fitWidth !== undefined ? `max-width:${node.fitWidth}px;overflow:hidden` : "",
+          node.maxLines
+            ? `display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:${node.maxLines};overflow:hidden`
+            : "",
         ].join(";");
         return html`<span
           class="part text"
@@ -309,12 +358,45 @@ export class McSheet extends LitElement {
           .openness=${node.openness}
           ?still=${node.still ?? false}
         ></mc-glyph>`;
+      case "image": {
+        const gone = node.src === null || this.#failed.has(node.src);
+        const style = [
+          px(node.rect),
+          node.fill ? `background:${node.fill}` : "",
+          node.color ? `color:${node.color}` : "",
+        ].join(";");
+        return html`<div
+          class="part image"
+          data-key=${node.key ?? nothing}
+          data-hover=${node.hover ?? nothing}
+          style=${style}
+        >
+          ${
+            gone
+              ? node.missing
+                ? html`<span class="missing">${node.missing}</span>`
+                : nothing
+              : html`<img
+                  src=${node.src!}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  draggable="false"
+                  @error=${() => {
+                    this.#failed.add(node.src!);
+                    this.requestUpdate();
+                  }}
+                />`
+          }
+        </div>`;
+      }
       case "tap":
         return html`<div
           class="part tap"
           data-key=${node.key}
+          data-hover=${node.hover ?? nothing}
           style=${px(node.rect)}
-          ${tapped(() => this.#activate(node.key))}
+          ${tapped(() => this.#activate(node.key), node.inspect ? () => this.#inspect(node.key) : undefined)}
         ></div>`;
       case "scroll":
         return html`<div class="part scroller" data-key=${node.key} style=${px(node.rect)}>

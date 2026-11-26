@@ -86,4 +86,17 @@ describe("mc-button", () => {
     expect(element.shadowRoot!.querySelector(".label")!.textContent).toBe("On");
     element.remove();
   });
+
+  it("is a tab cell as kind rail: selected reflects for the ink fill, and it presses like any button", async () => {
+    const { element, presses } = await button();
+    element.kind = "rail";
+    element.selected = true;
+    await element.updateComplete;
+    expect(element.getAttribute("kind")).toBe("rail");
+    expect(element.hasAttribute("selected")).toBe(true);
+    element.dispatchEvent(pointer("pointerdown", 10, 10));
+    element.dispatchEvent(pointer("pointerup", 10, 10));
+    expect(presses()).toBe(1);
+    element.remove();
+  });
 });

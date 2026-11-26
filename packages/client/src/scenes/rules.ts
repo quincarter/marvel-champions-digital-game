@@ -16,7 +16,7 @@
  * - **Full screen** (`view/rules-layout.ts`): an ink chrome band (Back, "RULES REFERENCE", the
  *   scope caption/toggle) edge to edge, a paper body with the tab strip and the glossary's search
  *   field, `MARGIN`-px inset — no centered column with Pause peeking out on either side.
- * - **Glossary**: a virtualized grid of bordered entry cards (`view/rules-glossary-grid.ts`) —
+ * - **Glossary**: a grid of bordered entry cards (`view/rules-glossary-grid.ts`) —
  *   term, definition, citation, and (the owner's "card art") a strip of small thumbnails for every
  *   card that carries the keyword right now, each opening Inspect. "On your table" (default, with
  *   a game) filters to the table and points a thumbnail at the live instance; "All rules" (the
@@ -28,46 +28,35 @@
  * - **Card list**: every encounter set the pool knows, the running scenario's own first ("IN THIS
  *   GAME") under "On your table" scope, the rest ("NOT IN THIS GAME") following under "All rules" —
  *   each a Bangers header (name, rule, count) over a wrapped grid of real card thumbnails with name
- *   captions, tap or long-press/right-click opening Inspect. Virtualized at grid-row granularity
- *   (`ui/variable-list.ts`'s `McVariableList` — a plain `McVirtualList` can't mix a short header
- *   slot with a taller card-grid-row slot in one uniform-height list).
+ *   captions, tap or long-press/right-click opening Inspect.
  *
  * No rules text was invented for this pass: every glossary definition and citation is
  * unchanged from `@mc/content`'s `schema/glossary.ts` (S6) and this module's own three
  * table-state entries — only the presentation and the new card associations are new.
+ *
+ * **The screen is one Lit panel over the canvas** (`mc-sheet`, `dom/sheet-builder.ts`, the way `scenes/pause.ts` is):
+ * the ground, chrome, Back (with its Cancel glyph, `dom/sheet-glyphs.ts`), scope toggle, tab rail and the three
+ * scrolling lists are the panel's parts at the rects `view/rules-layout.ts` and the grid views give, scrolled
+ * natively, with card scans as `<img>` (loaded as they come near). Phaser keeps the search field (a DOM element under
+ * the panel, shown through a hole), the card hover popover (also shown through a hole while it is up), the focus
+ * route (its ring drawn in the DOM, `dom/dom-ring.ts`), the press shield and the overlay's entrance and exit.
  *
  * Back returns to Pause (`this.scene.stop()` — Pause is still running underneath, since it
  * launched this the same way every other overlay in this app is launched).
  */
 import { isDesktopType } from "../ui/desktop-type.js";
 import Phaser from "phaser";
+import "@mc/ui";
+import type { McSheet } from "@mc/ui";
 import type { AnyCard, CardId } from "@mc/content";
 import { getInstance, type GameState, type InstanceId } from "@mc/engine";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
-import { artFor, defaultFaceFor, CARD_BACKS, type CardFace } from "../art/art-source.js";
-import { cardArt, drawArt } from "../art/card-art.js";
+import { artFor, defaultFaceFor, CARD_BACKS, type ArtSource, type CardFace } from "../art/art-source.js";
 import { faceOf } from "../view/board-model.js";
-import { ink, status, surface, typeRole } from "../tokens.js";
-import { caseOf, textStyle } from "../ui/theme.js";
-import {
-  McButton,
-  McCardTile,
-  McTabs,
-  McTextInput,
-  fitText,
-  label,
-  paintDotGrid,
-  paintPanel,
-  sectionHeader,
-} from "../ui/widgets.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { McVariableList } from "../ui/variable-list.js";
+import { border, ink, minType, status, surface, typeRole } from "../tokens.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
-import { onTap } from "../ui/tap.js";
-import { ListScroll } from "../view/list-scroll.js";
-import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { poolCellRect, poolColumnAt, poolGridGeometry } from "../view/deck-pool-grid.js";
+import { poolCellRect, poolGridGeometry } from "../view/deck-pool-grid.js";
 import { cardSizeFactor } from "../settings.js";
 import {
   glossaryCellRect,
@@ -92,21 +81,28 @@ import { rulesCardListOf, type RulesCardListCard, type RulesCardListGroup } from
 import { rulesFocusOrder } from "../view/screen-focus.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder } from "../dom/sheet-builder.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { t, tPlural, type MessageKey } from "../i18n/translate.js";
+import { onLanguageChange } from "../language-change.js";
+import { McTextInput } from "../ui/widgets.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import type { InspectData } from "./inspect.js";
 import { SCENES } from "./keys.js";
+import { addPressShield } from "../ui/press-shield.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { goToScreen, OverlayMotion } from "../ui/transitions.js";
 
-const TABS: readonly { readonly id: RulesTab; readonly label: string }[] = [
-  { id: "glossary", label: "Glossary" },
-  { id: "villainPhase", label: "Villain phase" },
-  { id: "cardList", label: "Card list" },
-];
+const TAB_IDS: readonly RulesTab[] = ["glossary", "villainPhase", "cardList"];
+const TAB_KEYS: Readonly<Record<RulesTab, MessageKey>> = {
+  glossary: "rules.tab.glossary",
+  villainPhase: "rules.tab.villainPhase",
+  cardList: "rules.tab.cardList",
+};
 
-/** Which cards to point a glossary entry's thumbnail strip at, and how many before "+N more". */
 /** Hard ceiling on a glossary entry's thumbnail strip, regardless of how wide its own card is. */
 const MAX_GLOSSARY_THUMBS = 6;
 /** How tall an encounter-set header slot is in the Card list grid (Bangers name + rule + count). */
@@ -117,6 +113,10 @@ const SECTION_LABEL_HEIGHT = 26;
 const VILLAIN_PHASE_CITATION_HEIGHT = 24;
 /** The Card list grid's own left inset — matches `poolCellRect`'s cell-to-`cardRect` gutter (`cell.x + 4`) so a section label or set header lines up under the card art below it instead of starting flush under the list's outer border. */
 const CARD_LIST_INSET = 4;
+/** How far a page (Page Up / Down, a shoulder button) scrolls, as a share of the list's height. */
+const PAGE = 0.85;
+/** The scrolling list's key in the panel: one list is up at a time. */
+const LIST = "list";
 
 export type RulesScope = "table" | "all";
 
@@ -133,7 +133,7 @@ export interface RulesSceneData {
   readonly initialScope?: RulesScope;
 }
 
-/** One flattened slot of the Card list tab's `McVariableList`. */
+/** One flattened slot of the Card list tab. */
 type CardListSlot =
   | { readonly kind: "sectionLabel"; readonly text: string }
   | { readonly kind: "header"; readonly group: RulesCardListGroup }
@@ -144,34 +144,36 @@ type CardListSlot =
       readonly count: number;
     };
 
+/** What a card picture's hover slot stands for. */
+interface HoverTarget {
+  readonly cardId: string;
+  readonly face?: CardFace;
+}
+
 export class RulesOverlay extends Phaser.Scene {
   #activeTab: RulesTab = "glossary";
   #query = "";
   #scope: RulesScope = "table";
   #searchInput: McTextInput | null = null;
-  #tabsWidget: McTabs | null = null;
-  #buttons: McButton[] = [];
+  #searchRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
   #route: FocusRoute | null = null;
-  #hints!: GlyphHints;
-  /** Where each glossary thumbnail sits inside its row (offset from the row's rect), by stop key, once drawn. */
-  #thumbOffsets = new Map<string, Rect>();
-
-  // A `McVariableList`, not `McVirtualList`: rows are entry-card *grid rows*, and each needs only
-  // as much height as its own tallest cell (no thumbnail strip vs. one) — a plain `McVirtualList`
-  // draws every row at one uniform height, which meant every row on the tab was as tall as the
-  // single tallest entry anywhere on it (rules-glossary-grid.ts's own `glossaryRowHeights` doc
-  // comment).
-  #glossaryList: McVariableList | null = null;
-  #glossaryScroll = new VariableListScroll();
-  #villainList: McVirtualList | null = null;
-  #villainScroll = new ListScroll();
-  #cardListList: McVariableList | null = null;
-  #cardListScroll = new VariableListScroll();
+  #glyphs!: SheetGlyphs;
+  /** The screen, one Lit panel over the canvas; made on the first draw and kept, so the list's scroll stays. */
+  #region: DomRegion<McSheet> | null = null;
+  /** The parts the draw in progress is building (a scrolling region's own while it builds that). */
+  #b!: SheetBuilder;
+  /** What each key in the panel does when tapped, and when held or right-clicked, this draw. */
+  #actions = new Map<string, () => void>();
+  #inspects = new Map<string, () => void>();
+  /** The list reads from its top on the next draw (a new tab, scope or query). */
+  #listFromTop = false;
   #motion = new OverlayMotion();
-  /** The desktop hover popover over the Card list tab's cards. */
+  /** The desktop hover popover over every card picture on the screen. */
   #hover: HoverPreview | null = null;
-  /** The Card list's on-screen cells, computed on demand from its scroll (a scroll draws nothing). */
-  #cardListHover: (() => readonly (readonly [string, HoverCardIdRect])[]) | null = null;
+  /** The cards the pictures drawn this pass stand for, by hover slot (what `data-hover` says in the panel). */
+  #hoverTargets = new Map<string, HoverTarget>();
+  /** The list's own box, which a hover rect is clipped to. */
+  #bodyRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
   constructor() {
     super(SCENES.rules);
@@ -181,16 +183,14 @@ export class RulesOverlay extends Phaser.Scene {
     this.#motion = new OverlayMotion();
     this.#activeTab = data.initialTab ?? "glossary";
     this.#query = data.initialQuery ?? "";
+    this.#region = null;
+    this.#listFromTop = false;
     const { game } = appSession().store.state;
     this.#scope = data.initialScope ?? (game ? "table" : "all");
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    // A scan that arrives after this scene's first draw (art loads lazily, per card — `art/card-art.ts`'s own
-    // doc comment) must still show up: every card thumbnail on this screen (the glossary strip, the card list
-    // grid) is requested fresh on every `#draw`, so the fix is the same one-line subscription Decks and Inspect
-    // already use, not a redraw loop of its own.
-    const artOff = cardArt(this).onArrived(() => this.#draw());
-    this.#hints = new GlyphHints(this);
+    const offLanguage = onLanguageChange(() => this.#draw());
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     // Before the route: A, B or Start takes the caret out of the search field.
     bindTextFieldEscape(
       this,
@@ -198,40 +198,38 @@ export class RulesOverlay extends Phaser.Scene {
       () => this.scene.isActive(SCENES.inspect),
     );
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
       onCancel: () => this.#close(),
       // LB / RB step through the tabs (PageUp / PageDown still page the list); the right stick scrolls it.
       onTab: (direction) => {
-        const at = TABS.findIndex((tab) => tab.id === this.#activeTab);
-        const next = TABS[Math.min(TABS.length - 1, Math.max(0, at + direction))]!;
-        if (next.id === this.#activeTab) return;
-        this.#setTab(next.id);
-        this.#route?.focusKey(`tab:${next.id}`);
+        const at = TAB_IDS.indexOf(this.#activeTab);
+        const next = TAB_IDS[Math.min(TAB_IDS.length - 1, Math.max(0, at + direction))]!;
+        if (next === this.#activeTab) return;
+        this.#setTab(next);
+        this.#route?.focusKey(`tab:${next}`);
       },
-      onScroll: (_dx, dy) => this.#activeList()?.scrollByPx(dy),
-      onPage: (direction) => this.#activeList()?.scrollByPage(direction),
-      onHomeEnd: (edge) => (edge === "home" ? this.#activeList()?.scrollToStart() : this.#activeList()?.scrollToEnd()),
+      onScroll: (_dx, dy) => this.#scroller()?.scrollBy({ top: dy }),
+      onPage: (direction) => this.#scroller()?.scrollBy({ top: direction * this.#bodyRect.height * PAGE }),
+      onHomeEnd: (edge) => this.#scroller()?.scrollTo({ top: edge === "home" ? 0 : Number.MAX_SAFE_INTEGER }),
     });
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
-      cardIds: () => new Map(this.#cardListHover?.() ?? []),
+      cardIds: () => this.#hoverCards(),
       // Pause sits under Rules when it was opened from there; it is not over it.
       area: (pointer) =>
         screenHoverArea(this, pointer, { beneath: [SCENES.pause, SCENES.villainPhase, SCENES.roundDebrief] }),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.#hints.dispose();
+      offLanguage();
+      this.#glyphs.dispose();
       this.scale.off("resize", onResize, this);
       this.#hover?.destroy();
       this.#hover = null;
-      artOff();
       this.#searchInput?.destroy();
       this.#searchInput = null;
-      this.#tabsWidget?.destroy();
-      this.#tabsWidget = null;
-      this.#destroyLists();
-      for (const button of this.#buttons) button.destroy();
-      this.#buttons = [];
+      // The panel goes with the scene (`DomRegion`); the next open makes a new one.
+      this.#region = null;
     });
     this.#draw();
   }
@@ -240,99 +238,178 @@ export class RulesOverlay extends Phaser.Scene {
     this.#motion.exit(this, () => this.scene.stop());
   }
 
-  #activeList(): {
-    scrollByPage(direction: 1 | -1): void;
-    scrollByPx(amount: number): void;
-    scrollToStart(): void;
-    scrollToEnd(): void;
-  } | null {
-    if (this.#activeTab === "glossary") return this.#glossaryList;
-    if (this.#activeTab === "villainPhase") return this.#villainList;
-    return this.#cardListList;
-  }
-
-  #destroyLists(): void {
-    this.#glossaryList?.destroy();
-    this.#glossaryList = null;
-    this.#villainList?.destroy();
-    this.#villainList = null;
-    this.#cardListList?.destroy();
-    this.#cardListList = null;
+  #scroller(): HTMLElement | null {
+    return this.#region?.element.elementOf(LIST) ?? null;
   }
 
   #setTab(tab: RulesTab): void {
     if (tab === this.#activeTab) return;
     this.#activeTab = tab;
-    this.#glossaryScroll.reset();
-    this.#villainScroll.reset();
-    this.#cardListScroll.reset();
+    this.#listFromTop = true;
     this.#draw();
   }
 
   #setScope(scope: RulesScope): void {
     if (scope === this.#scope) return;
     this.#scope = scope;
-    this.#glossaryScroll.reset();
-    this.#cardListScroll.reset();
+    this.#listFromTop = true;
     this.#draw();
   }
 
   #onQueryChange(value: string): void {
     this.#query = value;
-    this.#glossaryScroll.reset();
-    // The glossary grid's own row heights depend on the filtered entries, so a query change needs
-    // the same rebuild a tab/scope change gets — cheaper redraws that skip it would either clip a
-    // newly-tallest card or leave stale empty rows, and this screen redraws are cheap (a few dozen
-    // entry cards at most).
+    this.#listFromTop = true;
+    // The grid's row heights depend on the filtered entries, so a query change rebuilds it like a tab or scope change
+    // does (a few dozen entry cards at most).
     this.#draw();
+  }
+
+  /** Every card picture on screen with its place, for the hover popover: read off the panel on each pointer move. */
+  #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const region = this.#region;
+    if (!region) return found;
+    for (const element of region.element.renderRoot.querySelectorAll<HTMLElement>("[data-hover]")) {
+      const slot = element.dataset.hover!;
+      const target = this.#hoverTargets.get(slot);
+      if (!target) continue;
+      const rect = clipHoverRect(region.rectOf(element), this.#bodyRect);
+      if (rect)
+        found.set(slot, {
+          ...rect,
+          cardId: target.cardId,
+          through: true,
+          ...(target.face ? { face: target.face } : {}),
+        });
+    }
+    return found;
+  }
+
+  /** A card picture's hover slot, noted so the popover knows which card (and face) it stands for. */
+  #hoverSlot(cardId: string, where: string, face?: CardFace): string {
+    const slot = hoverSlotOf(cardId, where);
+    this.#hoverTargets.set(slot, { cardId, ...(face ? { face } : {}) });
+    return slot;
+  }
+
+  /** What a key does when the panel reports a tap on it. */
+  #press(key: string, action: () => void): void {
+    this.#actions.set(key, action);
+  }
+
+  /** A key that a press-and-hold or right-click also answers: the same as its tap (a card opens Inspect). */
+  #pressOrInspect(key: string, action: () => void): void {
+    this.#actions.set(key, action);
+    this.#inspects.set(key, action);
+  }
+
+  /** A stop inside the scrolling list: its box is read off the panel, so it follows the scroll. */
+  #listStop(itemKey: string, activate: () => void, extra: Pick<FocusStop, "inspect"> = {}): FocusStop {
+    const region = (): DomRegion<McSheet> | null => this.#region;
+    const body = this.#bodyRect;
+    return {
+      rect: () => {
+        const found = region()?.element.elementOf(itemKey);
+        return found ? region()!.rectOf(found) : body;
+      },
+      view: () => {
+        const found = region()?.element.elementOf(LIST);
+        return found ? region()!.rectOf(found) : body;
+      },
+      activate,
+      ...extra,
+      ensureVisible: () => region()?.element.elementOf(itemKey)?.scrollIntoView({ block: "nearest" }),
+    };
+  }
+
+  /** Builds the parts of the scrolling list in its own content space (`y` from 0, `x` the screen's). */
+  #inScroll(rect: Rect, height: number, draw: (b: SheetBuilder) => void): void {
+    const outer = this.#b;
+    outer.scroll(LIST, rect, height, (inner) => {
+      this.#b = inner;
+      try {
+        draw(inner);
+      } finally {
+        this.#b = outer;
+      }
+    });
+  }
+
+  /** Hands the built parts to the panel (made once, so the list's scroll survives a redraw) and renders them now. */
+  #mount(width: number, height: number): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      element.addEventListener("mc-activate", (event) => {
+        // Closing already (its exit is playing): a second tap must not act.
+        if (this.#motion.leaving) return;
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      element.addEventListener("mc-inspect", (event) => {
+        if (this.#motion.leaving) return;
+        this.#inspects.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#region = new DomRegion(this, element, { x: 0, y: 0, width, height });
+      // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas.
+      this.#region.forwardMouseMoves();
+    }
+    const region = this.#region;
+    region.setRect({ x: 0, y: 0, width, height });
+    // The search field is a Phaser DOM element under the panel, and the hover popover is drawn in the canvas: both are
+    // left out of the panel to be seen through it. The field only while it shows (under a pop-up it hides itself).
+    region.setHoles(() => {
+      const holes: Rect[] = [];
+      if (this.#searchInput?.shown) holes.push(this.#searchRect);
+      const popover = this.#hover?.shownRect;
+      if (popover) holes.push(popover);
+      return holes;
+    });
+    region.element.nodes = this.#b.nodes;
+    renderNow(region.element);
+    if (this.#listFromTop) {
+      const scroller = this.#scroller();
+      if (scroller) scroller.scrollTop = 0;
+      this.#listFromTop = false;
+    }
   }
 
   #draw(): void {
     // Already answering Back (or an inline query/tab change beat it there) —
     // don't redraw over the outgoing sheet mid-fade.
     if (this.#motion.leaving) return;
-    this.#tabsWidget?.destroy();
-    this.#tabsWidget = null;
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-    this.#destroyLists();
-    this.#cardListHover = null;
+    this.#actions = new Map();
+    this.#inspects = new Map();
+    this.#hoverTargets = new Map();
+    this.#glyphs.reset();
     resetHoverCards(this);
-    const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
+    const kept = this.#searchInput?.gameObjects ?? [];
     for (const node of kept) this.children.remove(node);
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
-    this.#hints.reset();
-    this.#thumbOffsets = new Map();
 
     const { width, height } = this.scale.gameSize;
     const layout = rulesLayout({ x: 0, y: 0, width, height }, this.#activeTab);
     const { game } = appSession().store.state;
+    this.#bodyRect = layout.body;
 
-    // Full-screen ground: an opaque void backdrop (nothing from Pause/the board can show through
-    // a full-bleed screen, by construction — the owner's "layering" complaint's other half), then
-    // the ink chrome, then the paper body with its felt dot grid underneath everything drawn on it.
     // Swallows every press that lands on no control of this overlay's own. Without it, lifting a finger after a
     // touch scroll over the panel's blank space reached Title underneath and opened its releases link (owner,
     // 2026-10-16), and the same went for Pause or the Board.
-    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
+    addPressShield(this, { x: 0, y: 0, width, height });
+    // Full-screen ground: an opaque void backdrop (nothing from Pause/the board can show through a full-bleed screen,
+    // by construction — the owner's "layering" complaint's other half). The panel above it is the paper and the chrome.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 1).fillRect(0, 0, width, height);
     const panelsFrom = this.children.list.length;
-    const paper = this.add.graphics();
-    paper
-      .fillStyle(surface.paper.hex, 1)
-      .fillRect(0, layout.chrome.height, width, Math.max(0, height - layout.chrome.height));
-    paintDotGrid(
-      this,
-      { x: 0, y: layout.chrome.height, width, height: Math.max(0, height - layout.chrome.height) },
-      "paper",
-      { spacing: 6, radius: 1, alpha: 0.1 },
-    );
-    const chrome = this.add.graphics();
-    chrome
-      .fillStyle(surface.ink.hex, 1)
-      .fillRect(layout.chrome.x, layout.chrome.y, layout.chrome.width, layout.chrome.height);
+    // Nothing drawn: the entrance and exit tween this, and the panel rises and fades with it (`DomRegion.follow`).
+    const anchor = this.add.graphics();
+
+    this.#b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+    const b = this.#b;
+    const bodyTop = layout.chrome.height;
+    const ground: Rect = { x: 0, y: bodyTop, width, height: Math.max(0, height - bodyTop) };
+    b.box(ground, { fill: surface.paper.hex });
+    b.dots(ground, "paper", 6, 1, 0.1);
+    b.box(layout.chrome, { fill: surface.ink.hex });
 
     const stops = new Map<string, FocusStop>();
 
@@ -342,25 +419,28 @@ export class RulesOverlay extends Phaser.Scene {
       width: 90,
       height: 36,
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: "◂ Back",
-        type: typeRole.rowTitle,
-        rect: backRect,
-        onClick: () => this.#close(),
-      }),
-    );
-    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
+    this.#glyphs.button(b, {
+      key: "back",
+      rect: backRect,
+      label: t("rules.back"),
+      look: "onInk",
+      type: typeRole.rowTitle,
+      ids: ["cancel"],
+      ground: "ink",
+    });
+    this.#press("back", () => this.#close());
     stops.set("back", { rect: backRect, activate: () => this.#close() });
-    this.add
-      .text(
-        backRect.x + backRect.width + 14,
-        layout.header.y + layout.header.height / 2,
-        caseOf(typeRole.barTitle, "Rules reference"),
-        { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "24px" },
-      )
-      .setOrigin(0, 0.5);
+    b.text(
+      backRect.x + backRect.width + 14,
+      layout.header.y + layout.header.height / 2,
+      t("rules.title"),
+      typeRole.barTitle,
+      {
+        size: 24,
+        color: surface.paper.hex,
+        origin: [0, 0.5],
+      },
+    );
 
     const showScopeToggle = game !== null;
     if (showScopeToggle) {
@@ -381,77 +461,82 @@ export class RulesOverlay extends Phaser.Scene {
       // squeezed into a sliver would only ever run under them, which is the bug this guards against.
       const captionWidth = allRect.x - (layout.scope.x + 16) - 12;
       if (captionWidth > 90) {
-        const caption = label(
-          this,
+        b.text(
           layout.scope.x + 16,
           layout.scope.y + layout.scope.height / 2,
-          this.#scope === "table" ? "Filtered to what's on your table" : "Showing all rules, not just the table",
+          this.#scope === "table" ? t("rules.scope.captionTable") : t("rules.scope.captionAll"),
           typeRole.label,
-          surface.paper.hex,
-          ink.secondary,
-        )
-          .setOrigin(0, 0.5)
-          .setFontSize(10);
-        fitText(caption, captionWidth, 10);
+          { size: 10, color: surface.paper.hex, alpha: ink.secondary, origin: [0, 0.5], fitWidth: captionWidth },
+        );
       }
-      // Custom-painted rather than `McButton`'s `onInk`/`primary` skins, whose own "selected" state
+      // Custom-painted rather than `mc-button`'s `onInk`/`primary` skins, whose own "selected" state
       // is Hero Red — this screen has no forward action to spend that on ("one red per screen", and
       // this one needs none), so the active option is a solid paper pill instead and the inactive one
-      // a plain paper outline; a `zone` handles the click the same way `McButton` would.
-      this.#drawScopeOption(
+      // a plain paper outline.
+      this.#scopeOption(
         allRect,
-        "All rules",
+        t("rules.scope.all"),
         this.#scope === "all",
         () => this.#setScope("all"),
         stops,
         "scope:all",
       );
-      this.#drawScopeOption(
+      this.#scopeOption(
         tableRect,
-        "On your table",
+        t("rules.scope.table"),
         this.#scope === "table",
         () => this.#setScope("table"),
         stops,
         "scope:table",
       );
     } else {
-      const caption = label(
-        this,
+      b.text(
         layout.scope.x + 16,
         layout.scope.y + layout.scope.height / 2,
-        "Showing the card pool — no game in progress.",
+        t("rules.scope.captionPool"),
         typeRole.label,
-        surface.paper.hex,
-        ink.secondary,
-      )
-        .setOrigin(0, 0.5)
-        .setFontSize(10);
-      fitText(caption, layout.scope.width - 32, 10);
+        {
+          size: 10,
+          color: surface.paper.hex,
+          alpha: ink.secondary,
+          origin: [0, 0.5],
+          fitWidth: layout.scope.width - 32,
+        },
+      );
     }
 
-    this.#tabsWidget = new McTabs(this, {
-      rect: layout.tabs,
-      tabs: TABS.map((tab) => ({ id: tab.id, label: tab.label })),
-      activeId: this.#activeTab,
-      onSelect: (id) => this.#setTab(id as RulesTab),
-    });
-    const cellWidth = layout.tabs.width / TABS.length;
-    TABS.forEach((tab, index) => {
-      stops.set(`tab:${tab.id}`, {
-        rect: { x: layout.tabs.x + index * cellWidth, y: layout.tabs.y, width: cellWidth, height: layout.tabs.height },
-        activate: () => this.#setTab(tab.id),
+    // The tab rail: a recessed strip of equal cells, the active one an ink fill.
+    b.box(layout.tabs, { fill: surface.parchment.hex, stroke: surface.ink.hex, strokeWidth: border.detail });
+    const cellWidth = layout.tabs.width / TAB_IDS.length;
+    const tabType = { ...typeRole.label, size: Math.max(minType.phoneLabel, typeRole.label.size) };
+    TAB_IDS.forEach((tab, index) => {
+      const cell: Rect = {
+        x: layout.tabs.x + index * cellWidth,
+        y: layout.tabs.y,
+        width: cellWidth,
+        height: layout.tabs.height,
+      };
+      b.button({
+        key: `tab:${tab}`,
+        rect: cell,
+        label: t(TAB_KEYS[tab]),
+        look: "rail",
+        type: tabType,
+        selected: tab === this.#activeTab,
       });
+      this.#press(`tab:${tab}`, () => this.#setTab(tab));
+      stops.set(`tab:${tab}`, { rect: cell, activate: () => this.#setTab(tab) });
     });
 
     let rowIds: readonly string[] = [];
-
     if (this.#activeTab === "glossary") {
+      this.#searchRect = layout.search;
       if (this.#searchInput) this.#searchInput.layout(layout.search);
       else
         this.#searchInput = new McTextInput(this, {
           rect: layout.search,
           value: this.#query,
-          placeholder: 'Search rules — "retaliate", "confused"…',
+          placeholder: t("rules.search.placeholder"),
           onChange: (v) => this.#onQueryChange(v),
         });
       stops.set("search", { rect: layout.search, activate: () => this.#searchInput?.focus() });
@@ -466,9 +551,11 @@ export class RulesOverlay extends Phaser.Scene {
       rowIds = this.#drawCardListTab(layout.body, game, stops);
     }
 
+    // Rendered before the route reads its stops, so a stop inside the list can find its element.
+    this.#mount(width, height);
     this.#route?.set(
       rulesFocusOrder({
-        tabIds: TABS.map((t) => t.id),
+        tabIds: TAB_IDS,
         showScopeToggle,
         showSearch: this.#activeTab === "glossary",
         rowIds,
@@ -476,12 +563,15 @@ export class RulesOverlay extends Phaser.Scene {
       stops,
     );
 
+    // A kept field's ring was first on the list, under the anchor drawn since (as in `scenes/pause.ts`).
+    for (const node of kept) this.children.bringToTop(node);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+    this.#region?.follow(anchor);
     this.#hover?.onDraw();
   }
 
-  /** One "All rules" / "On your table" segment — see `#draw`'s own comment on why this isn't a `McButton`. */
-  #drawScopeOption(
+  /** One "All rules" / "On your table" segment — see `#draw`'s own comment on why this isn't an `onInk` button. */
+  #scopeOption(
     rect: Rect,
     text: string,
     selected: boolean,
@@ -489,27 +579,79 @@ export class RulesOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     stopId: string,
   ): void {
-    const g = this.add.graphics();
-    if (selected) g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    else g.lineStyle(2, surface.paper.hex, ink.secondary).strokeRect(rect.x, rect.y, rect.width, rect.height);
-    this.add
-      .text(
-        rect.x + rect.width / 2,
-        rect.y + rect.height / 2,
-        caseOf(typeRole.label, text),
-        textStyle(typeRole.label, selected ? surface.ink.hex : surface.paper.hex, selected ? 1 : ink.secondary),
-      )
-      .setOrigin(0.5);
-    const zone = this.add
-      .zone(rect.x, rect.y, rect.width, rect.height)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true });
-    onTap(zone, onClick, stopId);
+    const b = this.#b;
+    if (selected) b.box(rect, { fill: surface.paper.hex });
+    else b.box(rect, { stroke: surface.paper.hex, strokeWidth: 2, alpha: ink.secondary });
+    b.text(rect.x + rect.width / 2, rect.y + rect.height / 2, text, typeRole.label, {
+      color: selected ? surface.ink.hex : surface.paper.hex,
+      alpha: selected ? 1 : ink.secondary,
+      origin: [0.5, 0.5],
+    });
+    b.tap(stopId, rect);
+    this.#press(stopId, onClick);
     stops.set(stopId, { rect, activate: onClick });
   }
 
+  /** The list's recessed "rail" panel behind its rows. */
+  #listPanel(rect: Rect): void {
+    this.#b.box(rect, { fill: surface.parchment.hex, stroke: surface.ink.hex, strokeWidth: border.detail });
+  }
+
+  /** A card picture's tile: the scan above, its name below, one border around both (`McCardTile`'s own look). */
+  #tile(
+    b: SheetBuilder,
+    rect: Rect,
+    name: string,
+    source: ArtSource | null,
+    keys: { readonly tap: string; readonly hover: string | undefined },
+    activate: () => void,
+  ): void {
+    const artHeight = Math.max(0, rect.height - GLOSSARY_THUMB_CAPTION);
+    b.box(rect, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: border.object });
+    const slot: Rect = {
+      x: rect.x + border.object,
+      y: rect.y + border.object,
+      width: rect.width - border.object * 2,
+      height: Math.max(0, artHeight - border.object),
+    };
+    if (slot.height > 0) {
+      b.image(slot, {
+        src: source?.url ?? null,
+        fill: surface.parchment.hex,
+        missing: t("rules.noScan"),
+        color: surface.ink.hex,
+      });
+      // A rule between the card and its name, the same 2px detail weight the stat tiles use.
+      b.box(
+        { x: slot.x, y: slot.y + slot.height, width: slot.width, height: border.detail },
+        { fill: surface.ink.hex },
+      );
+    }
+    const captionTop = rect.y + artHeight;
+    const captionHeight = rect.y + rect.height - captionTop - border.object;
+    // A caption tall enough for two lines wraps a long name ("Basic Attack") rather than cutting it to "Basic At…".
+    if (captionHeight >= 20) {
+      b.text(rect.x + rect.width / 2, captionTop + captionHeight / 2, name, typeRole.rowTitle, {
+        size: Math.min(typeRole.rowTitle.size, Math.max(minType.phoneLabel, Math.floor(captionHeight / 2.4))),
+        color: surface.ink.hex,
+        origin: [0.5, 0.5],
+        align: "center",
+        wrapWidth: rect.width - 6,
+        maxLines: 2,
+      });
+    } else {
+      b.text(rect.x + rect.width / 2, captionTop + captionHeight / 2, name, typeRole.rowTitle, {
+        color: surface.ink.hex,
+        origin: [0.5, 0.5],
+        fitWidth: rect.width - 12,
+      });
+    }
+    b.tap(keys.tap, rect, { inspect: true, ...(keys.hover !== undefined ? { hover: keys.hover } : {}) });
+    this.#pressOrInspect(keys.tap, activate);
+  }
+
   // ------------------------------------------------------------------------------------------------------------
-  // Glossary: a virtualized grid of bordered entry cards (D13's own read), each with a term,
+  // Glossary: a grid of bordered entry cards (D13's own read), each with a term,
   // definition, citation, and — the owner's "card art if applicable" — a strip of small
   // thumbnails for every card that carries it, tappable into Inspect.
   // ------------------------------------------------------------------------------------------------------------
@@ -519,12 +661,10 @@ export class RulesOverlay extends Phaser.Scene {
         ? rulesGlossaryOf(game, POOL_DEPS, this.#query, { includeConcepts: true })
         : rulesGlossaryPoolOf(POOL_CARDS, this.#query);
     if (entries.length === 0) {
-      this.add.text(
-        rect.x,
-        rect.y,
-        "No rules terms match that search.",
-        textStyle(typeRole.body, surface.ink.hex, ink.meta),
-      );
+      this.#b.text(rect.x, rect.y, t("rules.glossary.empty"), typeRole.body, {
+        color: surface.ink.hex,
+        alpha: ink.meta,
+      });
       return [];
     }
 
@@ -551,61 +691,61 @@ export class RulesOverlay extends Phaser.Scene {
       for (const ref of shown) rowIds.push(`entry:${entry.id}:card:${ref.cardId}`);
     }
 
-    const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow =>
-      this.#renderGlossaryRow(rowRect, geometry, entries, rowIndex, game);
-    this.#glossaryList = new McVariableList(this, { rect, heights, renderRow, scroll: this.#glossaryScroll });
-    const list = this.#glossaryList;
+    this.#listPanel(rect);
+    const total = heights.reduce((sum, h) => sum + h, 0);
+    this.#inScroll(rect, total, (b) => {
+      let top = 0;
+      heights.forEach((rowHeight, rowIndex) => {
+        this.#glossaryRow(
+          b,
+          { x: rect.x, y: top, width: rect.width, height: rowHeight },
+          geometry,
+          entries,
+          rowIndex,
+          game,
+        );
+        top += rowHeight;
+      });
+    });
 
-    entries.forEach((entry, entryIndex) => {
-      const rowIndex = Math.floor(entryIndex / geometry.columns);
+    entries.forEach((entry) => {
       const { shown } = glossaryThumbSlots(
         entry.cardRefs,
         glossaryTextWidth(geometry.cellWidth, isStatusEntry(entry.id)),
       );
-      const column = entryIndex % geometry.columns;
-      const entryRect = (): Rect => {
-        const cell = glossaryCellRect(geometry, list.rectFor(rowIndex), column);
-        return { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 };
-      };
       const first = shown[0];
       const originBoxId = game === null && entry.originNote ? entry.originBoxId : undefined;
-      stops.set(`row:entry:${entry.id}`, {
-        rect: entryRect,
-        // The "Added in ... ▸" link when it has one (no game running), else the first card; a bare term does nothing.
-        activate: () => {
-          if (originBoxId) this.#openOriginBox(originBoxId);
-          else if (first) this.#inspectRef(first, game);
-        },
-        ...(first ? { inspect: () => this.#inspectRef(first, game) } : {}),
-        ensureVisible: () => list.scrollIntoView(rowIndex),
-      });
-      shown.forEach((ref) => {
-        const key = `entry:${entry.id}:card:${ref.cardId}`;
-        stops.set(`row:${key}`, {
-          // The thumbnail itself once its row has been drawn (it records where it sat); the entry's card until then.
-          rect: () => {
-            const offset = this.#thumbOffsets.get(key);
-            if (!offset) return entryRect();
-            const row = list.rectFor(rowIndex);
-            return { x: row.x + offset.x, y: row.y + offset.y, width: offset.width, height: offset.height };
+      stops.set(
+        `row:entry:${entry.id}`,
+        this.#listStop(
+          `entry:${entry.id}`,
+          // The "Added in ... ▸" link when it has one (no game running), else the first card; a bare term does nothing.
+          () => {
+            if (originBoxId) this.#openOriginBox(originBoxId);
+            else if (first) this.#inspectRef(first, game);
           },
-          activate: () => this.#inspectRef(ref, game),
-          inspect: () => this.#inspectRef(ref, game),
-          ensureVisible: () => list.scrollIntoView(rowIndex),
-        });
-      });
+          first ? { inspect: () => this.#inspectRef(first, game) } : {},
+        ),
+      );
+      for (const ref of shown) {
+        const key = `entry:${entry.id}:card:${ref.cardId}`;
+        stops.set(
+          `row:${key}`,
+          this.#listStop(key, () => this.#inspectRef(ref, game), { inspect: () => this.#inspectRef(ref, game) }),
+        );
+      }
     });
     return rowIds;
   }
 
-  #renderGlossaryRow(
+  #glossaryRow(
+    b: SheetBuilder,
     rowRect: Rect,
     geometry: ReturnType<typeof glossaryGridColumns>,
     entries: readonly RulesEntry[],
     rowIndex: number,
     game: GameState | null,
-  ): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
+  ): void {
     const startIndex = rowIndex * geometry.columns;
     const countInRow = Math.min(geometry.columns, entries.length - startIndex);
     for (let col = 0; col < countInRow; col++) {
@@ -614,16 +754,17 @@ export class RulesOverlay extends Phaser.Scene {
       const cardRect: Rect = { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 };
       const isStatus = isStatusEntry(entry.id);
 
-      const g = this.add.graphics();
-      paintPanel(g, cardRect, "card", "rest");
-      objects.push(g);
-      if (isStatus) {
-        const stripe = this.add.graphics();
-        stripe
-          .fillStyle(status[entry.id as "stunned" | "confused" | "tough"].hex, 1)
-          .fillRect(cardRect.x, cardRect.y, 6, cardRect.height);
-        objects.push(stripe);
-      }
+      b.box(cardRect, {
+        fill: surface.card.hex,
+        stroke: surface.ink.hex,
+        strokeWidth: border.object,
+        key: `entry:${entry.id}`,
+      });
+      if (isStatus)
+        b.box(
+          { x: cardRect.x, y: cardRect.y, width: 6, height: cardRect.height },
+          { fill: status[entry.id as "stunned" | "confused" | "tough"].hex },
+        );
 
       const textX = cardRect.x + (isStatus ? 18 : 12);
       const textWidth = glossaryTextWidth(geometry.cellWidth, isStatus);
@@ -631,20 +772,20 @@ export class RulesOverlay extends Phaser.Scene {
 
       // The status hue alone never carries the meaning (colorblind-safe): the term itself is
       // always the plain word "Stunned"/"Confused"/"Tough", never only the stripe's color.
-      const term = this.add.text(textX, y, caseOf(typeRole.barTitle, entry.displayName), {
-        ...textStyle(typeRole.barTitle, surface.ink.hex),
-        fontSize: `${GLOSSARY_TERM_SIZE}px`,
+      const term = b.text(textX, y, entry.displayName, typeRole.barTitle, {
+        size: GLOSSARY_TERM_SIZE,
+        color: surface.ink.hex,
+        fitWidth: textWidth,
       });
-      fitText(term, textWidth, GLOSSARY_TERM_SIZE);
-      objects.push(term);
       y += term.height + 6;
 
-      const definition = this.add
-        .text(textX, y, entry.definition, textStyle(typeRole.body, surface.ink.hex, ink.body))
-        .setFontSize(GLOSSARY_DEFINITION_SIZE)
-        .setLineSpacing(3)
-        .setWordWrapWidth(textWidth);
-      objects.push(definition);
+      const definition = b.text(textX, y, entry.definition, typeRole.body, {
+        size: GLOSSARY_DEFINITION_SIZE,
+        color: surface.ink.hex,
+        alpha: ink.body,
+        lineSpacing: 3,
+        wrapWidth: textWidth,
+      });
       y += definition.height + 6;
 
       // Player-facing: the source(s) alone, no "(not in this repo)"/"· UNVERIFIED" bookkeeping
@@ -653,18 +794,21 @@ export class RulesOverlay extends Phaser.Scene {
       // a cite that wraps to two lines (a long product name) used to have the paragraph below it
       // drawn straight through it at a fixed 16px advance; see `rules-glossary-grid.ts`'s matching
       // height estimate for why every entry's own row is tall enough for this already.
-      const cite = label(this, textX, y, entry.playerCiteLabel, typeRole.label, surface.ink.hex, ink.label)
-        .setFontSize(GLOSSARY_CITE_SIZE)
-        .setWordWrapWidth(textWidth);
-      objects.push(cite);
+      const cite = b.text(textX, y, entry.playerCiteLabel, typeRole.label, {
+        size: GLOSSARY_CITE_SIZE,
+        color: surface.ink.hex,
+        alpha: ink.label,
+        wrapWidth: textWidth,
+      });
       y += cite.height + 4;
       if (entry.playerNote) {
-        const noteText = this.add
-          .text(textX, y, entry.playerNote, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
-          .setFontSize(GLOSSARY_DEFINITION_SIZE)
-          .setLineSpacing(3)
-          .setWordWrapWidth(textWidth);
-        objects.push(noteText);
+        const noteText = b.text(textX, y, entry.playerNote, typeRole.body, {
+          size: GLOSSARY_DEFINITION_SIZE,
+          color: surface.ink.hex,
+          alpha: ink.secondary,
+          lineSpacing: 3,
+          wrapWidth: textWidth,
+        });
         y += noteText.height + 4;
       }
 
@@ -673,22 +817,23 @@ export class RulesOverlay extends Phaser.Scene {
         // opening a How to play page would leave a game in progress.
         const originBoxId = entry.originBoxId;
         const linkable = game === null;
-        const originText = this.add
-          .text(textX, y, linkable ? `${entry.originNote} ▸` : entry.originNote, {
-            ...textStyle(typeRole.body, surface.ink.hex, linkable ? ink.body : ink.secondary),
-            fontStyle: linkable ? "bold" : "normal",
-          })
-          .setFontSize(GLOSSARY_DEFINITION_SIZE)
-          .setLineSpacing(3)
-          .setWordWrapWidth(textWidth);
-        objects.push(originText);
+        const originText = b.text(
+          textX,
+          y,
+          linkable ? `${entry.originNote} ▸` : entry.originNote,
+          linkable ? { ...typeRole.body, weight: 700 } : typeRole.body,
+          {
+            size: GLOSSARY_DEFINITION_SIZE,
+            color: surface.ink.hex,
+            alpha: linkable ? ink.body : ink.secondary,
+            lineSpacing: 3,
+            wrapWidth: textWidth,
+          },
+        );
         if (linkable) {
-          const hit = this.add
-            .zone(textX, y, textWidth, originText.height)
-            .setOrigin(0, 0)
-            .setInteractive({ useHandCursor: true });
-          onTap(hit, () => this.#openOriginBox(originBoxId), `origin:${originBoxId}`);
-          objects.push(hit);
+          const key = `origin:${entry.id}`;
+          b.tap(key, { x: textX, y, width: textWidth, height: originText.height });
+          this.#press(key, () => this.#openOriginBox(originBoxId));
         }
         y += originText.height + 4;
       }
@@ -704,45 +849,31 @@ export class RulesOverlay extends Phaser.Scene {
             width: GLOSSARY_THUMB_SIZE,
             height: Math.min(tileHeight, cardRect.y + cardRect.height - y - 4),
           };
-          this.#thumbOffsets.set(`entry:${entry.id}:card:${ref.cardId}`, {
-            x: tileRect.x - rowRect.x,
-            y: tileRect.y - rowRect.y,
-            width: tileRect.width,
-            height: tileRect.height,
-          });
           const source = artFor(this.#cardForRef(ref, game), this.#faceForRef(ref, game));
-          const tile = new McCardTile(this, {
-            rect: tileRect,
-            label: ref.name,
-            artHeight: Math.max(0, tileRect.height - GLOSSARY_THUMB_CAPTION),
-            onClick: () => this.#inspectRef(ref, game),
-            onInspect: () => this.#inspectRef(ref, game),
-            paintArt: (slot) => {
-              const key = cardArt(this).request(this, source);
-              return drawArt(this, key, slot);
+          const key = `entry:${entry.id}:card:${ref.cardId}`;
+          this.#tile(
+            b,
+            tileRect,
+            ref.name,
+            source,
+            {
+              tap: key,
+              hover: this.#hoverSlot(ref.cardId, key, game && ref.instanceId ? this.#faceForRef(ref, game) : undefined),
             },
-            // Still loading draws nothing but the ground `McCardTile` already painted — only a
-            // confirmed-missing scan (no `source`, or the loader's own 404) says "no scan".
-            artMissing: !source || cardArt(this).isMissing(source.key),
-          });
-          objects.push(...tile.objects);
+            () => this.#inspectRef(ref, game),
+          );
         });
         if (overflow > 0) {
-          objects.push(
-            label(
-              this,
-              textX + shown.length * (GLOSSARY_THUMB_SIZE + 8),
-              y + GLOSSARY_THUMB_SIZE * 0.7,
-              `+${overflow} more`,
-              typeRole.label,
-              surface.ink.hex,
-              ink.meta,
-            ),
+          b.text(
+            textX + shown.length * (GLOSSARY_THUMB_SIZE + 8),
+            y + GLOSSARY_THUMB_SIZE * 0.7,
+            t("rules.thumbsMore", { count: overflow }),
+            typeRole.label,
+            { color: surface.ink.hex, alpha: ink.meta },
           );
         }
       }
     }
-    return { objects };
   }
 
   /** Leaves the Rules reference (and the How to play screens under it) for the box page an entry was added with. */
@@ -789,15 +920,17 @@ export class RulesOverlay extends Phaser.Scene {
       width: rect.width,
       height: Math.max(0, rect.height - VILLAIN_PHASE_CITATION_HEIGHT - 4),
     };
-    label(
-      this,
+    this.#b.text(
       citationRect.x,
       citationRect.y + citationRect.height / 2,
-      'RRG 1.8 p. 47 "Villain Phase".',
+      t("rules.villain.citation"),
       typeRole.label,
-      surface.ink.hex,
-      ink.meta,
-    ).setOrigin(0, 0.5);
+      {
+        color: surface.ink.hex,
+        alpha: ink.meta,
+        origin: [0, 0.5],
+      },
+    );
 
     const steps = villainPhaseOrder(game ?? undefined);
     const charWidth = 5.6;
@@ -807,42 +940,47 @@ export class RulesOverlay extends Phaser.Scene {
       110,
       ...steps.map((step) => 24 + estimateWrappedLines(step.detail, textWidth, charWidth) * 16 + 24),
     );
-    const renderRow = (index: number, rowRect: Rect): VirtualListRow =>
-      this.#renderVillainStep(rowRect, steps[index]!, artColumnWidth, textWidth, game);
-    const list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight,
-      count: steps.length,
-      renderRow,
-      scroll: this.#villainScroll,
+    this.#listPanel(listRect);
+    this.#inScroll(listRect, rowHeight * steps.length, (b) => {
+      steps.forEach((step, index) => {
+        this.#villainStep(
+          b,
+          { x: listRect.x, y: index * rowHeight, width: listRect.width, height: rowHeight },
+          step,
+          index,
+          artColumnWidth,
+          textWidth,
+          game,
+        );
+      });
     });
-    this.#villainList = list;
     // One stop per step, so the pad walks the steps and the list follows. Reading them is all there is to do.
     return steps.map((_step, index) => {
       const key = `step:${index}`;
-      stops.set(`row:${key}`, {
-        rect: () => list.rectFor(index),
-        activate: () => {},
-        ensureVisible: () => list.scrollIntoView(index),
-      });
+      stops.set(
+        `row:${key}`,
+        this.#listStop(key, () => {}),
+      );
       return key;
     });
   }
 
-  #renderVillainStep(
+  #villainStep(
+    b: SheetBuilder,
     rect: Rect,
     step: VillainPhaseStep,
+    index: number,
     artColumnWidth: number,
     textWidth: number,
     game: GameState | null,
-  ): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
+  ): void {
     const cardRect: Rect = { x: rect.x + 4, y: rect.y + 2, width: rect.width - 8, height: rect.height - 4 };
-    const g = this.add.graphics();
-    if (step.current) g.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, cardRect.y, cardRect.width, cardRect.height);
-    else g.fillStyle(surface.card.hex, 1).fillRect(cardRect.x, cardRect.y, cardRect.width, cardRect.height);
-    g.lineStyle(3, surface.ink.hex, 1).strokeRect(cardRect.x, cardRect.y, cardRect.width, cardRect.height);
-    objects.push(g);
+    b.box(cardRect, {
+      fill: step.current ? surface.ink.hex : surface.card.hex,
+      stroke: surface.ink.hex,
+      strokeWidth: 3,
+      key: `step:${index}`,
+    });
     const ink1 = step.current ? surface.paper.hex : surface.ink.hex;
 
     let textX = cardRect.x + 16;
@@ -853,53 +991,35 @@ export class RulesOverlay extends Phaser.Scene {
         width: artColumnWidth,
         height: cardRect.height - 24,
       };
-      const artBg = this.add.graphics();
-      artBg.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
-      objects.push(artBg);
       const source = this.#artForStep(step, game);
-      const key = source ? cardArt(this).request(this, source) : null;
-      const img = key ? drawArt(this, key, artRect) : null;
-      if (img) objects.push(img);
-      // Still loading (a source was requested but hasn't arrived) draws nothing further — the
-      // parchment ground above is the neutral state. Only a confirmed-missing scan says so.
-      else if (source && cardArt(this).isMissing(source.key))
-        objects.push(
-          label(
-            this,
-            artRect.x + artRect.width / 2,
-            artRect.y + artRect.height / 2,
-            "no scan",
-            typeRole.label,
-            ink1,
-            ink.meta,
-          ).setOrigin(0.5),
-        );
+      const cardId = this.#cardIdForStep(step, game);
+      b.image(artRect, {
+        src: source?.url ?? null,
+        fill: surface.parchment.hex,
+        // Still loading draws nothing further — the parchment ground is the neutral state. Only a source that failed
+        // to load, or that never existed for a step with art, says so.
+        ...(source ? { missing: t("rules.noScan") } : {}),
+        color: ink1,
+        ...(cardId
+          ? { hover: this.#hoverSlot(cardId, `step${index}`, game ? this.#stepFace(step, game) : undefined) }
+          : {}),
+      });
       textX = artRect.x + artRect.width + 16;
     }
 
     if (step.current) {
-      objects.push(label(this, textX, cardRect.y + 8, "← HAPPENING NOW", typeRole.label, ink1, 1));
+      b.text(textX, cardRect.y + 8, t("rules.villain.now"), typeRole.label, { color: ink1, alpha: 1 });
     }
-    const title = this.add.text(
-      textX,
-      cardRect.y + (step.current ? 22 : 12),
-      caseOf({ ...typeRole.barTitle }, step.label),
-      { ...textStyle(typeRole.barTitle, ink1), fontSize: "18px" },
-    );
-    objects.push(title);
-    const detail = this.add
-      .text(
-        textX,
-        cardRect.y + (step.current ? 22 : 12) + title.height + 4,
-        step.detail,
-        textStyle(typeRole.body, ink1, step.current ? 0.9 : ink.body),
-      )
-      .setWordWrapWidth(textWidth);
-    objects.push(detail);
-    return { objects };
+    const titleY = cardRect.y + (step.current ? 22 : 12);
+    const title = b.text(textX, titleY, step.label, typeRole.barTitle, { size: 18, color: ink1 });
+    b.text(textX, titleY + title.height + 4, step.detail, typeRole.body, {
+      color: ink1,
+      alpha: step.current ? 0.9 : ink.body,
+      wrapWidth: textWidth,
+    });
   }
 
-  #artForStep(step: VillainPhaseStep, game: GameState | null): { readonly key: string; readonly url: string } | null {
+  #artForStep(step: VillainPhaseStep, game: GameState | null): ArtSource | null {
     if (step.art === "encounterBack") return CARD_BACKS.encounter;
     // No live game means no live main scheme/villain instance to point at — rather than a gray
     // "no scan" box (owner feedback, 2026-09-29: two of them side by side outside a game read as
@@ -907,29 +1027,48 @@ export class RulesOverlay extends Phaser.Scene {
     // steps 3-4 always use. It's not *this* step's own picture, but it's a real illustration, and
     // every step already reads its own current/label/detail text regardless of the art column.
     if (!game) return CARD_BACKS.encounter;
-    const instanceId =
-      step.art === "mainScheme" ? game.mainScheme.instanceId : step.art === "villain" ? game.activeVillainId : null;
+    const instanceId = this.#instanceForStep(step, game);
     if (!instanceId) return null;
     const cardId = getInstance(game, instanceId)?.cardId;
     if (!cardId) return null;
     return artFor(game.cardPool[cardId], faceOf(game, instanceId));
   }
 
+  #instanceForStep(step: VillainPhaseStep, game: GameState): InstanceId | null {
+    return step.art === "mainScheme"
+      ? game.mainScheme.instanceId
+      : step.art === "villain"
+        ? game.activeVillainId
+        : null;
+  }
+
+  /** The card a step's scan is of (a live scheme or villain), for its hover popover; null for a card back. */
+  #cardIdForStep(step: VillainPhaseStep, game: GameState | null): string | null {
+    if (!game) return null;
+    const instanceId = this.#instanceForStep(step, game);
+    return instanceId ? (getInstance(game, instanceId)?.cardId ?? null) : null;
+  }
+
+  #stepFace(step: VillainPhaseStep, game: GameState): CardFace | undefined {
+    const instanceId = this.#instanceForStep(step, game);
+    return instanceId ? faceOf(game, instanceId) : undefined;
+  }
+
   // ------------------------------------------------------------------------------------------------------------
   // Card list: every encounter set the pool knows, "IN THIS GAME" first under "On your table"
   // scope, the rest ("NOT IN THIS GAME") following (or omitted entirely) — each a Bangers header
-  // over a wrapped grid of real card thumbnails. Virtualized at grid-row granularity: a plain
-  // `McVirtualList` can't mix a short header slot with a taller grid-row slot in one list.
+  // over a wrapped grid of real card thumbnails.
   // ------------------------------------------------------------------------------------------------------------
   #drawCardListTab(rect: Rect, game: GameState | null, stops: Map<string, FocusStop>): readonly string[] {
     const groups = rulesCardListOf(game, POOL_CARDS, POOL_ENCOUNTER_SETS);
     const visible = this.#scope === "table" ? groups.filter((group) => group.inGame) : groups;
     if (visible.length === 0) {
-      this.add.text(
+      this.#b.text(
         rect.x,
         rect.y,
-        game ? "This game has no encounter-side cards to list." : "No encounter sets in the pool.",
-        textStyle(typeRole.body, surface.ink.hex, ink.meta),
+        game ? t("rules.cardList.emptyGame") : t("rules.cardList.emptyPool"),
+        typeRole.body,
+        { color: surface.ink.hex, alpha: ink.meta },
       );
       return [];
     }
@@ -940,10 +1079,10 @@ export class RulesOverlay extends Phaser.Scene {
     let sawNotInGame = false;
     for (const group of visible) {
       if (group.inGame && !sawInGame) {
-        slots.push({ kind: "sectionLabel", text: "IN THIS GAME" });
+        slots.push({ kind: "sectionLabel", text: t("rules.cardList.inGame") });
         sawInGame = true;
       } else if (!group.inGame && !sawNotInGame && this.#scope === "all") {
-        slots.push({ kind: "sectionLabel", text: "NOT IN THIS GAME" });
+        slots.push({ kind: "sectionLabel", text: t("rules.cardList.notInGame") });
         sawNotInGame = true;
       }
       slots.push({ kind: "header", group });
@@ -964,157 +1103,117 @@ export class RulesOverlay extends Phaser.Scene {
           ? SET_HEADER_HEIGHT
           : geometry.cellHeight,
     );
-    const renderRow = (index: number, rowRect: Rect): VirtualListRow =>
-      this.#renderCardListSlot(rowRect, slots[index]!, geometry, game);
-    const onRowActivate = (index: number, pointer: Phaser.Input.Pointer): void => {
-      const slot = slots[index];
-      if (slot?.kind !== "gridRow") return;
-      const list = this.#cardListList;
-      if (!list) return;
-      const column = poolColumnAt(geometry, list.rectFor(index), pointer.x, slot.count);
-      if (column === null) return;
-      const card = slot.group.cards[slot.startIndex + column];
-      if (card) this.#inspectPoolCard(card, game);
-    };
-    this.#cardListList = new McVariableList(this, {
+    this.#listPanel(rect);
+    this.#inScroll(
       rect,
-      heights,
-      renderRow,
-      scroll: this.#cardListScroll,
-      onRowActivate,
-    });
-    const list = this.#cardListList;
-    this.#cardListHover = () => {
-      const found: (readonly [string, HoverCardIdRect])[] = [];
-      const view = list.rect;
-      slots.forEach((slot, index) => {
-        if (slot.kind !== "gridRow") return;
-        const at = list.rectFor(index);
-        if (at.y + at.height <= view.y || at.y >= view.y + view.height) return;
-        for (let col = 0; col < slot.count; col++) {
-          const card = slot.group.cards[slot.startIndex + col];
-          if (!card) continue;
-          const cell = poolCellRect(geometry, at, col);
-          const rect = clipHoverRect(
-            { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 },
-            view,
+      heights.reduce((sum, h) => sum + h, 0),
+      (b) => {
+        let top = 0;
+        slots.forEach((slot, index) => {
+          this.#cardListSlot(
+            b,
+            { x: rect.x, y: top, width: rect.width, height: heights[index]! },
+            slot,
+            index,
+            geometry,
+            game,
           );
-          const cardId = card.cardId as string;
-          if (rect) found.push([hoverSlotOf(cardId, `cell${index}.${col}`), { ...rect, cardId, through: true }]);
-        }
-      });
-      return found;
-    };
+          top += heights[index]!;
+        });
+      },
+    );
 
     const rowIds: string[] = [];
-    slots.forEach((slot, index) => {
-      if (slot.kind !== "gridRow") return;
+    for (const slot of slots) {
+      if (slot.kind !== "gridRow") continue;
       for (let col = 0; col < slot.count; col++) {
         const card = slot.group.cards[slot.startIndex + col]!;
-        rowIds.push(`${slot.group.setId}:${card.cardId}`);
-        stops.set(`row:${slot.group.setId}:${card.cardId}`, {
-          rect: () => poolCellRect(geometry, list.rectFor(index), col),
-          activate: () => this.#inspectPoolCard(card, game),
-          inspect: () => this.#inspectPoolCard(card, game),
-          ensureVisible: () => list.scrollIntoView(index),
-        });
+        const id = `${slot.group.setId}:${card.cardId}`;
+        rowIds.push(id);
+        stops.set(
+          `row:${id}`,
+          this.#listStop(`card:${id}`, () => this.#inspectPoolCard(card, game), {
+            inspect: () => this.#inspectPoolCard(card, game),
+          }),
+        );
       }
-    });
+    }
     return rowIds;
   }
 
-  #renderCardListSlot(
+  #cardListSlot(
+    b: SheetBuilder,
     rect: Rect,
     slot: CardListSlot,
+    index: number,
     geometry: ReturnType<typeof poolGridGeometry>,
     game: GameState | null,
-  ): VirtualListRow {
+  ): void {
     // Matches the grid cells' own left inset (`cardRect.x = cell.x + 4` below) so a header/label
     // row's own text lines up under the card art's own left edge instead of starting flush under
     // the list's outer border.
     if (slot.kind === "sectionLabel") {
-      return {
-        objects: [
-          label(
-            this,
-            rect.x + CARD_LIST_INSET,
-            rect.y + rect.height / 2,
-            slot.text,
-            typeRole.label,
-            surface.ink.hex,
-            ink.secondary,
-          )
-            .setOrigin(0, 0.5)
-            .setFontSize(11),
-        ],
-      };
+      b.text(rect.x + CARD_LIST_INSET, rect.y + rect.height / 2, slot.text, typeRole.label, {
+        size: 11,
+        color: surface.ink.hex,
+        alpha: ink.secondary,
+        origin: [0, 0.5],
+      });
+      return;
     }
     if (slot.kind === "header") {
-      // Every object `sectionHeader` draws must land in this row's own `objects` — anything
-      // created straight off `scene.add.*` and not returned here is parented outside
-      // `McVariableList`'s row layer, the one thing that actually gets masked and repositioned by
-      // scroll (`ui/variable-list.ts`'s own doc comment) — a header drawn that way stays put while
-      // the grid rows around it scroll past.
-      const objects: Phaser.GameObjects.GameObject[] = [];
-      sectionHeader(
-        this,
-        rect.x + CARD_LIST_INSET,
-        rect.y + 4,
-        rect.width - CARD_LIST_INSET * 2,
-        `${slot.group.setName.toUpperCase()} · ${slot.group.cards.length} CARD${slot.group.cards.length === 1 ? "" : "S"}`,
-        surface.ink.hex,
-        undefined,
-        objects,
+      // A Bangers heading with a full-bleed rule filling the rest of its row (`sectionHeader`'s own shape).
+      const x = rect.x + CARD_LIST_INSET;
+      const y = rect.y + 4;
+      const width = rect.width - CARD_LIST_INSET * 2;
+      const heading = b.text(
+        x,
+        y,
+        tPlural("rules.cardList.setHeader", slot.group.cards.length, { name: slot.group.setName }).toUpperCase(),
+        typeRole.barTitle,
+        { size: 19, color: surface.ink.hex, fitWidth: Math.max(10, width) },
       );
-      return { objects };
+      const ruleX = x + heading.width + 10;
+      const ruleEnd = x + width;
+      if (ruleX < ruleEnd)
+        b.box(
+          { x: ruleX, y: y + heading.height / 2 - 1.5, width: ruleEnd - ruleX, height: 3 },
+          { fill: surface.ink.hex },
+        );
+      return;
     }
 
-    const objects: Phaser.GameObjects.GameObject[] = [];
     for (let col = 0; col < slot.count; col++) {
       const card = slot.group.cards[slot.startIndex + col]!;
       const cell = poolCellRect(geometry, rect, col);
       const cardRect: Rect = { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 };
-      const g = this.add.graphics();
-      paintPanel(g, cardRect, "card", "rest");
-      objects.push(g);
+      b.box(cardRect, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: border.object });
       const artRect: Rect = {
         x: cardRect.x + 2,
         y: cardRect.y + 2,
         width: cardRect.width - 4,
         height: cardRect.height - geometry.captionHeight - 4,
       };
-      const artFill = this.add.graphics();
-      artFill.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
-      objects.push(artFill);
       const poolCard = this.#cardForListEntry(card, game);
       const source = artFor(poolCard, defaultFaceFor(poolCard));
-      const key = cardArt(this).request(this, source);
-      const art = drawArt(this, key, artRect);
-      if (art) objects.push(art);
-      // Still loading (a request was queued but hasn't arrived) draws nothing further — the
-      // parchment ground already painted above is the neutral "coming soon" state. Only a
-      // confirmed-missing scan (no `source` at all, or the loader's own 404) says so in words.
-      else if (!source || cardArt(this).isMissing(source.key))
-        objects.push(
-          label(
-            this,
-            artRect.x + artRect.width / 2,
-            artRect.y + artRect.height / 2,
-            "no scan",
-            typeRole.label,
-            surface.ink.hex,
-            ink.meta,
-          ).setOrigin(0.5),
-        );
+      // Still loading draws nothing further — the parchment ground is the neutral "coming soon" state. Only a
+      // confirmed-missing scan (no `source` at all, or a file that fails to load) says so in words.
+      b.image(artRect, {
+        src: source?.url ?? null,
+        fill: surface.parchment.hex,
+        missing: t("rules.noScan"),
+        color: surface.ink.hex,
+      });
       const ruleY = artRect.y + artRect.height + 2;
-      const rule = this.add.graphics();
-      rule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, ruleY, cardRect.width, 2.5);
-      objects.push(rule);
-      const name = this.add.text(cardRect.x + 8, ruleY + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
-      fitText(name, cardRect.width - 16);
-      objects.push(name);
+      b.box({ x: cardRect.x, y: ruleY, width: cardRect.width, height: 2.5 }, { fill: surface.ink.hex });
+      b.text(cardRect.x + 8, ruleY + 6, card.name, typeRole.rowTitle, {
+        color: surface.ink.hex,
+        fitWidth: cardRect.width - 16,
+      });
+      const key = `card:${slot.group.setId}:${card.cardId}`;
+      b.tap(key, cardRect, { inspect: true, hover: this.#hoverSlot(card.cardId, `cell${index}.${col}`) });
+      this.#pressOrInspect(key, () => this.#inspectPoolCard(card, game));
     }
-    return { objects };
   }
 
   #cardForListEntry(card: RulesCardListCard, game: GameState | null): AnyCard | undefined {
@@ -1135,7 +1234,7 @@ export class RulesOverlay extends Phaser.Scene {
 const isStatusEntry = (id: string): id is "stunned" | "confused" | "tough" =>
   id === "stunned" || id === "confused" || id === "tough";
 
-/** The text column's own width inside one glossary entry card at `cellWidth` — matches `#renderGlossaryRow`'s own `cardRect`/`textX` math exactly, so the stop-building pass in `#drawGlossaryTab` agrees with what's actually drawn. */
+/** The text column's own width inside one glossary entry card at `cellWidth` — matches `#glossaryRow`'s own `cardRect`/`textX` math exactly, so the stop-building pass in `#drawGlossaryTab` agrees with what's actually drawn. */
 function glossaryTextWidth(cellWidth: number, isStatus: boolean): number {
   const cardWidth = cellWidth - 8;
   return Math.max(1, cardWidth - (isStatus ? 18 : 12) - 12);

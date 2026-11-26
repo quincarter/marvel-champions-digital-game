@@ -74,4 +74,55 @@ describe("mc-sheet", () => {
     expect(keys).toEqual(["resume", "card", "moment:1"]);
     sheet.remove();
   });
+
+  it("draws a picture whole inside its box, and says why when there is none", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "image",
+        key: "art",
+        rect: rect(10, 10, 60, 84),
+        src: "/card-art/01001a.png",
+        fill: "#eee",
+        missing: "no scan",
+        hover: "01001a@0",
+      },
+      { kind: "image", key: "none", rect: rect(80, 10, 60, 84), src: null, missing: "no scan" },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const art = sheet.elementOf("art")!;
+    expect(art.querySelector("img")?.getAttribute("src")).toBe("/card-art/01001a.png");
+    expect(art.querySelector("img")?.getAttribute("loading")).toBe("lazy");
+    expect(art.dataset.hover).toBe("01001a@0");
+    expect(art.querySelector(".missing")).toBeNull();
+    expect(sheet.elementOf("none")!.querySelector(".missing")?.textContent).toBe("no scan");
+    // A scan that fails to load says so, and keeps saying so when the sheet is drawn again.
+    art.querySelector("img")!.dispatchEvent(new Event("error"));
+    await sheet.updateComplete;
+    expect(sheet.elementOf("art")!.querySelector(".missing")?.textContent).toBe("no scan");
+    sheet.nodes = [...sheet.nodes];
+    await sheet.updateComplete;
+    expect(sheet.elementOf("art")!.querySelector("img")).toBeNull();
+    sheet.remove();
+  });
+
+  it("raises mc-inspect for a held or right-clicked tap area that asks for it, and only that one", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      { kind: "tap", key: "card", rect: rect(0, 0, 80, 40), inspect: true, hover: "c@1" },
+      { kind: "tap", key: "plain", rect: rect(0, 50, 80, 40) },
+      { kind: "box", key: "frame", rect: rect(0, 100, 20, 20), round: true, fill: "#000" },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const keys: string[] = [];
+    sheet.addEventListener("mc-inspect", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
+    sheet.elementOf("card")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    sheet.elementOf("plain")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(keys).toEqual(["card"]);
+    expect(sheet.elementOf("card")!.dataset.hover).toBe("c@1");
+    expect(sheet.elementOf("frame")!.style.borderRadius).toBe("50%");
+    sheet.remove();
+  });
 });

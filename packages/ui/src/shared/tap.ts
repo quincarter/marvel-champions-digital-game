@@ -76,3 +76,65 @@ export function onTap(
     element.removeEventListener("pointerleave", end);
   };
 }
+
+/** How long a press lasts before it is a hold, and how far it may wander and still be one: as the client's `view/hold-gesture.ts`. */
+export const HOLD_MS = 420;
+export const HOLD_SLOP_PX = 12;
+
+/**
+ * Calls `handler` for a press-and-hold (the mouse or a finger kept down on `element` for `HOLD_MS`, within
+ * `HOLD_SLOP_PX` of where it began) and for a right-click: the gesture a card shares for "look at this" (Inspect).
+ * A hold that fired swallows the release that ends it, so a tap on the same element does not also act. Returns the
+ * function that stops listening.
+ */
+export function onHold(element: HTMLElement, handler: (event: Event) => void): () => void {
+  let press: { id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null;
+  let firedAt = -Infinity;
+  const end = (): void => {
+    if (press) clearTimeout(press.timer);
+    press = null;
+  };
+  const down = (event: PointerEvent): void => {
+    if (event.button !== 0) return;
+    end();
+    const held = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    const timer = setTimeout(() => {
+      if (press?.id !== held.id) return;
+      press = null;
+      firedAt = performance.now();
+      handler(event);
+    }, HOLD_MS);
+    press = { ...held, timer };
+  };
+  const move = (event: PointerEvent): void => {
+    if (press?.id === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) > HOLD_SLOP_PX)
+      end();
+  };
+  const up = (event: PointerEvent): void => {
+    end();
+    // The release that ends a hold is not a tap: stopped before the element's tap listener hears it.
+    if (performance.now() - firedAt < 1500 && event.button === 0) {
+      firedAt = -Infinity;
+      event.stopImmediatePropagation();
+    }
+  };
+  const menu = (event: Event): void => {
+    event.preventDefault();
+    // A long press on a touch screen raises this too, after the hold already fired.
+    if (performance.now() - firedAt < 1500) return;
+    handler(event);
+  };
+  element.addEventListener("pointerdown", down);
+  element.addEventListener("pointermove", move);
+  element.addEventListener("pointerup", up, { capture: true });
+  element.addEventListener("pointercancel", end);
+  element.addEventListener("contextmenu", menu);
+  return () => {
+    end();
+    element.removeEventListener("pointerdown", down);
+    element.removeEventListener("pointermove", move);
+    element.removeEventListener("pointerup", up, { capture: true });
+    element.removeEventListener("pointercancel", end);
+    element.removeEventListener("contextmenu", menu);
+  };
+}

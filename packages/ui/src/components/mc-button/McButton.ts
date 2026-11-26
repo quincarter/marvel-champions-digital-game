@@ -3,7 +3,7 @@ import { ThemeStyles } from "../../shared/theme.styles.js";
 import { onTap } from "../../shared/tap.js";
 import { McButtonStyles } from "./mc-button.styles.js";
 
-export type McButtonKind = "primary" | "secondary" | "quiet" | "onInk";
+export type McButtonKind = "primary" | "secondary" | "quiet" | "onInk" | "rail";
 
 /**
  * # Button
@@ -12,7 +12,7 @@ export type McButtonKind = "primary" | "secondary" | "quiet" | "onInk";
  * its own: the game's focus route (keyboard and pad) presses it through the scene.
  *
  * @element mc-button
- * @attr kind - primary | secondary | quiet | onInk
+ * @attr kind - primary | secondary | quiet | onInk | rail (a tab cell: parchment, an ink fill when selected)
  * @attr selected - The control's on / chosen state.
  * @attr still - No label slide when a glyph makes room (reduced motion).
  * @attr disabled - Unavailable: kept in place, dimmed, presses do nothing. `reason` says why, as a tooltip.

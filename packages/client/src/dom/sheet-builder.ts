@@ -53,6 +53,8 @@ export interface TextOptions {
   readonly alpha?: number;
   readonly wrapWidth?: number;
   readonly fitWidth?: number;
+  /** A wrapped text cut with an ellipsis after this many lines. */
+  readonly maxLines?: number;
   /** Phaser's `setLineSpacing`: extra px between lines. */
   readonly lineSpacing?: number;
   readonly origin?: readonly [number, number];
@@ -109,11 +111,15 @@ export class SheetBuilder {
       readonly strokeWidth?: number;
       readonly dashed?: boolean;
       readonly alpha?: number;
+      readonly key?: string;
+      /** A circle: give it a square rect. */
+      readonly round?: boolean;
     },
   ): void {
     const fill = look.fill !== undefined ? sheetColor(look.fill, "fill") : undefined;
     this.nodes.push({
       kind: "box",
+      ...(look.key !== undefined ? { key: look.key } : {}),
       rect: this.#rect(rect),
       ...(fill !== undefined
         ? {
@@ -127,6 +133,7 @@ export class SheetBuilder {
       ...(look.strokeWidth !== undefined ? { strokeWidth: look.strokeWidth } : {}),
       ...(look.dashed ? { dashed: true } : {}),
       ...(look.alpha !== undefined ? { opacity: look.alpha } : {}),
+      ...(look.round ? { round: true } : {}),
     });
   }
 
@@ -166,6 +173,7 @@ export class SheetBuilder {
       ...(options.origin ? { anchorX: options.origin[0], anchorY: options.origin[1] } : {}),
       ...(options.wrapWidth !== undefined ? { wrapWidth: options.wrapWidth } : {}),
       ...(options.fitWidth !== undefined ? { fitWidth: options.fitWidth } : {}),
+      ...(options.maxLines !== undefined ? { maxLines: options.maxLines } : {}),
       ...(options.key !== undefined ? { key: options.key } : {}),
       ...(options.marks?.length ? { marks: options.marks } : {}),
     };
@@ -203,7 +211,7 @@ export class SheetBuilder {
     readonly key: string;
     readonly rect: Rect;
     readonly label: string;
-    readonly look: "primary" | "secondary" | "quiet" | "onInk";
+    readonly look: "primary" | "secondary" | "quiet" | "onInk" | "rail";
     readonly selected?: boolean;
     readonly disabled?: string | true;
     readonly framed?: boolean;
@@ -255,8 +263,42 @@ export class SheetBuilder {
     });
   }
 
-  tap(key: string, rect: Rect): void {
-    this.nodes.push({ kind: "tap", key, rect: this.#rect(rect) });
+  /** An invisible press area. `inspect`: a press-and-hold or right-click also raises `mc-inspect` (a card's "look at this"). */
+  tap(key: string, rect: Rect, options: { readonly inspect?: boolean; readonly hover?: string } = {}): void {
+    this.nodes.push({
+      kind: "tap",
+      key,
+      rect: this.#rect(rect),
+      ...(options.inspect ? { inspect: true } : {}),
+      ...(options.hover !== undefined ? { hover: options.hover } : {}),
+    });
+  }
+
+  /**
+   * A card scan (or any picture) fitted whole inside `rect`, on `fill` (a token). `src` null, or a file that fails to
+   * load, shows `missing` instead. `hover` is the card id the card hover popover reads off it.
+   */
+  image(
+    rect: Rect,
+    options: {
+      readonly src: string | null;
+      readonly fill?: number;
+      readonly missing?: string;
+      readonly color?: number;
+      readonly hover?: string;
+      readonly key?: string;
+    },
+  ): void {
+    this.nodes.push({
+      kind: "image",
+      rect: this.#rect(rect),
+      src: options.src,
+      ...(options.fill !== undefined ? { fill: sheetColor(options.fill, "fill") } : {}),
+      ...(options.missing !== undefined ? { missing: options.missing } : {}),
+      ...(options.color !== undefined ? { color: sheetColor(options.color, "text") } : {}),
+      ...(options.hover !== undefined ? { hover: options.hover } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
   }
 
   /** A scrolling region at `rect`, `height` tall inside, its parts built in its own content space (`y` from 0). */

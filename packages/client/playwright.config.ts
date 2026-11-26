@@ -100,6 +100,7 @@ export default defineConfig({
         "pause-lit-panel.spec.ts",
         "popups-lit-panel.spec.ts",
         "credits-lit-panel.spec.ts",
+        "rules-howto-lit-panel.spec.ts",
         "mod-store-play.spec.ts",
         "past-games.spec.ts",
         "power-stone-holder-stats.spec.ts",

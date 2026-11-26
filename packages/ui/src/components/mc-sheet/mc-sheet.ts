@@ -14,6 +14,7 @@ export type {
   SheetButton,
   SheetDots,
   SheetGlyph,
+  SheetImage,
   SheetNode,
   SheetRect,
   SheetScroll,

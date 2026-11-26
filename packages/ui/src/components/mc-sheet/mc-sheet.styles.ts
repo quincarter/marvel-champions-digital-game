@@ -25,6 +25,34 @@ export const McSheetStyles = css`
   .tap {
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    /* A press-and-hold inspects (a card): no text selection or touch callout over it. */
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+  /* A picture fitted whole inside its box, centered: a card scan is the whole card, never cropped. */
+  .image {
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    user-select: none;
+  }
+  .image .missing {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mc-font-body);
+    font-weight: 800;
+    font-size: var(--mc-small-9, 9px);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    opacity: 0.5;
   }
   .content {
     position: relative;

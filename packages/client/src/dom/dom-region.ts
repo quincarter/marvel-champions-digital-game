@@ -286,6 +286,29 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     this.#sync();
   }
 
+  /**
+   * Passes the mouse moving over the panel on to Phaser, as if it moved over the canvas: Phaser hears a mouse move on
+   * the canvas only, which the panel covers. For a scene that shows a card hover popover over its panel
+   * (`ui/card-hover-preview.ts`, which follows Phaser's pointer); a finger or pen is left alone.
+   */
+  forwardMouseMoves(): void {
+    const canvas = this.#scene.game.canvas;
+    const onMove = (event: PointerEvent): void => {
+      if (event.pointerType !== "mouse") return;
+      canvas.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: event.clientX,
+          clientY: event.clientY,
+          screenX: event.screenX,
+          screenY: event.screenY,
+          buttons: event.buttons,
+        }),
+      );
+    };
+    this.#wrap.addEventListener("pointermove", onMove);
+    this.#scene.events.once("shutdown", () => this.#wrap.removeEventListener("pointermove", onMove));
+  }
+
   /** Hides the region whatever its scene does (the scene shows something else in its place for now). */
   setHidden(hidden: boolean): void {
     this.#hidden = hidden;

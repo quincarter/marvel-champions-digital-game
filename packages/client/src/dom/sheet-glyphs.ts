@@ -43,7 +43,7 @@ export interface SheetGlyphButton {
   readonly key: string;
   readonly rect: Rect;
   readonly label: string;
-  readonly look: "primary" | "secondary" | "quiet" | "onInk";
+  readonly look: "primary" | "secondary" | "quiet" | "onInk" | "rail";
   readonly type?: TypeSpec;
   readonly selected?: boolean;
   readonly disabled?: string | true;
@@ -151,6 +151,51 @@ export class SheetGlyphs {
   #compose(parts: readonly (string | null)[], flags: string): string {
     // With nothing to show, the mouse moving or resting changes nothing drawn.
     return parts.every((part) => part === null) ? "none" : [flags, ...parts.map((part) => part ?? "")].join("|");
+  }
+
+  /**
+   * A glyph on its own (a drawn control with no button: a bare close `×`), its left edge at `x`, centered on `y`: the
+   * Cancel glyph just after a title. Placed as given; drawn only while a keyboard or pad is in use.
+   */
+  hint(
+    builder: SheetBuilder,
+    entry: {
+      readonly key: string;
+      readonly x: number;
+      readonly y: number;
+      readonly ids: readonly ShortcutId[];
+      readonly height: number;
+      readonly ground?: McGlyphGround;
+    },
+  ): void {
+    const registered: Registered = {
+      entry: {
+        key: entry.key,
+        rect: { x: entry.x, y: entry.y, width: 0, height: 0 },
+        label: "",
+        look: "onInk",
+        ids: entry.ids,
+      },
+      drawn: null,
+    };
+    this.#entries.push(registered);
+    const snapshot = this.#snapshot;
+    const specs = snapshot ? this.#specsOf(registered.entry, snapshot) : null;
+    if (!snapshot) return;
+    this.#drawnFlags = this.#flagsOf(snapshot);
+    registered.drawn = specs ? specsSignature(specs) : null;
+    if (!specs) return;
+    this.#hadGlyph = true;
+    builder.glyph({
+      x: entry.x,
+      y: entry.y,
+      specs: specs.map(uiSpecOf),
+      height: scaledGlyphHeight(entry.height, snapshot.settings.glyphSize),
+      ground: entry.ground ?? "ink",
+      openness: glyphsExpanded(snapshot.state) ? 1 : 0,
+      still: snapshot.settings.reducedMotion,
+      key: `glyph:${entry.key}`,
+    });
   }
 
   /**

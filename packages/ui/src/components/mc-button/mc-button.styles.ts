@@ -93,6 +93,18 @@ export const McButtonStyles = css`
     --line: var(--mc-line-red);
   }
 
+  /* A tab cell in a recessed rail: parchment at rest, the active tab an ink fill (never an underline). */
+  :host([kind="rail"]) {
+    --stroke: 2px;
+    --fill: var(--mc-fill-parchment);
+    --ink-alpha: 0.6;
+  }
+  :host([kind="rail"][selected]) {
+    --fill: var(--mc-fill-ink);
+    --ink: var(--mc-text-paper);
+    --ink-alpha: 1;
+  }
+
   :host([disabled]) {
     --ink-alpha: 0.4;
   }
@@ -108,7 +120,8 @@ export const McButtonStyles = css`
     --fill: var(--mc-fill-ink);
     --line: var(--mc-line-paper);
   }
-  :host([kind="quiet"][disabled]) button {
+  :host([kind="quiet"][disabled]) button,
+  :host([kind="rail"][disabled]) button {
     outline-style: dashed;
   }
   /* A switch that is on carries a second, paper frame inside its border (paintOnFrame in the client). */

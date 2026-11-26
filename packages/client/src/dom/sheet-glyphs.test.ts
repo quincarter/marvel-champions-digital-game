@@ -150,4 +150,23 @@ describe("SheetGlyphs", () => {
     deliver(snapshot(keyboard));
     expect(redraws).toBe(1);
   });
+
+  it("draws a glyph on its own at the given spot while a key is in use, and asks for a redraw when that changes", () => {
+    const glyphs = make();
+    const spot = { key: "close", x: 120, y: 32, ids: ["cancel"] as const, height: 18 };
+    deliver(snapshot(INITIAL_INPUT_MODE));
+    const none = stubBuilder();
+    glyphs.reset();
+    glyphs.hint(none.builder, spot);
+    expect(none.built.glyphs).toHaveLength(0);
+    redraws = 0;
+    deliver(snapshot(keyboard));
+    expect(redraws).toBe(1);
+    const drawn = stubBuilder();
+    glyphs.reset();
+    glyphs.hint(drawn.builder, spot);
+    expect(drawn.built.glyphs).toHaveLength(1);
+    expect(drawn.built.glyphs[0]).toMatchObject({ key: "glyph:close", x: 120, y: 32, openness: 1 });
+    expect(drawn.built.buttons).toHaveLength(0);
+  });
 });
