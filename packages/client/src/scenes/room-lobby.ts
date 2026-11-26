@@ -290,6 +290,11 @@ export class RoomLobbyScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #regions: McScrollRegion[] = [];
   #tabs: McTabs | null = null;
+  /**
+   * Each list's content height at its last draw. A region clamps its offset when it is built, before this draw has
+   * measured its content, so it starts from the last height: a redraw (a toggle pressed) keeps the reader's place.
+   */
+  readonly #contentHeights: Partial<Record<ScrollKey, number>> = {};
   readonly #scrolls: Record<ScrollKey, VariableListScroll> = {
     seats: new VariableListScroll(),
     settings: new VariableListScroll(),
@@ -1139,7 +1144,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     ) => number,
   ): McScrollRegion {
     const scroll = this.#scrolls[key];
-    const heights = [inner.height];
+    const heights = [Math.max(inner.height, this.#contentHeights[key] ?? 0)];
     // The floating chat covers part of the lists under it: the wheel and drags there belong to the chat.
     const enabled = (): boolean => {
       const over = this.#floatRect;
@@ -1167,6 +1172,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     };
     const used = draw(inner.x, inner.y, inner.width - 12, guard);
     heights[0] = Math.max(inner.height, used);
+    this.#contentHeights[key] = heights[0];
     const added = this.children.list.slice(before).filter((node) => node !== region.root);
     if (added.length > 0) region.content.add(added);
     region.refresh();
