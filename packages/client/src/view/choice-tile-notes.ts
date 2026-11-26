@@ -63,21 +63,24 @@ export function optionEngagedNamesOf(state: GameState, choice: PendingChoice): R
   return notes;
 }
 
-/**
- * The ways to word an engaged note, longest first: "vs Spider-Man (Peter Parker)", "vs Spider-Man", then the board
- * chip's short form "vs S.-Man". A tile takes the first that fits its width as drawn; a row has room for the first.
- */
-export function engagedNoteForms(name: string | undefined): readonly string[] {
-  if (!name) return [];
+/** "vs Spider-Man (Peter Parker)", "vs Spider-Man" and the board chip's "vs S.-Man", longest first. */
+function noteForms(name: string): readonly string[] {
   // The alter ego's name goes first, before any seat number ("Spider-Man (Peter Parker) 2" is "Spider-Man 2").
   const base = name.replace(/\s*\([^)]*\)/, "").trim() || name;
   return [...new Set([`vs ${name}`, `vs ${base}`, engagedChipWords(base, 0)])];
 }
 
-/** An option's lines under its scan, joined: who it is engaged with, then what it holds ("vs Iron Man · 2 backup"). */
-export function joinTileNotes(...notes: readonly (string | undefined)[]): string | undefined {
-  const shown = notes.filter((note): note is string => !!note);
-  return shown.length > 0 ? shown.join(" · ") : undefined;
+/**
+ * The ways to word an engaged note, longest first: "vs Spider-Man (Peter Parker)", "vs Spider-Man", then the board
+ * chip's short form "vs S.-Man". A tile takes the first that fits its width as drawn; a row has room for the first.
+ * A shorter form another seat in `names` (every engaged name on the sheet) would also shorten to is left out: Peter
+ * Parker's and Miles Morales's Drones never both read "vs Spider-Man" (Codex, PR #1014).
+ */
+export function engagedNoteForms(name: string | undefined, names: readonly string[] = []): readonly string[] {
+  if (!name) return [];
+  const others = new Set(names.filter((other) => other !== name).flatMap(noteForms));
+  const [whole, ...shorter] = noteForms(name);
+  return [whole!, ...shorter.filter((form) => !others.has(form))];
 }
 
 /** A note as a card tile fits it, a phone tile being 60 px wide: "2 backup counters" reads "2 backup". */

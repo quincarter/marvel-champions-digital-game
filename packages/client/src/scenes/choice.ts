@@ -101,7 +101,6 @@ import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
 import {
   choiceNoteOf,
   engagedNoteForms,
-  joinTileNotes,
   optionCounterNotesOf,
   optionEngagedNamesOf,
   spendCaptionsOf,
@@ -1478,11 +1477,12 @@ export class ChoiceOverlay extends Phaser.Scene {
             ? groupOptionLabel(roomState().epic, optionLabelOf(state.game, option))
             : optionLabelOf(state.game, option),
       );
-      const held = joinTileNotes(
-        engagedNoteForms(rowEngaged.get(option.optionId))[0],
+      // Who a minion is engaged with and what it holds each take a line of their own (issue #1001).
+      const notes = [
+        engagedNoteForms(rowEngaged.get(option.optionId), [...rowEngaged.values()])[0],
         rowCounters.get(option.optionId),
-      );
-      return held ? `${text}\n${held}` : text;
+      ].filter((note) => note !== undefined);
+      return [text, ...notes].join("\n");
     };
     // A long option (an evidence card's Setup runs to 140 characters) wraps over several lines instead of being cut off.
     // The label is centred and the pick combo sits at the row's right end, so a row with a combo wraps a little earlier
@@ -3458,12 +3458,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     const bar = this.#tileBars.get(option.optionId);
     const barHeight = bar ? (bar.kind === "threat" ? 24 : 34) : 0;
     // What this copy holds, in a line of its own under the scan (issue #571): a card's own face never shows its counters.
-    // A minion's line starts with who it is engaged with (issue #1001): two facedown Drones are the same card back.
-    const holds = this.#tileCounters.get(option.optionId);
-    const holdsNote = holds ? tileCounterNote(holds) : undefined;
-    const engagedForms = engagedNoteForms(this.#tileEngaged.get(option.optionId));
-    const counters = joinTileNotes(engagedForms[0], holdsNote);
-    const countersHeight = counters ? 18 : 0;
+    // Who a minion is engaged with takes another line above it (issue #1001): two facedown Drones are the same card
+    // back. Each keeps its own line, so neither can push the other off a narrow phone tile.
+    const counters = this.#tileCounters.get(option.optionId);
+    const engagedForms = engagedNoteForms(this.#tileEngaged.get(option.optionId), [...this.#tileEngaged.values()]);
+    const engagedHeight = engagedForms.length > 0 ? 16 : 0;
+    const countersHeight = (counters ? 18 : 0) + engagedHeight;
     const inner: Rect = {
       x: slot.x + 3,
       y: slot.y + 3,
@@ -3543,18 +3543,31 @@ export class ChoiceOverlay extends Phaser.Scene {
         .setMaxLines(3);
     }
 
-    if (counters) {
-      const held = this.add
-        .text(inner.x + inner.width / 2, inner.y + inner.height + countersHeight / 2, counters, {
+    if (engagedForms.length > 0) {
+      const engaged = this.add
+        .text(inner.x + inner.width / 2, inner.y + inner.height + engagedHeight / 2, engagedForms[0]!, {
           ...textStyle(typeRole.label, surface.ink.hex),
           fontSize: "11px",
         })
         .setOrigin(0.5);
-      // "vs Spider-Man (Peter Parker)" gives way to "vs Spider-Man", then "vs S.-Man", before the font shrinks.
+      // "vs Spider-Man (Peter Parker)" gives way to "vs Spider-Man", then "vs S.-Man", before the font shrinks; a
+      // shorter form two seats would share is never offered (`engagedNoteForms`).
       for (const form of engagedForms.slice(1)) {
-        if (held.width <= inner.width - 4) break;
-        held.setText(joinTileNotes(form, holdsNote) ?? "");
+        if (engaged.width <= inner.width - 4) break;
+        engaged.setText(form);
       }
+      fitText(engaged, inner.width - 4, 11);
+    }
+
+    if (counters) {
+      const held = this.add
+        .text(
+          inner.x + inner.width / 2,
+          inner.y + inner.height + engagedHeight + (countersHeight - engagedHeight) / 2,
+          tileCounterNote(counters),
+          { ...textStyle(typeRole.label, surface.ink.hex), fontSize: "11px" },
+        )
+        .setOrigin(0.5);
       fitText(held, inner.width - 4, 11);
     }
 

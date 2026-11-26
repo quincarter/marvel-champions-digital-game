@@ -5,7 +5,6 @@ import { SessionStore } from "../store/session-store.js";
 import {
   choiceNoteOf,
   engagedNoteForms,
-  joinTileNotes,
   optionCounterNotesOf,
   optionEngagedNamesOf,
   tileCounterNote,
@@ -106,7 +105,7 @@ describe("who a minion option is engaged with (issue #1001)", () => {
     expect(optionEngagedNamesOf(state, damageChoice(state, dronesOf(state))).size).toBe(0);
   }, 60_000);
 
-  test("worded as the board chip, joined before the counters", () => {
+  test("worded as the board chip", () => {
     expect(engagedNoteForms("Spider-Man (Peter Parker)")).toEqual([
       "vs Spider-Man (Peter Parker)",
       "vs Spider-Man",
@@ -120,8 +119,18 @@ describe("who a minion option is engaged with (issue #1001)", () => {
       "vs S.-M. 2",
     ]);
     expect(engagedNoteForms(undefined)).toEqual([]);
-    expect(joinTileNotes("vs Iron Man", "2 backup")).toBe("vs Iron Man · 2 backup");
-    expect(joinTileNotes(undefined, "2 backup")).toBe("2 backup");
-    expect(joinTileNotes(undefined, undefined)).toBeUndefined();
+  });
+
+  test("a shorter form two seats would share is never offered (Codex, PR #1014)", () => {
+    const names = ["Spider-Man (Peter Parker)", "Spider-Man (Miles Morales)", "Iron Man"];
+    expect(engagedNoteForms("Spider-Man (Peter Parker)", names)).toEqual(["vs Spider-Man (Peter Parker)"]);
+    expect(engagedNoteForms("Spider-Man (Miles Morales)", names)).toEqual(["vs Spider-Man (Miles Morales)"]);
+    expect(engagedNoteForms("Iron Man", names)).toEqual(["vs Iron Man"]);
+    // The same seat's name twice (two minions engaged with one hero) is not another seat.
+    expect(engagedNoteForms("Spider-Man (Peter Parker)", ["Spider-Man (Peter Parker)", "Iron Man"])).toEqual([
+      "vs Spider-Man (Peter Parker)",
+      "vs Spider-Man",
+      "vs S.-Man",
+    ]);
   });
 });
