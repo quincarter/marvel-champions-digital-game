@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { ASPECT_GUIDES } from "../guide/aspects.js";
 import { defaultGuidePrefs, markAspectLessonDone, markLessonDone } from "../guide/guide-prefs.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import { rectsOverlap } from "./layout.js";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import { boxPages } from "./new-in-box-model.js";
 import {
   continueLearningLabel,
@@ -269,5 +270,33 @@ describe("the New in each box band", () => {
       ...pages.map((p) => `box:${p.id}`),
       "continue-learning",
     ]);
+  });
+});
+
+describe("How to play in Spanish", () => {
+  afterEach(useEnglish);
+
+  it("words the lessons, the aspects and the reference row in Spanish, then English again", () => {
+    useSpanish();
+    const modules = howToPlayModules(defaultGuidePrefs);
+    expect(modules.lessons.map((lesson) => lesson.title)).toEqual([
+      "Cómo ganar",
+      "Pagar las cartas",
+      "Héroe y alter ego",
+      "La fase del villano",
+      "Amenaza e intervención",
+    ]);
+    expect(modules.aspects.find((aspect) => aspect.aspect === "justice")).toMatchObject({
+      name: "Justicia",
+      tagline: "Intervenir: mantiene la Amenaza lejos del plan",
+    });
+    expect(modules.reference.title).toBe("Reglas y glosario");
+    expect(continueLearningLabel(modules)).toBe("Seguir aprendiendo ▸");
+    useEnglish();
+    const english = howToPlayModules(defaultGuidePrefs);
+    expect(english.lessons.map((lesson) => lesson.title)).toEqual(TUTORIAL_LESSONS.map((lesson) => lesson.title));
+    expect(english.aspects.map((aspect) => [aspect.name, aspect.tagline])).toEqual(
+      ASPECT_GUIDES.filter((guide) => guide.aspect !== "basic").map((guide) => [guide.name, guide.tagline]),
+    );
   });
 });

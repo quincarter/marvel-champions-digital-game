@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { GLOSSARY_ENTRIES, KNOWN_KEYWORD_NAMES } from "@mc/content";
 import { POOL_CARDS } from "../content/pool-cards.js";
 import { POOL_HERO_SHELF_PACKS } from "../content/pool.js";
@@ -17,6 +17,8 @@ import {
   boxPages,
 } from "./new-in-box-model.js";
 import { rectsOverlap } from "./layout.js";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
+import { MECHANIC_TRYITS_ES } from "../content/mechanic-tryits-es.js";
 
 const allOpen = (): boolean => true;
 const page = (id: string) => boxPages(allOpen).find((p) => p.id === id)!;
@@ -481,5 +483,36 @@ describe("the Civil War box notice", () => {
   it("is on no other box", () => {
     for (const p of boxPages(allOpen)) if (p.id !== "cycle10") expect(p.notice).toBeNull();
     expect(boxPageContentLayout(800, page("cycle9")).noticeRect).toBeNull();
+  });
+});
+
+describe("New in this box pages in Spanish", () => {
+  afterEach(useEnglish);
+
+  it("has every Try-it lesson's title and tagline in Spanish", () => {
+    for (const lesson of MECHANIC_TRYITS) {
+      const spanish = MECHANIC_TRYITS_ES[lesson.id];
+      expect(spanish?.title.trim(), lesson.id).toBeTruthy();
+      expect(spanish?.tagline.trim(), lesson.id).toBeTruthy();
+    }
+    expect(Object.keys(MECHANIC_TRYITS_ES).sort()).toEqual(MECHANIC_TRYITS.map((lesson) => lesson.id).sort());
+  });
+
+  it("words a box page's title, summary, sections, rows and links in Spanish", () => {
+    useSpanish();
+    const page = boxPageOf(BOXES.find((box) => box.id === "cycle6")!)!;
+    expect(page.title).toBe("Novedades de Génesis Mutante");
+    expect(page.summary).toMatch(/^\d+ entradas nuevas · \d+ partidas de prueba$/);
+    expect(boxPageSections(page).map((section) => section.label)).toContain("PRUÉBALO");
+    expect(page.lessons.find((lesson) => lesson.id === "storm")?.title).toBe("Tormenta: el mazo de Clima");
+    expect(page.heroMechanics.find((row) => row.id === "touched")?.displayName).toBe("Contacto físico");
+    const counters = GLOSSARY_ENTRIES.find((entry) => entry.id === "counters")!;
+    expect(originNoteOf(counters)?.text).toBe(
+      "Añadida con Génesis Mutante · también vale para las cartas de la caja básica",
+    );
+    const core = boxPageOf(BOXES.find((box) => box.id === "core")!)!;
+    expect(core.title).toBe("Reglas básicas añadidas después");
+    useEnglish();
+    expect(boxPageOf(BOXES.find((box) => box.id === "cycle6")!)!.title).toBe("New in Mutant Genesis");
   });
 });

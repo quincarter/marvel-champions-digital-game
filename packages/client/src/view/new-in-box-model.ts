@@ -17,7 +17,10 @@
  */
 import { GLOSSARY_ENTRIES, type GlossaryBoxId, type GlossaryEntry } from "@mc/content";
 import { MECHANIC_TRYITS, type MechanicTryIt } from "../guide/mechanic-tryits.js";
-import { t } from "../i18n/translate.js";
+import { t, tPlural, type MessageKey } from "../i18n/translate.js";
+import { MECHANIC_TRYITS_ES } from "../content/mechanic-tryits-es.js";
+import { GLOSSARY_ES } from "../content/glossary-es.js";
+import { artLanguageNow } from "../art/art-source.js";
 import { contentSlotHeights, formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 export interface BoxDef {
@@ -75,6 +78,22 @@ export interface BoxEntryRow {
 
 const boxById = (id: string): BoxDef | undefined => BOXES.find((b) => b.id === id);
 
+/** A box's name in the player's language ("Mutant Genesis", "Génesis Mutante"), read at call time. */
+export const boxNameOf = (box: BoxDef): string => t(`newInBox.box.${box.id}` as MessageKey);
+
+/** A box page's whole title in the player's language: "New in <name>", or the box's own title. */
+const boxTitleOf = (box: BoxDef): string =>
+  box.title !== undefined ? t("newInBox.coreTitle") : t("newInBox.title", { name: boxNameOf(box) });
+
+/** An entry's term in the player's language, the same words the Rules reference shows for it. */
+const entryNameOf = (entry: GlossaryEntry): string =>
+  (artLanguageNow() === "es" ? GLOSSARY_ES[entry.id]?.name : undefined) ?? entry.displayName;
+
+/** A lesson row's title and tagline in the player's language (`content/mechanic-tryits-es.ts`). */
+function lessonWordsOf(lesson: MechanicTryIt): { readonly title: string; readonly tagline: string } {
+  return (artLanguageNow() === "es" ? MECHANIC_TRYITS_ES[lesson.id] : undefined) ?? lesson;
+}
+
 /**
  * "Added with Mutant Genesis · applies to Core cards too" for an entry written for a later box that Core cards
  * already use, or `null` for every other entry. The glossary entry view draws it, linking to `boxId`'s page.
@@ -83,7 +102,7 @@ export function originNoteOf(entry: GlossaryEntry): { readonly text: string; rea
   if (!entry.appliesToCore) return null;
   const box = boxById(entry.introducedIn);
   if (!box) return null;
-  return { text: `Added with ${box.name} · applies to Core cards too`, boxId: box.id };
+  return { text: t("newInBox.originNote", { box: boxNameOf(box) }), boxId: box.id };
 }
 
 export interface BoxLessonRow {
@@ -110,8 +129,8 @@ export interface BoxPage {
 const byName = (a: BoxEntryRow, b: BoxEntryRow): number => a.displayName.localeCompare(b.displayName);
 
 function summaryOf(entries: number, lessons: number): string {
-  const parts = [`${entries} new ${entries === 1 ? "entry" : "entries"}`];
-  if (lessons > 0) parts.push(`${lessons} Try-it${lessons === 1 ? "" : "s"}`);
+  const parts = [tPlural("newInBox.newEntries", entries)];
+  if (lessons > 0) parts.push(tPlural("newInBox.tryits", lessons));
   return parts.join(" · ");
 }
 
@@ -134,11 +153,14 @@ export function boxPageOf(
       })
     : entries.filter((e) => e.introducedIn === box.id);
   const rowOf = (entry: GlossaryEntry): BoxEntryRow => {
-    if (!entry.appliesToCore) return { id: entry.id, displayName: entry.displayName };
+    if (!entry.appliesToCore) return { id: entry.id, displayName: entryNameOf(entry) };
     const link: BoxEntryLink = isCore
-      ? { label: `Added with ${boxById(entry.introducedIn)!.name}`, boxId: boxById(entry.introducedIn)!.id }
-      : { label: "Also a Core rule", boxId: "core" };
-    return { id: entry.id, displayName: entry.displayName, link };
+      ? {
+          label: t("newInBox.addedWith", { box: boxNameOf(boxById(entry.introducedIn)!) }),
+          boxId: boxById(entry.introducedIn)!.id,
+        }
+      : { label: t("newInBox.alsoCore"), boxId: "core" };
+    return { id: entry.id, displayName: entryNameOf(entry), link };
   };
   const keywords = mine
     .filter((e) => e.kind === "keyword")
@@ -154,21 +176,19 @@ export function boxPageOf(
     .sort(byName);
   const lessons = isCore
     ? []
-    : tryits
-        .filter((l) => l.box === box.id)
-        .map((l): BoxLessonRow => ({ id: l.id, title: l.title, tagline: l.tagline }));
+    : tryits.filter((l) => l.box === box.id).map((l): BoxLessonRow => ({ id: l.id, ...lessonWordsOf(l) }));
   const count = keywords.length + heroMechanics.length + scenarioMechanics.length;
   if (count === 0 && lessons.length === 0 && !box.notice) return null;
   return {
     id: box.id,
-    title: box.title ?? `New in ${box.name}`,
-    name: box.name,
+    title: boxTitleOf(box),
+    name: boxNameOf(box),
     keywords,
     heroMechanics,
     scenarioMechanics,
     lessons,
     notice: box.notice ?? null,
-    summary: isCore ? `${count} ${count === 1 ? "entry" : "entries"}` : summaryOf(count, lessons.length),
+    summary: isCore ? tPlural("newInBox.entries", count) : summaryOf(count, lessons.length),
   };
 }
 
@@ -196,10 +216,10 @@ export interface BoxPageSection {
 /** A page's non-empty sections, in reading order: Keywords, Hero mechanics, Scenario mechanics, Try it. */
 export function boxPageSections(page: BoxPage): readonly BoxPageSection[] {
   const sections: BoxPageSection[] = [
-    { kind: "keywords", label: "KEYWORDS", rows: page.keywords },
-    { kind: "hero", label: "HERO MECHANICS", rows: page.heroMechanics },
-    { kind: "scenario", label: "SCENARIO MECHANICS", rows: page.scenarioMechanics },
-    { kind: "tryit", label: "TRY IT", rows: page.lessons },
+    { kind: "keywords", label: t("newInBox.section.keywords"), rows: page.keywords },
+    { kind: "hero", label: t("newInBox.section.hero"), rows: page.heroMechanics },
+    { kind: "scenario", label: t("newInBox.section.scenario"), rows: page.scenarioMechanics },
+    { kind: "tryit", label: t("newInBox.section.tryit"), rows: page.lessons },
   ];
   return sections.filter((s) => s.rows.length > 0);
 }

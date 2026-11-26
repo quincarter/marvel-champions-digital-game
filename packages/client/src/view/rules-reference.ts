@@ -19,7 +19,7 @@
  * **The three entries `@mc/content`'s glossary leaves out** — "exhausted",
  * "ready", "facedown boost card" — are added here, from the client side, exactly
  * as `schema/glossary.ts`'s own file header calls for: they're genuine RRG 1.8
- * glossary terms (pp. 19, 36, 11 respectively — see `TABLE_STATE_ENTRIES`'s own
+ * glossary terms (pp. 19, 36, 11 respectively — see `tableStateEntries`'s own
  * comment on why the third page differs from the number docs/phase4-screen-gaps.md
  * guessed), but they're runtime instance state (`CardInstance.exhausted`,
  * `CardInstance.boostCards`) that only `@mc/engine` models, not a `@mc/content`
@@ -36,7 +36,7 @@
  * (`rulesGlossaryOf`'s default) leave them out. The Rules reference screen's own glossary
  * *tab*, though, wants them alongside everything else a first-time player might search for
  * regardless of scope — it opts in via `rulesGlossaryOf`'s `includeConcepts` option
- * (`CONCEPT_ENTRIES` below) — and `rulesGlossaryPoolOf`'s "all rules" scope always includes
+ * (`conceptEntries` below) — and `rulesGlossaryPoolOf`'s "all rules" scope always includes
  * them too, the same way the three table-state entries are always included there.
  */
 import { queryScoreOf } from "./deck-search.js";
@@ -44,6 +44,9 @@ import type { AnyCard, KeywordInstance, KeywordName } from "@mc/content";
 import { GLOSSARY_ENTRIES, glossaryEntry, type GlossaryEntry, type GlossarySource } from "@mc/content";
 import { originNoteOf } from "./new-in-box-model.js";
 import { ASPECT_CARD_DEFINITION } from "./resource-limit.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { GLOSSARY_ES } from "../content/glossary-es.js";
+import { t, type MessageKey } from "../i18n/translate.js";
 import {
   getInstance,
   keywordsOf,
@@ -82,7 +85,7 @@ export interface RulesEntry {
   /**
    * Cards that print this keyword (or, for a status, hold it right now) — "card art if
    * applicable" (owner feedback). Alphabetical by name. Empty for the three table-state
-   * entries (`TABLE_STATE_ENTRIES`) and, in pool scope, for the three statuses (a status is
+   * entries (`tableStateEntries`) and, in pool scope, for the three statuses (a status is
    * runtime instance state, never printed on a card, so a static pool has nothing to show).
    */
   readonly cardRefs: readonly RulesCardRef[];
@@ -90,6 +93,26 @@ export interface RulesEntry {
   readonly originNote?: string;
   /** The box page `originNote` links to (`BoxDef.id`). */
   readonly originBoxId?: string;
+  /** The English term, when `displayName` is in another language: a search for "retaliate" still finds "Represalia X". */
+  readonly englishName?: string;
+}
+
+/**
+ * An entry's name, definition and player note in the player's language, read at call time so a language switch
+ * applies: Spanish from `content/glossary-es.ts` when the card language is Spanish, else the English as given.
+ */
+function wordsOf(
+  id: string,
+  english: { readonly name: string; readonly definition: string; readonly note?: string },
+): { readonly name: string; readonly definition: string; readonly note?: string; readonly englishName?: string } {
+  const spanish = artLanguageNow() === "es" ? GLOSSARY_ES[id] : undefined;
+  if (!spanish) return english;
+  return {
+    name: spanish.name,
+    definition: spanish.definition,
+    ...(english.note !== undefined ? { note: spanish.note ?? english.note } : {}),
+    englishName: english.name,
+  };
 }
 
 /**
@@ -103,50 +126,63 @@ export interface RulesEntry {
  * for the three; 47 is where "Villainous" is cited (a keyword that *uses* a facedown boost
  * card), not where "Boost, Boost Icon" itself is defined — corrected here to p. 11.
  */
-/**
- * Basic-concept entries (guided mode G3a): `@mc/content`'s `GlossaryEntry`s with
- * `kind: "concept"` (threat, main scheme, thwart, ...), converted once up front. Unlike a
- * keyword or status, a concept isn't printed on any card and isn't runtime instance state
- * either — it's always relevant to a first-time player regardless of what's on the table or
- * in the pool, so both `rulesGlossaryOf` and `rulesGlossaryPoolOf` include every one of
- * these unconditionally, the same way they always include `TABLE_STATE_ENTRIES`.
- */
-const CONCEPT_ENTRIES: readonly RulesEntry[] = GLOSSARY_ENTRIES.filter((entry) => entry.kind === "concept").map(
-  (entry) => toRulesEntry(entry),
-);
-
-const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
+const TABLE_STATE_SOURCES: readonly {
+  readonly id: string;
+  readonly name: string;
+  readonly definition: string;
+  readonly cite: string;
+}[] = [
   {
     id: "exhausted",
-    displayName: "Exhausted",
+    name: "Exhausted",
     definition:
       "A card rotated sideways to show it's been used or committed this way can't be exhausted again until something readies it.",
-    citeLabel: "RRG 1.8 p. 19",
-    playerCiteLabel: "RRG 1.8 p. 19",
-    unverified: false,
-    cardRefs: [],
+    cite: "RRG 1.8 p. 19",
   },
   {
     id: "ready",
-    displayName: "Ready",
+    name: "Ready",
     definition:
       "A card's normal, upright state. Readying an exhausted card returns it to this state — unless readying it has its own cost the controller declines to pay, in which case it stays exhausted.",
-    citeLabel: "RRG 1.8 p. 36",
-    playerCiteLabel: "RRG 1.8 p. 36",
-    unverified: false,
-    cardRefs: [],
+    cite: "RRG 1.8 p. 36",
   },
   {
     id: "facedownBoostCard",
-    displayName: "Facedown boost card",
+    name: "Facedown boost card",
     definition:
       "Dealt to an enemy from its encounter deck the moment it attacks or schemes (or, for a villainous minion, whenever it uses a basic power), then turned face up one at a time to add its icons to that activation's total.",
-    citeLabel: "RRG 1.8 p. 11",
-    playerCiteLabel: "RRG 1.8 p. 11",
-    unverified: false,
-    cardRefs: [],
+    cite: "RRG 1.8 p. 11",
   },
 ];
+
+/** The three table-state entries, in the player's language (built per call, so a language switch applies). */
+function tableStateEntries(): readonly RulesEntry[] {
+  return TABLE_STATE_SOURCES.map((source) => {
+    const words = wordsOf(source.id, source);
+    return {
+      id: source.id,
+      displayName: words.name,
+      definition: words.definition,
+      citeLabel: source.cite,
+      playerCiteLabel: source.cite,
+      unverified: false,
+      cardRefs: [],
+      ...(words.englishName ? { englishName: words.englishName } : {}),
+    };
+  });
+}
+
+/**
+ * Basic-concept entries (guided mode G3a): `@mc/content`'s `GlossaryEntry`s with
+ * `kind: "concept"` (threat, main scheme, thwart, ...). Unlike a keyword or status, a concept
+ * isn't printed on any card and isn't runtime instance state either — it's always relevant to a
+ * first-time player regardless of what's on the table or in the pool, so both `rulesGlossaryOf`
+ * and `rulesGlossaryPoolOf` include every one of these unconditionally, the same way they always
+ * include the table-state entries. Built per call, so a language switch applies.
+ */
+function conceptEntries(): readonly RulesEntry[] {
+  return GLOSSARY_ENTRIES.filter((entry) => entry.kind === "concept").map((entry) => toRulesEntry(entry));
+}
 
 /**
  * Joins `sources` into one label. Several RRG pages collapse into one "RRG 1.8 pp. 26, 32" (in the order given, at the
@@ -171,13 +207,15 @@ function joinCites(sources: readonly [GlossarySource, ...GlossarySource[]], flag
         parts.push(flagged ? `${source.product} (not in this repo)` : source.product);
         break;
       case "card":
-        parts.push(`${source.cards} (card text)`);
+        parts.push(flagged ? `${source.cards} (card text)` : t("rules.cite.cardText", { cards: source.cards }));
         break;
       case "rulebook":
         parts.push(source.label);
         break;
       case "owner-ruling":
-        parts.push(`Ruling for this game, ${source.date}`);
+        parts.push(
+          flagged ? `Ruling for this game, ${source.date}` : t("rules.cite.ownerRuling", { date: source.date }),
+        );
         break;
     }
   }
@@ -201,19 +239,31 @@ export function playerCiteLabelOf(sources: readonly [GlossarySource, ...Glossary
   return joinCites(sources, false);
 }
 
+/** A content glossary entry's term and definition in the player's language, for screens that read the glossary directly (Inspect's keyword box). */
+export function glossaryWordsOf(entry: GlossaryEntry): { readonly name: string; readonly definition: string } {
+  const words = wordsOf(entry.id, { name: entry.displayName, definition: entry.definition });
+  return { name: words.name, definition: words.definition };
+}
+
 function toRulesEntry(entry: GlossaryEntry, cardRefs: readonly RulesCardRef[] = []): RulesEntry {
   const origin = originNoteOf(entry);
+  const words = wordsOf(entry.id, {
+    name: entry.displayName,
+    definition: entry.definition,
+    ...(entry.playerNote ? { note: entry.playerNote } : {}),
+  });
   return {
     id: entry.id,
-    displayName: entry.displayName,
-    definition: entry.definition,
+    displayName: words.name,
+    definition: words.definition,
     citeLabel: citeLabelOf(entry.sources),
     playerCiteLabel: playerCiteLabelOf(entry.sources),
     unverified: entry.unverified ?? false,
     cardRefs,
     ...(entry.conflict ? { conflict: entry.conflict } : {}),
-    ...(entry.playerNote ? { playerNote: entry.playerNote } : {}),
+    ...(words.note ? { playerNote: words.note } : {}),
     ...(origin ? { originNote: origin.text, originBoxId: origin.boxId } : {}),
+    ...(words.englishName ? { englishName: words.englishName } : {}),
   };
 }
 
@@ -237,14 +287,16 @@ function tableInstanceIds(state: GameState): readonly InstanceId[] {
  * when a card there says "aspect card" in its text, with those cards.
  */
 function aspectCardEntry(cardRefs: readonly RulesCardRef[]): RulesEntry {
+  const words = wordsOf("aspectCard", { name: "Aspect card", definition: ASPECT_CARD_DEFINITION });
   return {
     id: "aspectCard",
-    displayName: "Aspect card",
-    definition: ASPECT_CARD_DEFINITION,
+    displayName: words.name,
+    definition: words.definition,
     citeLabel: "RRG 1.8 p. 8",
     playerCiteLabel: "RRG 1.8 p. 8",
     unverified: false,
     cardRefs,
+    ...(words.englishName ? { englishName: words.englishName } : {}),
   };
 }
 
@@ -317,17 +369,21 @@ const normalize = (text: string): string => text.toLowerCase().normalize("NFD").
  * `entries`, narrowed to the ones matching `query` in their term, definition, or an associated card's name — case- and
  * accent-insensitive. Empty query matches everything. A search ranks the term itself first: an entry named exactly the
  * query, then one whose name starts with it, then one whose name contains it, then the ones that only mention it
- * (searching "Stalwart" used to open on Gene Pool, whose text names it). Alphabetical order holds within a rank.
+ * (searching "Stalwart" used to open on Gene Pool, whose text names it). Alphabetical order holds within a rank. In
+ * Spanish the English term counts as a name too, so "retaliate" still finds "Represalia X".
  */
 function filterByQuery(entries: readonly RulesEntry[], query: string): readonly RulesEntry[] {
   const needle = normalize(query.trim());
   if (!needle) return entries;
-  const rankOf = (entry: RulesEntry): number => {
-    const name = normalize(entry.displayName).replace(/\s*\(.*\)$/, "");
+  const nameRank = (displayName: string): number => {
+    const name = normalize(displayName).replace(/\s*\(.*\)$/, "");
     if (name === needle) return 0;
     if (name.startsWith(needle)) return 1;
     return name.includes(needle) ? 2 : 3;
   };
+  const namesOf = (entry: RulesEntry): readonly string[] =>
+    entry.englishName ? [entry.displayName, entry.englishName] : [entry.displayName];
+  const rankOf = (entry: RulesEntry): number => Math.min(...namesOf(entry).map(nameRank));
   // The term itself matches the shared fuzzy way (`queryScoreOf`): a typo, a letter left out or a missing accent still
   // finds it. A definition or a card's name has to hold the whole query, so a phrase finds the one entry it describes.
   const mentions = (entry: RulesEntry): boolean =>
@@ -337,7 +393,7 @@ function filterByQuery(entries: readonly RulesEntry[], query: string): readonly 
       entry,
       index,
       rank: rankOf(entry),
-      score: queryScoreOf(query, { primary: [entry.displayName] }),
+      score: queryScoreOf(query, { primary: namesOf(entry) }),
     }))
     .filter((hit) => hit.score !== null || mentions(hit.entry))
     .sort((a, b) => a.rank - b.rank || (b.score ?? 0) - (a.score ?? 0) || a.index - b.index)
@@ -381,7 +437,7 @@ export function cardKeywordNames(card: AnyCard): ReadonlySet<KeywordName> {
  *
  * By default this is Pause's own "on the table" scope, so a basic concept (never printed, never
  * table state) is left out of both its cards and its count — pass `{ includeConcepts: true }`
- * (the Rules reference screen's glossary tab does) to fold `CONCEPT_ENTRIES` in too, listed
+ * (the Rules reference screen's glossary tab does) to fold `conceptEntries` in too, listed
  * alongside everything else once the result is sorted below.
  */
 export function rulesGlossaryOf(
@@ -401,8 +457,8 @@ export function rulesGlossaryOf(
     if (entry) entries.push(toRulesEntry(entry, refs));
   }
   if (assoc.aspectCard.length > 0) entries.push(aspectCardEntry(assoc.aspectCard));
-  entries.push(...TABLE_STATE_ENTRIES);
-  if (options?.includeConcepts) entries.push(...CONCEPT_ENTRIES);
+  entries.push(...tableStateEntries());
+  if (options?.includeConcepts) entries.push(...conceptEntries());
   entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return filterByQuery(entries, query);
 }
@@ -434,14 +490,14 @@ export function rulesGlossaryPoolOf(pool: readonly AnyCard[], query = ""): reado
       ),
     ),
   );
-  entries.push(...TABLE_STATE_ENTRIES);
+  entries.push(...tableStateEntries());
   entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return filterByQuery(entries, query);
 }
 
 /** Every glossary entry `@mc/content` and this module know about, with no card associations — kept for the existing "does the flagged conflict survive" test; a screen wanting cards too should use `rulesGlossaryPoolOf`. */
 export function everyGlossaryEntry(): readonly RulesEntry[] {
-  return [...GLOSSARY_ENTRIES.map((entry) => toRulesEntry(entry)), aspectCardEntry([]), ...TABLE_STATE_ENTRIES].sort(
+  return [...GLOSSARY_ENTRIES.map((entry) => toRulesEntry(entry)), aspectCardEntry([]), ...tableStateEntries()].sort(
     (a, b) => a.displayName.localeCompare(b.displayName),
   );
 }
@@ -479,46 +535,53 @@ export interface VillainPhaseStep {
  */
 export function villainPhaseOrder(state?: GameState): readonly VillainPhaseStep[] {
   const currentKind = state && state.step.phase === "villain" ? state.step.kind : null;
-  const steps: readonly Omit<VillainPhaseStep, "current">[] = [
+  const steps: readonly (Pick<VillainPhaseStep, "id" | "art"> & {
+    readonly label: MessageKey;
+    readonly detail: MessageKey;
+  })[] = [
     {
       id: "placeThreat",
-      label: "1. Place threat",
-      detail: "The main scheme's acceleration value, plus one per acceleration icon/token in play, is placed on it.",
+      label: "rules.villain.placeThreat.label",
+      detail: "rules.villain.placeThreat.detail",
       art: "mainScheme",
     },
     {
       id: "enemyActivations",
-      label: "2. Enemies activate",
-      detail:
-        "In player order: the villain activates against that player, then each minion engaged with them, in that player's choice of order.",
+      label: "rules.villain.enemyActivations.label",
+      detail: "rules.villain.enemyActivations.detail",
       art: "villain",
     },
     {
       id: "dealEncounterCards",
-      label: "3. Deal encounter cards",
-      detail:
-        "Each player is dealt one encounter card facedown (plus the heroic level, in Heroic mode), then one more per hazard icon in play.",
+      label: "rules.villain.dealEncounterCards.label",
+      detail: "rules.villain.dealEncounterCards.detail",
       art: "encounterBack",
     },
     {
       id: "revealEncounterCards",
-      label: "4. Reveal encounter cards",
-      detail:
-        "The first player reveals and resolves their dealt cards one at a time, then each other player does the same in turn order.",
+      label: "rules.villain.revealEncounterCards.label",
+      detail: "rules.villain.revealEncounterCards.detail",
       art: "encounterBack",
     },
     {
       id: "passFirstPlayer",
-      label: "5. Pass first player",
-      detail: "The first player token passes to the next player clockwise.",
+      label: "rules.villain.passFirstPlayer.label",
+      detail: "rules.villain.passFirstPlayer.detail",
       art: null,
     },
     {
       id: "endOfRound",
-      label: "6. End of round",
-      detail: '"Until end of round" effects expire, delayed effects resolve, and a new round begins.',
+      label: "rules.villain.endOfRound.label",
+      detail: "rules.villain.endOfRound.detail",
       art: null,
     },
   ];
-  return steps.map((step) => ({ ...step, current: step.id === currentKind }));
+  // Worded in the player's language at call time (`i18n/`), so a language switch applies.
+  return steps.map((step) => ({
+    id: step.id,
+    label: t(step.label),
+    detail: t(step.detail),
+    art: step.art,
+    current: step.id === currentKind,
+  }));
 }

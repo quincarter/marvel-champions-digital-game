@@ -18,6 +18,8 @@ import type { SessionConfig } from "../engine/host.js";
 import { appendCardHistory, emptyCardHistoryLog } from "./card-history.js";
 import { inspectModel, type InspectPayment } from "./inspect-model.js";
 import { faceVisible } from "./visibility.js";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
+import { GLOSSARY_ES } from "../content/glossary-es.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -292,5 +294,23 @@ describe("inspectModel — keyword definitions, against a revealed minion", () =
       expect(entry.citeLabel.length).toBeGreaterThan(0);
     }
     expect(new Set(model.keywordDefinitions.map((e) => e.label)).size).toBe(model.keywordDefinitions.length);
+  });
+
+  test("words the keyword box in Spanish, the same as the Rules reference", () => {
+    const carrier = Object.keys(deep.instances).find(
+      (id) => faceVisible(deep, id as InstanceId) && keywordsOf(deep, id as InstanceId, CORE_DEPS).length > 0,
+    ) as InstanceId;
+    const english = inspectModel(deep, carrier, null, deepMe, CORE_DEPS).keywordDefinitions[0]!;
+    useSpanish();
+    try {
+      const spanish = inspectModel(deep, carrier, null, deepMe, CORE_DEPS).keywordDefinitions[0]!;
+      const words = Object.values(GLOSSARY_ES).find((entry) => entry.definition === spanish.definition);
+      expect(words, spanish.definition).toBeDefined();
+      expect(spanish.label).toBe(words!.name);
+      expect(spanish.definition).not.toBe(english.definition);
+      expect(spanish.citeLabel).toBe(english.citeLabel);
+    } finally {
+      useEnglish();
+    }
   });
 });

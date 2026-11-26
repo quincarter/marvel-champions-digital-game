@@ -66,7 +66,7 @@ import { cardTextDisplay, cardTextDisplayEs } from "./card-text-display.js";
 import { localizedFaceOf, textFingerprint, type LocalizedFace } from "./card-text.js";
 import { howThisWorksFor } from "./how-this-works.js";
 import { resourceLimitOf } from "./resource-limit.js";
-import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
+import { citeLabelOf, everyGlossaryEntry, glossaryWordsOf } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
 import { poolTeamUpPairs, teamUpNoticeFor, teamUpWhyNot, type TeamUpNotice } from "./team-up-model.js";
 import {
@@ -1047,7 +1047,8 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
     seen.add(name);
     const entry = glossaryEntry(name as GlossaryId);
     if (!entry) continue;
-    entries.push({ label: entry.displayName, definition: entry.definition, citeLabel: citeLabelOf(entry.sources) });
+    const words = glossaryWordsOf(entry);
+    entries.push({ label: words.name, definition: words.definition, citeLabel: citeLabelOf(entry.sources) });
   }
   return entries;
 }
@@ -1348,7 +1349,8 @@ function keywordDefinitionsFor(
     seen.add(name);
     const entry = glossaryEntry(name as GlossaryId);
     if (!entry) continue;
-    entries.push({ label: entry.displayName, definition: entry.definition, citeLabel: citeLabelOf(entry.sources) });
+    const words = glossaryWordsOf(entry);
+    entries.push({ label: words.name, definition: words.definition, citeLabel: citeLabelOf(entry.sources) });
   }
   return entries;
 }

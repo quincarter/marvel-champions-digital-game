@@ -31,6 +31,7 @@ import type { GuidePrefs } from "../guide/guide-prefs.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { BoxPage } from "./new-in-box-model.js";
 import { contentSlotHeights, formFactorFor, type FormFactor, type Rect } from "./layout.js";
+import { t, type MessageKey } from "../i18n/translate.js";
 
 export interface LessonRowInfo {
   readonly id: string;
@@ -81,13 +82,15 @@ export function howToPlayModules(prefs: GuidePrefs, boxPages: readonly BoxPage[]
     const done = prefs.tutorial.lessonsDone.includes(lesson.id);
     const recommended = !done && recommendedLessonIndex === null;
     if (recommended) recommendedLessonIndex = index;
-    return { id: lesson.id, index: index + 1, title: lesson.title, done, recommended };
+    // Worded in the player's language at call time (`i18n/`), so a language switch applies.
+    const title = t(`howToPlay.lesson.${lesson.id}` as MessageKey);
+    return { id: lesson.id, index: index + 1, title, done, recommended };
   });
 
   const aspects: AspectRowInfo[] = ASPECT_GUIDES.filter((guide) => guide.aspect !== "basic").map((guide) => ({
     aspect: guide.aspect,
-    name: guide.name,
-    tagline: guide.tagline,
+    name: t(`aspect.${guide.aspect}` as MessageKey),
+    tagline: t(`howToPlay.tagline.${guide.aspect}` as MessageKey),
     done: prefs.aspectLessonsDone.includes(guide.aspect),
   }));
 
@@ -95,7 +98,7 @@ export function howToPlayModules(prefs: GuidePrefs, boxPages: readonly BoxPage[]
     lessons,
     recommendedLessonIndex,
     aspects,
-    reference: { title: "Rules & glossary", detail: "Every keyword and the full rules reference, searchable." },
+    reference: { title: t("howToPlay.referenceTitle"), detail: t("howToPlay.referenceDetail") },
     boxes: boxPages.map((page) => ({ id: page.id, title: page.title, summary: page.summary })),
   };
 }
@@ -112,7 +115,7 @@ export function howToPlayProgressOf(prefs: GuidePrefs): { readonly done: number;
 
 /** "Continue learning ▸" / "Play it again ▸" (once every lesson is done) — the hub's one red primary action's label. */
 export function continueLearningLabel(modules: HowToPlayModules): string {
-  return modules.recommendedLessonIndex === null ? "Play it again ▸" : "Continue learning ▸";
+  return modules.recommendedLessonIndex === null ? t("howToPlay.playAgain") : t("howToPlay.continue");
 }
 
 /** The lesson `"Continue learning ▸"` starts — the recommended one, or lesson 1 again once every lesson is done. */
