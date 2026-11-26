@@ -1293,7 +1293,7 @@ function describe(
       return { text: `${card(event.instanceId)} left play.`, voice: "player" };
     // A draw a card effect makes (Unflappable's response): the hand refill and the turn's draws have their own lines.
     case "cardDrawn": {
-      const drawn = drawRunBy(burst, event.playerId);
+      const drawn = drawRunBy(burst, event.playerId, state);
       if (!drawn) return null;
       return {
         text: `${who(event.playerId)} ${verb(event.playerId, "draw", "draws")} ${drawn === 1 ? "a card" : `${drawn} cards`}.`,
@@ -2262,7 +2262,7 @@ function effectDealtBy(burst: Burst, card: (id: InstanceId) => string): string |
  * `abilityResolved` or `cardPlayed` before the run); 0 for every draw after the run's first and for a draw no card
  * effect made (a turn's refill has its own line).
  */
-function drawRunBy(burst: Burst | undefined, playerId: PlayerId): number {
+function drawRunBy(burst: Burst | undefined, playerId: PlayerId, state: GameState): number {
   if (!burst) return 0;
   const sameDraw = (e: GameEvent): boolean => e.type === "cardDrawn" && e.playerId === playerId;
   const gap = (e: GameEvent): boolean =>
@@ -2272,7 +2272,13 @@ function drawRunBy(burst: Burst | undefined, playerId: PlayerId): number {
     const earlier = burst.events[i]!;
     if (sameDraw(earlier)) return 0;
     if (gap(earlier)) continue;
-    by = earlier.type === "abilityResolved" || earlier.type === "cardPlayed";
+    // The drawing player's own ability or play: a setup ability resolving just before the opening hands are drawn
+    // (the main scheme's, run by the first player) did not draw them.
+    by =
+      (earlier.type === "abilityResolved" &&
+        earlier.controllerId === playerId &&
+        state.instances[earlier.instanceId]?.ownerId === playerId) ||
+      (earlier.type === "cardPlayed" && earlier.playerId === playerId);
     break;
   }
   if (!by) return 0;
