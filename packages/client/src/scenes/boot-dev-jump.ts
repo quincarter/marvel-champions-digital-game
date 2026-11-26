@@ -1004,6 +1004,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=engaged-target`: Iron Man and Spider-Man against Ultron, each with a facedown Drone, on Repulsor Blast's
+  // choose-an-enemy, so each Drone tile says who it is engaged with (`store/dev-engaged-target-game.ts`, issue #1001).
+  if (screen === "board" && params.get("fixture") === "engaged-target") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startEngagedTargetGame } = await import("../store/dev-engaged-target-game.js");
+      await startEngagedTargetGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=attackers`: Captain Marvel's turn in hero form with three ready allies, so "Who attacks?" offers four characters
   // (`store/dev-attackers-game.ts`).
   if (screen === "board" && params.get("fixture") === "attackers") {
