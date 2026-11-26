@@ -151,6 +151,68 @@ describe("CardFaceBaker queue (inline path)", () => {
   });
 });
 
+describe("CardFaceBaker queue (untracked and tracked wants)", () => {
+  it("keeps a face an untracked caller asked for when a tracked ticket on it is released, at the better priority", async () => {
+    gate.hold = true;
+    const { game } = fakeGame();
+    const baker = new CardFaceBaker(game);
+    baker.request(spec(1));
+    baker.request(spec(2));
+    baker.request(spec(3)); // untracked: wanted as if on screen
+    const { tickets } = baker.track(800, () => baker.request(spec(3)));
+    baker.release(tickets);
+    expect(baker.queued).toBe(1);
+    baker.request(spec(4)); // untracked, queued behind 3? same priority, later
+    baker.track(0, () => baker.request(spec(5)));
+    gate.started.shift()!.finish();
+    await settle();
+    expect(gate.started.map((job) => job.id)).toEqual([2, 3]);
+  });
+});
+
+describe("CardFaceBaker with a worker that fails a face", () => {
+  it("bakes it inline exactly once, then marks it failed, and other faces still bake", async () => {
+    const posted: { id: number; spec: { id: number } }[] = [];
+    let worker: { onmessage: (e: { data: unknown }) => void };
+    vi.stubGlobal(
+      "Worker",
+      class {
+        onmessage: ((e: { data: unknown }) => void) | null = null;
+        onerror = null;
+        constructor() {
+          worker = this as never;
+        }
+        postMessage(m: { type: string; id: number; spec: { id: number } }) {
+          if (m.type === "bake") posted.push(m);
+        }
+        terminate() {}
+      },
+    );
+    vi.stubGlobal("document", { styleSheets: [], baseURI: "http://x/" });
+    const { game } = fakeGame();
+    const baker = new CardFaceBaker(game);
+    worker!.onmessage({ data: { type: "ready", ok: true } });
+    expect(baker.mode).toBe("worker");
+    baker.request(spec(1));
+    baker.request(spec(2));
+    baker.request(spec(3));
+    expect(posted.map((m) => m.spec.id)).toEqual([1, 2]);
+    gate.hold = true;
+    worker!.onmessage({ data: { type: "failed", id: posted[0]!.id, reason: "x" } });
+    await settle();
+    // Not posted to the worker again: baked here, in the slot it freed.
+    expect(posted.map((m) => m.spec.id)).toEqual([1, 2]);
+    expect(gate.started.map((job) => job.id)).toEqual([1]);
+    gate.started.shift()!.finish();
+    await settle();
+    // The slot comes back, and the next face goes to the worker.
+    expect(posted.map((m) => m.spec.id)).toEqual([1, 2, 3]);
+    expect(baker.request(spec(1))).not.toBeNull();
+    expect(gate.started).toEqual([]);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("inlineFontBytes (#932: WebView2 158 crashes on a data: font in a worker)", () => {
   const bytesOf = (buffer: ArrayBuffer | null): number[] => (buffer ? [...new Uint8Array(buffer)] : []);
 

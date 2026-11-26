@@ -42,7 +42,9 @@ export class ArtBitmaps {
     this.#close(this.#decoded.set(key, decoding));
     // Its size is only known once decoded; then the byte cap can evict.
     void decoding.then((art) => {
-      if (art) this.#close(this.#decoded.setBytes(key, art.width * art.height * 4));
+      // Only while the cache still holds this decode (it may have been evicted and decoded again since).
+      if (art && this.#decoded.peek(key) === decoding)
+        this.#close(this.#decoded.setBytes(key, art.width * art.height * 4));
     });
     return decoding;
   }

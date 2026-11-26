@@ -57,6 +57,10 @@ interface Entry {
   priority: number;
   /** Tracked requests still wanting this face (`track`); a queued face with none left is dropped. */
   waiters: number;
+  /** Asked for outside `track`: nobody holds a ticket for it, so `release` never drops it. */
+  pinned: boolean;
+  /** The worker failed it: it is baked on this thread, whatever the mode, once. */
+  forceInline: boolean;
   readonly spec: CardFaceSpec;
 }
 
@@ -114,6 +118,8 @@ export class CardFaceBaker {
         started: false,
         priority: DEFAULT_PRIORITY,
         waiters: 0,
+        pinned: false,
+        forceInline: false,
         spec,
       };
       this.#entries.set(specKey, entry);
@@ -124,17 +130,18 @@ export class CardFaceBaker {
     if (entry.state === "ready") return entry.textureKey;
     if (entry.state === "pending") {
       const context = this.#context;
+      if (!context) entry.pinned = true;
       if (context) {
         entry.waiters++;
         context.tickets.push(entry);
       }
       if (!entry.started) {
-        // A tracked asker (the roster) knows where the tile is, so its priority stands; any other is as if on screen.
-        const priority = context ? context.priority : Math.min(entry.priority, DEFAULT_PRIORITY);
-        if (this.#queue.has(entry)) this.#setPriority(entry, priority);
+        // An untracked asker wants it as if on screen; when wants meet, the most urgent one sets the order.
+        const asked = context ? context.priority : DEFAULT_PRIORITY;
+        if (this.#queue.has(entry)) this.#setPriority(entry, Math.min(entry.priority, asked));
         else {
-          entry.priority = priority;
-          this.#queue.enqueue(entry, priority);
+          entry.priority = asked;
+          this.#queue.enqueue(entry, asked);
           this.#pump();
         }
       }
@@ -167,7 +174,7 @@ export class CardFaceBaker {
     for (const ticket of tickets) {
       const entry = ticket as Entry;
       entry.waiters = Math.max(0, entry.waiters - 1);
-      if (entry.waiters > 0 || !this.#queue.remove(entry)) continue;
+      if (entry.waiters > 0 || entry.pinned || !this.#queue.remove(entry)) continue;
       this.#entries.delete(cardFaceKey(entry.spec));
       this.#byTexture.delete(entry.textureKey);
     }
@@ -179,6 +186,8 @@ export class CardFaceBaker {
   }
 
   #setPriority(entry: Entry, priority: number): void {
+    // A face an untracked caller wants is never ranked below on screen.
+    if (entry.pinned) priority = Math.min(priority, DEFAULT_PRIORITY);
     entry.priority = priority;
     this.#queue.reprioritize(entry, priority);
   }
@@ -285,7 +294,7 @@ export class CardFaceBaker {
     if (this.#mode === "starting") return;
     for (let entry = this.#queue.next(); entry; entry = this.#queue.next()) {
       entry.started = true;
-      if (this.#mode === "inline" || !this.#worker) {
+      if (this.#mode === "inline" || !this.#worker || entry.forceInline) {
         this.#bakeInline(entry);
         continue;
       }
@@ -303,6 +312,7 @@ export class CardFaceBaker {
       entry.state = "failed";
       return;
     }
+    entry.forceInline = true;
     this.#requeueFirst(entry);
   }
 

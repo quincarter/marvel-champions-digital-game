@@ -31,6 +31,11 @@ export class ByteLru<V> {
     return entry.value;
   }
 
+  /** The value without touching its recency. */
+  peek(key: string): V | undefined {
+    return this.#entries.get(key)?.value;
+  }
+
   /** Adds `value` as most recently used and returns what was evicted to stay in budget (never `value` itself). */
   set(key: string, value: V, bytes = 0): V[] {
     const old = this.#entries.get(key);

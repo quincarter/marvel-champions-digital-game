@@ -39,9 +39,9 @@
  * widget's own `clip`/`suppressClick` wiring so a drag release over a
  * chevron doesn't also fire it.
  */
-import { cardFaces, type FaceTicket } from "../art/card-face-baker.js";
 import Phaser from "phaser";
 
+import { cardFaces, type FaceTicket } from "../art/card-face-baker.js";
 import type { Shelf } from "../view/roster-shelves.js";
 import { AxisDragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import { ListScroll } from "../view/list-scroll.js";
@@ -107,7 +107,10 @@ interface LiveShelf {
   /** The card rows, moved by the shelf's own horizontal offset. */
   readonly cards: Phaser.GameObjects.Container;
   readonly cardRows: Map<number, VirtualListRow>;
-  /** The card faces each row is still waiting on (`CardFaceBaker.track`), by item index: re-prioritised as the shelf scrolls, released when the row goes. */
+  /**
+   * The card faces each row is still waiting on (`CardFaceBaker.track`), by item index: re-prioritised as the shelf
+   * scrolls, released when the row goes.
+   */
   readonly faceTickets: Map<number, FaceTicket[]>;
   chevronLeft: McButton | null;
   chevronRight: McButton | null;
