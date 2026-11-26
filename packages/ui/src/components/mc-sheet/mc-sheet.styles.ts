@@ -26,6 +26,12 @@ export const McSheetStyles = css`
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
+  /* A scrolling region keeps its parts inside its rect and scrolls the rest, vertically only. */
+  .scroller {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
   .content {
     position: relative;
   }

@@ -68,9 +68,17 @@ describe("mc-sheet", () => {
     sheet.addEventListener("mc-activate", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
     const resume = sheet.elementOf("resume") as HTMLElementTagNameMap["mc-button"];
     await resume.updateComplete;
+    // happy-dom has no layout: each part gets a box under the tap's point (5, 5).
+    const box = () => ({ left: 0, top: 0, right: 160, bottom: 60, width: 160, height: 60 }) as DOMRect;
+    resume.getBoundingClientRect = box;
+    sheet.elementOf("card")!.getBoundingClientRect = box;
     tap(resume);
     tap(sheet.elementOf("card")!);
-    tap(sheet.elementOf("moment:1")!);
+    // The scroll region clips (a release outside it isn't a tap on what it holds), so it needs a box to lift inside.
+    const moment = sheet.elementOf("moment:1")!;
+    sheet.elementOf("log")!.getBoundingClientRect = box;
+    moment.getBoundingClientRect = box;
+    tap(moment);
     expect(keys).toEqual(["resume", "card", "moment:1"]);
     sheet.remove();
   });

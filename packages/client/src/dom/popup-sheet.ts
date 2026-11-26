@@ -30,6 +30,11 @@ export class PopupSheet {
     });
   }
 
+  /** The panel element once mounted (to reach a part, e.g. to scroll a region). */
+  get element(): McSheet | null {
+    return this.#region?.element ?? null;
+  }
+
   /** A builder over the whole screen, with the dim scrim (Phaser's `void` at 0.7) already laid. */
   begin(width: number, height: number): SheetBuilder {
     const builder = new SheetBuilder(this.#scene.game, { x: 0, y: 0 }, isDesktopType);
