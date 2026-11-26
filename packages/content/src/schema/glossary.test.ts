@@ -370,8 +370,15 @@ describe("wave 8 mechanics (guided mode section 3.14)", () => {
     expect(glossaryEntry("victory")!.definition).toMatch(/when the card it is attached to is defeated/);
     const find = glossaryEntry("find")!.definition;
     expect(find).toMatch(/facedown encounter cards/);
-    expect(find).toMatch(/removed from the game/);
-    expect(find).toMatch(/does not enter play again/);
+    expect(find).toMatch(/removed from or outside the game/);
+    expect(find).toMatch(/does not enter play/);
+  });
+
+  it("a found minion already engaged with you doesn't engage again; Vulnerable waits for two statuses with Steady (RRG 1.8 pp. 19, 48)", () => {
+    expect(glossaryEntry("find")!.definition).toMatch(/engages you unless already engaged/);
+    const vulnerable = glossaryEntry("vulnerable")!.definition;
+    expect(vulnerable).toMatch(/before the damage is applied/);
+    expect(vulnerable).toMatch(/Steady, it is discarded only once it has two/);
   });
 
   it("uses American spelling and no dashes in what a player reads", () => {
