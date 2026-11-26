@@ -1273,7 +1273,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "credits.group.story": "Historia y páginas de cómic",
   "credits.group.music": "Música y sonido",
   "credits.group.tools": "Herramientas y bibliotecas",
-  "credits.notice.ffgMarvel": "Marvel Champions es de Fantasy Flight Games. Ilustraciones y personajes (c) Marvel.",
+  "credits.notice.ffgMarvel":
+    "Marvel Champions pertenece a Fantasy Flight Games. Ilustraciones y personajes (c) Marvel.",
   "credits.notice.marvel": "(c) Marvel. Se usa en este proyecto de fans; no se reclama ninguna propiedad.",
   "credits.notice.artistNotRecorded": "Todavía no consta el artista ni la fuente original.",
 };
