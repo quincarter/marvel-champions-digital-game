@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { activeVillain, choiceId, type PendingChoice } from "@mc/engine";
+import { activeVillain, cardsInPlay, choiceId, type PendingChoice } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
+import { startEngagedTargetGame } from "../store/dev-engaged-target-game.js";
 import { SessionStore } from "../store/session-store.js";
-import { divideSheetOf, shownDivideChoice } from "./divide-sheet.js";
+import { copyNumbers, divideSheetOf, shownDivideChoice } from "./divide-sheet.js";
+import { playerName } from "./names.js";
 
 const store = new SessionStore(new LocalEngineHost());
 await store.start({
@@ -38,6 +40,7 @@ describe("divideSheetOf", () => {
     const sheet = divideSheetOf(state, choice, [])!;
     expect(sheet.labels.get(`${scheme}#2`)).toEqual({
       name: nameOf(scheme),
+      engaged: null,
       holds: expect.stringContaining("Threat"),
       ordinal: 2,
     });
@@ -59,6 +62,101 @@ describe("divideSheetOf", () => {
       divideSheetOf(state, { ...choice, prompt: { kind: "chooseTarget", slot: "s", abilityId: null } }, []),
     ).toBeNull();
   });
+});
+
+describe("damage divided among minions engaged with different seats (issue #1001)", () => {
+  test("a one-seat game names no seat, on the tiles or in the tally", async () => {
+    const solo = new SessionStore(new LocalEngineHost());
+    await solo.start({
+      scenarioId: "ultron",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
+    for (let step = 0; step < 12 && solo.state.legal?.actions.kind === "choice"; step++) {
+      const { choice: setup } = solo.state.legal.actions;
+      await solo.resolveChoice(setup.options.slice(0, setup.minSelections).map((option) => option.optionId));
+    }
+    const game = solo.state.game!;
+    const drones = cardsInPlay(game).filter((id) => game.instances[id]?.facedownAs?.kind === "minion");
+    expect(drones.length).toBeGreaterThan(0);
+    const divide = {
+      ...choice,
+      prompt: { kind: "divide", what: "damage", amount: 2 },
+      options: drones.map((id) => ({ optionId: `${id}#1`, label: id, ref: { kind: "card", instanceId: id } })),
+    } as unknown as PendingChoice;
+    const sheet = divideSheetOf(game, divide, [`${drones[0]}#1`])!;
+    expect(drones.map((id) => sheet.labels.get(`${id}#1`)?.engaged)).toEqual(drones.map(() => null));
+    for (const form of sheet.tallies) expect(form).not.toContain("vs ");
+  }, 120_000);
+
+  test("each Drone's tile and its tally say who it is engaged with", async () => {
+    const two = new SessionStore(new LocalEngineHost());
+    await startEngagedTargetGame(two);
+    const game = two.state.game!;
+    const drones = cardsInPlay(game).filter((id) => game.instances[id]?.facedownAs?.kind === "minion");
+    expect(drones).toHaveLength(2);
+    const divide = {
+      ...choice,
+      prompt: { kind: "divide", what: "damage", amount: 2 },
+      options: drones.map((id) => ({ optionId: `${id}#1`, label: id, ref: { kind: "card", instanceId: id } })),
+    } as unknown as PendingChoice;
+    const sheet = divideSheetOf(game, divide, [`${drones[0]}#1`])!;
+    const seats = drones.map((id) => playerName(game, game.instances[id]!.engagedWith!));
+    expect(drones.map((id) => sheet.labels.get(`${id}#1`)?.engaged)).toEqual(seats);
+    expect(new Set(seats).size).toBe(2);
+    expect(sheet.tally).toContain(`(vs ${seats[0]}) 1`);
+  }, 120_000);
+
+  test("a long tally has shorter forms that lead with the count and keep every target", async () => {
+    const two = new SessionStore(new LocalEngineHost());
+    await startEngagedTargetGame(two);
+    const game = two.state.game!;
+    const drones = cardsInPlay(game).filter((id) => game.instances[id]?.facedownAs?.kind === "minion");
+    const divide = {
+      ...choice,
+      prompt: { kind: "divide", what: "damage", amount: 3 },
+      options: drones.map((id) => ({ optionId: `${id}#1`, label: id, ref: { kind: "card", instanceId: id } })),
+    } as unknown as PendingChoice;
+    const sheet = divideSheetOf(
+      game,
+      divide,
+      drones.map((id) => `${id}#1`),
+    )!;
+    const seats = drones.map((id) => playerName(game, game.instances[id]!.engagedWith!));
+    expect(sheet.tallies[0]).toBe(sheet.tally);
+    const shortest = sheet.tallies.at(-1)!;
+    expect(shortest.startsWith("1 to place · ")).toBe(true);
+    expect(shortest.length).toBeLessThan(sheet.tally.length);
+    // Each Drone keeps a part of its own: the two seats never read the same.
+    const parts = shortest.split(" · ").slice(1);
+    expect(parts).toHaveLength(2);
+    expect(new Set(parts).size).toBe(2);
+    expect(seats).toHaveLength(2);
+  });
+
+  test("copies are numbered across every target, the same on the tile and in the tally (Codex, PR #1014)", () => {
+    expect(copyNumbers(["Drone|Iron Man", "Drone|Iron Man", "Drone|Spider-Man"])).toEqual([1, 2, null]);
+    // The main scheme offered twice under different ids stands in for two copies of one card.
+    const twin = {
+      ...state,
+      instances: { ...state.instances, twin: { ...state.instances[scheme]!, instanceId: "twin" } },
+    };
+    const divide = {
+      ...choice,
+      options: [
+        { optionId: `${scheme}#1`, label: "a", ref: { kind: "card", instanceId: scheme } },
+        { optionId: "twin#1", label: "b", ref: { kind: "card", instanceId: "twin" } },
+      ],
+    } as unknown as PendingChoice;
+    // Only the second copy picked: its tile and its tally entry both say #2.
+    const sheet = divideSheetOf(twin as never, divide, ["twin#1"])!;
+    expect(sheet.labels.get("twin#1")?.name).toBe(`#2 ${nameOf(scheme)}`);
+    expect(sheet.labels.get(`${scheme}#1`)?.name).toBe(`#1 ${nameOf(scheme)}`);
+    expect(sheet.tally).toBe(`#2 ${nameOf(scheme)} 1 · 2 to place`);
+    // Every tally form keeps the copy number, the compact one included.
+    for (const form of sheet.tallies) expect(form).toContain(`#2 ${nameOf(scheme)} 1`);
+  }, 120_000);
 });
 
 describe("shownDivideChoice", () => {

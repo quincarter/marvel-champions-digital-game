@@ -8,11 +8,18 @@
 
 import type { ChoiceRef, GameState, InstanceId, PendingChoice } from "@mc/engine";
 import { threatOnCard } from "./board-model.js";
+import { engagedNoteForms, minionEngagedName } from "./choice-tile-notes.js";
 import { cardName } from "./names.js";
 
 export interface DivideOptionLabel {
   /** The card this point is for. */
   readonly name: string;
+  /**
+   * The seat a minion is engaged with ("Iron Man"), in a game of more than one seat, so two facedown Drones taking a
+   * share of the damage read apart (issue #1001); the sheet words it with `engagedNoteForms`. Null for any other card,
+   * and in a one-seat game.
+   */
+  readonly engaged: string | null;
   /** "Threat 3", "Damage 2" — what the card holds now, before any of the division. */
   readonly holds: string;
   /** Which point of that card this tile is ("1", "2"...), so two tiles for one card still read apart. */
@@ -24,6 +31,12 @@ export interface DivideSheet {
   readonly labels: ReadonlyMap<string, DivideOptionLabel>;
   /** "The Break-In! 2 · Bomb Scare 1 · 1 to place" — empty while nothing is picked. */
   readonly tally: string;
+  /**
+   * The tally's ways to read, longest first: `tally` itself, then shorter forms that lead with what is left to place
+   * and name each card as briefly as still tells it apart ("1 to place · vs P. Parker 1 · vs M. Morales 1"). A phone's
+   * caption takes the first that fits, so a cut from the end costs a target's name, never the count. Empty with `tally`.
+   */
+  readonly tallies: readonly string[];
 }
 
 const refInstanceId = (ref: ChoiceRef): InstanceId | null =>
@@ -58,7 +71,6 @@ export function divideSheetOf(
   const { prompt } = choice;
   if (prompt.kind !== "divide" && prompt.kind !== "assignIndirectDamage") return null;
   const what = prompt.kind === "divide" ? prompt.what : "damage";
-  const labels = new Map<string, DivideOptionLabel>();
   const ordinals = new Map<InstanceId, number>();
   const order: InstanceId[] = [];
   const owner = new Map<string, InstanceId>();
@@ -69,24 +81,86 @@ export function divideSheetOf(
     ordinals.set(instanceId, next);
     if (next === 1) order.push(instanceId);
     owner.set(option.optionId, instanceId);
+  }
+  // Two copies of one card engaged with one hero (or two schemes of one name) are numbered in table order across every
+  // target on the sheet, not just the picked ones, so a tile and its tally entry carry the same "#2" whatever is
+  // picked (Codex, PR #1014).
+  const engagedBy = new Map(order.map((instanceId) => [instanceId, minionEngagedName(state, instanceId)] as const));
+  const copies = copyNumbers(order.map((instanceId) => `${cardName(state, instanceId)}|${engagedBy.get(instanceId)}`));
+  const copyOf = new Map(order.map((instanceId, index) => [instanceId, copies[index]] as const));
+  const named = (instanceId: InstanceId): string => {
+    const copy = copyOf.get(instanceId);
+    // The number leads, so a long name cut to fit a tile never takes it (Codex, PR #1014).
+    return `${copy ? `#${copy} ` : ""}${cardName(state, instanceId)}`;
+  };
+
+  const labels = new Map<string, DivideOptionLabel>();
+  // Each tile's point number, in the order the engine offers a card's points.
+  const seen = new Map<InstanceId, number>();
+  for (const option of choice.options) {
+    const instanceId = owner.get(option.optionId);
+    if (!instanceId) continue;
+    const ordinal = (seen.get(instanceId) ?? 0) + 1;
+    seen.set(instanceId, ordinal);
     labels.set(option.optionId, {
-      name: cardName(state, instanceId),
+      name: named(instanceId),
+      engaged: engagedBy.get(instanceId) ?? null,
       holds: holdsOf(state, instanceId, what),
-      ordinal: next,
+      ordinal,
     });
   }
+
   const counts = new Map<InstanceId, number>();
   for (const optionId of selected) {
     const instanceId = owner.get(optionId);
     if (instanceId) counts.set(instanceId, (counts.get(instanceId) ?? 0) + 1);
   }
-  const parts = order.flatMap((instanceId) => {
-    const count = counts.get(instanceId);
-    return count ? [`${cardName(state, instanceId)} ${count}`] : [];
-  });
   const left = prompt.amount - selected.length;
-  const tally = parts.length === 0 ? "" : `${parts.join(" · ")} · ${left > 0 ? `${left} to place` : "all placed"}`;
-  return { labels, tally };
+  const leftWords = left > 0 ? `${left} to place` : "all placed";
+  const picked = order.filter((instanceId) => counts.has(instanceId));
+  if (picked.length === 0) return { labels, tally: "", tallies: [] };
+
+  const seats = order.flatMap((instanceId) => {
+    const engaged = engagedBy.get(instanceId);
+    return engaged ? [engaged] : [];
+  });
+  // A minion engaged with a seat is named by that seat alone, in the shortest form no other seat shares; targets that
+  // would then read the same (two minions engaged with one hero) keep their card names, and copies their numbers.
+  const seatOnly = new Map(
+    order.map((instanceId) => {
+      const engaged = engagedBy.get(instanceId);
+      return [instanceId, engaged ? engagedNoteForms(engaged, seats).at(-1)! : named(instanceId)] as const;
+    }),
+  );
+  const briefOf = (instanceId: InstanceId): string => {
+    const name = seatOnly.get(instanceId)!;
+    const shared = order.filter((other) => seatOnly.get(other) === name).length > 1;
+    if (!shared || !engagedBy.get(instanceId)) return name;
+    return `${named(instanceId)} ${name}`;
+  };
+  const fullOf = (instanceId: InstanceId): string => {
+    const engaged = engagedBy.get(instanceId);
+    return `${named(instanceId)}${engaged ? ` (vs ${engaged})` : ""}`;
+  };
+  const full = picked.map((instanceId) => `${fullOf(instanceId)} ${counts.get(instanceId)}`);
+  const brief = picked.map((instanceId) => `${briefOf(instanceId)} ${counts.get(instanceId)}`);
+  const tally = `${full.join(" · ")} · ${leftWords}`;
+  const tallies = [...new Set([tally, [leftWords, ...full].join(" · "), [leftWords, ...brief].join(" · ")])];
+  return { labels, tally, tallies };
+}
+
+/**
+ * Each key's copy number among the keys that repeat, in order (1, 2, ...), or null for a key that is unique: two
+ * copies of one card engaged with one hero read "#1" and "#2".
+ */
+export function copyNumbers(keys: readonly string[]): readonly (number | null)[] {
+  const seen = new Map<string, number>();
+  return keys.map((key) => {
+    if (keys.filter((other) => other === key).length < 2) return null;
+    const nth = (seen.get(key) ?? 0) + 1;
+    seen.set(key, nth);
+    return nth;
+  });
 }
 
 function holdsOf(state: GameState, instanceId: InstanceId, what: string): string {
