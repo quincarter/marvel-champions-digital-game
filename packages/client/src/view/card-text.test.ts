@@ -163,6 +163,19 @@ describe("the Inspect sheet in Spanish", () => {
       /Respuesta obligada: después de que Cabeza de Martillo ataque/,
     );
     expect(cardInspectModel(card("60089"), { kind: "front" }).rulesText).toMatch(/^Vincula esta carta a Cabeza/);
+    // MarvelCDB leaves "from a scheme" in English on Traffic Jam, and loses a trait bracket on the rescue side schemes;
+    // the generator corrects both (SPANISH_TEXT_CORRECTIONS, balancedTraits).
+    expect(cardInspectModel(card("60189"), { kind: "front" }).rulesText).toContain(
+      "Quitar Amenaza de un Plan, en vez de eso la Amenaza se quita de esta carta.",
+    );
+    for (const [id, trait] of [
+      ["60177", "Místico"],
+      ["60178", "Aéreo"],
+    ] as const) {
+      const text = cardInspectModel(card(id), { kind: "front" }).rulesText;
+      expect(text, id).toContain(`personaje ${trait})`);
+      expect(text, id).not.toMatch(/[[\]]/);
+    }
     // MarvelCDB drops "base" from Conversion; the generator puts it back (SPANISH_TEXT_CORRECTIONS).
     expect(cardInspectModel(card("60100"), { kind: "front" }).rulesText).toContain("es igual a su INT básica y");
     const scheme = card("60121a");
@@ -257,5 +270,14 @@ describe("Spanish icon words", () => {
     expect(cardTextDisplayEs("Coloca 1[per_hero] de Amenaza. Gasta un recurso [energy] [star] ([rasgos])")).toBe(
       "Coloca 1 por héroe de Amenaza. Gasta un recurso de energía ★ (rasgos)",
     );
+  });
+});
+
+describe("the generated Spanish table", () => {
+  it("has no trait marker left in its brackets, whole or half (issue #995: [[Místico], [ilusión]])", () => {
+    const broken = Object.entries(TABLE)
+      .filter(([, face]) => face.t !== undefined && /\[\[|\]\]/.test(face.t))
+      .map(([code]) => code);
+    expect(broken).toEqual([]);
   });
 });

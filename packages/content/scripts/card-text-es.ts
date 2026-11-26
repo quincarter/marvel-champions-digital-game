@@ -112,14 +112,31 @@ const same = (a: string, b: string): boolean => a.trim().toLowerCase() === b.tri
 const SPANISH_MATCHES_CORRECTED_ENGLISH = new Set(["12028"]);
 
 /**
- * Words MarvelCDB's Spanish drops that change a rule, put back: `[code, as MarvelCDB words it, as the card means it]`.
+ * Words MarvelCDB's Spanish drops, or leaves in English, put back: `[code, as MarvelCDB words it, as the card means it]`.
  * The number check cannot see these (no digits differ). The run stops when a phrase is no longer there, so a fix on
  * MarvelCDB's side is noticed and the entry removed. Add one only after reading the Spanish against the English card.
  * - 60100 Conversion: "Attached minion's SCH is equal to its base THW"; the Spanish says only "su INT" (issue #995).
+ * - 60189 Traffic Jam: the second bullet keeps "from a scheme" in English (issue #995).
+ * - 48027 Azazel: "Kurt Wagner player" keeps an English word.
  */
 const SPANISH_TEXT_CORRECTIONS: readonly (readonly [string, string, string])[] = [
   ["60100", "es igual a su INT y", "es igual a su INT básica y"],
+  [
+    "60189",
+    "Quitar Amenaza from a scheme, en vez de eso Amenaza se quita",
+    "Quitar Amenaza de un Plan, en vez de eso la Amenaza se quita",
+  ],
+  ["48027", "Kurt Wagner player como", "Kurt Wagner como"],
 ];
+
+/**
+ * MarvelCDB marks a trait in rules text `[[Trait]]`, which ingestion prints as the bare word; its Spanish sometimes loses
+ * one bracket of the pair ("[[Místico]", "[ilusión]]"), which `toPlainText` leaves and Inspect would show as stray
+ * brackets. A half-pair is read as the trait marker it is: the bare word, as the English prints it. Icons (`[mental]`)
+ * have single brackets and are left alone.
+ */
+const balancedTraits = (text: string): string =>
+  text.replace(/\[\[([^[\]]+)\]\]?|(?<!\[)\[([^[\]]+)\]\]/g, (_m, a?: string, b?: string) => a ?? b ?? "");
 
 const correctedSpanish = (code: string, text: string): string =>
   SPANISH_TEXT_CORRECTIONS.filter(([at]) => at === code).reduce((fixed, [, from, to]) => {
@@ -172,7 +189,7 @@ for (const [code, card] of es) {
   const fields: Record<string, string> = {};
   const name = (card.name ?? "").trim();
   if (name && !same(name, english.name ?? "")) fields.n = name;
-  const text = correctedSpanish(code, plain(card.text));
+  const text = correctedSpanish(code, balancedTraits(plain(card.text)));
   const englishText = plain(english.real_text ?? english.text);
   // A translation whose numbers disagree may be another card's text, flavor and all: the face keeps only its name.
   const wrong = text !== "" && englishText !== "" && !sameNumbers(text, englishText);
