@@ -62,7 +62,7 @@ import {
   currentPoolKey,
   packNameOf,
 } from "../content/pool.js";
-import { artFor, artLanguageNow } from "../art/art-source.js";
+import { artFor, artLanguageNow, type ArtSource } from "../art/art-source.js";
 import { packPictureFor } from "../art/pack-art.js";
 import { CUSTOM_BADGE, customBadgeOf, isCustomCard } from "../view/custom-content.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -428,7 +428,9 @@ export class SeatsScene extends Phaser.Scene {
     // loader — nothing about that call redraws the scene once a scan actually arrives. Without this, whichever
     // card's own scan was still in flight when the last unrelated redraw ran stayed blank forever (found the same
     // way `scenes/scenario-select.ts`'s own identical fix was: fresh-navigating and waiting with no interaction).
-    const artOff = cardArt(this).onArrived(() => this.#rebuild());
+    // Only the seat thumbnails read `cardArt` (the roster's cards arrive through the card-face baker, which has
+    // its own redraw), so an arrival swaps those few images in place instead of rebuilding the whole scene.
+    const artOff = cardArt(this).onArrived(() => this.#refreshSeatThumbs());
     // A language switch (#390): the screen reads again in the new language.
     const languageOff = onLanguageChange(() => {
       if (this.sys.isActive()) this.#rebuild();
@@ -650,7 +652,31 @@ export class SeatsScene extends Phaser.Scene {
     return null;
   }
 
+  /** The seat thumbnails drawn now: what to ask `cardArt` for, where, and the object (picture or placeholder) in the slot. */
+  /** Dev e2e hook only: how many times the whole scene has been rebuilt. */
+  #rebuilds = 0;
+  #seatThumbs: { source: ArtSource; rect: Rect; holder: Phaser.GameObjects.GameObject }[] = [];
+
+  /**
+   * A scan arrived: redraw each seat thumbnail in place (at the same place in the display list), not the scene.
+   * At most four seats, all always on screen (the seat strip never scrolls), so each asks for its picture at once.
+   */
+  #refreshSeatThumbs(): void {
+    if (!this.sys.isActive()) return;
+    for (const thumb of this.#seatThumbs) {
+      const key = cardArt(this).request(this, thumb.source);
+      if (!key) continue;
+      const art = drawArt(this, key, thumb.rect, { fit: "cover" });
+      if (!art) continue;
+      this.children.moveTo(art, this.children.getIndex(thumb.holder));
+      thumb.holder.destroy();
+      thumb.holder = art;
+    }
+  }
+
   #rebuild(): void {
+    this.#seatThumbs = [];
+    this.#rebuilds++;
     this.#hints.reset();
     this.#rowOfKey.clear();
     this.#yWord = null;
@@ -1210,6 +1236,7 @@ export class SeatsScene extends Phaser.Scene {
     // Dev e2e hook (never referenced by product code): every control's current rect, by focus key.
     if (import.meta.env.DEV) {
       (window as unknown as { __mcSeatsDebug?: unknown }).__mcSeatsDebug = {
+        rebuilds: () => this.#rebuilds,
         folded: () => [...this.#folded],
         seats: () => [...this.#draft.seats],
         unseatable: () =>
@@ -1702,13 +1729,15 @@ export class SeatsScene extends Phaser.Scene {
       const identity = currentCardsById().get(option.deck.identityCardId as string);
       const source = identity ? artFor(identity, { kind: "hero" }) : null;
       const key = cardArt(this).request(this, source);
-      const art = key ? drawArt(this, key, thumbRect, { fit: "cover" }) : null;
-      if (!art) {
+      let holder: Phaser.GameObjects.GameObject | null = key ? drawArt(this, key, thumbRect, { fit: "cover" }) : null;
+      if (!holder) {
         const placeholder = this.add.graphics();
         placeholder
           .fillStyle(surface.parchment.hex, 1)
           .fillRect(thumbRect.x, thumbRect.y, thumbRect.width, thumbRect.height);
+        holder = placeholder;
       }
+      if (source) this.#seatThumbs.push({ source, rect: thumbRect, holder });
     }
 
     const textX = thumbRect.x + thumbRect.width + 10;
