@@ -3,6 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <!--
+      The game draws its own light and dark themes (the moon button), and its panels are DOM over the canvas: a
+      page-recoloring extension such as Dark Reader would repaint them (paper text on a paper panel). This tells Dark
+      Reader to leave the page alone; the meta is its documented opt-out.
+    -->
+    <meta name="darkreader-lock" />
+    <!--
       interactive-widget=overlays-content: the on-screen keyboard lays over the
       canvas rather than shrinking the page, so typing a few letters doesn't
       re-lay out and redraw the screen (#537).
