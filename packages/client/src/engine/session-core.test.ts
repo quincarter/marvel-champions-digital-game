@@ -386,17 +386,16 @@ describe("EngineSessionCore time played (#529)", () => {
   });
 });
 
-describe("not-ready heroes", () => {
-  test("a new game refuses a seat led by Elektra or Iron Fist", async () => {
-    for (const identityCardId of ["63001a", "64001a"]) {
-      await expect(
-        new EngineSessionCore().start({
-          scenarioId: "rhino",
-          difficulty: "standard",
-          players: [{ identityCardId: cardId(identityCardId), deck: [], aspects: ["aggression"] }],
-          seed: 1,
-        } as SessionConfig),
-      ).rejects.toThrow(/not ready yet/);
+describe("released heroes (Elektra, Iron Fist, 2026-11-25)", () => {
+  test("a new game seats each one's precon", async () => {
+    for (const starterDeckId of ["elektra-aggression", "iron-fist-protection"]) {
+      const started = await new EngineSessionCore().start({
+        scenarioId: "rhino",
+        difficulty: "standard",
+        players: [{ starterDeckId }],
+        seed: 1,
+      } as SessionConfig);
+      expect(started.snapshot).toBeDefined();
     }
   });
 });

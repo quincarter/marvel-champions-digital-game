@@ -128,7 +128,7 @@ describe("63005 Daredevil: after he uses a basic power, put a card from the enco
 
 describe("63010 Resurrection Altar: when you would be defeated, remove it: set the dial to 9, find your obligation and reveal it", () => {
   const ALTAR = "63010.resurrection-altar-interrupt";
-  const OBLIGATION = "63040";
+  const OBLIGATION = "63028";
   const obligationOf = (s: GameState) => Object.values(s.instances).find((i) => (i.cardId as string) === OBLIGATION)!;
   /** Her hero face at 1 hit point remaining with Rhino about to attack. */
   const doomed = () => {

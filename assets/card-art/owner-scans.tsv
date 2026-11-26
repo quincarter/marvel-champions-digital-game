@@ -1,6 +1,7 @@
 # Cards whose bundled scan is the owner's own, saved by `scripts/fetch_card_art.py scans`. `fetch` never
 # replaces these with a Hall of Heroes copy, and `trim` never crops them (they are cut to the card edge).
 # The Shadowland (65xxx) rows are from a community scan folder shared by u/Ok-Replacement-9793 on Reddit.
+# The Elektra (63xxx) and Iron Fist (64xxx) rows, and their Spanish scans, were contributed by bluefireF5ran.
 code	pack	name	saved
 01001a	core	Spider-Man	2026-10-28
 01001b	core	Peter Parker	2026-10-28
@@ -3968,6 +3969,76 @@ code	pack	name	saved
 62035	luke_cage	Observe	2026-10-28
 62036	luke_cage	Toughen Up	2026-10-28
 62037	luke_cage	Black Belt	2026-10-28
+63001a	elektra	Elektra	2026-11-25
+63001b	elektra	Elektra Natchios	2026-11-25
+63002	elektra	Ninja Stars	2026-11-25
+63003	elektra	Ninja Strike	2026-11-25
+63004	elektra	Ninja Vanish	2026-11-25
+63005	elektra	Daredevil	2026-11-25
+63006	elektra	Acrobatic Prowess	2026-11-25
+63007	elektra	Killer Blow	2026-11-25
+63008	elektra	Move Unseen	2026-11-25
+63009	elektra	Sai Strike	2026-11-25
+63010	elektra	Resurrection Altar	2026-11-25
+63011	elektra	White Tiger	2026-11-25
+63012	elektra	Elektra's Sai	2026-11-25
+63013	elektra	History with the Hand	2026-11-25
+63014	elektra	Stealth Mastery	2026-11-25
+63015	elektra	Shang-Chi	2026-11-25
+63016	elektra	Black Cat	2026-11-25
+63017	elektra	Combo Move	2026-11-25
+63018	elektra	Chain Reaction	2026-11-25
+63019	elektra	Nerve Strike	2026-11-25
+63020	elektra	Flow of Battle	2026-11-25
+63021	elektra	Shuriken	2026-11-25
+63022	elektra	Stone	2026-11-25
+63023	elektra	Hunting Shadows	2026-11-25
+63027	elektra	Dance with the Devil	2026-11-25
+63028	elektra	Conditioned by the Hand	2026-11-25
+63029	elektra	Aka	2026-11-25
+63030	elektra	The Fist Fits in the Hand	2026-11-25
+63031	elektra	Hand Katana	2026-11-25
+63032	elektra	Hand Blademaster	2026-11-25
+63033	elektra	Hand Archer	2026-11-25
+63034	elektra	Double-Cross	2026-11-25
+63035	elektra	Backstab	2026-11-25
+63036	elektra	Misdirect	2026-11-25
+63037	elektra	Sabotage	2026-11-25
+63038	elektra	Moondragon	2026-11-25
+63039	elektra	Moon Knight	2026-11-25
+64001a	iron_fist	Iron Fist	2026-11-25
+64001b	iron_fist	Danny Rand	2026-11-25
+64002	iron_fist	Deep Breathing	2026-11-25
+64003	iron_fist	Dragon Punch	2026-11-25
+64004	iron_fist	Fists of Fury	2026-11-25
+64005	iron_fist	The Way of Things	2026-11-25
+64006	iron_fist	Lei Kung	2026-11-25
+64007	iron_fist	Book of the Iron Fist	2026-11-25
+64008	iron_fist	Channel the Iron Fist	2026-11-25
+64009	iron_fist	Embody the Dragon	2026-11-25
+64010	iron_fist	Feel the Flow	2026-11-25
+64011	iron_fist	Keep 'Em Coming	2026-11-25
+64012	iron_fist	Redirect Chi	2026-11-25
+64013	iron_fist	Helpful Bystander	2026-11-25
+64014	iron_fist	Iron Fist	2026-11-25
+64016	iron_fist	Demoralize	2026-11-25
+64017	iron_fist	The Night Nurse	2026-11-25
+64018	iron_fist	Redirection Mastery	2026-11-25
+64019	iron_fist	No Time to Bleed	2026-11-25
+64020	iron_fist	Tonfa	2026-11-25
+64021	iron_fist	Colleen Wing	2026-11-25
+64022	iron_fist	Luke Cage	2026-11-25
+64023	iron_fist	Punch, Reverse Punch	2026-11-25
+64024	iron_fist	Power Man and Iron Fist	2026-11-25
+64025	iron_fist	Thunder Dojo	2026-11-25
+64026	iron_fist	Lack of Chi	2026-11-25
+64027	iron_fist	Davos	2026-11-25
+64028	iron_fist	Crane Daughter	2026-11-25
+64029	iron_fist	Steel Serpent	2026-11-25
+64030	iron_fist	Death by a Thousand Cuts	2026-11-25
+64031	iron_fist	Zen-Like Calm	2026-11-25
+64032	iron_fist	Sensei	2026-11-25
+64033	iron_fist	The Defenders	2026-11-25
 65001a	shadowland	A Barricade of Blades	2026-10-30
 65001b	shadowland	A Barricade of Blades	2026-10-30
 65002a	shadowland	Fortress Lockdown	2026-10-30

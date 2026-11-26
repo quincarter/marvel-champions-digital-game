@@ -1,37 +1,53 @@
-# Elektra (MC63) and Iron Fist (MC64): status of two not-ready hero packs
+# Elektra (MC63) and Iron Fist (MC64): hero pack status
 
-Tracking issue: #699. Both packs are in the card pool as built-in packs (`packages/cards/src/wave11/elektra/pack.ts`,
-`packages/cards/src/wave11/iron_fist/pack.ts`) with `status: "not-ready"` in their manifests, which puts their set codes
-in `NOT_READY_PACK_CODES` (`packages/cards/src/builtin-packs/index.ts`). A not-ready pack's hero is left out of hero
-select, the deck builder's identity list and the precons, and a deck it leads shows "Not ready yet" and can't be seated.
-Every other card of a not-ready pack is also kept out of the deck builder's pool and deck import (owner, 2026-11-14;
-`packages/client/src/view/not-ready-cards.ts`).
-**To release a pack, delete `status` from its manifest** once every card has text and the scripts are done.
+Tracking issue: #699. Both packs are built-in packs (`packages/cards/src/wave11/elektra/pack.ts`,
+`packages/cards/src/wave11/iron_fist/pack.ts`). They were `status: "not-ready"` (left out of hero select, the deck
+builder and the precons; `NOT_READY_PACK_CODES` in `packages/cards/src/builtin-packs/index.ts`) until 2026-11-25, when
+their card data moved to MarvelCDB, bluefireF5ran contributed English and Spanish scans of every card, and the
+status was removed. The not-ready gate stays in the code for the next pack that lands early.
 
 This file lists what we have for each card, where it came from, and what is still missing. Update it as cards arrive.
 
 ## 1. Sources
 
-| Source                                                                                     | What it gave                                                           |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| Hall of Heroes `https://hallofheroeslcg.com/elektra-natchios/`                             | 20 card images (identity, Ninja deck, most of the kit, some aspect)    |
-| Hall of Heroes `https://hallofheroeslcg.com/iron-fist-danny-rand/`                         | 18 card images (identity, most of the kit, some Protection and basic)  |
-| FFG article `https://www.fantasyflightgames.com/en/news/2026/8/13/killer-instinct/`        | the same Elektra cards at higher resolution; Ninja deck and Villainous |
-| FFG article `https://www.fantasyflightgames.com/en/news/2026/8/27/way-of-the-iron-fist/`   | the same Iron Fist cards; chi and Technique (Temporary) rules          |
-| Gameplay video `https://youtu.be/6wR6kfxPmio` (Web-Warrior Fanatic, 2026-11-13), 4K stills | the obligations and the first nemesis card of each hero (section 3)    |
-| MarvelCDB `/api/public/packs/`                                                             | neither pack yet (checked 2026-11-14; newest is `luke_cage`)           |
-| Rules insert                                                                               | not published; the Elektra alter-ego says "(See insert.)"              |
+| Source                                                                                                  | What it gave                                                                                |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Hall of Heroes `https://hallofheroeslcg.com/elektra-natchios/`                                          | 20 card images (identity, Ninja deck, most of the kit, some aspect)                         |
+| MarvelCDB `https://marvelcdb.com/api/public/cards/iron_fist` (fetched 2026-11-25)                       | Iron Fist (MC64): all 33 records, now the card data source (`raw/marvelcdb/iron_fist.json`) |
+| Official Iron Fist card images (`Iron_Fist_EN/`, 1500 x 2150), card images contributed by bluefireF5ran | read against MarvelCDB: both identity faces, 64013, 64014, 64021, 64026 to 64029, 64032     |
+| FFG article `https://www.fantasyflightgames.com/en/news/2026/8/13/killer-instinct/`                     | the same Elektra cards at higher resolution; Ninja deck and Villainous                      |
+| Gameplay video `https://youtu.be/6wR6kfxPmio` (Web-Warrior Fanatic, 2026-11-13), 4K stills              | the obligations and the first nemesis card of each hero (section 3)                         |
+| MarvelCDB `/api/public/packs/`                                                                          | neither pack yet (checked 2026-11-14; newest is `luke_cage`)                                |
+| Rules insert                                                                                            | not published; the Elektra alter-ego says "(See insert.)"                                   |
 
 The card data is hand-transcribed (`packages/content/scripts/marvelcdb/curation/elektra.ts`, `iron-fist.ts`), the
 Shadowland way: `scanOnly`, every record an added record with its evidence. Every inferred value carries a
 "Data decision:" correction and every video-only card a "PLACEHOLDER:" correction in the pack's `provenance.ts`.
+
+Iron Fist is now ingested from MarvelCDB too (2026-11-25; `curation/iron_fist.ts`, like `luke_cage.ts`); the
+hand-transcription described above no longer applies to it. Corrections kept: the printed consequential-damage icon
+in 64014, 64021 and 64032, and Helpful Bystander's dash THW and ATK without MarvelCDB's star flags.
+
+### Elektra: now ingested from MarvelCDB (2026-11-25)
+
+MarvelCDB now carries Elektra (`https://marvelcdb.com/api/public/cards/elektra`, 39 records, cached in
+`packages/content/raw/marvelcdb/elektra.json`), so `curation/elektra.ts` is a normal MarvelCDB-sourced curation like
+`luke_cage.ts` (no `scanOnly`, no added records) and the old hand transcription, the Hall of Heroes previews, the gameplay
+video and the fan preview are no longer sources for her. The official card images (1500 x 2150, `Elektra_EN`, card images
+contributed by bluefireF5ran) were read for the identity faces, 63011, 63013, 63027 to 63033, 63038 and 63039; they
+matched MarvelCDB except two corrections: Moondragon's consequential damage icon (63038) and the amplify icon on the
+Dance with the Devil reprint (63027). Bundled art exists for every code but the three basic resource reprints
+(63024 to 63026), which take their original's art. Quantities come from MarvelCDB. Starter deck: MarvelCDB decklists
+69860 and 70085 (identical, 40 cards), recorded as a stand-in (`verified: false`), not a printed list. The old placeholder
+codes 63040 to 63045 are gone: obligation 63028, Aka 63029, The Fist Fits in the Hand 63030, Hand Katana 63031, Hand
+Blademaster 63032, Hand Archer 63033.
 
 ## 2. Player cards (from card images)
 
 The Hall of Heroes pages carry two sets of images: small previews (about 300 px, the same as FFG's articles) and
 full-size spoiler images (about 1400 x 2000) under "Content Creator Spoiler Overviews".
 
-**Elektra (`elektra`, 63xxx), 39 player cards seen.** 63001a/b Elektra / Elektra Natchios; Ninja deck 63002 Ninja
+**Elektra (`elektra`, 63xxx), 39 cards (63001 to 63039, all on MarvelCDB).** 63001a/b Elektra / Elektra Natchios; Ninja deck 63002 Ninja
 Stars, 63003 Ninja Strike, 63004 Ninja Vanish (2 each, 6 cards); kit 63005 Daredevil, 63006 Acrobatic Prowess x2, 63007
 Killer Blow x2, 63008 Move Unseen x2, 63009 Sai Strike x2, 63010 Resurrection Altar, 63011 White Tiger, 63012 Elektra's
 Sai x2, 63013 History with the Hand, 63014 Stealth Mastery (15 of 15 placed); Aggression 63015 Shang-Chi, 63016 Black
@@ -49,12 +65,20 @@ basic 64021 Colleen Wing, 64022 Luke Cage, 64023 Punch, Reverse Punch, 64024 Pow
 62023), 64025 Thunder Dojo, 64033 The Defenders; Aggression 64030 Death by a Thousand Cuts; Leadership 64031 Zen-Like
 Calm, 64032 Sensei.
 
+**Update 2026-11-25:** Iron Fist's quantities are MarvelCDB's (three of each aspect card and The Defenders, kit
+counts unchanged); the inferred counts in the next paragraph are superseded.
+
 Kit quantities come from the printed set positions (each footer prints the first position of the card's copies); the
 Iron Fist footers for Deep Breathing, Fists of Fury and The Way of Things are too small to read the range, so their
-counts are inferred from the gaps. Aspect and basic cards are x1 because no source gives their count. The Ninja cards
-print positions 2, 3 and 5 of 6, which fits 2/2/2 only loosely.
+counts are inferred from the gaps. Iron Fist aspect and basic cards are x1 because no source gives their count.
+(Elektra's quantities, the aspect cards x3 among them, now come from MarvelCDB; her Ninja cards are 2/2/2.)
 
-## 3. Obligations and nemesis sets (placeholder codes, provisional text, no art)
+## 3. Obligations and nemesis sets (Elektra official, Iron Fist official since 2026-11-25)
+
+Elektra's obligation and nemesis set are official now (63028 to 63033, MarvelCDB plus the card images; section above).
+Iron Fist's are official too (MarvelCDB plus the card images): 64026 Lack of Chi, 64027 Davos, 64028 Crane Daughter
+x3, 64029 Steel Serpent; the placeholder codes 64034 to 64037 are gone. Where the sources text below
+mentions Iron Fist, it describes the superseded video and fan-preview readings.
 
 Neither hero's obligation or nemesis set is on Hall of Heroes. Their text comes from two places:
 
@@ -67,28 +91,15 @@ Neither hero's obligation or nemesis set is on Hall of Heroes. Their text comes 
 Collector numbers are not readable in either source, so the codes are provisional and follow the set positions after the
 obligation. Every card here is art-unavailable and carries a "PLACEHOLDER:" correction in its pack's `provenance.ts`.
 
-| Code    | Card                                        | Source                        | Notes                                                                                                                                                                                                            |
-| ------- | ------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 63040   | Conditioned by the Hand (obligation 1/1)    | video 48:13; fan (boost 2)    | video "Forced Response (Hero)" / "Exhaust your identity"; fan "Hero Forced Response" / "Exhaust Elektra Natchios"                                                                                                |
-| 63041   | Aka (nemesis minion 1/5)                    | video 48:11; fan              | video traits Hand. Ninja. (fan: Hand.); SCH 2 ATK 2 HP 4; Quickstrike; boost ability                                                                                                                             |
-| 63042   | The Fist Fits in the Hand (side scheme 2/5) | fan only                      | 3 per player threat, 3 boost icons, a hazard icon                                                                                                                                                                |
-| (63043) | Elektra nemesis 3/5                         | none                          | missing; the fan source skips it, so Hand Blademaster may be 2 copies (3-4/5)                                                                                                                                    |
-| 63044   | Hand Blademaster (minion 4/5)               | fan only                      | SCH 1 ATK 1 HP 3, 1 boost icon                                                                                                                                                                                   |
-| 63045   | Hand Archer (minion 5/5)                    | fan only                      | SCH 1 ATK 1 HP 3, Quickstrike, Ranged, 1 boost icon                                                                                                                                                              |
-| 64034   | Lack of Chi (obligation 1/1)                | video ~1:00, ~45:01; fan      | 2 boost icons; "Then," from the fan text                                                                                                                                                                         |
-| 64035   | Davos (nemesis minion 1/5)                  | video 1:14; fan               | video "Find and tuck the 3 Crane Daughter minions under here" (assembled from two frames); fan "Put each copy of Crane Daughter from the encounter deck and discard pile facedown under Davos"; SCH 1 ATK 2 HP 5 |
-| 64036   | Steel Serpent (side scheme 2/5)             | fan only                      | 4 per player threat, 2 boost icons, a hazard icon                                                                                                                                                                |
-| 64037   | Crane Daughter x3 (minion 3-5/5)            | fan only; title seen in video | **least certain**: the owner couldn't confirm it. Mystic. SCH 2 ATK 2 HP 3, boost ability                                                                                                                        |
+| Code | Card | Source | Notes |
+| ---- | ---- | ------ | ----- |
 
 ## 4. Missing
 
-- **Elektra nemesis 3/5** (section 3), and official text for every card in section 3.
-- **Collector numbers not seen:** Elektra 24, 25, 26 and 28 to 33; Iron Fist 26 to 29. The Iron Fist nemesis set is
-  complete (Davos 1/5, Steel Serpent 2/5, Crane Daughter 3-5/5).
-- **Precon decklists** for both packs (Elektra ships an Aggression deck, Iron Fist a Protection deck).
-- **The rules insert** (Ninja deck setup).
-- **Art:** 38 cards have only the small previews (FFG watermark), 23 have full-size spoiler images, and the 10
-  obligation and nemesis cards have none.
+- **Collector numbers not seen:** none for Iron Fist (33 of 33).
+- **Precon decklists:** Elektra's is a MarvelCDB stand-in (decklists 69860 and 70085), not the printed list; Iron Fist's Protection deck is the MarvelCDB decklist 69859 stand-in (`verified: false`).
+- **The rules insert** (Elektra's Ninja deck setup).
+- **Art:** Elektra and Iron Fist both have bundled art for every code.
 
 ## 5. Rules readings
 

@@ -262,21 +262,16 @@ describe("MARVELCDB_FIELD_PLACEHOLDER", () => {
   });
 });
 
-describe("not-ready cards in an import", () => {
+describe("Elektra and Iron Fist cards in an import (released 2026-11-25)", () => {
   const poolEnv: ImportEnv = { ...env, pool: PLAYABLE_CARDS };
   const deckText = (extra: string) => `Hero: Spider-Man (01001a)
 Aspect: Justice
 ${extra}`;
 
-  test("a pasted deck holding a not-ready card (Killer Blow, 63007) is refused as an unknown card", () => {
-    const out = importFromPasteText(deckText("1x Killer Blow"), poolEnv);
-    expect(out.ok).toBe(false);
-    if (!out.ok) expect(out.problems.map((p) => p.code)).toContain("unknown_card");
-  });
-
-  test("Shang-Chi (63015) is never imported as the not-ready printing (a same-named card elsewhere still is)", () => {
+  test("Shang-Chi (63015), no longer not-ready, imports as that printing", () => {
     const out = importFromPasteText(deckText("1x Shang-Chi (63015)"), poolEnv);
-    if (out.ok) expect(out.deck.cards.some((c) => (c.cardId as string) === "63015")).toBe(false);
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.deck.cards.some((c) => (c.cardId as string) === "63015")).toBe(true);
   });
 
   test("the same deck without it still imports", () => {
