@@ -13,6 +13,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { ALLIANCE_DEV_CARD, startAllianceDevGame } from "../store/dev-alliance-game.js";
+import { codeOf, ids, nextTurn } from "../store/dev-game-steps.js";
 import { appendEvents, emptyLog } from "./log-lines.js";
 
 let state: GameState;
@@ -166,20 +167,63 @@ describe("lines for what happened silently (1.3)", () => {
     expect(lines([activated, initiated()])).toHaveLength(1);
   });
 
-  test("a card effect's draw is told, a draw with no effect before it is not", () => {
+  test("a card effect's draw is told, a draw outside any frame (opening hand, refill) is not", () => {
     const drawn = (id: InstanceId): GameEvent => ({ type: "cardDrawn", playerId: p1, instanceId: id });
-    const used: GameEvent = {
-      type: "abilityResolved",
-      instanceId: identity1,
-      abilityId: ability("keyword:none"),
-      controllerId: p1,
-    };
-    expect(lines([used, drawn(hand1[0]!)]).filter((l) => /draw/.test(l))).toEqual(["You draw a card."]);
-    expect(lines([used, drawn(hand1[0]!), drawn(hand1[1]!)]).filter((l) => /draw/.test(l))).toEqual([
-      "You draw 2 cards.",
-    ]);
-    expect(lines([drawn(hand1[0]!)])).toEqual([]);
+    const push = { type: "framePushed", frameId: "f1", frame: "effects", description: "draw" } as unknown as GameEvent;
+    const pop = { type: "framePopped", frameId: "f1", frame: "effects" } as unknown as GameEvent;
+    const draws = (events: GameEvent[]) => lines(events).filter((l) => /draw/.test(l));
+    expect(draws([push, drawn(hand1[0]!), pop])).toEqual(["You draw a card."]);
+    expect(draws([push, drawn(hand1[0]!), drawn(hand1[1]!), pop])).toEqual(["You draw 2 cards."]);
+    // The frame was pushed by an earlier command (a choice answered later), or is still open when the command ends.
+    expect(draws([drawn(hand1[0]!), pop])).toEqual(["You draw a card."]);
+    expect(draws([push, drawn(hand1[0]!)])).toEqual(["You draw a card."]);
+    // A frame that closed before the draw (a setup ability) did not make it.
+    expect(draws([push, pop, drawn(hand1[0]!), drawn(hand1[1]!)])).toEqual([]);
+    expect(draws([drawn(hand1[0]!)])).toEqual([]);
   });
+
+  test("Avengers Mansion's draw for a teammate, the choice answered in a later command, is told (real engine)", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-captain-marvel-leadership" }, { starterDeckId: "core-spider-man-justice" }],
+      seed: 7,
+      stack: { players: { 0: ids("01091", "01012", "01012", "01012", "01013", "01013") } },
+    });
+    const turn = (await nextTurn(store))!;
+    const game = store.state.game!;
+    const me = game.players[0]!;
+    const mate = game.players[1]!.playerId;
+    const play = turn.legal.find((e) => e.action.kind === "playCard" && codeOf(game, e.action.instanceId) === "01091")!;
+    if (play.example.type !== "playCard") throw new Error("not a play");
+    const others = me.hand.filter((id) => codeOf(game, id) !== "01091");
+    for (let count = 0; count <= others.length; count++) {
+      await store.dispatch({ ...play.example, payment: others.slice(0, count).map((id) => ({ fromHand: id })) });
+      if (!store.state.error) break;
+    }
+    const afterPlay = store.state.legal!.actions;
+    if (afterPlay.kind !== "turn") throw new Error("not on a turn");
+    const mansion = Object.values(store.state.game!.instances).find((i) => (i.cardId as string) === "01091")!;
+    const use = afterPlay.legal.find(
+      (e) =>
+        e.action.kind === "useAbility" &&
+        e.example.type === "useAbility" &&
+        e.example.cardInstanceId === mansion.instanceId,
+    )!;
+    await store.dispatch(use.example);
+    // The ability's command stops at the target choice; the draw is in the command that answers it.
+    expect(store.state.lastEvents.some((e) => e.type === "cardDrawn")).toBe(false);
+    const choice = store.state.legal!.actions;
+    if (choice.kind !== "choice") throw new Error("no choice");
+    await store.resolveChoice([choice.choice.options.find((o) => o.optionId === (mate as string))!.optionId]);
+    const events = store.state.lastEvents;
+    expect(events.some((e) => e.type === "cardDrawn" && e.playerId === mate)).toBe(true);
+    const read = (viewer: PlayerId) =>
+      appendEvents(emptyLog(), events, store.state.game!, viewer, POOL_DEPS).lines.map((line) => line.text);
+    expect(read(me.playerId).filter((l) => /draw/.test(l))).toEqual([expect.stringMatching(/ draws a card\.$/)]);
+    expect(read(mate).filter((l) => /draw/.test(l))).toEqual(["You draw a card."]);
+  }, 30_000);
 });
 
 describe("one line for one thing (1.4)", () => {

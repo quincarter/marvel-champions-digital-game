@@ -1293,7 +1293,7 @@ function describe(
       return { text: `${card(event.instanceId)} left play.`, voice: "player" };
     // A draw a card effect makes (Unflappable's response): the hand refill and the turn's draws have their own lines.
     case "cardDrawn": {
-      const drawn = drawRunBy(burst, event.playerId, state);
+      const drawn = drawRunBy(burst, event.playerId);
       if (!drawn) return null;
       return {
         text: `${who(event.playerId)} ${verb(event.playerId, "draw", "draws")} ${drawn === 1 ? "a card" : `${drawn} cards`}.`,
@@ -2258,30 +2258,52 @@ function effectDealtBy(burst: Burst, card: (id: InstanceId) => string): string |
 }
 
 /**
- * How many cards `playerId` draws in the run of draws that starts at `burst.at`, when a card effect is making them (an
- * `abilityResolved` or `cardPlayed` before the run); 0 for every draw after the run's first and for a draw no card
- * effect made (a turn's refill has its own line).
+ * Whether the draw at `burst.at` runs inside a stack frame, which is what tells a card effect's draw from the
+ * opening hands, the mulligan's refill and a turn's refill (the flow draws those with no frame open). The frame may
+ * have been pushed by an earlier command (Avengers Mansion: the ability, then the target choice answered later), so
+ * a frame popped after the draw with no push before it in this burst counts too. A step change ends the search both
+ * ways: a frame never spans one.
  */
-function drawRunBy(burst: Burst | undefined, playerId: PlayerId, state: GameState): number {
+function drawsInsideFrame(burst: Burst): boolean {
+  let depth = 0;
+  for (let i = burst.at - 1; i >= 0; i--) {
+    const e = burst.events[i]!;
+    if (e.type === "stepChanged") break;
+    if (e.type === "framePopped") depth++;
+    else if (e.type === "framePushed") {
+      if (depth === 0) return true;
+      depth--;
+    }
+  }
+  depth = 0;
+  for (let i = burst.at + 1; i < burst.events.length; i++) {
+    const e = burst.events[i]!;
+    if (e.type === "stepChanged") break;
+    if (e.type === "framePushed") depth++;
+    else if (e.type === "framePopped") {
+      if (depth === 0) return true;
+      depth--;
+    }
+  }
+  return false;
+}
+
+/**
+ * How many cards `playerId` draws in the run of draws that starts at `burst.at`, when a card effect is making them
+ * (the draw sits inside a stack frame; see `drawsInsideFrame`); 0 for every draw after the run's first and for a draw
+ * no card effect made (the opening hands, a mulligan's or a turn's refill have their own lines).
+ */
+function drawRunBy(burst: Burst | undefined, playerId: PlayerId): number {
   if (!burst) return 0;
   const sameDraw = (e: GameEvent): boolean => e.type === "cardDrawn" && e.playerId === playerId;
   const gap = (e: GameEvent): boolean =>
     e.type === "cardMoved" || e.type === "framePushed" || e.type === "framePopped" || e.type === "triggerEvent";
-  let by = false;
   for (let i = burst.at - 1; i >= 0; i--) {
     const earlier = burst.events[i]!;
     if (sameDraw(earlier)) return 0;
-    if (gap(earlier)) continue;
-    // The drawing player's own ability or play: a setup ability resolving just before the opening hands are drawn
-    // (the main scheme's, run by the first player) did not draw them.
-    by =
-      (earlier.type === "abilityResolved" &&
-        earlier.controllerId === playerId &&
-        state.instances[earlier.instanceId]?.ownerId === playerId) ||
-      (earlier.type === "cardPlayed" && earlier.playerId === playerId);
-    break;
+    if (!gap(earlier)) break;
   }
-  if (!by) return 0;
+  if (!drawsInsideFrame(burst)) return 0;
   let count = 1;
   for (let i = burst.at + 1; i < burst.events.length; i++) {
     const next = burst.events[i]!;
