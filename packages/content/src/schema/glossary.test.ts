@@ -370,7 +370,7 @@ describe("wave 8 mechanics (guided mode section 3.14)", () => {
     expect(glossaryEntry("victory")!.definition).toMatch(/when the card it is attached to is defeated/);
     const find = glossaryEntry("find")!.definition;
     expect(find).toMatch(/facedown encounter cards/);
-    expect(find).toMatch(/removed from the game/);
+    expect(find).toMatch(/removed from or outside the game/);
     expect(find).toMatch(/does not enter play/);
   });
 
