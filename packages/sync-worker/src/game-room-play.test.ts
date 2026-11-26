@@ -7,6 +7,7 @@ import {
   type Participant,
   type RoomBuild,
   type ServerMessage,
+  WATCH_LINK_NAME,
 } from "./room-protocol.js";
 import { MemoryStorage } from "./test-support.js";
 
@@ -195,6 +196,93 @@ describe("play together: who may propose", () => {
     await room.close(host);
     await propose(ann);
     expect(ann.refusals).toEqual(["no-such-participant"]);
+  });
+});
+
+describe("play together: watching a room game from its watch link (#1021)", () => {
+  const watchLink = async (ctx: Awaited<ReturnType<typeof setup>>, extra: object = {}) => {
+    const s = new FakeSocket();
+    // What a `#watch=` link's socket says in builds up to 1.0.0: only `watch`, and no name.
+    await ctx.send(s, { ch: "room", kind: "hello", caps: ["watch"], ...extra });
+    return s;
+  };
+
+  it("lets a nameless watch-only hello in as a watcher under the stand-in name, with the game so far", async () => {
+    const ctx = await setup();
+    await ctx.send(ctx.host, { ch: "game", kind: "commands", table: "t1", from: 0, commands: [1, 2, 3] });
+    const w = await watchLink(ctx);
+    expect(w.refusals).toEqual([]);
+    expect(w.last("welcome")!.you).toMatchObject({ role: "watcher", name: WATCH_LINK_NAME });
+    expect(w.last("log")).toMatchObject({ table: "t1", header: { h: 1 }, commands: [1, 2, 3] });
+    // It counts as a watcher in the host's roster.
+    expect(ctx.host.last("roster")!.watchers).toBe(1);
+  });
+
+  it("keeps the name a watch link's socket gives", async () => {
+    const ctx = await setup();
+    const w = await watchLink(ctx, { name: "Gareth" });
+    expect(w.last("welcome")!.you).toMatchObject({ role: "watcher", name: "Gareth" });
+  });
+
+  it("still needs a name from anyone asking for more than watch (or nothing), or holding a seat token", async () => {
+    const ctx = await setup();
+    const asks = [
+      { caps: ["watch", "chat"] },
+      { caps: ["watch", "seats"] },
+      { caps: ["watch", "play"] },
+      { caps: [] },
+      { seatTokens: ["x"] },
+    ];
+    for (const extra of asks) {
+      const s = await watchLink(ctx, extra);
+      expect(s.refusals, JSON.stringify(extra)).toEqual(["name-required"]);
+    }
+  });
+
+  it("keeps the anonymous watcher read-only: no chat, no seat, no lobby change; following is still its own", async () => {
+    const ctx = await setup();
+    await ctx.send(ctx.host, { ch: "room", kind: "lobby-set", settings: { chat: true } });
+    // A named participant may chat in this room, so a refusal below is the watcher's, not the room's.
+    const named = await ctx.join("Bea");
+    await ctx.send(named, { ch: "chat", kind: "say", text: "hello" });
+    expect(ctx.host.last("said")).toMatchObject({ name: "Bea", text: "hello" });
+    const w = await watchLink(ctx);
+    expect(w.last("welcome")!.you.watchOnly).toBe(true);
+    const chats = ctx.host.of("said").length;
+    await ctx.send(w, { ch: "chat", kind: "say", text: "hi" });
+    await ctx.send(w, { ch: "room", kind: "seat-request", seat: "s1" });
+    await ctx.send(w, { ch: "game", kind: "propose", table: "t1", command: { type: "pass" }, base: 0 });
+    expect(w.refusals).toEqual(["not-allowed", "not-allowed", "not-allowed"]);
+    expect(ctx.host.of("said")).toHaveLength(chats);
+    expect(ctx.host.last("lobby")!.seats.find((seat) => seat.id === "s1")!.holder).toBeUndefined();
+    await ctx.send(w, { ch: "room", kind: "follow", tables: ["t1"] });
+    expect(w.refusals).toHaveLength(3);
+  });
+
+  it("stays read-only after the room hibernates and wakes", async () => {
+    const ctx = await setup();
+    await ctx.send(ctx.host, { ch: "room", kind: "lobby-set", settings: { chat: true } });
+    const w = await watchLink(ctx);
+    const woken = new GameRoomLogic(ctx.storage, undefined, () => ctx.clock.now);
+    woken.restore(ctx.host);
+    woken.restore(w);
+    await ctx.send(w, { ch: "chat", kind: "say", text: "hi" }, woken);
+    expect(w.refusals).toEqual(["not-allowed"]);
+  });
+
+  it("tells a watch link to a table the room lacks so at once: the refusal, and a welcome without it", async () => {
+    // The watcher reads this as gone (`client/src/live/watch-feed.ts`), never as a host yet to start.
+    const ctx = await setup();
+    const w = await watchLink(ctx, { follow: ["t2"] });
+    expect(w.refusals).toEqual(["no-such-table"]);
+    expect(w.of("refused")[0]!).toBe(w.sent.find((m) => m.kind === "refused" || m.kind === "welcome"));
+    expect(w.last("welcome")!.tables.map((t) => t.id)).toEqual(["t1"]);
+  });
+
+  it("gives a named watch link an ordinary watcher, not a read-only one", async () => {
+    const ctx = await setup();
+    const w = await watchLink(ctx, { name: "Gareth" });
+    expect(w.last("welcome")!.you).not.toHaveProperty("watchOnly");
   });
 });
 

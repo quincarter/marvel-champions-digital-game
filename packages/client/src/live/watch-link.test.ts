@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { fakePage } from "../platform/address-page.js";
 import { watchLinkOf } from "./live-publisher.js";
-import { clearWatchAddress, takeWatchLink } from "./watch-link.js";
+import { clearWatchAddress, parseWatchTarget, takeWatchLink } from "./watch-link.js";
 
 const ID = "AbCdEf123_-x";
 
@@ -52,5 +52,26 @@ describe("takeWatchLink", () => {
     const link = watchLinkOf(ID, "https://marvel.example/");
     const p = fakePage(`/${link.slice(link.indexOf("#"))}`);
     expect(takeWatchLink(p.location, p.history)).toBe(ID);
+  });
+
+  test("an Epic room's other table rides after a dot, and the first table's link stays the room id alone (#1021)", () => {
+    expect(watchLinkOf(ID, "https://marvel.example/", "t1")).toBe(`https://marvel.example/#watch=${ID}`);
+    const link = watchLinkOf(ID, "https://marvel.example/", "t2");
+    expect(link).toBe(`https://marvel.example/#watch=${ID}.t2`);
+    const p = fakePage(`/${link.slice(link.indexOf("#"))}`);
+    expect(takeWatchLink(p.location, p.history)).toBe(`${ID}.t2`);
+    expect(p.url()).toBe(`/?watching=${ID}.t2`);
+    for (const url of [`/?watching=${ID}.`, `/?watching=${ID}.T2`, `/?watching=x.t2`]) {
+      expect(takeWatchLink(fakePage(url).location, fakePage(url).history), url).toBe("invalid");
+    }
+  });
+});
+
+describe("parseWatchTarget", () => {
+  test("splits a target into its room and table, the first table by default", () => {
+    expect(parseWatchTarget(ID)).toEqual({ roomId: ID, table: "t1" });
+    expect(parseWatchTarget(`${ID}.t3`)).toEqual({ roomId: ID, table: "t3" });
+    expect(parseWatchTarget(`${ID}.`)).toBeNull();
+    expect(parseWatchTarget("short.t2")).toBeNull();
   });
 });

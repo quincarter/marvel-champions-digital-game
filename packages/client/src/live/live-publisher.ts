@@ -87,8 +87,13 @@ export interface LiveStatus {
 
 export const NO_LIVE_STATUS: LiveStatus = { watchUrl: null, watchers: 0, connected: false };
 
-/** The link that opens a live game: `base` is the web version's address (`replayLinkOf`'s rule, chosen by main). */
-export const watchLinkOf = (roomId: string, base: string): string => `${base}#watch=${roomId}`;
+/**
+ * The link that opens a live game: `base` is the web version's address (`replayLinkOf`'s rule, chosen by main). An Epic
+ * room's other tables add theirs after a dot (`#watch=<roomId>.t2`, #1021); the first table's link is the room id alone,
+ * as it always was.
+ */
+export const watchLinkOf = (roomId: string, base: string, table: string = FIRST_TABLE): string =>
+  `${base}#watch=${roomId}${table === FIRST_TABLE ? "" : `.${table}`}`;
 
 /** A `commands` batch stays well under the room's 64 KiB cap on a message. */
 export const BATCH_BYTES = 48 * 1024;
@@ -605,7 +610,7 @@ export class LivePublisher {
 
   #report(): void {
     const status: LiveStatus = {
-      watchUrl: this.#roomId ? watchLinkOf(this.#roomId, this.#watchBase) : null,
+      watchUrl: this.#roomId ? watchLinkOf(this.#roomId, this.#watchBase, this.#table) : null,
       watchers: this.#watchers,
       connected: this.#connected,
     };
