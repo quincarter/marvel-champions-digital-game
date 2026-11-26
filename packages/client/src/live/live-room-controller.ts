@@ -263,7 +263,7 @@ export class LiveRoomController {
         this.#session?.answerRequest(message.id, message.accepted);
         return;
       case "room-ask":
-        this.#session?.askHost(message.what, message.note);
+        this.#session?.askHost(message.what, message.note, message.bind);
         return;
       case "room-ask-clear":
         this.#session?.clearAsk();

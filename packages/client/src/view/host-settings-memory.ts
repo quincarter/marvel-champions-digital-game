@@ -4,7 +4,7 @@
  * as it opens. Only the table's settings travel: not a room's mods or house rules (they belong to the game being set
  * up), not its mode (Standard or Epic is picked on the way in), and never anything about who is in it.
  */
-import type { LobbySettingsPatch } from "@mc/sync-worker/room-protocol";
+import type { LobbySettings, LobbySettingsPatch } from "@mc/sync-worker/room-protocol";
 
 export const HOST_SETTINGS_KEY = "mc-room-host-settings";
 
@@ -83,3 +83,19 @@ export function keepHostSettings(
 
 /** Whether anything is kept to apply to a new lobby. */
 export const hasKeptSettings = (kept: KeptHostSettings): boolean => Object.keys(kept.settings).length > 0;
+
+/**
+ * What to keep after a room state change, or null: only once the host itself has changed something in this room, and
+ * then the room's own settings as it holds them (a mode switch normalizes Undo, a refused change never lands), never the
+ * change as it was sent (#1019 review).
+ */
+export function keptFromRoom(
+  prev: { readonly settings: LobbySettings | null; readonly seats: readonly unknown[] },
+  next: { readonly settings: LobbySettings | null; readonly seats: readonly unknown[] },
+  hostEdited: boolean,
+): KeptHostSettings | null {
+  if (!hostEdited || !next.settings) return null;
+  const seats = next.seats?.length ?? 0;
+  if (next.settings === prev.settings && seats === (prev.seats?.length ?? 0)) return null;
+  return { settings: keptPartOf(next.settings), ...(seats > 0 ? { seats } : {}) };
+}

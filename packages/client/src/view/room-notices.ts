@@ -49,8 +49,8 @@ export function newChatFromOthers(prev: RoomState, next: RoomState): RoomChatLin
  */
 export function newRequestsForHost(prev: RoomState, next: RoomState): RoomState["requests"] {
   if (next.role !== "host" || prev.roomId !== next.roomId) return [];
-  const known = new Set(prev.requests.map((request) => request.id));
-  return next.requests.filter((request) => !known.has(request.id));
+  const known = new Set((prev.requests ?? []).map((request) => request.id));
+  return (next.requests ?? []).filter((request) => !known.has(request.id));
 }
 
 /**
@@ -64,13 +64,16 @@ export function selfAnsweredRequests(prev: RoomState, next: RoomState): RoomStat
 
 /**
  * Whether the host's device answers `request` by itself: an Undo while the room lets each player take back their own
- * moves. Read against the room now, so an Undo asked before the host switched to it is answered too.
+ * moves, and bound to the table the guest saw (`RoomRequest.base` / `target`).
  */
 export function selfAnswered(room: RoomState, request: RoomState["requests"][number]): boolean {
   const settings = room.settings;
+  // Only a bound Undo: one asked under "Ask the host" before the host switched stays the host's to answer.
   return (
     room.role === "host" &&
     request.what === "undo" &&
+    request.base !== undefined &&
+    request.target !== undefined &&
     !!settings &&
     lobbyUndoFor(settings.playMode, settings.undo) === "own"
   );

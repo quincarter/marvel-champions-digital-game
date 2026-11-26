@@ -7,6 +7,12 @@ import { EngineSessionCore, beginsVillainPhase } from "../engine/session-core.js
 import { loadedPacks } from "../packs/pack-registry.js";
 import { headerOf } from "./live-publisher.js";
 import { SeatCore } from "./seat-core.js";
+import { walkthroughFromSeed } from "../view/villain-phase-resume.js";
+import { tableAt } from "../view/villain-replay.js";
+import type { Walkthrough } from "../view/villain-walkthrough.js";
+
+const totalBeatsOf = (walkthrough: Walkthrough): number =>
+  walkthrough.steps.reduce((sum, step) => sum + step.beats.length, 0);
 
 const CONFIG: SessionConfig = {
   scenarioId: "rhino",
@@ -116,7 +122,7 @@ describe("a seat's catch-up carries its villain phase (#1017)", () => {
     expect(phase.commands.at(-1)!.after.step.phase).not.toBe("villain");
   });
 
-  test("a reopened log that ends on the phase carries it, with no event states; a rewind or later turns do not", async () => {
+  test("a reopened log that ends on the phase carries it, with its event states; a rewind or later turns do not", async () => {
     const { core, phaseStart } = await hostThroughVillainPhase(2);
     const live = core.liveGame()!.game;
     const total = live.commands.length;
@@ -128,7 +134,33 @@ describe("a seat's catch-up carries its villain phase (#1017)", () => {
       "reset",
     );
     expect(reopened.snapshot.villainPhase?.startCommand).toBe(phaseStart);
-    expect(reopened.snapshot.villainPhase?.commands.every((command) => command.states.length === 0)).toBe(true);
+    // Played again from the table before the phase, so the board can move with each caught-up beat (#1019 review).
+    expect(reopened.snapshot.villainPhase?.commands.some((command) => command.states.length > 0)).toBe(true);
+    // And the replayed walkthrough has a table of its own at some beat, not only the table at the end.
+    const pool = reopened.cardPool;
+    const seed = reopened.snapshot.villainPhase!;
+    const walkthrough = walkthroughFromSeed(
+      {
+        ...seed,
+        before: { ...seed.before, cardPool: pool } as unknown as GameState,
+        commands: seed.commands.map((command) => ({
+          events: command.events,
+          states: command.states.map(({ at, state }) => ({
+            at,
+            state: { ...state, cardPool: pool } as unknown as GameState,
+          })),
+          after: { ...command.after, cardPool: pool } as unknown as GameState,
+        })),
+      },
+      1,
+      undefined,
+      null,
+    );
+    const end = tableAt(walkthrough, totalBeatsOf(walkthrough));
+    const beats = totalBeatsOf(walkthrough);
+    const tables = Array.from({ length: beats }, (_, i) => tableAt(walkthrough, i + 1)).filter((t) => t !== undefined);
+    expect(tables.length).toBeGreaterThan(0);
+    expect(tables.some((t) => t !== end)).toBe(true);
     // Later turns only: nothing of the phase is wanted.
     expect(seat.append(live.commands.slice(ends, total)).villainPhase).toBeUndefined();
     // A rewind never carries it.

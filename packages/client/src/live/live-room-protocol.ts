@@ -107,7 +107,13 @@ export type LiveRoomIn =
   /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
   | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }
   /** Guest only (issue #881): asks the host to undo or change something; the answer arrives as `RoomState.myRequest`. */
-  | { readonly kind: "room-ask"; readonly what: "undo" | "adjust"; readonly note: string }
+  | {
+      readonly kind: "room-ask";
+      readonly what: "undo" | "adjust";
+      readonly note: string;
+      /** A bound Undo's table (`RoomRequest.base` / `target`, and the log epoch the asker is on). */
+      readonly bind?: UndoBinding;
+    }
   /** Guest only: dismisses the answer to the last request. */
   | { readonly kind: "room-ask-clear" }
   /** Host only: the setup step the host is in (`idle` clears it), shown to everyone as a status line. */
@@ -283,3 +289,10 @@ export type LiveControlMessage =
       /** The proposer's state identity at `base` (`replayChecksum`); absent means the proposal cannot be judged current. */
       readonly stamp?: string;
     };
+
+/** The table a guest's own Undo was asked on (`LobbyUndo` `own`, #1019 review). */
+export interface UndoBinding {
+  readonly base: number;
+  readonly target: number;
+  readonly epoch?: number;
+}

@@ -913,6 +913,14 @@ export type ClientMessage =
       readonly note?: string;
       /** The asker's id for this ask, echoed in the host's `request-answer` and in the room's refusal of it. */
       readonly rid?: number;
+      /**
+       * An Undo the host's device does by itself (`LobbyUndo` `own`) is bound to the table the asker saw: the command
+       * count (`base`), the count the Undo goes back to (`target`) and the log epoch. The room refuses one from another
+       * epoch (`out-of-order`); the host does it only when its own table still matches.
+       */
+      readonly base?: number;
+      readonly target?: number;
+      readonly epoch?: number;
     }
   /** Host only: answer a `request`. The room sends it to participant `to` alone. */
   | {
@@ -1194,6 +1202,9 @@ export type ServerMessage =
       readonly what: RequestKind;
       readonly note: string;
       readonly rid?: number;
+      /** The table a bound Undo was asked on (see the client's `request`). */
+      readonly base?: number;
+      readonly target?: number;
     }
   /** To the requester alone: the host's answer. An accepted undo or adjust arrives as the log's own rewind or command. */
   | {
@@ -1555,6 +1566,9 @@ export function parseClientMessage(text: string): ClientMessage | null {
         isTable(m.table) &&
           (m.what === "undo" || m.what === "adjust") &&
           (m.rid === undefined || isCount(m.rid)) &&
+          (m.base === undefined || isCount(m.base)) &&
+          (m.target === undefined || isCount(m.target)) &&
+          (m.epoch === undefined || isCount(m.epoch)) &&
           (m.note === undefined || (typeof m.note === "string" && m.note.length <= MAX_REQUEST_NOTE_CHARS * 4)),
       );
     case "game:request-answer":

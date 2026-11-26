@@ -125,6 +125,11 @@ export class SeatEngineHost implements EngineHost {
    * acceptance counts only for the epoch it names. Undefined until a change names one, or from an older room.
    */
   #epoch: number | undefined;
+
+  /** The room's log epoch this seat's table is on (a bound Undo carries it, #1019 review). */
+  get epoch(): number | undefined {
+    return this.#epoch;
+  }
   #status: SeatStatus = INITIAL_SEAT_STATUS;
   #disposed = false;
   /**

@@ -244,6 +244,27 @@ export class SeatCore {
       state = result.state;
     }
     this.#state = state;
+    this.#recordPhaseStates();
+  }
+
+  /**
+   * A replayed log (an open, a reconnect's reset, a rewind) applies its commands without event states. The last villain
+   * phase is played again from the table before it, recording the table at each of its events, so a guest that
+   * reconnected mid-phase sees the board move with the beats it catches up on (#1019 review). One phase only.
+   */
+  #recordPhaseStates(): void {
+    const phase = this.#phase;
+    if (!phase) return;
+    const deps = this.#need();
+    let session = startSession(phase.before);
+    for (const [i, entry] of phase.commands.entries()) {
+      const command = this.#commands[phase.startCommand + i];
+      if (!command) return;
+      const result = sessionApply(session, command, deps, { recordStates: inVillainPhase });
+      if (!result.ok) return;
+      session = result.session;
+      phase.commands[i] = { ...entry, states: result.states ?? [] };
+    }
   }
 
   #push(

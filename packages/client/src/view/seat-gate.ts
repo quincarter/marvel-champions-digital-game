@@ -19,6 +19,18 @@ export function heldElsewhere(room: RoomState, playerId: string | null, seatGame
 }
 
 /**
+ * The off-turn seats this device may press Act for now (#1019 review): in a room, only heroes it holds as the room
+ * stands now, so a seat taken over or given back during the same turn gains or loses its Act without an engine update.
+ */
+export function offTurnSeatsHere(
+  seats: readonly PlayerId[],
+  room: RoomState | null,
+  seatGame: boolean,
+): readonly PlayerId[] {
+  return room ? seats.filter((playerId) => !heldElsewhere(room, playerId, seatGame)) : seats;
+}
+
+/**
  * Whose eyes a room game's narration reads through (issue #1017): the hero on the screen, unless that hero sits behind
  * a seat this device does not act for, in which case the first hero this device does hold (or nobody). On every
  * device the store's perspective follows whoever must act, so without this a guest's villain phase screen called the

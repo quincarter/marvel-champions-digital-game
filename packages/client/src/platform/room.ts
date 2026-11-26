@@ -77,7 +77,8 @@ import {
 import { setSeatContextSource } from "../view/seat-context.js";
 import { cursorToSend, someoneArrived } from "../view/villain-pacing.js";
 import { selfAnswered } from "../view/room-notices.js";
-import { keepHostSettings } from "../view/host-settings-memory.js";
+import type { UndoBinding } from "../live/live-room-protocol.js";
+import { keepHostSettings, keptFromRoom } from "../view/host-settings-memory.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
 export type {
@@ -185,6 +186,11 @@ let resendActivity = false;
 let lastCursor: { readonly key: string; readonly at: number; readonly state: VillainCursorState } | null = null;
 /** The table plan the host last published (null when none), sent again when the room socket comes back. */
 let lastPlan: TablePlan | null = null;
+/**
+ * The host changed this room's settings or seats itself: the room's own answer is kept for the next room
+ * (`view/host-settings-memory.ts`), never the change as sent (the room may normalize or refuse it).
+ */
+let hostEdited = false;
 /** Guests' Undo requests this host's device already answered by itself (`selfAnswered`). */
 const selfAnsweredIds = new Set<string>();
 let resendPlan = false;
@@ -248,9 +254,14 @@ function publish(next: RoomState): void {
     const store = session?.store;
     if (store) syncGameAddress(store.state, session.guidedRun);
   }
+  if (next.role !== "host" || prev.roomId !== next.roomId) hostEdited = false;
+  else {
+    const kept = keptFromRoom(prev, next, hostEdited);
+    if (kept) keepHostSettings(kept);
+  }
   // A guest's own Undo, where the room lets each player take back their own moves: done here at once (GarethMagis).
   // Each request once, whenever it shows up (an Undo asked before the host switched the setting included).
-  for (const request of next.requests) {
+  for (const request of next.requests ?? []) {
     if (!selfAnswered(next, request) || selfAnsweredIds.has(request.id)) continue;
     selfAnsweredIds.add(request.id);
     void answerRequest(request.id, true);
@@ -384,13 +395,21 @@ function playersOfParticipant(participantId: string): string[] {
  * Undo needs the host's own acknowledgement at the board, so such a request is declined here. True when a move was taken
  * back. The rewind carries the version the target was worked out from, so a command that landed meanwhile refuses it.
  */
-async function undoMoveOf(participantId: string): Promise<boolean> {
+async function undoMoveOf(
+  participantId: string,
+  bound: { readonly base?: number; readonly target?: number } = {},
+): Promise<boolean> {
   const { store } = appSession();
   const { game, commandTrail, version } = store.state;
   if (!game) return false;
+  // A bound Undo (Each player) takes back only the move the guest saw: the table must still be the one it was asked
+  // on, and its Undo must go back to the same count. A move of the guest's that reached this table since, or a rewind,
+  // makes it a different Undo, which is declined rather than done (#1019 review).
+  if (bound.base !== undefined && bound.base !== version) return false;
   for (const player of playersOfParticipant(participantId)) {
     const offer = undoOf(commandTrail, game, player as PlayerId, { pastReveals: false });
     if (offer?.kind !== "available" || offer.revealed === true) continue;
+    if (bound.target !== undefined && offer.target !== bound.target) continue;
     try {
       return await store.rewindTo(offer.target, { fromVersion: version });
     } catch {
@@ -477,13 +496,8 @@ export function setLobby(change: {
 }): void {
   const { keep, ...sent } = change;
   postRoomCommand({ kind: "room-lobby", ...sent });
-  // The host's choices are kept on this device, so its next room opens with them (`view/host-settings-memory.ts`).
-  if (state.role === "host" && keep !== false) {
-    keepHostSettings({
-      ...(sent.settings ? { settings: sent.settings } : {}),
-      ...(sent.seats ? { seats: sent.seats.length } : {}),
-    });
-  }
+  // The host's own choice: what the room makes of it (normalized, or refused) is kept once it comes back (`publish`).
+  if (state.role === "host" && keep !== false) hostEdited = true;
 }
 
 /** Asks for a seat (the host's own request is granted at once). */
@@ -518,13 +532,13 @@ export async function answerRequest(id: string, accepted: boolean): Promise<void
   // The room's policy decides what may be asked: an undo only under "ask", a change only with cheats on (#904).
   if (!askAllowedOf(request.what, state.settings)) answer = false;
   // An accepted undo is the host's usual Undo; if it cannot be done now (nothing to take back, Strict) the answer is no.
-  if (answer && request.what === "undo") answer = await undoMoveOf(request.from);
+  if (answer && request.what === "undo") answer = await undoMoveOf(request.from, request);
   postRoomCommand({ kind: "room-answer", id, accepted: answer });
 }
 
 /** Guest only (Host control rooms): asks the host to undo, or to change something, with a short note (at most 140 characters). */
-export function askHost(what: "undo" | "adjust", note = ""): void {
-  postRoomCommand({ kind: "room-ask", what, note: note.trim().slice(0, 140) });
+export function askHost(what: "undo" | "adjust", note = "", bind?: UndoBinding): void {
+  postRoomCommand({ kind: "room-ask", what, note: note.trim().slice(0, 140), ...(bind ? { bind } : {}) });
 }
 
 /** Guest only: dismisses the host's answer to my last request. */

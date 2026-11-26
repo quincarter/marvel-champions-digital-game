@@ -8,6 +8,7 @@ import type { MessageKey, Params } from "../i18n/translate.js";
 import { seatOfPlayerIn, type RoomState } from "../live/room-state.js";
 import { heroNameOf, type Acting } from "./whose-turn.js";
 import { seatUndoPolicyOf } from "./room-ask-policy.js";
+import { selfAnswered } from "./room-notices.js";
 
 export type RoomPrompt =
   /** Host: the game waits on a seat whose holder is away. */
@@ -93,7 +94,7 @@ export function roomPromptsOf(
     }
     for (const request of room.requests) {
       // A guest's own Undo under "each player" is done by this device at once (`selfAnsweredRequests`): nothing to ask.
-      if (ownUndo && request.what === "undo") continue;
+      if (selfAnswered(room, request)) continue;
       prompts.push({ kind: "request", id: request.id, name: request.name, what: request.what, note: request.note });
     }
   } else if (room.myRequest && !(ownUndo && room.myRequest.what === "undo" && room.myRequest.status !== "declined")) {

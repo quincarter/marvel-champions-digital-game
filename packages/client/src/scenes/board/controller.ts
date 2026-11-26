@@ -74,7 +74,8 @@ import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } fr
 import { roomCheatsOf, roomUndoOffOf, seatUndoReason, undoOffReason } from "../../view/room-strict.js";
 import { seatUndoPolicyOf } from "../../view/room-ask-policy.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
-import { askHost } from "../../platform/room.js";
+import { askHost, roomState } from "../../platform/room.js";
+import { activeSeat } from "../../platform/seat-play.js";
 import { seatOfPlayerIn } from "../../live/room-state.js";
 import { seatContext, seatNoRewind } from "../../view/seat-context.js";
 import { t } from "../../i18n/translate.js";
@@ -2121,7 +2122,7 @@ export class BoardController {
         const own = undoOf(commandTrail, game, perspectiveId, { pastReveals: false });
         if (!own) return null;
         return own.kind === "available" && own.revealed !== true
-          ? { kind: "ask", own: true }
+          ? { kind: "ask", own: { target: own.target } }
           : own.kind === "unavailable"
             ? own
             : { kind: "unavailable", reason: UNDO_REASONS.revealed };
@@ -2196,8 +2197,19 @@ export class BoardController {
     // The guest's ask goes to the host, which undoes the acting hero's last move; it is offered on my own hero's turn only.
     const asked = this.undoOffer();
     if (asked?.kind === "ask") {
+      if (asked.own) {
+        // Each player: bound to the table this guest sees, one at a time (#1019 review). The host's device does it
+        // only while its table still matches, so a move of this guest's still on its way is never the one taken back.
+        if (this.#undoing || roomState().myRequest?.status === "waiting") return;
+        const { version, inFlight } = appSession().store.state;
+        if (inFlight) return;
+        const epoch = activeSeat()?.epoch;
+        askHost("undo", "", { base: version, target: asked.own.target, ...(epoch === undefined ? {} : { epoch }) });
+        this.#noteUndo(t("ask.undoOwnSent"));
+        return;
+      }
       askHost("undo");
-      this.#noteUndo(t(asked.own ? "ask.undoOwnSent" : "ask.undoSent"));
+      this.#noteUndo(t("ask.undoSent"));
       return;
     }
     if (this.#readOnly) return;

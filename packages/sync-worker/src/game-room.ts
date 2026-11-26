@@ -3543,6 +3543,10 @@ export class GameRoomLogic {
     if (!taken) return this.refuse(socket, "rate-limited", askId);
     await this.ensureLoaded(table);
     if (!table.hasHeader || table.ended) return this.refuse(socket, "out-of-order", askId);
+    // A bound Undo asked on a log the room has since cut or replaced is for a table that is gone.
+    if (message.kind === "request" && message.epoch !== undefined && message.epoch !== table.epoch) {
+      return this.refuse(socket, "out-of-order", askId);
+    }
     const host = this.hostOf(table.id);
     if (!host) return this.refuse(socket, "no-such-participant", askId);
     if (message.kind === "propose") {
@@ -3570,6 +3574,8 @@ export class GameRoomLogic {
       what: message.what,
       note,
       ...(message.rid === undefined ? {} : { rid: message.rid }),
+      ...(message.base === undefined ? {} : { base: message.base }),
+      ...(message.target === undefined ? {} : { target: message.target }),
     });
   }
 

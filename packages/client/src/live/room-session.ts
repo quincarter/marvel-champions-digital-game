@@ -51,7 +51,7 @@ import { RoomModel } from "./room-model.js";
 import { seatFeedMessage } from "./seat-protocol.js";
 import { seatTokensFresh, type SeatTokenStore } from "./room-seat-store.js";
 import type { LobbySeatSpec, LobbySettingsPatch, RoomProblem, RoomState, SeatDeckEntry } from "./room-state.js";
-import type { RoomFeedIn, RoomFeedOut } from "./live-room-protocol.js";
+import type { RoomFeedIn, RoomFeedOut, UndoBinding } from "./live-room-protocol.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -801,7 +801,7 @@ export class RoomSession {
   }
 
   /** Guest: asks the host to undo or change something (Host control rooms; the room refuses it in a Strict one). */
-  askHost(what: "undo" | "adjust", note: string): void {
+  askHost(what: "undo" | "adjust", note: string, bind?: UndoBinding): void {
     if (this.role !== "guest") return;
     const rid = this.#model.noteAsk(what);
     this.#say({
@@ -811,6 +811,9 @@ export class RoomSession {
       what,
       note: note.trim().slice(0, 140),
       rid,
+      ...(bind
+        ? { base: bind.base, target: bind.target, ...(bind.epoch === undefined ? {} : { epoch: bind.epoch }) }
+        : {}),
     });
     this.#publish();
   }
