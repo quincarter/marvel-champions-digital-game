@@ -248,3 +248,33 @@ test("on a desktop, a card picture in the Rules reference shows the hover popove
   await page.waitForTimeout(400);
   expect(await inspect(), "the hold's release did not open Inspect again").toBe(false);
 });
+
+test("a card hold armed in the Rules reference raises no Inspect once another modal opens over it", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "a mouse");
+  test.setTimeout(120_000);
+  await openApp(page, "screen=rules&unlock=all", { landing: "RulesOverlay" });
+  await waitForText(page, "Glossary", { sceneKey: "RulesOverlay" });
+  const thumb = page.locator(`${panel("RulesOverlay")} [data-key*=":card:"]`).first();
+  await expect(thumb).toHaveCount(1);
+  await thumb.scrollIntoViewIfNeeded();
+  const box = (await thumb.boundingBox())!;
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  // Arm the hold, then let a modal take the screen before its timer fires.
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.down();
+  await page.evaluate(() => {
+    const game = (globalThis as unknown as { __mcGame: { scene: { run(key: string): void } } }).__mcGame;
+    game.scene.run("PauseOverlay");
+  });
+  await waitFor(
+    async () => ((await activeScenes(page)).includes("PauseOverlay") ? true : null),
+    "a modal opens",
+    10_000,
+  );
+  await page.waitForTimeout(900);
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  expect(await activeScenes(page), "no Inspect was delivered to the covered panel").not.toContain("InspectOverlay");
+});

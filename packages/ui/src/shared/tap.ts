@@ -125,6 +125,13 @@ export const HOLD_SLOP_PX = 12;
  * that ends a hold that fired never also taps, however long the press lasted after it fired. Returns the function that
  * stops listening.
  */
+const holdCancels = new WeakMap<Element, () => void>();
+
+/** Disarms a press on `element` that `onHold` is timing, so its hold never fires (the screen went under a modal). */
+export function cancelHold(element: Element): void {
+  holdCancels.get(element)?.();
+}
+
 export function onHold(element: HTMLElement, handler: (event: Event) => void): () => void {
   let press: {
     id: number;
@@ -197,6 +204,10 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
     if (fired !== null) return;
     handler(event);
   };
+  holdCancels.set(element, () => {
+    end();
+    fired = null;
+  });
   element.addEventListener("pointerdown", down);
   element.addEventListener("pointermove", move);
   element.addEventListener("pointerup", up, { capture: true });
@@ -206,6 +217,7 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
   element.addEventListener("contextmenu", menu);
   return () => {
     end();
+    holdCancels.delete(element);
     element.removeEventListener("pointerdown", down);
     element.removeEventListener("pointermove", move);
     element.removeEventListener("pointerup", up, { capture: true });

@@ -3,6 +3,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { graphemesOf } from "../../shared/graphemes.js";
 import { tapped } from "../../shared/tapped.js";
+import { cancelHold } from "../../shared/tap.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
 import type { GlyphSpec } from "../mc-glyph/glyph-layout.js";
@@ -152,6 +153,11 @@ export interface SheetImage {
   readonly color?: string;
   readonly hover?: string;
   readonly key?: string;
+  /**
+   * Names where `src` came from, when the URL can go stale under the box (a blob URL revoked while the image had not
+   * loaded yet). A failed load then raises `mc-image-error` once for this key, so the owner can hand a fresh URL.
+   */
+  readonly retry?: string;
   /** Fills the box, cropped (never stretched) around this focal point, 0 to 1 each way, instead of fitting whole. */
   readonly cover?: { readonly x: number; readonly y: number };
 }
@@ -219,6 +225,7 @@ const px = (rect: SheetRect): string =>
  * @element mc-sheet
  * @fires mc-activate - `detail.key`: a button or tap area was tapped.
  * @fires mc-inspect - `detail.key`: a tap area with `inspect` was held or right-clicked.
+ * @fires mc-image-error - `detail.key` (the image's `retry`), `detail.src`: a picture with `retry` failed to load, once per key until one loads.
  * @fires mc-hover - `detail.key`, `detail.over`: a mouse moved onto or off a tap area with `track`.
  */
 export class McSheet extends LitElement {
@@ -231,6 +238,8 @@ export class McSheet extends LitElement {
   declare nodes: readonly SheetNode[];
   /** The pictures that failed to load, so their boxes say `missing` (and keep saying it across redraws). */
   readonly #failed = new Set<string>();
+  /** Keys already asked to resolve again; cleared when one of their pictures loads. */
+  readonly #retried = new Set<string>();
 
   constructor() {
     super();
@@ -253,6 +262,11 @@ export class McSheet extends LitElement {
 
   #inspect(key: string): void {
     this.dispatchEvent(new CustomEvent("mc-inspect", { detail: { key }, bubbles: true, composed: true }));
+  }
+
+  /** Cancels every press-and-hold still armed (the panel was covered or hidden: nothing may be inspected from it). */
+  cancelHolds(): void {
+    for (const area of this.renderRoot.querySelectorAll<HTMLElement>(".tap")) cancelHold(area);
   }
 
   override connectedCallback(): void {
@@ -444,8 +458,21 @@ export class McSheet extends LitElement {
                   decoding="async"
                   style=${node.cover ? `object-fit:cover;object-position:${node.cover.x * 100}% ${node.cover.y * 100}%` : nothing}
                   draggable="false"
+                  @load=${() => {
+                    if (node.retry !== undefined) this.#retried.delete(node.retry);
+                  }}
                   @error=${() => {
                     this.#failed.add(node.src!);
+                    if (node.retry !== undefined && !this.#retried.has(node.retry)) {
+                      this.#retried.add(node.retry);
+                      this.dispatchEvent(
+                        new CustomEvent("mc-image-error", {
+                          detail: { key: node.retry, src: node.src },
+                          bubbles: true,
+                          composed: true,
+                        }),
+                      );
+                    }
                     this.requestUpdate();
                   }}
                 />`

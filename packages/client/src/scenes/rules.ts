@@ -51,6 +51,7 @@ import type { McSheet } from "@mc/ui";
 import type { AnyCard, CardId } from "@mc/content";
 import { getInstance, type GameState, type InstanceId } from "@mc/engine";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { PackLeases, refreshPackArt } from "../art/pack-art.js";
 import { artFor, defaultFaceFor, CARD_BACKS, type ArtSource, type CardFace } from "../art/art-source.js";
 import { faceOf } from "../view/board-model.js";
 import { border, ink, minType, status, surface, typeRole } from "../tokens.js";
@@ -159,6 +160,8 @@ export class RulesOverlay extends Phaser.Scene {
   #searchRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
   #route: FocusRoute | null = null;
   #glyphs!: SheetGlyphs;
+  /** The blob URLs of the pack pictures the panel shows, held while its lazy images may still load them. */
+  readonly #leases = new PackLeases();
   /** The screen, one Lit panel over the canvas; made on the first draw and kept, so the list's scroll stays. */
   #region: DomRegion<McSheet> | null = null;
   /** The parts the draw in progress is building (a scrolling region's own while it builds that). */
@@ -233,6 +236,7 @@ export class RulesOverlay extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offLanguage();
       offArt();
+      this.#leases.dispose();
       this.#glyphs.dispose();
       this.scale.off("resize", onResize, this);
       this.#hover?.destroy();
@@ -396,6 +400,11 @@ export class RulesOverlay extends Phaser.Scene {
         if (this.#motion.leaving) return;
         this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
       });
+      // A pack picture's blob URL went stale before its lazy image loaded: read it again, once (McSheet's retry).
+      element.addEventListener("mc-image-error", (event) => {
+        const { key, src } = (event as CustomEvent<{ key: string; src: string | null }>).detail;
+        refreshPackArt(key, src ?? undefined);
+      });
       element.addEventListener("mc-inspect", (event) => {
         if (this.#motion.leaving) return;
         this.#inspects.get((event as CustomEvent<{ key: string }>).detail.key)?.();
@@ -435,6 +444,7 @@ export class RulesOverlay extends Phaser.Scene {
     this.#actions = new Map();
     this.#inspects = new Map();
     this.#hoverTargets = new Map();
+    this.#leases.begin();
     this.#glyphs.reset();
     resetHoverCards(this);
     const kept = this.#searchInput?.gameObjects ?? [];
@@ -613,6 +623,7 @@ export class RulesOverlay extends Phaser.Scene {
 
     // Rendered before the route reads its stops, so a stop inside the list can find its element.
     this.#mount(width, height);
+    this.#leases.end();
     this.#route?.set(
       rulesFocusOrder({
         tabIds: TAB_IDS,
@@ -683,7 +694,7 @@ export class RulesOverlay extends Phaser.Scene {
     };
     if (slot.height > 0) {
       b.image(slot, {
-        src: source?.url ?? null,
+        ...this.#leases.image(source),
         fill: surface.parchment.hex,
         missing: t("rules.noScan"),
         color: surface.ink.hex,
@@ -1066,7 +1077,7 @@ export class RulesOverlay extends Phaser.Scene {
       const source = this.#artForStep(step, game);
       const cardId = this.#cardIdForStep(step, game);
       b.image(artRect, {
-        src: source?.url ?? null,
+        ...this.#leases.image(source),
         fill: surface.parchment.hex,
         // Still loading draws nothing further — the parchment ground is the neutral state. Only a source that failed
         // to load, or that never existed for a step with art, says so.
@@ -1288,7 +1299,7 @@ export class RulesOverlay extends Phaser.Scene {
       // Still loading draws nothing further — the parchment ground is the neutral "coming soon" state. Only a
       // confirmed-missing scan (no `source` at all, or a file that fails to load) says so in words.
       b.image(artRect, {
-        src: source?.url ?? null,
+        ...this.#leases.image(source),
         fill: surface.parchment.hex,
         missing: t("rules.noScan"),
         color: surface.ink.hex,

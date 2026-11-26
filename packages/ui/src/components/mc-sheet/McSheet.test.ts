@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import "./mc-sheet.js";
 import type { SheetNode } from "./McSheet.js";
 
@@ -105,6 +105,69 @@ describe("mc-sheet", () => {
     await sheet.updateComplete;
     expect(sheet.elementOf("art")!.querySelector("img")).toBeNull();
     sheet.remove();
+  });
+
+  it("asks once to resolve a retryable picture again when its load fails, and not for the fresh URL's own failure loop", async () => {
+    const sheet = document.createElement("mc-sheet");
+    const image = (src: string): SheetNode => ({
+      kind: "image",
+      key: "art",
+      rect: rect(0, 0, 60, 84),
+      src,
+      missing: "no scan",
+      retry: "art:pack:demo@1/c.webp",
+    });
+    sheet.nodes = [image("blob:old")];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const asked: { key: string; src: string }[] = [];
+    sheet.addEventListener("mc-image-error", (event) => asked.push((event as CustomEvent).detail));
+    sheet.elementOf("art")!.querySelector("img")!.dispatchEvent(new Event("error"));
+    await sheet.updateComplete;
+    expect(asked).toEqual([{ key: "art:pack:demo@1/c.webp", src: "blob:old" }]);
+    expect(sheet.elementOf("art")!.querySelector(".missing")?.textContent).toBe("no scan");
+    // The owner hands a fresh URL: it draws, and fails once more without a second ask (the picture is truly gone).
+    sheet.nodes = [image("blob:new")];
+    await sheet.updateComplete;
+    const img = sheet.elementOf("art")!.querySelector("img")!;
+    expect(img.getAttribute("src")).toBe("blob:new");
+    img.dispatchEvent(new Event("error"));
+    await sheet.updateComplete;
+    expect(asked).toHaveLength(1);
+    expect(sheet.elementOf("art")!.querySelector(".missing")?.textContent).toBe("no scan");
+    // A picture that loads re-arms the ask.
+    sheet.nodes = [image("blob:third")];
+    await sheet.updateComplete;
+    sheet.elementOf("art")!.querySelector("img")!.dispatchEvent(new Event("load"));
+    sheet.nodes = [image("blob:fourth")];
+    await sheet.updateComplete;
+    sheet.elementOf("art")!.querySelector("img")!.dispatchEvent(new Event("error"));
+    expect(asked).toHaveLength(2);
+    sheet.remove();
+  });
+
+  it("cancels a hold that is still armed, so a covered panel raises no mc-inspect", async () => {
+    vi.useFakeTimers();
+    try {
+      const sheet = document.createElement("mc-sheet");
+      sheet.nodes = [{ kind: "tap", key: "card", rect: rect(0, 0, 80, 40), inspect: true }];
+      document.body.append(sheet);
+      await sheet.updateComplete;
+      const keys: string[] = [];
+      sheet.addEventListener("mc-inspect", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
+      const at = { bubbles: true, composed: true, clientX: 5, clientY: 5, pointerId: 1, button: 0 };
+      sheet.elementOf("card")!.dispatchEvent(new PointerEvent("pointerdown", at));
+      sheet.cancelHolds();
+      vi.advanceTimersByTime(2000);
+      expect(keys).toEqual([]);
+      // Not armed for good: the next press holds as usual.
+      sheet.elementOf("card")!.dispatchEvent(new PointerEvent("pointerdown", at));
+      vi.advanceTimersByTime(2000);
+      expect(keys).toEqual(["card"]);
+      sheet.remove();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("raises mc-inspect for a held or right-clicked tap area that asks for it, and only that one", async () => {

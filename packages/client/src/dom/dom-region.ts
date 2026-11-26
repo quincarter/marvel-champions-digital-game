@@ -248,6 +248,18 @@ export function forwardMouseMoves(
   return () => source.removeEventListener("pointermove", onMove);
 }
 
+/** The panel events that act on the game: stopped at the region while its scene isn't the one taking input. */
+export const GUARDED_EVENTS = ["mc-activate", "mc-inspect"] as const;
+
+/**
+ * Whether a panel's guarded event may reach its scene: the scene takes presses (`sceneTakesPresses`) and its panel is
+ * not covered by a scene drawn above it or hidden (`sceneLayerState`). A hold armed before another modal opened fires
+ * on a timer, and a covered element keeps its bounding box, so this is read at the dispatch.
+ */
+export function regionTakesEvents(takesPresses: boolean, shown: boolean, hidden: boolean): boolean {
+  return takesPresses && shown && !hidden;
+}
+
 const STATE_EVENTS = ["sleep", "pause", "wake", "resume"] as const;
 
 /** A Phaser object a region moves and fades with (an overlay panel's entrance and exit, `ui/transitions.ts`). */
@@ -308,16 +320,18 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     this.#wrap.dataset.scene = scene.sys.settings.key;
     Object.assign(this.#wrap.style, { position: "absolute", pointerEvents: "auto", opacity: "0" });
     this.#wrap.append(element);
-    // Every panel's `mc-activate` is stopped here, before its scene hears it, while the scene isn't taking presses
-    // (stopped, paused, input off for an exit): `pointer-events` follows the scene only at `postupdate`, so a tap in
-    // that gap would otherwise still act.
-    this.#wrap.addEventListener(
-      "mc-activate",
-      (event) => {
-        if (this.#destroyed || !sceneTakesPresses(this.#scene)) event.stopPropagation();
-      },
-      true,
-    );
+    // Every panel's `mc-activate` and `mc-inspect` (a card hold's timer fires it) is stopped here, before its scene
+    // hears it, while the scene isn't taking presses (stopped, paused, input off for an exit) or its panel is covered
+    // by another modal: `pointer-events` follows the scene only at `postupdate`, so a tap in that gap would otherwise
+    // still act.
+    for (const name of GUARDED_EVENTS)
+      this.#wrap.addEventListener(
+        name,
+        (event) => {
+          if (this.#destroyed || !this.#takesEvents()) event.stopPropagation();
+        },
+        true,
+      );
     this.#layer.append(this.#wrap);
     this.setRect(rect);
     this.#sync();
@@ -387,6 +401,15 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     return gameRectOf(target, this.#layer);
   }
 
+  /** Whether the scene and the panel's cover state let an event through right now (read live, not at the last frame). */
+  #takesEvents(): boolean {
+    return regionTakesEvents(
+      sceneTakesPresses(this.#scene),
+      sceneLayerState(this.#scene, this.#shownUnder).shown,
+      this.#hidden,
+    );
+  }
+
   /** Re-reads the scenes' state now (another region's holes changed). */
   resync(): void {
     this.#sync();
@@ -406,6 +429,8 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     if (shown !== this.#shown) {
       this.#shown = shown;
       this.#wrap.style.visibility = shown ? "visible" : "hidden";
+      // Covered or hidden: a press-and-hold still being timed must not fire an Inspect from under the modal.
+      if (!shown) (this.element as { cancelHolds?: () => void }).cancelHolds?.();
     }
     if (Math.abs(opacity - this.#opacity) > 0.001) {
       this.#opacity = opacity;

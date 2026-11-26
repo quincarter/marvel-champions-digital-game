@@ -254,9 +254,107 @@ export const isPackArtKey = (key: string): boolean => key.startsWith("art:pack:"
 export function releasePackArt(key: string): void {
   const info = fileOfKey.get(key);
   if (!info) return;
+  // A DOM picture still holds a lease on this URL (`leasePackUrl`): the revoke waits for the last release, so a
+  // lazy `<img>` that has not loaded yet is not left with a dead URL by a Phaser texture eviction.
+  if ((leaseCounts.get(key) ?? 0) > 0) {
+    revokeOnRelease.add(key);
+    return;
+  }
   store?.revoke(info.id, info.path);
   // `fileOfKey` stays: `currentPackArt` needs it to resolve a source drawn before this eviction.
   urls.delete(key);
+}
+
+/** How many DOM consumers hold each key's URL (`leasePackUrl`). */
+const leaseCounts = new Map<string, number>();
+/** Keys whose eviction asked for a revoke while leased: done when the last lease is released. */
+const revokeOnRelease = new Set<string>();
+
+/** A hold on one pack picture's blob URL, for a DOM `<img>` that outlives Phaser's texture. */
+export interface PackUrlLease {
+  readonly url: string;
+  /** Gives the hold back (idempotent). The URL is revoked now if a texture eviction asked for it meanwhile. */
+  release(): void;
+}
+
+/**
+ * Holds the blob URL of pack picture `key` for a DOM consumer (a Lit panel's lazy `<img>`), so `releasePackArt`
+ * defers revoking it until every lease is released. Null when the URL is not resolved (an art change is announced
+ * when it arrives) or `key` is not a pack picture.
+ */
+export function leasePackUrl(key: string): PackUrlLease | null {
+  const url = urls.get(key);
+  if (url === undefined || !isPackArtKey(key)) return null;
+  leaseCounts.set(key, (leaseCounts.get(key) ?? 0) + 1);
+  let released = false;
+  return {
+    url,
+    release(): void {
+      if (released) return;
+      released = true;
+      const left = (leaseCounts.get(key) ?? 1) - 1;
+      if (left > 0) {
+        leaseCounts.set(key, left);
+        return;
+      }
+      leaseCounts.delete(key);
+      if (revokeOnRelease.delete(key) && urls.get(key) === url) releasePackArt(key);
+    },
+  };
+}
+
+/**
+ * The leases one DOM screen holds, renewed on each redraw: `begin()`, then `image(source)` for every picture drawn,
+ * then `end()` once the new nodes are mounted (the old pass's leases are given back only then, so a picture never has
+ * a moment with no hold), and `dispose()` when the screen goes.
+ */
+export class PackLeases {
+  #held: PackUrlLease[] = [];
+  #next: PackUrlLease[] | null = null;
+
+  begin(): void {
+    this.#next = [];
+  }
+
+  /** What to hand a DOM `<img>` for `source`: its URL (held while the screen shows it), and the key to re-resolve it by. */
+  image(source: ArtSource | null): { readonly src: string | null; readonly retry?: string } {
+    if (!source) return { src: null };
+    if (!isPackArtKey(source.key)) return { src: source.url };
+    const lease = leasePackUrl(source.key);
+    if (lease && this.#next) this.#next.push(lease);
+    else lease?.release();
+    return { src: lease?.url ?? source.url, retry: source.key };
+  }
+
+  end(): void {
+    const old = this.#held;
+    this.#held = this.#next ?? this.#held;
+    this.#next = null;
+    if (this.#held !== old) for (const lease of old) lease.release();
+  }
+
+  dispose(): void {
+    for (const lease of [...this.#held, ...(this.#next ?? [])]) lease.release();
+    this.#held = [];
+    this.#next = null;
+  }
+}
+
+/**
+ * A DOM picture failed to load `failedUrl` for `key`: the URL was revoked under it (or never good). Forgets it when it
+ * is still the current one and reads the file from the store afresh; an art change is announced when the new URL is
+ * in, so the screen asks again. A URL that is already newer just announces, so the screen redraws with it.
+ */
+export function refreshPackArt(key: string, failedUrl: string | undefined): void {
+  const info = fileOfKey.get(key);
+  if (!info) return;
+  const current = urls.get(key);
+  if (current !== undefined && (failedUrl === undefined || current === failedUrl)) {
+    store?.revoke(info.id, info.path);
+    urls.delete(key);
+    const pack = packs.get(info.id);
+    if (pack && key === packArtKey(pack.id, pack.version, info.path)) ensure(pack, info.path);
+  } else if (current !== undefined) announceSoon();
 }
 
 /**
@@ -280,6 +378,8 @@ export function resetPackArt(): void {
   packs = new Map();
   store = undefined;
   urls.clear();
+  leaseCounts.clear();
+  revokeOnRelease.clear();
   fileOfKey.clear();
   resolving.clear();
   if (announceTimer !== undefined) clearTimeout(announceTimer);

@@ -5,10 +5,26 @@ import {
   disjointUnion,
   forwardMouseMoves,
   holesAbove,
+  GUARDED_EVENTS,
   panelZIndex,
   regionOpacity,
+  regionTakesEvents,
   ringZIndex,
 } from "./dom-region.js";
+
+describe("regionTakesEvents", () => {
+  it("lets an event through only while the scene takes presses and its panel is shown and not hidden", () => {
+    expect(regionTakesEvents(true, true, false)).toBe(true);
+    // Another modal opened over this panel: a hold armed before it must not Inspect.
+    expect(regionTakesEvents(true, false, false)).toBe(false);
+    expect(regionTakesEvents(false, true, false)).toBe(false);
+    expect(regionTakesEvents(true, true, true)).toBe(false);
+  });
+
+  it("guards the inspect a hold raises as well as the activation", () => {
+    expect(GUARDED_EVENTS).toEqual(["mc-activate", "mc-inspect"]);
+  });
+});
 
 describe("regionOpacity", () => {
   it("follows the camera fade: hidden while black, clear once the fade is over", () => {

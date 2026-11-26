@@ -347,6 +347,8 @@ export class SheetBuilder {
       readonly color?: number;
       readonly hover?: string;
       readonly key?: string;
+      /** The pack picture key the URL came from: a failed load asks the scene once to resolve it again (`mc-image-error`). */
+      readonly retry?: string;
       /** Fills the box, cropped around this focal point (0 to 1 each way), instead of fitting the whole picture. */
       readonly cover?: { readonly x: number; readonly y: number };
     },
@@ -361,6 +363,7 @@ export class SheetBuilder {
       ...(options.color !== undefined ? { color: sheetColor(options.color, "text") } : {}),
       ...(options.hover !== undefined ? { hover: options.hover } : {}),
       ...(options.key !== undefined ? { key: options.key } : {}),
+      ...(options.retry !== undefined ? { retry: options.retry } : {}),
     });
   }
 
