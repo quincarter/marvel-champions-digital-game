@@ -71,7 +71,7 @@ import { unavailableOptionReasons } from "../view/ability-refusal.js";
 import { choiceRowsOf } from "../view/choice-option-rows.js";
 import { optionArtInstance, optionArtOf } from "../view/choice-option-art.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { onTap } from "../ui/tap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -98,7 +98,14 @@ import { roomState } from "../platform/room.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
 import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
-import { choiceNoteOf, optionCounterNotesOf, spendCaptionsOf, tileCounterNote } from "../view/choice-tile-notes.js";
+import {
+  choiceNoteOf,
+  engagedNoteForms,
+  optionCounterNotesOf,
+  optionEngagedNamesOf,
+  spendCaptionsOf,
+  tileCounterNote,
+} from "../view/choice-tile-notes.js";
 import { isSpendChoice, shownSpendChoice, spendAnswerOf, toggleSpendPick } from "../view/spend-choice.js";
 import { fallbackChoiceView, fallbackPages, toggleFallbackPick } from "../view/choice-fallback.js";
 import { recordError } from "../ui/error-log.js";
@@ -237,6 +244,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
   /** What each card tile's copy holds, and a payment tile's caption (`view/choice-tile-notes.ts`), by shown option id. */
   #tileCounters: ReadonlyMap<string, string> = new Map();
+  /** Who each minion tile is engaged with, in a game of more than one seat (issue #1001). */
+  #tileEngaged: ReadonlyMap<string, string> = new Map();
   #tileCaptions: ReadonlyMap<string, string> = new Map();
   /** The collection search's page (`view/collection-search.ts`), kept for the choice it belongs to across redraws. */
   #collectionPage = { choiceId: "", page: 0 };
@@ -1456,6 +1465,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     const rowHeight = hit.target;
     // An option can carry a second line (Agents of S.H.I.E.L.D.'s "Flips a Board Member"), so rows are not all one height.
     const rowCounters = state.game ? optionCounterNotesOf(state.game, choice) : new Map<string, string>();
+    // Two facedown Drones read the same: each minion row says who it is engaged with (issue #1001).
+    const rowEngaged = state.game ? optionEngagedNamesOf(state.game, choice) : new Map<string, string>();
     const optionText = (option: (typeof choice.options)[number]): string => {
       const text = aosOptionLabelOf(
         state.game,
@@ -1466,8 +1477,12 @@ export class ChoiceOverlay extends Phaser.Scene {
             ? groupOptionLabel(roomState().epic, optionLabelOf(state.game, option))
             : optionLabelOf(state.game, option),
       );
-      const held = rowCounters.get(option.optionId);
-      return held ? `${text}\n${held}` : text;
+      // Who a minion is engaged with and what it holds each take a line of their own (issue #1001).
+      const notes = [
+        engagedNoteForms(rowEngaged.get(option.optionId), [...rowEngaged.values()])[0],
+        rowCounters.get(option.optionId),
+      ].filter((note) => note !== undefined);
+      return [text, ...notes].join("\n");
     };
     // A long option (an evidence card's Setup runs to 140 characters) wraps over several lines instead of being cut off.
     // The label is centred and the pick combo sits at the row's right end, so a row with a combo wraps a little earlier
@@ -2744,6 +2759,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const barState = this.#sessionState().game;
     this.#tileBars = barState ? choiceTileBarsOf(barState, choice, this.#selected, gameDeps()) : new Map();
     this.#tileCounters = barState ? optionCounterNotesOf(barState, choice) : new Map();
+    this.#tileEngaged = barState ? optionEngagedNamesOf(barState, choice) : new Map();
     this.#tileCaptions = barState?.pendingChoice
       ? spendCaptionsOf(barState, barState.pendingChoice, choice, gameDeps())
       : new Map();
@@ -2762,7 +2778,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     // being lifted out into a second group (which moved the second card and shrank both: QA QB-8).
     const gridArea: Rect = { ...area, y: area.y + captionHeight, height: area.height - captionHeight };
     const game = this.#sessionState().game;
-    const divideTally = game ? (divideSheetOf(game, choice, this.#selected)?.tally ?? "") : "";
+    const divideTallies = game ? (divideSheetOf(game, choice, this.#selected)?.tallies ?? []) : [];
+    const divideTally = divideTallies[0] ?? "";
     // Cards that do not fit the area whole at a readable height (a phone held sideways, a dozen options) scroll
     // in a grid inside the area instead of being cut off or shrunk (`view/choice-options-layout.ts`).
     let layout = choiceCardLayout(gridArea, choice.options.length, { gap: 6 });
@@ -2779,7 +2796,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         gridSlots[0]!.y !== gridSlots.at(-1)!.y ||
         area.height < CHOICE_MIN_CARD_HEIGHT * 2 + captionHeight * 2 + 10);
     if (stable) {
-      label(
+      const caption = label(
         this,
         area.x,
         area.y,
@@ -2794,6 +2811,15 @@ export class ChoiceOverlay extends Phaser.Scene {
         surface.ink.hex,
         ink.label,
       );
+      if (divideTally && !isAcknowledgeOnly(choice)) {
+        // A long tally (two Drones engaged with long-named heroes) takes a shorter form that leads with what is left to
+        // place before it is shrunk or cut (`view/divide-sheet.ts`).
+        for (const form of divideTallies.slice(1)) {
+          if (caption.width <= area.width) break;
+          caption.setText(caseOf(typeRole.label, form));
+        }
+        fitText(caption, area.width, typeRole.label.size);
+      }
       const region = layout.scrolls
         ? new McScrollRegion(this, {
             rect: gridArea,
@@ -3442,8 +3468,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     const bar = this.#tileBars.get(option.optionId);
     const barHeight = bar ? (bar.kind === "threat" ? 24 : 34) : 0;
     // What this copy holds, in a line of its own under the scan (issue #571): a card's own face never shows its counters.
+    // Who a minion is engaged with takes another line above it (issue #1001): two facedown Drones are the same card
+    // back. Each keeps its own line, so neither can push the other off a narrow phone tile.
     const counters = this.#tileCounters.get(option.optionId);
-    const countersHeight = counters ? 18 : 0;
+    const engagedForms = engagedNoteForms(this.#tileEngaged.get(option.optionId), [...this.#tileEngaged.values()]);
+    const engagedHeight = engagedForms.length > 0 ? 16 : 0;
+    const countersHeight = (counters ? 18 : 0) + engagedHeight;
     const inner: Rect = {
       x: slot.x + 3,
       y: slot.y + 3,
@@ -3523,12 +3553,30 @@ export class ChoiceOverlay extends Phaser.Scene {
         .setMaxLines(3);
     }
 
-    if (counters) {
-      const held = this.add
-        .text(inner.x + inner.width / 2, inner.y + inner.height + countersHeight / 2, tileCounterNote(counters), {
+    if (engagedForms.length > 0) {
+      const engaged = this.add
+        .text(inner.x + inner.width / 2, inner.y + inner.height + engagedHeight / 2, engagedForms[0]!, {
           ...textStyle(typeRole.label, surface.ink.hex),
           fontSize: "11px",
         })
+        .setOrigin(0.5);
+      // "vs Spider-Man (Peter Parker)" gives way to "vs Spider-Man", then "vs S.-Man", before the font shrinks; a
+      // shorter form two seats would share is never offered (`engagedNoteForms`).
+      for (const form of engagedForms.slice(1)) {
+        if (engaged.width <= inner.width - 4) break;
+        engaged.setText(form);
+      }
+      fitText(engaged, inner.width - 4, 11);
+    }
+
+    if (counters) {
+      const held = this.add
+        .text(
+          inner.x + inner.width / 2,
+          inner.y + inner.height + engagedHeight + (countersHeight - engagedHeight) / 2,
+          tileCounterNote(counters),
+          { ...textStyle(typeRole.label, surface.ink.hex), fontSize: "11px" },
+        )
         .setOrigin(0.5);
       fitText(held, inner.width - 4, 11);
     }
@@ -3583,16 +3631,34 @@ export class ChoiceOverlay extends Phaser.Scene {
     // (`view/divide-sheet.ts`); two tiles for the same scheme read apart by their point number.
     const divide = state?.pendingChoice ? divideSheetOf(state, state.pendingChoice, this.#selected) : null;
     const divided = divide?.labels.get(option.optionId);
-    if (divided) {
-      const caption = this.add
-        .text(0, 0, `${divided.name}\n${divided.holds} · point ${divided.ordinal}`, {
-          ...textStyle(typeRole.label, surface.paper.hex),
-          fontSize: "11px",
-          align: "center",
-        })
-        .setOrigin(0.5);
-      fitWrapped(caption, inner.width - 8, 4, 11);
-      const bandHeight = Math.max(20, Math.ceil(caption.height) + 8);
+    if (divided && divide) {
+      // Three lines fitted on their own, so a long card name can never push the point number or who a minion is
+      // engaged with out of the band: the name wraps to two lines at most, the other two keep one line each.
+      const style = { ...textStyle(typeRole.label, surface.paper.hex), fontSize: "11px", align: "center" };
+      const room = inner.width - 8;
+      const name = this.add.text(0, 0, divided.name, style).setOrigin(0.5, 0);
+      fitWrapped(name, room, 2, 11);
+      const lines = [name];
+      if (divided.engaged) {
+        // "vs Spider-Man (Peter Parker)" gives way to a shorter form no other seat on the sheet shares (issue #1001).
+        const seats = [...divide.labels.values()].flatMap((label) => (label.engaged ? [label.engaged] : []));
+        const forms = engagedNoteForms(divided.engaged, seats);
+        const engaged = this.add.text(0, 0, forms[0]!, style).setOrigin(0.5, 0);
+        for (const form of forms.slice(1)) {
+          if (engaged.width <= room) break;
+          engaged.setText(form);
+        }
+        fitText(engaged, room, 11);
+        lines.push(engaged);
+      }
+      // The point number leads: a narrow tile cuts the line from its end, and the number is what tells two tiles for
+      // one card apart ("Point 2 · Damage 0").
+      const pointWords = [`Point ${divided.ordinal}`, divided.holds].filter(Boolean).join(" · ");
+      const point = this.add.text(0, 0, pointWords, style).setOrigin(0.5, 0);
+      fitText(point, room, 11);
+      lines.push(point);
+      const textHeight = lines.reduce((sum, line) => sum + Math.ceil(line.height), 0);
+      const bandHeight = Math.max(20, textHeight + 8);
       const band: Rect = {
         x: inner.x,
         y: inner.y + inner.height - bandHeight,
@@ -3600,8 +3666,12 @@ export class ChoiceOverlay extends Phaser.Scene {
         height: bandHeight,
       };
       this.add.graphics().fillStyle(surface.ink.hex, 0.88).fillRect(band.x, band.y, band.width, band.height);
-      caption.setPosition(band.x + band.width / 2, band.y + band.height / 2);
-      this.children.bringToTop(caption);
+      let y = band.y + 4;
+      for (const line of lines) {
+        line.setPosition(band.x + band.width / 2, y);
+        this.children.bringToTop(line);
+        y += Math.ceil(line.height);
+      }
     }
 
     // Agents of S.H.I.E.L.D.: which Board Member gets a secret counter. Each card says how many it holds and whether
