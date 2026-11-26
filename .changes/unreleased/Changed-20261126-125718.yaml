@@ -1,0 +1,3 @@
+kind: Changed
+body: The hero picker swaps seat thumbnails in place when a picture arrives, and the scenario picker redraws only its cards, instead of rebuilding the whole screen
+time: 2026-11-26T12:57:18.3921308-05:00

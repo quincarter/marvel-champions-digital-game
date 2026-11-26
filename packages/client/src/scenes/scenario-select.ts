@@ -1051,7 +1051,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   #refreshArt(): void {
-    this.#roster?.refreshVisible();
+    // Cards only: the headers' text has not changed, and redrawing it is what made each arrival a long task.
+    this.#roster?.refreshCards();
     if (this.#grid) this.#grid.layout(this.#grid.rect);
   }
 
