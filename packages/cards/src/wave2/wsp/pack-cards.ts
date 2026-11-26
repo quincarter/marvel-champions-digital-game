@@ -30,7 +30,6 @@ import {
   option,
   overpaidWhenPlayed,
   paidWith,
-  exists,
   query,
   removeStatus,
   removeThreat,
@@ -83,7 +82,7 @@ export const WSP_PACK_CARDS = defineAbilities({
   // attack, remove 1 threat from the main scheme. Without overkill, "excess damage dealt" is still what overkill would
   // spill: damage taken beyond remaining hit points (RRG 1.8 "Overkill", p. 31; `resolve/event.ts` `excessDamageOf`).
   "13013.into-the-fray-action": heroAction(
-    { label: "attack", while: exists(query("minion")) },
+    { label: "attack" },
     chooseTarget("minion", query("minion")),
     attack(6, chosen("minion"), { bind: "strike" }),
     removeThreat(varOf("strike.excessDealt"), theMainScheme),

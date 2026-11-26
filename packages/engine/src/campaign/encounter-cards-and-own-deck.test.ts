@@ -12,7 +12,7 @@ import { CORE_CARDS, campaignId, cardId, scenarioId, type AnyCard, type PlayMode
 import { DEFAULT_DEPS } from "../abilities.js";
 import type { CampaignDefinition, CampaignGameResult, CampaignLog, LogWriteSpec } from "../campaign.js";
 import type { GameEvent } from "../events.js";
-import type { InstanceId } from "../ids.js";
+import type { InstanceId, PlayerId } from "../ids.js";
 import { stubTreachery } from "../testing/fixtures.js";
 import { DEFAULT_CARDS, HERO, MAIN_SCHEME, VILLAIN, seatIdentities } from "../testing/scenario.js";
 import { createGame, type GameSetupConfig } from "../setup.js";
@@ -232,6 +232,103 @@ describe("CampaignGameQuery.cardsThatEnteredPlay (MC10 p. 5)", () => {
     ]);
     const result = campaignResultOf(definition, composedLog(definition), state, [taken, entered, drawn], DEFAULT_DEPS);
     expect(result.records[0]?.write.value).toEqual({ kind: "cardList", cardIds: ["fp-2", "fp-3"] });
+  });
+
+  // MC10 p. 10: "Each player who rescued one or more allies": the rescue is the move into that player's hand. An ally
+  // one player rescued and discarded, and the other then played, is still the first player's rescue; the second
+  // player, who only played it, rescued nothing.
+  it("with `orTakenIntoHand`, a card is credited to the player whose hand it was taken into, not its final controller", () => {
+    const identities = seatIdentities(HERO, 2);
+    const created = createGame(
+      {
+        seed: 7,
+        cards: [...DEFAULT_CARDS, ...identities, ...FP, OTHER],
+        villainCardId: VILLAIN.id,
+        mainSchemeCardId: MAIN_SCHEME.id,
+        encounterDeck: [...FP.map((card) => card.id), OTHER.id],
+        players: identities.map((identity) => ({ identityCardId: identity.id, deck: [] })),
+      },
+      DEFAULT_DEPS,
+    );
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const base = created.state;
+    const deckId = base.encounterDeckOrder[0]!;
+    const piles = base.encounterDecks[deckId]!;
+    const all = [...piles.deck, ...piles.discard];
+    const of = (id: string): InstanceId => all.find((instance) => base.instances[instance]?.cardId === id)!;
+    const [one, two] = base.players.map((player) => player.playerId) as [PlayerId, PlayerId];
+    const fp2 = of("fp-2");
+    const fp3 = of("fp-3");
+    // fp-2 ends the game in the second player's play area (they played it); fp-3 entered play under the second player
+    // without ever being in a hand.
+    const finished: GameState = {
+      ...base,
+      outcome: { result: "win", reason: "villainDefeated" },
+      // Only the seat numbers are read, to pair each seat with its player.
+      campaign: { seats: [{ seatNumber: 1 }, { seatNumber: 2 }] } as unknown as NonNullable<GameState["campaign"]>,
+      players: base.players.map((player) => (player.playerId === two ? { ...player, playArea: [fp2, fp3] } : player)),
+      instances: {
+        ...base.instances,
+        [fp2]: { ...base.instances[fp2]!, controllerId: two },
+        [fp3]: { ...base.instances[fp3]!, controllerId: two },
+      },
+    };
+    const events: GameEvent[] = [
+      {
+        type: "cardMoved",
+        instanceId: fp2,
+        cardId: cardId("fp-2"),
+        from: { kind: "tucked", hostInstanceId: fp3 },
+        to: { kind: "hand", playerId: one },
+      } as GameEvent,
+      { type: "triggerEvent", phase: "resolved", event: { kind: "cardEntersPlay", instanceId: fp2, playerId: two } },
+      { type: "triggerEvent", phase: "resolved", event: { kind: "cardEntersPlay", instanceId: fp3, playerId: two } },
+    ];
+    const definition: CampaignDefinition = {
+      ...definitionWith(
+        [],
+        [
+          {
+            id: "only.victory.rescued",
+            text: "test",
+            citation: "test",
+            step: {
+              kind: "record",
+              writes: [
+                {
+                  field: "rescued",
+                  seat: "each",
+                  mode: "append",
+                  value: {
+                    kind: "cardsThatEnteredPlay",
+                    query: { ...FP_QUERY, controller: "you" },
+                    distinct: true,
+                    orTakenIntoHand: true,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      ),
+      logFields: [{ id: "rescued", label: "Rescued", scope: "perSeat", type: { kind: "cardList" }, citation: "test" }],
+    };
+    const seats: readonly CampaignSeatSetup[] = [1, 2].map((seatNumber) => ({
+      seatNumber,
+      identityCardId: identities[seatNumber - 1]!.id,
+      deck: { identityCardId: identities[seatNumber - 1]!.id, aspects: [], cards: [] },
+    }));
+    const composed = resolveBetweenGames(
+      definition,
+      createCampaignLog(definition, { id: "run", seats, modes: MODES, poolVersion: "test", seed: 1 }),
+      { pool: [] },
+      MODES,
+    );
+    if (composed.kind !== "done") throw new Error("unexpected pending choice");
+    const result = campaignResultOf(definition, composed.value, finished, events, DEFAULT_DEPS);
+    const bySeat = Object.fromEntries(result.records.map((entry) => [entry.write.seatNumber, entry.write.value]));
+    expect(bySeat[1]).toEqual({ kind: "cardList", cardIds: ["fp-2"] });
+    expect(bySeat[2]).toEqual({ kind: "cardList", cardIds: ["fp-3"] });
   });
 });
 
