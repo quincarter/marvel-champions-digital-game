@@ -44,6 +44,16 @@ export interface LiveWatcherOptions {
   readonly deps?: RoomSocketDeps;
   /** This device's platform and form, said in the watcher's own hello. */
   readonly device?: RoomDevice;
+  /**
+   * The viewer's online name, said in a watch link's hello: a room game's lobby lists everyone by name (#1021). Rooms
+   * give a nameless watch-only hello a stand-in name, so this may be absent.
+   */
+  readonly name?: string;
+  /**
+   * The table a watch link names (an Epic room's, #1021): its log is the one followed, and the hello asks for it alone.
+   * Absent: the first table, and every table's log is sent as before.
+   */
+  readonly table?: string;
   /** How long to wait for the room to answer with the game before calling it gone. */
   readonly openTimeoutMs?: number;
   /** How long to wait for a host that has not started the game yet. */
@@ -58,7 +68,7 @@ const CAPS: readonly RoomCapability[] = ["watch"];
 
 export class LiveWatcher {
   readonly #o: LiveWatcherOptions;
-  readonly #feed = new WatchFeed();
+  readonly #feed: WatchFeed;
   #socket: RoomSocket | null = null;
   #chain: Promise<void> = Promise.resolve();
   #info: ReplayInfo | null = null;
@@ -70,6 +80,7 @@ export class LiveWatcher {
 
   constructor(options: LiveWatcherOptions) {
     this.#o = options;
+    this.#feed = new WatchFeed(options.table);
   }
 
   /** Connects and settles once the game has arrived and is open; rejects with `missing` when the room is not there. */
@@ -126,6 +137,8 @@ export class LiveWatcher {
       roomId: this.#o.roomId,
       caps: CAPS,
       ...(this.#o.device ? { device: this.#o.device } : {}),
+      ...(this.#o.name ? { name: this.#o.name } : {}),
+      ...(this.#o.table ? { follow: [this.#o.table] } : {}),
       ...(this.#o.deps ? { deps: this.#o.deps } : {}),
       onGone: () => {
         // The room cannot be reached for good: before the game opened that is "gone", after it the feed is lost.
@@ -206,6 +219,11 @@ export class LiveWatcher {
         return;
       case "refused":
         if (this.#opening) this.#failOpening(new ReplayOpenError("full"));
+        else this.#failFollowing();
+        return;
+      case "missing":
+        // The room says the linked table is not there: it is gone now, not a host still to start (#1021).
+        if (this.#opening) this.#failOpening(new ReplayOpenError("missing"));
         else this.#failFollowing();
         return;
       case "presence":

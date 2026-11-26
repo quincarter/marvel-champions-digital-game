@@ -3,7 +3,7 @@ import type { ServerMessage } from "@mc/sync-worker/room-protocol";
 import type { ReplayInfo } from "../replay/replay-session.js";
 import type { ReplayOpened, ReplayOpenSource } from "../replay/replay-core.js";
 import type { WebSocketLike } from "./room-socket.js";
-import { LiveWatcher, type LiveWatchCore } from "./watch-controller.js";
+import { LiveWatcher, WATCH_OPEN_TIMEOUT_MS, WATCH_WAIT_TIMEOUT_MS, type LiveWatchCore } from "./watch-controller.js";
 import type { LiveWatchEvent } from "./watch-events.js";
 
 class FakeSocket implements WebSocketLike {
@@ -402,5 +402,128 @@ describe("LiveWatcher hello device", () => {
       });
       w.dispose();
     }
+  });
+});
+
+describe("LiveWatcher hello name (#1021)", () => {
+  test("a watch link's hello says the viewer's online name when given, so a room game's lobby lets it in", () => {
+    for (const name of ["Gareth", undefined]) {
+      FakeSocket.all = [];
+      const { core } = fakeCore();
+      const w = new LiveWatcher({
+        core,
+        baseUrl: "http://sync",
+        roomId: "A".repeat(12),
+        packs: [],
+        emit: () => undefined,
+        ...(name ? { name } : {}),
+        deps: {
+          WebSocket: FakeSocket as never,
+          setTimer: () => undefined,
+          clearTimer: () => undefined,
+          random: () => 0.5,
+        },
+      });
+      void w.open().catch(() => undefined);
+      FakeSocket.all.at(-1)!.onopen?.({});
+      expect(FakeSocket.all.at(-1)!.sent[0]).toEqual({
+        v: 1,
+        ch: "room",
+        kind: "hello",
+        caps: ["watch"],
+        ...(name ? { name } : {}),
+      });
+      w.dispose();
+    }
+  });
+});
+
+describe("LiveWatcher table (#1021)", () => {
+  test("a link to an Epic room's other table follows that table alone, and opens its log", async () => {
+    FakeSocket.all = [];
+    const { core, calls } = fakeCore();
+    const w = new LiveWatcher({
+      core,
+      baseUrl: "http://sync",
+      roomId: "A".repeat(12),
+      packs: [],
+      emit: () => undefined,
+      table: "t2",
+      deps: {
+        WebSocket: FakeSocket as never,
+        setTimer: () => undefined,
+        clearTimer: () => undefined,
+        random: () => 0.5,
+      },
+    });
+    const opened = w.open();
+    const socket = FakeSocket.all.at(-1)!;
+    socket.onopen?.({});
+    expect(socket.sent[0]).toMatchObject({ kind: "hello", caps: ["watch"], follow: ["t2"] });
+    // The first table's log is not the one asked for; the second's opens the watch.
+    socket.say({ ch: "game", kind: "log", table: "t1", header: {}, commands: [{ type: "pass" }] });
+    socket.say({
+      ch: "game",
+      kind: "log",
+      table: "t2",
+      header: {},
+      commands: [{ type: "pass" }, { type: "pass" }],
+    });
+    await opened;
+    expect(calls).toEqual(["open 2"]);
+    w.dispose();
+  });
+
+  const t2Watcher = () => {
+    FakeSocket.all = [];
+    const { core, calls } = fakeCore();
+    const timers: number[] = [];
+    const w = new LiveWatcher({
+      core,
+      baseUrl: "http://sync",
+      roomId: "A".repeat(12),
+      packs: [],
+      emit: () => undefined,
+      table: "t2",
+      deps: {
+        WebSocket: FakeSocket as never,
+        setTimer: (_run, ms) => (timers.push(ms), timers.length),
+        clearTimer: () => undefined,
+        random: () => 0.5,
+      },
+    });
+    const opening = w.open();
+    const socket = FakeSocket.all.at(-1)!;
+    socket.onopen?.({});
+    return { w, opening, socket, calls, timers };
+  };
+
+  test("a link to a table the room does not have fails as gone at once, not after waiting for a host", async () => {
+    const { opening, socket, calls, timers } = t2Watcher();
+    // What the room sends a hello that follows an unknown table: the refusal, then a welcome without that table.
+    socket.say({ ch: "room", kind: "refused", reason: "no-such-table" });
+    socket.say(welcome);
+    await expect(opening).rejects.toMatchObject({ code: "missing" });
+    expect(calls).toEqual([]);
+    // Only the first open clock was armed: the 45-second wait for a host never started.
+    expect(timers).toEqual([WATCH_OPEN_TIMEOUT_MS]);
+  });
+
+  test("a welcome that does not list the linked table is gone too, even without the refusal", async () => {
+    const { opening, socket } = t2Watcher();
+    socket.say(welcome);
+    await expect(opening).rejects.toMatchObject({ code: "missing" });
+  });
+
+  test("a listed table with no game yet still waits for its host", async () => {
+    const { w, opening, socket, timers } = t2Watcher();
+    opening.catch(() => undefined);
+    socket.say({
+      ...welcome,
+      tables: [...welcome.tables, { id: "t2", hostConnected: false, commands: 0, ended: false, hasHeader: false }],
+    });
+    await Promise.resolve();
+    expect(timers).toEqual([WATCH_OPEN_TIMEOUT_MS, WATCH_WAIT_TIMEOUT_MS]);
+    w.dispose();
   });
 });

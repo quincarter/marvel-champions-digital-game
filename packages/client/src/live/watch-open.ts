@@ -7,25 +7,34 @@ import type { MessageKey } from "../i18n/translate.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import { startupPacksLoaded, startupPacksPending } from "../packs/startup-packs.js";
 import { ReplayOpenError } from "../replay/replay-core.js";
+import { parseWatchTarget } from "./watch-link.js";
 import { replayErrorKey } from "../replay/replay-files.js";
 import { ReplayHost, WorkerReplayBackend } from "../replay/replay-host.js";
 import type { SharedReplayResult } from "../replay/shared-replay.js";
+import { FIRST_TABLE } from "@mc/sync-worker/room-protocol";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
+import { appSession } from "../session.js";
 
 export interface WatchOpenDeps {
   /** The sync service's address, null when this build has none. */
   readonly syncUrl: string | null;
-  readonly open: (roomId: string, syncUrl: string) => Promise<ReplayHost>;
+  /** `table`: the table the link names (#1021); the first table when absent. */
+  readonly open: (roomId: string, syncUrl: string, table?: string) => Promise<ReplayHost>;
   readonly packsPending: () => boolean;
   readonly packsLoaded: () => Promise<void>;
 }
 
 const defaultDeps: WatchOpenDeps = {
   syncUrl: syncServiceUrl(),
-  open: async (roomId, syncUrl) => {
+  open: async (roomId, syncUrl, table) => {
     const host = new ReplayHost(new WorkerReplayBackend());
     try {
-      await host.watch(roomId, syncUrl, loadedPacks());
+      // The viewer's online name, so a room game's lobby lists them by it (#1021); none set, the room gives a stand-in.
+      const name = appSession().settings.onlineName.trim();
+      await host.watch(roomId, syncUrl, loadedPacks(), undefined, false, undefined, {
+        ...(name ? { name } : {}),
+        ...(table ? { table } : {}),
+      });
       return host;
     } catch (cause) {
       host.dispose();
@@ -44,7 +53,7 @@ export function watchFailureKey(cause: unknown): MessageKey {
 }
 
 /**
- * Joins room `id` (`"invalid"`: the link named none) and opens its game. Never throws. The game's packs are the
+ * Joins room `id` (`"invalid"`: the link named none; `<roomId>.<table>` names an Epic room's table) and opens its game. Never throws. The game's packs are the
  * viewer's installed ones, so the installed packs are waited for first (`onLoadingMods` says the screen is waiting).
  */
 export async function loadLiveWatch(
@@ -52,14 +61,16 @@ export async function loadLiveWatch(
   deps: WatchOpenDeps = defaultDeps,
   onLoadingMods: () => void = () => undefined,
 ): Promise<SharedReplayResult> {
-  if (id === "invalid") return { ok: false, message: "replay.link.invalid" };
+  const target = id === "invalid" ? null : parseWatchTarget(id);
+  if (!target) return { ok: false, message: "replay.link.invalid" };
   if (!deps.syncUrl) return { ok: false, message: "replay.link.offline" };
   if (deps.packsPending()) {
     onLoadingMods();
     await deps.packsLoaded();
   }
   try {
-    return { ok: true, host: await deps.open(id, deps.syncUrl) };
+    const table = target.table === FIRST_TABLE ? undefined : target.table;
+    return { ok: true, host: await deps.open(target.roomId, deps.syncUrl, table) };
   } catch (cause) {
     return { ok: false, message: watchFailureKey(cause) };
   }
