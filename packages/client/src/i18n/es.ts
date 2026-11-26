@@ -1637,7 +1637,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pause.onCard": "En {card}.",
   "pause.jump": "Ir a un momento",
   "pause.logEmpty": "Todavía no ha pasado nada.",
-  "pause.logUndoHint": "Toca un momento ↶ para deshacer hasta él",
+  "pause.logUndoHint": "Toca un momento marcado con ↶ para volver a ese punto de la partida",
   "pause.logUndoNone": "Solo se pueden deshacer tus propias jugadas de este turno",
   "pause.fullLogNote":
     "Cada momento conservado, el más reciente primero. Toca «Registro completo» otra vez para volver a la cuadrícula de palabras clave.",
