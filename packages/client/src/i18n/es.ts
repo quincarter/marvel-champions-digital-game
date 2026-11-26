@@ -962,7 +962,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "comp.concede.alone": "Abandonar solo",
   "comp.concede.teamDetail": "Todo tu equipo se rinde y la partida termina al instante, sin desempates.",
   "comp.concede.aloneDetail":
-    "Solo te vas tú. Tu compañero se queda con tus esbirros y tu ficha de primer jugador, y la partida continúa.",
+    "Solo te vas tú. Tu compañero se queda con tus esbirros y tu ficha de Jugador inicial, y la partida continúa.",
   "comp.over.title": "Desempates",
   "comp.over.decided": "Decidido por: {measure}",
   "comp.over.undecided": "Sigue el empate tras todos los desempates: empate.",
@@ -1356,9 +1356,9 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Muestra más grande el texto de reglas completo de una carta en la hoja Examinar, la pantalla pensada para leer una carta de cerca.",
   "settings.sound.title": "Sonido",
   "settings.sound.detail": "Música de fondo y sonido en los menús y las partidas.",
-  "settings.musicShuffle.title": "Música ganada aleatoria",
+  "settings.musicShuffle.title": "Reproducción aleatoria de música desbloqueada",
   "settings.musicShuffle.detail":
-    "Reproduce en orden aleatorio las canciones que has ganado en Extras, en los menús y las partidas. Las entradas, el fin de partida y los finales conservan la suya.",
+    "Reproduce en orden aleatorio las canciones que has desbloqueado en Extras, en los menús y las partidas. Las entradas, el fin de partida y los finales conservan la suya.",
   "settings.confirmEndTurn.title": "Confirmar antes de terminar el turno",
   "settings.confirmEndTurn.detail":
     "Pregunta antes de terminar el turno si todavía puedes realizar un ataque básico, una intervención básica o una recuperación básica, o si uno de tus aliados puede atacar o intervenir. Si desactivas esta opción, el turno termina inmediatamente.",
@@ -1546,11 +1546,11 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "settings.fadeColor.red": "Rojo",
   "settings.fadeColor.purple": "Morado",
   "settings.fadeColor.green": "Verde",
-  "settings.tokenMotion.title": "Ficha de primer jugador",
+  "settings.tokenMotion.title": "Ficha de Jugador inicial",
   "settings.tokenMotion.detailReduced":
-    "Cómo se mueve la ficha hasta el nuevo primer jugador. Movimiento reducido está activado, así que se coloca sin moverse.",
+    "Cómo se mueve la ficha hasta el nuevo Jugador inicial. Movimiento reducido está activado, así que se coloca sin moverse.",
   "settings.tokenMotion.detail":
-    "Cómo se mueve la ficha hasta el nuevo primer jugador: lanzada, deslizada, rebotando o girando por la mesa, o colocada al momento.",
+    "Cómo se mueve la ficha hasta el nuevo Jugador inicial: lanzada, deslizada, rebotando o girando por la mesa, o colocada al momento.",
   "settings.tokenMotion.toss": "Lanzar",
   "settings.tokenMotion.slide": "Deslizar",
   "settings.tokenMotion.bounce": "Rebotar",
