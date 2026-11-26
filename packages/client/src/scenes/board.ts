@@ -2424,6 +2424,8 @@ export class BoardScene extends Phaser.Scene {
         else if (this.#replay && this.#focus?.kind === "discard" && !this.#logFocused) this.#openMyDiscard();
         else if (this.#focus && !this.#logFocused) this.#controller.activate(this.#focus);
         else if (this.#focus === null && !this.#logFocused) this.#focusPrimary();
+        // The log has no stop of its own: with its ring up, the press takes the "newer" chip when it is showing.
+        else if (this.#logFocused) this.#logPanel.jumpToLatest();
         break;
       case "inspect":
         if (this.#focus?.kind === "card" && !this.#logFocused) this.#inspect(this.#focus.instanceId);

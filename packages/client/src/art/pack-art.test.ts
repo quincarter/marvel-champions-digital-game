@@ -4,6 +4,7 @@ import { onArtChange } from "../language-change.js";
 import { artFor } from "./art-source.js";
 import {
   packArtFor,
+  currentPackArt,
   packArtKey,
   packFileArt,
   releasePackArt,
@@ -176,5 +177,20 @@ describe("pack card art", () => {
     expect(artFor(custom, { kind: "front" })?.url).toBe("blob:test/demo/cards/en/x.demo.02.webp");
     const base = { id: cardId("01001"), type: "event", art: "01001", images: { front: "/bundles/cards/01001.png" } };
     expect(artFor(base as unknown as AnyCard, { kind: "front" })?.url).toMatch(/^\/card-art\//);
+  });
+
+  it("answers null for a held pack source once its pack is removed or upgraded, and leaves other art alone", async () => {
+    const store = fakeStore();
+    setPackArt([manifest()], store);
+    packArtFor("x.demo.01a", "en");
+    await flush();
+    const held = packArtFor("x.demo.01a", "en")!;
+    expect(currentPackArt(held)).toEqual(held);
+    setPackArt([manifest({ version: "1.3.0" })], store);
+    expect(currentPackArt(held)).toBeNull();
+    setPackArt([], store);
+    expect(currentPackArt(held)).toBeNull();
+    const plain = { key: "art:01001", url: "/card-art/01001.png" };
+    expect(currentPackArt(plain)).toBe(plain);
   });
 });

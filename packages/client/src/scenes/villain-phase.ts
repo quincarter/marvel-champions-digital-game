@@ -3802,7 +3802,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         : null,
     });
     const backRect = this.#logPanel.closeRect();
-    if (backRect) this.#route?.set(["back"], new Map([["back", { rect: backRect, activate: back }]]));
+    if (backRect)
+      this.#route?.set(
+        ["back"],
+        new Map([["back", { rect: backRect, activate: () => (this.#logPanel.jumpToLatest() ? undefined : back()) }]]),
+      );
     if (import.meta.env.DEV) {
       (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
         continueRect: () => null,

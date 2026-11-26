@@ -14,11 +14,12 @@ import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { t } from "../i18n/translate.js";
 import { onlineName, setOnlineName } from "../platform/room.js";
 import { MAX_ONLINE_NAME_LENGTH, cleanOnlineName } from "../settings.js";
-import { hit, surface, typeRole } from "../tokens.js";
+import { surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { McTextInput } from "../ui/widgets.js";
 import { glyphsFitFormFactor } from "../view/glyph-placement.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
+import { layoutNameSheet } from "../view/online-name-layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
@@ -114,44 +115,40 @@ export class OnlineNameOverlay extends Phaser.Scene {
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     const b = this.#panel.begin(width, height);
 
-    const boxWidth = Math.min(520, width - 32);
-    const textWidth = boxWidth - 40;
     const titleSpec = typeRole.barTitle;
     const bodySpec = typeRole.body;
-    const wrapped = { wrapWidth: textWidth };
-    const titleSize = b.measure(t("online.nameTitle"), titleSpec);
-    const bodySize = b.measure(t("online.nameBody"), bodySpec, wrapped);
-    const problemSize = this.#problem ? b.measure(t("online.nameEmpty"), typeRole.rowTitle, wrapped) : null;
-    const fieldHeight = hit.primary;
-    const half = (textWidth - 12) / 2;
-    const boxHeight =
-      20 +
-      titleSize.height +
-      8 +
-      bodySize.height +
-      14 +
-      fieldHeight +
-      (problemSize ? problemSize.height + 8 : 0) +
-      16 +
-      hit.primary +
-      20;
-    const box: Rect = {
-      x: (width - boxWidth) / 2,
-      y: Math.max(16, (height - boxHeight) / 3),
-      width: boxWidth,
-      height: boxHeight,
+    const problemSpec = typeRole.rowTitle;
+    // The sheet fits the viewport (`view/online-name-layout.ts`): measured at the roomy width first, again at the compact
+    // one when the roomy layout does not fit, which only ever makes the text shorter.
+    const measured = (innerWidth: number) => {
+      const wrapped = { wrapWidth: innerWidth };
+      return {
+        titleHeight: b.measure(t("online.nameTitle"), titleSpec).height,
+        bodyHeight: b.measure(t("online.nameBody"), bodySpec, wrapped).height,
+        problemHeight: this.#problem ? b.measure(t("online.nameEmpty"), problemSpec, wrapped).height : null,
+      };
     };
+    let sheet = layoutNameSheet({ width, height, ...measured(Math.min(520, width - 32) - 40) });
+    if (sheet.compact) sheet = layoutNameSheet({ width, height, ...measured(sheet.box.width - 2 * sheet.pad) });
+    const { box, pad, fieldRect } = sheet;
+    const textWidth = box.width - 2 * pad;
+    const wrapped = { wrapWidth: textWidth };
+    const half = (textWidth - 12) / 2;
     b.box(box, { fill: surface.paper.hex, stroke: surface.ink.hex, strokeWidth: 4 });
-    const titleY = box.y + 20;
-    b.text(box.x + 20, titleY, t("online.nameTitle"), titleSpec, { color: surface.ink.hex });
-    const bodyY = titleY + titleSize.height + 8;
-    b.text(box.x + 20, bodyY, t("online.nameBody"), bodySpec, { ...wrapped, color: surface.ink.hex, alpha: 0.9 });
-    const fieldRect: Rect = { x: box.x + 20, y: bodyY + bodySize.height + 14, width: textWidth, height: fieldHeight };
-    if (problemSize) {
-      b.text(box.x + 20, fieldRect.y + fieldRect.height + 8, t("online.nameEmpty"), typeRole.rowTitle, {
-        ...wrapped,
-        color: surface.ink.hex,
-      });
+    b.text(box.x + pad, sheet.titleY, t("online.nameTitle"), titleSpec, { color: surface.ink.hex });
+    if (sheet.body.rect.height > 0) {
+      const bodyOptions = { ...wrapped, color: surface.ink.hex, alpha: 0.9 };
+      if (sheet.body.scrolls) {
+        // A short viewport: the explanation scrolls in its own region, the field and buttons stay put.
+        b.scroll("name-body", sheet.body.rect, sheet.body.contentHeight, (inner) => {
+          inner.text(box.x + pad, 0, t("online.nameBody"), bodySpec, bodyOptions);
+        });
+      } else {
+        b.text(box.x + pad, sheet.body.rect.y, t("online.nameBody"), bodySpec, bodyOptions);
+      }
+    }
+    if (sheet.problemY !== null) {
+      b.text(box.x + pad, sheet.problemY, t("online.nameEmpty"), problemSpec, { ...wrapped, color: surface.ink.hex });
     }
     if (this.#input) {
       this.#input.layout(fieldRect);
@@ -173,9 +170,8 @@ export class OnlineNameOverlay extends Phaser.Scene {
         if (event.key === "Enter") setTimeout(() => this.#continue(), 0);
       });
     }
-    const buttonY = box.y + box.height - 20 - hit.primary;
-    const cancelRect: Rect = { x: box.x + 20, y: buttonY, width: half, height: hit.primary };
-    const goRect: Rect = { x: cancelRect.x + half + 12, y: buttonY, width: half, height: hit.primary };
+    const cancelRect: Rect = { x: box.x + pad, y: sheet.buttonY, width: half, height: sheet.buttonHeight };
+    const goRect: Rect = { x: cancelRect.x + half + 12, y: sheet.buttonY, width: half, height: sheet.buttonHeight };
     // Glyphs are for desktop and tablet landscape (`glyphsFitFormFactor`), as on every other screen.
     const glyphsFit = glyphsFitFormFactor(formFactorFor(width, height));
     this.#glyphs.button(b, {

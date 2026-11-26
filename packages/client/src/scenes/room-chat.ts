@@ -97,11 +97,13 @@ export class RoomChatOverlay extends Phaser.Scene {
   }
 
   #draw(): void {
-    const wasFocused = this.#input?.focused ?? false;
     if (this.#input) this.#value = this.#input.value;
-    this.#input?.destroy();
-    this.#input = null;
+    // The field is a DOM element that keeps its focus, caret, selection and IME composition across a redraw (a remote
+    // line, or a phone keyboard resizing the page): lifted out of the sweep and laid out again, never rebuilt.
+    const kept = this.#input ? this.#input.gameObjects : [];
+    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
+    for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
@@ -153,16 +155,21 @@ export class RoomChatOverlay extends Phaser.Scene {
       width: textWidth,
       height: fieldHeight,
     };
-    this.#input = new McTextInput(this, {
-      rect: fieldRect,
-      value: this.#value,
-      type: typeRole.body,
-      placeholder: t("chat.placeholder"),
-      maxLength: 280,
-      onChange: (value) => {
-        this.#value = value;
-      },
-    });
+    if (this.#input) {
+      this.#input.layout(fieldRect);
+      for (const node of this.#input.gameObjects) this.children.bringToTop(node);
+    } else {
+      this.#input = new McTextInput(this, {
+        rect: fieldRect,
+        value: this.#value,
+        type: typeRole.body,
+        placeholder: t("chat.placeholder"),
+        maxLength: 280,
+        onChange: (value) => {
+          this.#value = value;
+        },
+      });
+    }
     const half = (textWidth - 12) / 2;
     const buttonY = fieldRect.y + fieldHeight + 10;
     const closeRect: Rect = { x: box.x + 16, y: buttonY, width: half, height: hit.target };
@@ -181,6 +188,5 @@ export class RoomChatOverlay extends Phaser.Scene {
       ["send", { rect: sendRect, activate: () => this.#send() }],
     ]);
     this.#route?.set(["field", "close", "send"], stops);
-    if (wasFocused) this.#input.focus();
   }
 }
