@@ -7,7 +7,7 @@
 import type { DecisionAuthority } from "../choices.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf } from "../query.js";
-import { controllerOf } from "../select.js";
+import { controllerOf, type EffectContext, resolvePlayers } from "../select.js";
 import type { PlayerRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import { firstPlayerOfCard, firstPlayerOfPlayersSide } from "../team-phases.js";
@@ -83,4 +83,21 @@ export function effectChoiceAuthority(
   return chooser.kind === "firstPlayer" && chooser.of !== "enemy" && isEncounterSide(state, sourceId)
     ? "firstPlayerTargets"
     : "player";
+}
+
+/**
+ * The players a choice an effect gives to `chooser` is asked of: `resolvePlayers`, except that a choice given to the
+ * ability's controller ("you", "its controller") on an encounter card that no player is resolving goes to the first
+ * player of the card's side instead of to nobody (#1012). RRG 1.8 "First Player" (p. 19): "If an encounter card
+ * requires a card ability to be resolved, a game function to be performed, or a choice to be made but does not specify
+ * which player should act, the first player does so"; RRG 1.8 "Ownership and Control" (p. 31): "Encounter cards are
+ * considered to be under the control of the scenario", so no player is its controller. Any other ref, or a context
+ * with a controller (the player resolving a reveal), is read as written; the choice keeps the `player` authority
+ * (`effectChoiceAuthority`), the first player choosing as the one resolving the card.
+ */
+export function resolveChooser(state: GameState, chooser: PlayerRef, context: EffectContext): readonly PlayerId[] {
+  const players = resolvePlayers(state, chooser, context);
+  if (players.length > 0 || chooser.kind !== "controller" || context.controllerId) return players;
+  const self = context.selfInstanceId;
+  return self && isEncounterSide(state, self) ? [firstPlayerOfCard(state, self)] : players;
 }

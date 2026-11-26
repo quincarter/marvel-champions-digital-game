@@ -17,7 +17,7 @@ import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { legalActions } from "./legal.js";
 import { mustInstance, mustPlayer } from "./query.js";
-import type { EffectSpec } from "./spec.js";
+import type { EffectSpec, TargetQuery } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
@@ -71,15 +71,53 @@ const SHIELD_INTERRUPT = stubAbility("shield.interrupt", {
   effects: [{ kind: "preventDamage", amount: { kind: "const", value: 1 } }],
 });
 const SHIELD = stubSupport({ id: "shield", cost: 0, abilities: [SHIELD_INTERRUPT.ref] });
+/**
+ * "Forced Interrupt: when [a character] would take damage, instead place that many plates here": a replacement effect
+ * (RRG 1.8 "Replacement Effect", p. 37), so the damage is never dealt (#1012 §6, a mod's Ablative Protocol).
+ */
+const replacer = (id: string, targetIs: TargetQuery) =>
+  stubAbility(`${id}.interrupt`, {
+    trigger: { kind: "interrupt", forced: true, on: { on: "dealDamage", targetIs } },
+    effects: [
+      {
+        kind: "replaceTriggeringEvent",
+        with: [
+          { kind: "addCounters", target: { kind: "self" }, counterType: "plate", amount: { kind: "eventAmount" } },
+        ],
+      },
+    ],
+  });
+const PLATING_ALLY_INTERRUPT = replacer("plating-ally", { categories: ["ally"] });
+const PLATING_ALLY = stubSupport({ id: "plating-ally", cost: 0, abilities: [PLATING_ALLY_INTERRUPT.ref] });
+const PLATING_SELF_INTERRUPT = replacer("plating-self", { categories: ["identity"] });
+const PLATING_SELF = stubSupport({ id: "plating-self", cost: 0, abilities: [PLATING_SELF_INTERRUPT.ref] });
 
-const deps: EngineDeps = depsOf(DEAL_ABILITY, TAKE_ABILITY, BRACELET_RULE, AEGIS_RULE, SHIELD_INTERRUPT);
-const CARDS = [DEAL_DRAW, TAKE_DRAW, WEB_ALLY, BRACELET, AEGIS, SHIELD];
+const deps: EngineDeps = depsOf(
+  DEAL_ABILITY,
+  TAKE_ABILITY,
+  BRACELET_RULE,
+  AEGIS_RULE,
+  SHIELD_INTERRUPT,
+  PLATING_ALLY_INTERRUPT,
+  PLATING_SELF_INTERRUPT,
+);
+const CARDS = [DEAL_DRAW, TAKE_DRAW, WEB_ALLY, BRACELET, AEGIS, SHIELD, PLATING_ALLY, PLATING_SELF];
 
 const start = (): GameState =>
   gameAtFirstTurn({
     cards: CARDS,
     deps,
-    deck: [DEAL_DRAW.id, TAKE_DRAW.id, WEB_ALLY.id, BRACELET.id, AEGIS.id, SHIELD.id, ...copiesOf(WEB_ALLY.id, 6)],
+    deck: [
+      DEAL_DRAW.id,
+      TAKE_DRAW.id,
+      WEB_ALLY.id,
+      BRACELET.id,
+      AEGIS.id,
+      SHIELD.id,
+      PLATING_ALLY.id,
+      PLATING_SELF.id,
+      ...copiesOf(WEB_ALLY.id, 6),
+    ],
     encounter: copiesOf("treachery" as never, 10),
   });
 
@@ -171,5 +209,36 @@ describe("RRG v1.8 p.14; ruling 2026-06-25 R6 / 2026-07-09 R2: a deal-damage cos
     };
     const given = giveCard(tough, P1, TAKE_DRAW.id);
     expect(offered(given.state, given.id)).toBe(false); // FAQ "Focused Rage (#27)", RRG 1.8 p. 57
+  });
+});
+
+describe("#1012 §6, RRG 1.8 'Cost' p. 14 and 'Replacement Effect' p. 37: cost damage replaced by an interrupt", () => {
+  it("dealing damage as a cost, replaced: the cost is still paid and the effect resolves", () => {
+    const { state: table, ids } = withInPlay(WEB_ALLY.id, PLATING_ALLY.id);
+    const [web, plating] = [ids[0]!, ids[1]!];
+    const given = giveCard(table, P1, DEAL_DRAW.id);
+    const hand = handSize(given.state);
+    const { state: after, events } = run(given.state, playCmd(given.id));
+    expect(mustInstance(after, web).damage).toBe(0);
+    expect(mustInstance(after, plating).counters.plate).toBe(1); // the replacement resolved in its place
+    expect(resolved(events, DEAL_ABILITY.ref.id)).toBe(true);
+    expect(handSize(after)).toBe(hand - 1 + 2);
+    expect(events.some((e) => e.type === "costDamageSettled")).toBe(false);
+  });
+
+  it("taking damage as a cost, replaced: none of it was taken, so the cost is not paid (RRG 1.8 Cost, p. 14)", () => {
+    const { state: table, ids } = withInPlay(PLATING_SELF.id);
+    const plating = ids[0]!;
+    const given = giveCard(table, P1, TAKE_DRAW.id);
+    expect(offered(given.state, given.id)).toBe(true); // an interrupt cannot be known before paying
+    const hand = handSize(given.state);
+    const { state: after, events } = run(given.state, playCmd(given.id));
+    expect(mustInstance(after, mustPlayer(after, P1).identity.instanceId).damage).toBe(0);
+    expect(mustInstance(after, plating).counters.plate).toBe(1);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "costDamageSettled", amount: 1, taken: 0, paid: false }),
+    );
+    expect(resolved(events, TAKE_ABILITY.ref.id)).toBe(false);
+    expect(handSize(after)).toBe(hand - 1); // the event was played (and discarded) with no draw
   });
 });

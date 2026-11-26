@@ -4,6 +4,7 @@ import {
   firstLegal,
   identityOf,
   inst,
+  instancesOf,
   playerOf,
   settle,
   stackEncounterDeck,
@@ -25,6 +26,12 @@ const absorbingManVsHeroes = () =>
 /** A neutral boost card in the shared "standard" set (0 boost icons, no `[star] Boost:` line). */
 const ADVANCE = "01186";
 const ENVIRONMENTS = ["04080", "04081", "04082", "04083"] as const;
+const ENVIRONMENT_REFS = {
+  "04080": "dense-forest",
+  "04081": "snowy-hillside",
+  "04082": "rocky-outcrop",
+  "04083": "abandoned-facility",
+} as const;
 /** Each environment's own printed trait (Dense Forest/Snowy Hillside/Rocky Outcrop/Abandoned Facility). */
 const ENVIRONMENT_TRAIT: Record<string, string> = {
   "04080": "WOOD",
@@ -204,6 +211,29 @@ describe("Absorbing Man scenario", () => {
     for (const ref of ["04086.when-revealed-alter-ego", "04086.when-revealed-hero"]) {
       expect(JSON.stringify(WAVE2_DEPS.abilities[ref]), ref).toContain('"statBonusTiming":"afterInterrupts"');
     }
+  });
+
+  // Issue #1012: after an undefended attack a treachery made (Swinging Stone, Assault), the environments' responses
+  // resolved with no effect in the reporter's games (b9aed95d #190: Dense Forest's indirect damage), since the attack
+  // in progress was gone by the time the effect read "undefended". The trigger reads the finished attack's own result.
+  it("the environments' responses read 'undefended' off the finished attack, not the attack in progress", () => {
+    for (const code of ENVIRONMENTS) {
+      const ability = JSON.stringify(WAVE2_DEPS.abilities[`${code}.${ENVIRONMENT_REFS[code]}-forced-response`]);
+      expect(ability, code).not.toContain('"currentAttack"');
+      expect(ability, code).toContain('"undefended":1');
+    }
+  });
+
+  it("Snowy Hillside: places threat after Swinging Stone's undefended attack", () => {
+    const start = stackEncounterDeck(absorbingManVsHeroes(), ADVANCE, "04081"); // Snowy Hillside
+    const withIce = runWave2(settle(runWave2(start, endTurn()), firstLegal, undefined, WAVE2_DEPS), toHero());
+    const hillside = instancesOf(withIce, "04081").find((id) => cardsInPlay(withIce).includes(id))!;
+    expect(hillside).toBeDefined();
+    const { events } = driveEvents(WAVE2_DEPS, stackEncounterDeck(withIce, ADVANCE, "04086"), endTurn());
+    const placed = events.filter(
+      (e) => e.type === "threatPlaced" && "sourceInstanceId" in e && e.sourceInstanceId === hillside,
+    );
+    expect(placed.length).toBeGreaterThan(0);
   });
 
   it("Piercing Thorns: discards 1 card at random from your hand", () => {

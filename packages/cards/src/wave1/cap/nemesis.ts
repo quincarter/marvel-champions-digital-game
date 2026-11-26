@@ -7,14 +7,15 @@ import {
   each,
   encounterCards,
   enemyAttack,
-  exists,
   forEachPlayer,
   forEachPlayerInChosenOrder,
-  ifThen,
+  identityOf,
   moveCards,
   not,
+  playersWhere,
   putIntoPlay,
   query,
+  refMatches,
   rule,
   shuffleEncounterDeck,
   TRAIT,
@@ -54,19 +55,23 @@ export const CAP_NEMESIS = defineAbilities({
   // single named card). Shuffle the encounter deck if it was searched.
   // Reading: "engaged with a hero" is read as "engaged with a player" (any form), matching the Core convention
   // that minions engage and attack players regardless of form (docs/phase2-core-set.md §4 "Masters of Mayhem").
+  // "Attacked this way" is the attacked player of each of those attacks as it finished, not the player it was
+  // initiated against: a player whose character defends an attack on another player is the attacked player (FFG
+  // ruling July 25, 2024, docs/rulings/post-rrg-1-6/01-july-2024.md; RRG 1.8 "Defend, Defense", p. 16), so they skip
+  // the search and the player the attack was initiated against searches (owner decision C, issue #1012 §4). The
+  // `bind` reports those players as `hailHydra.attackedPlayers` (`ATTACKED_PLAYERS_SLOT`). An attack that did not
+  // happen (a stunned minion) attacked nobody.
   "03030.when-revealed": whenRevealed(
-    enemyAttack(each(query("minion", { trait: TRAIT.HYDRA, engagedWith: "any" }))),
+    enemyAttack(each(query("minion", { trait: TRAIT.HYDRA, engagedWith: "any" })), { bind: "hailHydra" }),
     forEachPlayerInChosenOrder(
-      eachPlayer,
-      ifThen(not(exists(query("minion", { trait: TRAIT.HYDRA, engagedWithPlayer: thatPlayer }))), [
-        chooseCards("found", encounterCards(["deck", "discard"], query("minion", { trait: TRAIT.HYDRA })), {
-          min: 1,
-          max: 1,
-          chooser: thatPlayer,
-        }),
-        putIntoPlay(chosen("found"), thatPlayer),
-        shuffleEncounterDeck(),
-      ]),
+      playersWhere(not(refMatches(identityOf(thatPlayer), { inSlot: "hailHydra.attackedPlayers" }))),
+      chooseCards("found", encounterCards(["deck", "discard"], query("minion", { trait: TRAIT.HYDRA })), {
+        min: 1,
+        max: 1,
+        chooser: thatPlayer,
+      }),
+      putIntoPlay(chosen("found"), thatPlayer),
+      shuffleEncounterDeck(),
     ),
   ),
 });

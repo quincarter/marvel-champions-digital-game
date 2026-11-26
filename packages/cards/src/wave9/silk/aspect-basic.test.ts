@@ -1489,9 +1489,10 @@ describe("52023.across-the-spider-verse-action: exhaust a Web-Warrior card you c
             .slice(0, 2),
         ),
       ],
-      { target: [silk, scarlet, P1, byte], option: ["0", "1"], spend: extra.ids },
+      { target: [silk, scarlet, byte], option: ["0", "1"], spend: extra.ids },
     );
-    expect(r.kinds.filter((k) => k === "choosePlayer")).toHaveLength(2);
+    // Solo: the only player is chosen without asking (issue #1006).
+    expect(r.kinds.filter((k) => k === "choosePlayer")).toHaveLength(0);
     expect(inPlayArea(r.state, scarlet)).toBe(true);
     expect(inPlayArea(r.state, byte)).toBe(true);
     expect(inst(r.state, silk).exhausted).toBe(true);

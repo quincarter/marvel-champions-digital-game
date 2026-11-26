@@ -68,7 +68,7 @@ export function offerOf(
   draft: Pick<
     SetupDraft,
     "scenarioId" | "difficulty" | "modularSetIds" | "civilWar" | "heroicLevel" | "skirmish" | "houseModularSetIds"
-  >,
+  > & { readonly villainId?: string | null },
 ): PlayableScenarioOffer {
   const modes = draftModes(draft);
   try {
@@ -82,6 +82,8 @@ export function offerOf(
         ? { houseModularSetIds: draft.houseModularSetIds.filter((id) => !isPackEncounterSet(id)) }
         : {}),
       ...(draft.civilWar && draft.civilWar.stageIds.length > 0 ? { mainSchemeStageIds: draft.civilWar.stageIds } : {}),
+      // Skirmish follows the villain picked at a set-keyed choice (Fear No Evil); every other offer ignores it.
+      ...(draft.villainId ? { villainSetId: draft.villainId } : {}),
     });
   } catch {
     // A pack's scenario is no playable base scenario: its own offer is the difficulty choices only (#786).
@@ -698,7 +700,9 @@ export function applySetupOption(
     const ids = villainStepIds(villains);
     const at = ids.indexOf(villainChosenOf(draft, villains));
     const next = ids[(at + (first === "next" ? 1 : ids.length - 1)) % ids.length]!;
-    return { ...draft, villainId: next === villains.defaultId ? null : next };
+    const moved: SetupDraft = { ...draft, villainId: next === villains.defaultId ? null : next };
+    // Skirmish's versions are the villain's own (#995): a pick the new villain does not offer moves or goes.
+    return moved.skirmish ? { ...moved, skirmish: reconcileSkirmish(moved.skirmish, offerOf(moved).skirmish) } : moved;
   }
 
   if (kind === "mainScheme") {

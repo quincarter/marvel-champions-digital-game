@@ -5,7 +5,7 @@
  * `@mc/cards`' own `trors.qa.test.ts` already covers).
  */
 import { describe, expect, test } from "vitest";
-import type { CampaignChoiceAnswer, GameState } from "@mc/engine";
+import { cardsInPlay, type CampaignChoiceAnswer, type GameState } from "@mc/engine";
 import { preconDecks } from "../view/deck-list-model.js";
 import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { MemoryCampaignStorage, summaryOf } from "../engine/campaign-storage.js";
@@ -16,7 +16,7 @@ import { campaignDefinitionOf } from "@mc/cards";
 import { factsOf } from "../progression/achievements.js";
 import { extrasProgressOf } from "../progression/extras.js";
 import { progressOf } from "../progression/unlocks.js";
-import { CAMPAIGN_RECORDS, CampaignService } from "./campaign-service.js";
+import { CAMPAIGN_RECORDS, CampaignService, enteredPlayAtSetup } from "./campaign-service.js";
 
 const POOL = Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card]));
 
@@ -131,6 +131,30 @@ describe("CampaignService", () => {
     expect(folded.record.attempt).toBeUndefined();
     expect(folded.record.position.nextNodeId).toBe("crossbones");
     expect(folded.record.history.map((entry) => entry.outcome)).toEqual(["lost"]);
+  });
+
+  // Issue #1012: setup's events are not saved, so an Experimental weapon revealed at setup (MC10 p. 5) was never
+  // recorded. The fold reads the cards in play at the stored baseline as having entered play.
+  test("the fold counts every card in play at setup as having entered play", async () => {
+    const campaigns = service();
+    const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    const composed = await campaigns.compose(signed);
+    if (composed.kind !== "done") throw new Error("composing issue #1 asked a question");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    await core.start(campaigns.launchConfig(composed.record));
+    const { initialState } = core.save();
+    const experimental = cardsInPlay(initialState).filter((id) =>
+      (POOL[initialState.instances[id]!.cardId] as { traits?: readonly string[] } | undefined)?.traits?.includes(
+        "EXPERIMENTAL",
+      ),
+    );
+    // Crossbones' setup attaches an Experimental weapon (Exo-Suit at this seed).
+    expect(experimental.length).toBeGreaterThan(0);
+    const entered = enteredPlayAtSetup(initialState).flatMap((event) =>
+      event.type === "triggerEvent" && event.event.kind === "cardEntersPlay" ? [event.event.instanceId] : [],
+    );
+    expect(entered).toEqual(cardsInPlay(initialState));
+    expect(entered).toEqual(expect.arrayContaining(experimental));
   });
 
   // Issue #791: an adjusted game still folds, and marks the run so its completion earns nothing.

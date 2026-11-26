@@ -211,13 +211,9 @@ export function putMainSchemeStageIntoPlay(
   };
   emit(ctx, { type: "mainSchemeStageRevealed", schemeInstanceId: id, stageIndex, playerId });
   return [
-    ...mainSchemeStageFrames(ctx, id, "whenRevealed", ["whenRevealed"], playerId),
-    eventFrame(ctx, {
-      kind: "placeThreat",
-      schemeInstanceId: id,
-      amount: mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme),
-      sourceInstanceId: null,
-    }),
+    // The turn to the B side places the starting threat before that side's When Revealed, as on an advance (RRG 1.8
+    // "Main Scheme", p. 27, step 3).
+    ...mainSchemeStageFrames(ctx, id, "whenRevealed", ["whenRevealed"], playerId, { placeStartingThreat: true }),
   ];
 }
 

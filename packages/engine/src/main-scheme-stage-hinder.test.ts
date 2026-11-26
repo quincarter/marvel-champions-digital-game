@@ -202,10 +202,12 @@ describe("a stage that prints hinder", () => {
     expect(threat(state)).toBe(4);
   });
 
-  it("an advance: the new stage's hinder 3 and its starting threat 2, 5 in all, the old stage's threat gone", () => {
+  it("an advance: the new stage's starting threat 2 and its hinder 3, 5 in all, the old stage's threat gone", () => {
     const after = advance(setUp(PRINTED, 2).state);
     expect(after.state.mainScheme.stageIndex).toBe(1);
-    expect(placements(after.state, after.events)).toEqual([3, 2]);
+    // RRG 1.8 "Main Scheme" (p. 27) step 3 places the starting threat as the stage flips, as setup does; hinder's threat
+    // is "in addition" (RRG 1.8 "Hinder X", p. 22), and both are on before the B side's When Revealed (#1012).
+    expect(placements(after.state, after.events)).toEqual([2, 3]);
     expect(threat(after.state)).toBe(5);
   });
 });

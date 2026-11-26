@@ -97,6 +97,32 @@ describe("Quicksilver kit", () => {
     expect(inst(after, friction).exhausted).toBe(false); // Friction Resistance's own Response readied it too
   });
 
+  it("Friction Resistance: the Response is not offered while the card is ready (GitHub #1012)", () => {
+    const hero = runWave2(qsvVsRhino(), toHero());
+    const { state: withFriction, id: friction } = playFromHand(hero, "14009", 3);
+    const identity = identityOf(withFriction);
+    const villain = withFriction.villains[0]!.instanceId;
+    expect(inst(withFriction, friction).exhausted).toBe(false);
+    const seen: string[] = [];
+    const watching: Picker = (state) => {
+      seen.push(...(state.pendingChoice?.options.map((o) => String(o.optionId)) ?? []));
+      return accepting("14001a.super-speed")(state);
+    };
+    settle(
+      runWave2(withDamage(withFriction, villain, 0), {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: villain,
+      }),
+      watching,
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(seen.some((o) => o.endsWith("14001a.super-speed"))).toBe(true);
+    expect(seen.some((o) => o.endsWith("14009.friction-resistance-response"))).toBe(false);
+  });
+
   it("Superpowered Siblings: discards 2 and draws 2, or 3 if Scarlet Witch is in play (limit once per round)", () => {
     // A discard-from-hand cost is paid up front (`CostChoices`, not a later pendingChoice), so the two discarded
     // cards are named directly in the command.
@@ -155,6 +181,16 @@ describe("Quicksilver kit", () => {
     };
     const { state } = playFromHand(exhausted, "14003", 1);
     expect(inst(state, identity).exhausted).toBe(false);
+  });
+
+  it("Always Be Running: not playable while Quicksilver is ready (RRG 'Event' p. 18; GitHub #1012)", () => {
+    const hero = runWave2(qsvVsRhino(), toHero());
+    const identity = identityOf(hero);
+    expect(inst(hero, identity).exhausted).toBe(false);
+    const given = moveToHand(hero, P1, "14003");
+    const id = given.ids[0]!;
+    const refused = applyCommand(given.state, play(P1, id, payWith(given.state, P1, 1, [id])), WAVE2_DEPS);
+    expect(refused.ok).toBe(false);
   });
 
   it("Double Time: choosing 'deal 2 damage' twice deals 4 total damage to the same enemy (allowRepeat)", () => {

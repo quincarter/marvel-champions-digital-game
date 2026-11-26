@@ -56,7 +56,6 @@ import {
   theMainScheme,
   theVillain,
   thatPlayer,
-  undefendedAttack,
   valueAtLeast,
   valueEquals,
   whenRevealed,
@@ -152,25 +151,27 @@ export const ABSORBING_MAN_SET = defineAbilities({
 
   // Dense Forest / Snowy Hillside / Rocky Outcrop / Abandoned Facility — Surge (data). Forced Response: after
   // Absorbing Man makes an undefended attack against you, a worse effect if 5+ delay counters on the main scheme.
-  // [star] Boost: Put this card into play.
+  // [star] Boost: Put this card into play. "Undefended" is the finished attack's own result, read in the trigger:
+  // `currentAttack` is gone once an attack a treachery made (Swinging Stone, Assault) is over, so the response
+  // used to resolve with no effect (issue #1012).
   "04080.dense-forest-forced-response": forcedResponse(
-    on.villainAttacks({ againstYou: true }),
-    ifThen(undefendedAttack, dealIndirectDamage(you, ifElse(HIGH_DELAY, 2, 1))),
+    on.villainAttacks({ againstYou: true, undefended: true }),
+    dealIndirectDamage(you, ifElse(HIGH_DELAY, 2, 1)),
   ),
   "04080.boost": boost(putIntoPlay(self, firstPlayer)),
   "04081.snowy-hillside-forced-response": forcedResponse(
-    on.villainAttacks({ againstYou: true }),
-    ifThen(undefendedAttack, placeThreat(ifElse(HIGH_DELAY, 2, 1), theMainScheme)),
+    on.villainAttacks({ againstYou: true, undefended: true }),
+    placeThreat(ifElse(HIGH_DELAY, 2, 1), theMainScheme),
   ),
   "04081.boost": boost(putIntoPlay(self, firstPlayer)),
   "04082.rocky-outcrop-forced-response": forcedResponse(
-    on.villainAttacks({ againstYou: true }),
-    ifThen(undefendedAttack, heal(ifElse(HIGH_DELAY, 2, 1), theVillain)),
+    on.villainAttacks({ againstYou: true, undefended: true }),
+    heal(ifElse(HIGH_DELAY, 2, 1), theVillain),
   ),
   "04082.boost": boost(putIntoPlay(self, firstPlayer)),
   "04083.abandoned-facility-forced-response": forcedResponse(
-    on.villainAttacks({ againstYou: true }),
-    ifThen(undefendedAttack, discardFromHand(ifElse(HIGH_DELAY, 2, 1), you, { filter: ANY_RESOURCE })),
+    on.villainAttacks({ againstYou: true, undefended: true }),
+    discardFromHand(ifElse(HIGH_DELAY, 2, 1), you, { filter: ANY_RESOURCE }),
   ),
   "04083.boost": boost(putIntoPlay(self, firstPlayer)),
 

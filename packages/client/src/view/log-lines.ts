@@ -350,6 +350,7 @@ function describe(
     hiddenThenName(id, burst) ??
     swappedOutName(state, id, event, burst) ??
     returnedName(id, event, state, burst) ??
+    openThenName(id, state, burst) ??
     cardName(state, id);
 
   switch (event.type) {
@@ -404,12 +405,48 @@ function describe(
         // A reveal outside the villain phase (a setup reveal) parks the card there for a moment too, but is revealed at
         // once, with no step between: that is a reveal, not a deal, and the reveal's own line follows.
         if (burst && revealedAtOnce(burst, event.instanceId)) return null;
+        // A surge's own line ("X surges, Y is dealt another encounter card") says it, so this would repeat it (#1006 1.4).
+        const dealSource = burst ? dealSourceOf(burst, event.instanceId) : null;
+        if (dealSource === "surge") return null;
+        // A search-and-reveal (Rhino II, The Rose II) parks the card and reveals it in the same breath: not a deal (1.5).
+        if (burst && dealSource === "ability" && searchedAndRevealed(burst, event.instanceId)) return null;
         // The deal a deck running out costs (RRG 1.8 "Player Deck", p. 33) says so: that card is revealed in the next
         // villain phase on top of step 3's, and a bare "dealt a facedown encounter card" left it unexplained (#984).
-        const deckRanOut = burst && dealSourceOf(burst, event.instanceId) === "deckReset";
+        const deckRanOut = dealSource === "deckReset";
+        // A card effect's deal names the effect (#1006 1.5): the defeat or ability it follows in this command.
+        const dealtBy = burst && dealSource === "ability" ? effectDealtBy(burst, card) : null;
         return {
-          text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card${deckRanOut ? ` because ${event.to.playerId === viewer ? "your" : "their"} deck ran out` : ""}.`,
+          text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card${deckRanOut ? ` because ${event.to.playerId === viewer ? "your" : "their"} deck ran out` : ""}${dealtBy ? ` (${dealtBy})` : ""}.`,
           voice: "villain",
+        };
+      }
+      // A card put into play from the encounter discard (Hot Pursuit, The Masters of Evil, Masters of Mayhem): without a
+      // line a minion just shows up as a target (#1006 1.3).
+      if (event.from.kind === "encounterDiscard" && event.to.kind === "playArea") {
+        const engages = cardOf(state, event.instanceId)?.type === "minion";
+        return {
+          text: `${card(event.instanceId)} is put into play from the encounter discard${engages ? ` and engages ${who(event.to.playerId)}` : ""}.`,
+          voice: "villain",
+        };
+      }
+      // A player's own deck milled onto its discard (Black Cat's Forced Response): a cost's discard has its own line.
+      if (
+        event.from.kind === "deck" &&
+        event.to.kind === "discard" &&
+        !burst?.events.some(
+          (other) => other.type === "deckDiscardCostSettled" && other.discarded.includes(event.instanceId),
+        )
+      ) {
+        return {
+          text: `${cardIdName(state, event.cardId)} is discarded from the top of ${event.from.playerId === viewer ? "your" : "their"} deck.`,
+          voice: "player",
+        };
+      }
+      // A card taken back from a discard pile (Black Cat adds the [mental] ones): it sat faceup, so it is named.
+      if (event.from.kind === "discard" && event.to.kind === "hand") {
+        return {
+          text: `${cardIdName(state, event.cardId)} goes from ${event.from.playerId === viewer ? "your" : "their"} discard pile to ${event.to.playerId === viewer ? "your" : "their"} hand.`,
+          voice: "player",
         };
       }
       // A card moving into a scenario area: a card that would have gone to a discard pile went there instead (The
@@ -648,9 +685,18 @@ function describe(
     }
     case "damagePrevented":
       return {
-        text: `${card(event.targetInstanceId)} took 0 damage.`,
+        // "Cannot be dealt damage" (The Red House on Red Skull): without the reason an overkill into it reads as a bug.
+        text: `${card(event.targetInstanceId)} took 0 damage${event.reason === "cannotTakeDamage" ? ": it cannot take damage" : ""}.`,
         // "Tough" is the only prevention with a token to strike through.
         ...(event.reason === "tough" ? { tags: [{ status: "tough", spent: true } as const] } : {}),
+        voice: "player",
+      };
+    // Damage put on a card without being dealt (Armored Rhino Suit takes Rhino's damage instead): #1006 1.3. A manual
+    // adjustment (no source) has its own line.
+    case "damagePlaced":
+      if (event.sourceInstanceId === null) return null;
+      return {
+        text: `${event.amount} damage is placed on ${card(event.targetInstanceId)}${event.sourceInstanceId === event.targetInstanceId ? "" : ` by ${card(event.sourceInstanceId)}`}.`,
         voice: "player",
       };
     case "tokensDiscarded":
@@ -863,6 +909,10 @@ function describe(
     case "statusGiven":
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };
     case "statusRemoved":
+      // The `damagePrevented` just before already says "took 0 damage" with the tough chip (#1006 1.4).
+      if (event.reason === "preventedDamage" && event.status === "tough" && toughAlreadyTold(burst, event.instanceId)) {
+        return null;
+      }
       return {
         text: statusRemovedText(
           event.reason,
@@ -872,6 +922,26 @@ function describe(
         tags: [{ status: event.status, spent: true }],
         voice: event.reason === "cancelledAttack" || event.reason === "cancelledSchemeOrThwart" ? "villain" : "player",
       };
+    // Every attack starts one of these; the villain phase's own is worded by `enemyActivated`, so only one that follows
+    // another attack of the same enemy (Hydra Jet-Trooper's "attacks you after this activation") needs a line (#1006 1.3).
+    case "triggerEvent": {
+      const started = event.event;
+      if (event.phase !== "initiated" || started.kind !== "enemyAttack" || !burst) return null;
+      const began = attackBegan(burst, started.enemyInstanceId, started.attackedPlayerId);
+      if (began === "ownActivation") return null;
+      return {
+        text: `${card(started.enemyInstanceId)} attacks ${who(started.attackedPlayerId)}${began === "again" ? " again" : ""}.`,
+        voice: "villain",
+      };
+    }
+    case "activationSkipped": {
+      if (event.reason !== "playerEliminated" || event.activation !== "attack") return null;
+      const eliminated = eliminatedTargetOf(burst, event.enemyInstanceId);
+      return {
+        text: `The attack ends: ${eliminated ? `${who(eliminated)} ${verb(eliminated, "were", "was")}` : "a player was"} eliminated.`,
+        voice: "villain",
+      };
+    }
     case "enemyActivated":
       return {
         text: `${card(event.enemyInstanceId)} ${event.activation === "attack" ? "attacks" : "schemes against"} ${who(event.playerId)}.`,
@@ -1212,7 +1282,24 @@ function describe(
         voice: "scenario",
       };
     case "cardDiscardedFromPlay":
+      // A Temporary card's own line says it is discarded; "left play" would be a third (#1006 1.4).
+      if (
+        burst?.events.some(
+          (e) => e.type === "keywordResolved" && e.keyword === "temporary" && e.instanceId === event.instanceId,
+        )
+      ) {
+        return null;
+      }
       return { text: `${card(event.instanceId)} left play.`, voice: "player" };
+    // A draw a card effect makes (Unflappable's response): the hand refill and the turn's draws have their own lines.
+    case "cardDrawn": {
+      const drawn = drawRunBy(burst, event.playerId);
+      if (!drawn) return null;
+      return {
+        text: `${who(event.playerId)} ${verb(event.playerId, "draw", "draws")} ${drawn === 1 ? "a card" : `${drawn} cards`}.`,
+        voice: "player",
+      };
+    }
     // "Treat the next card you spend as if it has double the resources" (yondu-dh Jackpot!): why it counted for more.
     case "spentCardDoubled":
       return {
@@ -1293,6 +1380,12 @@ function describe(
         };
       }
       if (!short) return null;
+      // Temporary's own `keywordResolved` line says it (#1006 1.4).
+      if (String(event.abilityId) === "keyword:temporary") return null;
+      // "Remove each energy counter" (Bishop) is labelled with a stand-in count, and the `counterRemoved` beside it says
+      // how many really came off (#1006 1.4): that line stays, the label drops its counter clause.
+      const label = withoutCounterClause(short, event.instanceId, burst);
+      if (!label) return null;
       // A Special that blanked a text box (Blizzard) names whose, from the lasting effect it just added.
       // A per-player blank (`forPlayers`) is blank to those players only, and the line says whose.
       const blanked = blankedBy(burst, state, event.instanceId);
@@ -1301,7 +1394,7 @@ function describe(
         : "";
       const blankedNote =
         blanked.targets.length > 0 ? `: ${blanked.targets.map(card).join(", ")} has a blank text box${forWhom}` : "";
-      return { text: `${card(event.instanceId)} — ${short}${blankedNote}.`, voice: "player" };
+      return { text: `${card(event.instanceId)} — ${label}${blankedNote}.`, voice: "player" };
     }
 
     // Forced Actions still owed when the last turn ended (RRG 1.8 "Action", p. 6): each is put to its player before the
@@ -1826,13 +1919,18 @@ function describe(
         voice: "player",
       };
     // A card spent from a hand that is not the acting player's, while a card is played or an ability used: another
-    // player is helping pay (an Alliance card, Coordinated Effort's "any player may help pay"). Every other hand
-    // discard (a cost the player pays, an effect) stays silent here, as it always did.
+    // player is helping pay (an Alliance card, Coordinated Effort's "any player may help pay"). Read from this
+    // command's own events (issue #1006 1.1): a payment's discards sit right before the `cardPlayed` / `abilityResolved`
+    // of the paying player, so a discard by another seat there is help. Every other hand discard (a cost the player
+    // pays, an effect such as Hunted by Hydra) stays silent here, as it always did; a mulligan's discards read as one.
     case "cardDiscardedFromHand": {
-      const step = state.step;
-      const active = step.phase === "player" && step.kind === "turn" ? step.activePlayerId : null;
-      const paying = burst?.events.some((other) => other.type === "cardPlayed" || other.type === "abilityResolved");
-      if (!paying || active === null || event.playerId === active) return null;
+      if (inMulligan(burst)) {
+        return {
+          text: `${who(event.playerId)} ${verb(event.playerId, "discard", "discards")} ${card(event.instanceId)} in the mulligan.`,
+          voice: "player",
+        };
+      }
+      if (!helpedPay(burst, event.instanceId)) return null;
       return {
         text: `${who(event.playerId)} ${verb(event.playerId, "discard", "discards")} ${card(event.instanceId)} to help pay.`,
         voice: "player",
@@ -1983,6 +2081,245 @@ function discardedThenName(id: InstanceId, burst: Burst | undefined, state: Game
     .slice(0, burst.at)
     .find((e) => e.type === "cardMoved" && e.instanceId === id && e.to.kind === "encounterDiscard");
   return moved?.type === "cardMoved" ? cardIdName(state, moved.cardId) : null;
+}
+
+/** Zones whose cards every player sees faceup (a card in one is named by its face). */
+const OPEN_ZONES: ReadonlySet<string> = new Set([
+  "playArea",
+  "villainArea",
+  "scenarioArea",
+  "scenarioPlayArea",
+  "attachment",
+  "scenarioDiscard",
+  "separateDiscard",
+  "encounterDiscard",
+  "discard",
+  "resolving",
+]);
+
+const ENTERS_PLAY: ReadonlySet<string> = new Set(["playArea", "villainArea"]);
+const HIDDEN_SOURCES: ReadonlySet<string> = new Set(["deck", "encounterDeck", "discard"]);
+
+/** Whether a defeat or leave-play event for `id` sits within the 3 events before index `at`. */
+function leftPlayJustBefore(burst: Burst, at: number, id: InstanceId): boolean {
+  for (let i = at - 1; i >= Math.max(0, at - 3); i--) {
+    const e = burst.events[i]!;
+    if ((e.type === "characterDefeated" || e.type === "cardDiscardedFromPlay") && e.instanceId === id) return true;
+  }
+  return false;
+}
+
+/** Zones a card can be moved into facedown with no other event saying so (so being there proves nothing). */
+const FACEDOWN_CAPABLE: ReadonlySet<string> = new Set(["scenarioArea", "attachment"]);
+
+/**
+ * The name of a card that was faceup at the moment of the event being described, though the state after the command
+ * holds it hidden (dealt facedown on defeat, shuffled back into the encounter deck after a reveal, discarded from the
+ * deck and then reset into it; issue #1006 section 1.2). Read from the command's own events: the nearest reveal or move
+ * of the card at or before the event says where it was then (none: the first move after it says where it came from). A
+ * card dealt facedown and never revealed finds no open zone and stays unnamed. Only a card the state still hides is
+ * looked up, so every card that reads fine keeps its name.
+ */
+function openThenName(id: InstanceId, state: GameState, burst: Burst | undefined): string | null {
+  if (!burst) return null;
+  const instance = state.instances[id];
+  if (!instance || instance.facedownAs || faceVisible(state, id)) return null;
+  for (let i = Math.min(burst.at, burst.events.length - 1); i >= 0; i--) {
+    const earlier = burst.events[i]!;
+    if (earlier.type === "encounterCardRevealed" && earlier.instanceId === id) return cardIdName(state, earlier.cardId);
+    // A card turned facedown in play, or played from a hand (an Ultron Drone is a player card in play facedown), is
+    // not one the table has seen.
+    if (earlier.type === "cardTurnedFacedown" && earlier.instanceId === id) return null;
+    if (earlier.type === "cardMoved" && earlier.instanceId === id) {
+      // A facedown move into a scenario area or onto a card (`moveCardsTo` / `attachCard` with `facedown`) leaves no
+      // other mark, so it names the card only when it came from an open zone; else keep looking for a reveal.
+      if (FACEDOWN_CAPABLE.has(earlier.to.kind) && !OPEN_ZONES.has(earlier.from.kind)) continue;
+      // Into play from a deck or discard: it may have entered facedown (an Ultron Drone, a controlled minion).
+      if (ENTERS_PLAY.has(earlier.to.kind) && HIDDEN_SOURCES.has(earlier.from.kind)) continue;
+      return OPEN_ZONES.has(earlier.to.kind) && !(earlier.to.kind === "playArea" && earlier.from.kind === "hand")
+        ? cardIdName(state, earlier.cardId)
+        : null;
+    }
+  }
+  for (let i = burst.at + 1; i < burst.events.length; i++) {
+    const later = burst.events[i]!;
+    if (later.type === "cardMoved" && later.instanceId === id) {
+      if (FACEDOWN_CAPABLE.has(later.from.kind) || !OPEN_ZONES.has(later.from.kind)) return null;
+      // A card in play may be facedown (a Drone): only a leave-play event right before its move shows it was faceup.
+      if (ENTERS_PLAY.has(later.from.kind) && !leftPlayJustBefore(burst, i, id)) return null;
+      return cardIdName(state, later.cardId);
+    }
+  }
+  return null;
+}
+
+/** Whether the event at `burst.at` belongs to a mulligan: the setup mulligan step is left later in the same command. */
+function inMulligan(burst: Burst | undefined): boolean {
+  if (!burst) return false;
+  return burst.events
+    .slice(burst.at + 1)
+    .some((e) => e.type === "stepChanged" && e.from.phase === "setup" && e.from.kind === "mulligan");
+}
+
+/**
+ * Whether a hand discard helps another player pay: the engine commits a payment with a `paymentCommitted` after the
+ * discards it lists (`fromHand`, each with its `spenderId`) and before the play, so a listed card whose spender is not
+ * the player paying is help. A discard no payment lists (a cost the player pays alone elsewhere, an effect) is not.
+ */
+function helpedPay(burst: Burst | undefined, instanceId: InstanceId): boolean {
+  if (!burst) return false;
+  for (let i = burst.at + 1; i < burst.events.length; i++) {
+    const next = burst.events[i]!;
+    if (next.type === "paymentCommitted") {
+      const entry = next.fromHand.find((held) => held.instanceId === instanceId);
+      if (entry) return entry.spenderId !== next.playerId;
+    }
+    if (next.type === "stepChanged") return false;
+  }
+  return false;
+}
+
+/**
+ * How the enemy's attack at `burst.at` began: `ownActivation` (an `enemyActivated` for it is the nearest marker, and
+ * words it), `again` (the same enemy attacked the same player earlier in this step), or `effect` (a card's attack, which
+ * emits no activation of its own).
+ */
+function attackBegan(burst: Burst, enemyId: InstanceId, playerId: PlayerId): "ownActivation" | "again" | "effect" {
+  let marker: "ownActivation" | "again" | "effect" | null = null;
+  for (let i = burst.at - 1; i >= 0; i--) {
+    const earlier = burst.events[i]!;
+    if (earlier.type === "stepChanged") break;
+    if (
+      marker === null &&
+      earlier.type === "enemyActivated" &&
+      earlier.enemyInstanceId === enemyId &&
+      earlier.playerId === playerId
+    ) {
+      marker = "ownActivation";
+    }
+    if (
+      earlier.type === "triggerEvent" &&
+      earlier.phase === "initiated" &&
+      earlier.event.kind === "enemyAttack" &&
+      earlier.event.enemyInstanceId === enemyId &&
+      earlier.event.attackedPlayerId === playerId
+    ) {
+      return marker === "ownActivation" ? "ownActivation" : "again";
+    }
+  }
+  return marker ?? "effect";
+}
+
+/** Whether a `damagePrevented` (tough) for this target came just before the event at `burst.at`. */
+function toughAlreadyTold(burst: Burst | undefined, target: InstanceId): boolean {
+  if (!burst) return false;
+  for (let i = burst.at - 1; i >= Math.max(0, burst.at - 3); i--) {
+    const earlier = burst.events[i]!;
+    if (earlier.type === "damagePrevented" && earlier.reason === "tough" && earlier.targetInstanceId === target) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** The player an ended attack was aimed at, from the nearest earlier elimination or activation of `enemyId`. */
+function eliminatedTargetOf(burst: Burst | undefined, enemyId: InstanceId): PlayerId | null {
+  if (!burst) return null;
+  for (let i = burst.at - 1; i >= 0; i--) {
+    const earlier = burst.events[i]!;
+    if (earlier.type === "playerEliminated") return earlier.playerId;
+    if (earlier.type === "enemyActivated" && earlier.enemyInstanceId === enemyId) return earlier.playerId;
+  }
+  return null;
+}
+
+/** The deal of `id` is followed, in the same command and step, by its reveal: a search, not a deal for the reveal step. */
+function searchedAndRevealed(burst: Burst, id: InstanceId): boolean {
+  for (let i = burst.at + 1; i < burst.events.length; i++) {
+    const next = burst.events[i]!;
+    if (next.type === "encounterCardRevealed" && next.instanceId === id) return true;
+    if (next.type === "stepChanged" || next.type === "roundStarted" || next.type === "turnStarted") return false;
+    if (next.type === "cardMoved" && next.instanceId === id && next.from.kind === "dealtEncounter") return false;
+  }
+  return false;
+}
+
+/** What an effect-dealt encounter card followed: the defeat or ability just before it, named; null when none is found. */
+function effectDealtBy(burst: Burst, card: (id: InstanceId) => string): string | null {
+  for (let i = burst.at - 1; i >= Math.max(0, burst.at - 40); i--) {
+    const earlier = burst.events[i]!;
+    if (earlier.type === "stepChanged") return null;
+    if (earlier.type === "schemeDefeated" || earlier.type === "characterDefeated") {
+      return `${card(earlier.instanceId)} was defeated`;
+    }
+    if (earlier.type === "abilityResolved" || earlier.type === "cardPlayed") return `by ${card(earlier.instanceId)}`;
+  }
+  return null;
+}
+
+/**
+ * Whether the draw at `burst.at` runs inside a stack frame, which is what tells a card effect's draw from the
+ * opening hands, the mulligan's refill and a turn's refill (the flow draws those with no frame open). The frame may
+ * have been pushed by an earlier command (Avengers Mansion: the ability, then the target choice answered later), so
+ * a frame popped after the draw with no push before it in this burst counts too. A step change ends the search both
+ * ways: a frame never spans one.
+ */
+function drawsInsideFrame(burst: Burst): boolean {
+  let depth = 0;
+  for (let i = burst.at - 1; i >= 0; i--) {
+    const e = burst.events[i]!;
+    if (e.type === "stepChanged") break;
+    if (e.type === "framePopped") depth++;
+    else if (e.type === "framePushed") {
+      if (depth === 0) return true;
+      depth--;
+    }
+  }
+  depth = 0;
+  for (let i = burst.at + 1; i < burst.events.length; i++) {
+    const e = burst.events[i]!;
+    if (e.type === "stepChanged") break;
+    if (e.type === "framePushed") depth++;
+    else if (e.type === "framePopped") {
+      if (depth === 0) return true;
+      depth--;
+    }
+  }
+  return false;
+}
+
+/**
+ * How many cards `playerId` draws in the run of draws that starts at `burst.at`, when a card effect is making them
+ * (the draw sits inside a stack frame; see `drawsInsideFrame`); 0 for every draw after the run's first and for a draw
+ * no card effect made (the opening hands, a mulligan's or a turn's refill have their own lines).
+ */
+function drawRunBy(burst: Burst | undefined, playerId: PlayerId): number {
+  if (!burst) return 0;
+  const sameDraw = (e: GameEvent): boolean => e.type === "cardDrawn" && e.playerId === playerId;
+  const gap = (e: GameEvent): boolean =>
+    e.type === "cardMoved" || e.type === "framePushed" || e.type === "framePopped" || e.type === "triggerEvent";
+  for (let i = burst.at - 1; i >= 0; i--) {
+    const earlier = burst.events[i]!;
+    if (sameDraw(earlier)) return 0;
+    if (!gap(earlier)) break;
+  }
+  if (!drawsInsideFrame(burst)) return 0;
+  let count = 1;
+  for (let i = burst.at + 1; i < burst.events.length; i++) {
+    const next = burst.events[i]!;
+    if (sameDraw(next)) count++;
+    else if (!gap(next)) break;
+  }
+  return count;
+}
+
+/** A label without its "remove N <type> counter(s)" clause when a `counterRemoved` of that card in the command says it. */
+function withoutCounterClause(label: string, instanceId: InstanceId, burst: Burst | undefined): string {
+  if (!burst?.events.some((e) => e.type === "counterRemoved" && e.instanceId === instanceId)) return label;
+  return label
+    .split(", ")
+    .filter((part) => !/^remove (\d+|X) [\w-]+ counters?$/.test(part))
+    .join(", ");
 }
 
 /** A card's printed name from its id; only for cards an event has already made open to every player. */

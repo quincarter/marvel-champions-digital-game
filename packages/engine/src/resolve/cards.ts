@@ -765,6 +765,12 @@ export function buildScenarioDeck(
     if (piles.discardPile !== "encounter" && piles.discardByTrait === undefined)
       updateInstance(ctx, id, (i) => ({ ...i, home: { kind: "scenarioDeck", name } }));
   }
+  // A card of the deck already in play when it is built (The Red House, put into play by The Rise of Red Skull's Setup
+  // just before its side-scheme deck is made) belongs to it too: "When a side-scheme is defeated or otherwise discarded,
+  // place it in the side-scheme discard pile" (MC10 p. 15), not the encounter discard pile (issue #1012).
+  if (piles.discardPile !== "encounter" && piles.discardByTrait === undefined)
+    for (const id of ctx.state.villainArea)
+      if (matches(id)) updateInstance(ctx, id, (i) => ({ ...i, home: { kind: "scenarioDeck", name } }));
   shuffleScenarioDeck(ctx, name);
   // "The top card of this deck is in play" (MC50 p. 13; docs/phase7-wave9.md §3.17): it enters play as the deck is made.
   settleScenarioDeckTops(ctx);

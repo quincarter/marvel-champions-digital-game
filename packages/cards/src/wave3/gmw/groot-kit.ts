@@ -179,10 +179,12 @@ export const GROOT_KIT = defineAbilities({
 
   // Starhawk — Interrupt: When Starhawk takes damage exactly equal to his remaining hit points, return him to
   // your hand. "Exactly equal" is checked before the damage lands (the interrupt window), against Starhawk's own
-  // then-current remaining hit points.
+  // then-current remaining hit points. The condition is the interrupt's own `while`, so it is only offered when it
+  // applies (GitHub #1012 §3).
   "16012.starhawk-interrupt": interrupt(
     on.damage("self"),
-    ifThen(valueEquals(eventAmount, remainingHpOf(self)), moveCards(cards(self), "hand")),
+    { while: valueEquals(eventAmount, remainingHpOf(self)) },
+    moveCards(cards(self), "hand"),
   ),
 
   // Desperate Defense (16013) reprints Core/wave 1's own Desperate Defense (`drs` 09015) verbatim — aliased by

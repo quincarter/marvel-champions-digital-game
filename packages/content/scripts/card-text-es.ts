@@ -112,6 +112,44 @@ const same = (a: string, b: string): boolean => a.trim().toLowerCase() === b.tri
 const SPANISH_MATCHES_CORRECTED_ENGLISH = new Set(["12028"]);
 
 /**
+ * Words MarvelCDB's Spanish drops, or leaves in English, put back: `[code, as MarvelCDB words it, as the card means it]`.
+ * The number check cannot see these (no digits differ). The run stops when a phrase is no longer there, so a fix on
+ * MarvelCDB's side is noticed and the entry removed. Add one only after reading the Spanish against the English card.
+ * - 60100 Conversion: "Attached minion's SCH is equal to its base THW"; the Spanish says only "su INT" (issue #995).
+ * - 60189 Traffic Jam: the second bullet keeps "from a scheme" in English (issue #995).
+ * - 48027 Azazel: "Kurt Wagner player" keeps an English word.
+ * - 60069 Raising the Stakes: "Otherwise, shuffle this card" reads "De no ser posible" (if that is not possible), so a
+ *   nonlethal attack would seem to keep the card in play; also "atque" for "ataque" (issue #995, Codex review).
+ */
+const SPANISH_TEXT_CORRECTIONS: readonly (readonly [string, string, string])[] = [
+  ["60100", "es igual a su INT y", "es igual a su INT básica y"],
+  [
+    "60189",
+    "Quitar Amenaza from a scheme, en vez de eso Amenaza se quita",
+    "Quitar Amenaza de un Plan, en vez de eso la Amenaza se quita",
+  ],
+  ["48027", "Kurt Wagner player como", "Kurt Wagner como"],
+  ["60069", "Si este atque derrota", "Si este ataque derrota"],
+  ["60069", "De no ser posible, devuelve esta carta", "En caso contrario, devuelve esta carta"],
+];
+
+/**
+ * MarvelCDB marks a trait in rules text `[[Trait]]`, which ingestion prints as the bare word; its Spanish sometimes loses
+ * one bracket of the pair ("[[Místico]", "[ilusión]]"), which `toPlainText` leaves and Inspect would show as stray
+ * brackets. A half-pair is read as the trait marker it is: the bare word, as the English prints it. Icons (`[mental]`)
+ * have single brackets and are left alone.
+ */
+const balancedTraits = (text: string): string =>
+  text.replace(/\[\[([^[\]]+)\]\]?|(?<!\[)\[([^[\]]+)\]\]/g, (_m, a?: string, b?: string) => a ?? b ?? "");
+
+const correctedSpanish = (code: string, text: string): string =>
+  SPANISH_TEXT_CORRECTIONS.filter(([at]) => at === code).reduce((fixed, [, from, to]) => {
+    if (!fixed.includes(from))
+      throw new Error(`${code}: "${from}" is no longer in MarvelCDB's Spanish; drop the correction`);
+    return fixed.replace(from, to);
+  }, text);
+
+/**
  * The data's printed English for `code`: the card's own top-level `text.printed` (4-space indent), searched only within
  * its own record (up to the next `id: cardId(`), so a nested ability's `printed` or the next card's is never read. A
  * double-sided card's other face is not looked up: list single-face cards only.
@@ -142,16 +180,20 @@ const correctedEnglish = (code: string): string => {
 
 const es = readCards(path.join(RAW, "es"));
 const en = readCards(RAW);
+// Faces MarvelCDB's English API lacks (Fear No Evil's encounter cards) were transcribed from scans into the curation's
+// `addedRecords`, which `export-added-records` writes here in the cache's own shape: their English is what the card
+// data prints, so a Spanish face is checked and fingerprinted against it like any other (issue #995).
+const transcribed = readCards(path.join(root, "packages/content/raw/hallofheroes"));
 const entries: [string, Record<string, string>][] = [];
 for (const [code, card] of es) {
   if (!poolCodes.has(code)) continue;
-  // A face the English cache lacks (Fear No Evil's records transcribed from scans, not in raw/marvelcdb/fne.json) has
-  // nothing to compare with: every Spanish field is kept, and one MarvelCDB left in English only repeats the English.
-  const english: RawCard = en.get(code) ?? { code };
+  // A face with no English record at all has nothing to compare with: only its name is kept, and one MarvelCDB left in
+  // English only repeats the English.
+  const english: RawCard = en.get(code) ?? transcribed.get(code) ?? { code };
   const fields: Record<string, string> = {};
   const name = (card.name ?? "").trim();
   if (name && !same(name, english.name ?? "")) fields.n = name;
-  const text = plain(card.text);
+  const text = correctedSpanish(code, balancedTraits(plain(card.text)));
   const englishText = plain(english.real_text ?? english.text);
   // A translation whose numbers disagree may be another card's text, flavor and all: the face keeps only its name.
   const wrong = text !== "" && englishText !== "" && !sameNumbers(text, englishText);
