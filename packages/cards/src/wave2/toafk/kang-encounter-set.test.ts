@@ -21,7 +21,7 @@ import {
 } from "../../testing/harness.js";
 import { moondragonAttack } from "../../testing/enemy-attacks-enemy.js";
 import { conjure, DEPS as PLAYABLE, playOut, rhino, withTrait } from "../../testing/qa-bench.js";
-import { driveEvents } from "../../testing/staging.js";
+import { driveEvents, driveEventsPicking } from "../../testing/staging.js";
 import { engageMinion } from "../../wave3/drax/support.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
@@ -157,6 +157,38 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
     expect(trace.resolved()).toContain("11040.when-revealed");
     expect(prompted).toBe(true);
     expect(controlled(after)).toBe(before - 1);
+  });
+
+  it("Apocryphus (11040) boost: offers only ready characters; with none ready there is nothing to exhaust (RRG 1.8 'Exhausted' p. 18; GitHub #1012)", () => {
+    const hero = runWave2(kangVsHeroes(), toHero());
+    const identity = identityOf(hero);
+    // Deck index 0 is Kang's own boost card.
+    const deckId = Object.keys(hero.encounterDecks)[0]!;
+    const boostId = hero.encounterDecks[deckId]!.deck[0]!;
+    const relabeled = {
+      ...hero,
+      instances: { ...hero.instances, [boostId]: { ...hero.instances[boostId]!, cardId: "11040" as never } },
+    };
+    const offered: string[][] = [];
+    const watching: Picker = (state) => {
+      const choice = state.pendingChoice!;
+      if (choice.prompt.kind === "chooseTarget" && choice.prompt.slot === "char") {
+        offered.push(choice.options.map((o) => String(o.optionId)));
+      }
+      // The hero defends Kang's attack, so it is exhausted when the boost card is turned over.
+      if (choice.prompt.kind === "declareDefender") return [identity];
+      return firstLegal(state);
+    };
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    const { events } = driveEventsPicking(deps, relabeled, watching, endTurn());
+    expect(trace.resolved()).toContain("11040.boost");
+    expect(offered).toEqual([]);
+    // "Give this enemy another boost card" still happens with nothing to exhaust: Kang is dealt a second boost card.
+    const dealt = events.filter((e) => e.type === "boostCardDealt");
+    const first = dealt.findIndex((e) => e.instanceId === boostId);
+    expect(first).toBeGreaterThanOrEqual(0);
+    const kang = dealt[first]!.enemyInstanceId;
+    expect(dealt.slice(first + 1).filter((e) => e.enemyInstanceId === kang).length).toBeGreaterThanOrEqual(1);
   });
 
   it("Weakened (11018): Alter-Ego Action discards a [physical] resource from hand to discard this obligation", () => {

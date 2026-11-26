@@ -21,9 +21,11 @@ import {
   settle,
   stackEncounterDeck,
   toHero,
+  type Picker,
 } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { traceAbilities } from "../../testing/trace.js";
 import { driveEventsPicking } from "../../testing/staging.js";
 import { WAVE6_DEPS } from "../../wave6/index.js";
 import { mansionAttackGame } from "../../wave6/mut_gen/mansion-attack-testing.js";
@@ -82,6 +84,15 @@ describe("Red Skull scenario", () => {
     expect(settled.scenarioDecks["side-scheme deck"]?.deck.length ?? 0).toBeGreaterThan(0);
     expect(settled.villains).toHaveLength(1);
     expect(settled.outcome).toBeNull();
+  });
+
+  // Issue #1012: The Red House is put into play just before the side-scheme deck is built, and still belongs to it, so
+  // it is discarded to the side-scheme discard pile (MC10 p. 15), never the encounter discard pile (where it came back
+  // as a boost card and was dealt again).
+  it("The Red House belongs to the side-scheme deck (its home), which routes its discard to that deck's pile", () => {
+    const start = redSkullVsHeroes();
+    const [redHouse] = instancesOf(start, "04139");
+    expect(start.instances[redHouse!]?.home).toEqual({ kind: "scenarioDeck", name: "side-scheme deck" });
   });
 
   it("Red Skull (I/II/III): gets +1 ATK for each side scheme in play", () => {
@@ -282,6 +293,26 @@ describe("Red Skull scenario", () => {
     const settled = settle(runWave2(hero, endTurn()), firstLegal, undefined, WAVE2_DEPS);
     // With at least one side scheme (The Red House) in play, at least the hero's own identity gets exhausted.
     expect(inst(settled, identity).exhausted).toBe(true);
+  });
+
+  it("Bitter Rival: offers only ready characters; with none ready there is nothing to choose (RRG 1.8 'Exhausted' p. 18; GitHub #1012)", () => {
+    const start = stackEncounterDeck(redSkullVsHeroes(), ADVANCE, "04136");
+    const hero = runWave2(start, toHero());
+    const identity = identityOf(hero);
+    const offered: string[][] = [];
+    const watching: Picker = (state) => {
+      const choice = state.pendingChoice!;
+      if (choice.prompt.kind === "chooseTarget" && choice.prompt.slot === "chars") {
+        offered.push(choice.options.map((o) => String(o.optionId)));
+      }
+      // Rhino-style defense first: the hero defends Red Skull's attack and so is exhausted when Bitter Rival is revealed.
+      if (choice.prompt.kind === "declareDefender") return [identity];
+      return firstLegal(state);
+    };
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    settle(runWith(deps, hero, endTurn()), watching, undefined, deps);
+    expect(trace.resolved()).toContain("04136.when-revealed");
+    expect(offered).toEqual([]);
   });
 
   it("Spreading Lies: places 2 threat on each scheme in play", () => {

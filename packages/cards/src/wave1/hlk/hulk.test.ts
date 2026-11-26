@@ -78,16 +78,12 @@ describe("Hulk / Bruce Banner kit", () => {
     const hero = runHlk(start, toHero());
     const handBefore = playerOf(hero, P1).hand;
     expect(handBefore.length).toBeGreaterThan(0);
-    // `discardFromHand` (non-random) asks which cards to discard (`effects-frame.ts`'s "chooseTarget slot: discard"
-    // path) — min = max = the full hand, so the only legal answer is all of it.
-    const afterEndTurn = runHlk(hero, endTurn());
-    expect(afterEndTurn.pendingChoice?.prompt).toMatchObject({ kind: "chooseTarget", slot: "discard" });
-    expect(afterEndTurn.pendingChoice?.minSelections).toBe(handBefore.length);
-    // Answering it cascades straight through the rest of the "turnEnding" event and the End of Player Phase step
-    // (which redraws a fresh hand up to hand size) to the villain phase's own next real choice, so the hand isn't
+    // Issue #1006: the whole hand goes, so nothing is asked (it used to open a pick of every card in hand). The turn
+    // runs on through the End of Player Phase step (which redraws a fresh hand up to hand size), so the hand isn't
     // observably empty afterward — check the discard pile (which only grows) and that none of the original hand
     // survived, instead of a momentary state the command-based API can't pause on.
-    const after = answer(afterEndTurn, [...handBefore], HLK_DEPS);
+    const after = runHlk(hero, endTurn());
+    expect(after.pendingChoice?.prompt).not.toMatchObject({ kind: "chooseTarget", slot: "discard" });
     expect(playerOf(after, P1).discard).toEqual(expect.arrayContaining([...handBefore]));
     expect(playerOf(after, P1).hand.some((id) => handBefore.includes(id))).toBe(false);
   });

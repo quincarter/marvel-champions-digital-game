@@ -77,7 +77,6 @@ import {
   thatPlayer,
   theVillain,
   threatOn,
-  undefendedAttack,
   valueAtLeast,
   varOf,
   when,
@@ -158,16 +157,14 @@ const proximaForcedInterrupt = () =>
 
 /** "[star] Forced Interrupt: After Corvus Glaive makes an undefended attack, discard the top card of the encounter
  * deck → deal 1 damage to Avenger's Tower for each boost icon on that card." — identical on all three stages.
- * Triggers on every attack of his and gates on `undefendedAttack` (the `absorbing-man.ts`/`wrecker.ts` precedent for
- * "makes an undefended attack", rather than trying to filter it out of the trigger itself). */
+ * The trigger reads "undefended" off the finished attack's own result: `undefendedAttack` (the attack in progress) is
+ * gone once an attack a treachery made is over (issue #1012, the same fix as `absorbing-man.ts`'s environments). */
 const corvusForcedInterrupt = () =>
   forcedResponse(
-    on.enemyAttacks("self"),
-    ifThen(undefendedAttack, [
-      discardEncounterCards(1, { bind: "d" }),
-      countBoostIcons(chosen("d"), "d"),
-      dealDamage(varOf("d.boostIcons"), AVENGERS_TOWER),
-    ]),
+    on.enemyAttacks("self", { undefended: true }),
+    discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
+    dealDamage(varOf("d.boostIcons"), AVENGERS_TOWER),
   );
 
 const towerAtLeast9 = valueAtLeast(damageOn(self), perHero(9));

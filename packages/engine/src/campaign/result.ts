@@ -87,6 +87,23 @@ const enteredPlay = (events: readonly GameEvent[]): readonly InstanceId[] =>
       : [],
   );
 
+/**
+ * Each card moved into a player's hand from anywhere but their deck, with the player whose hand it went into: the
+ * first such move of a card is the one that counts, whoever holds the card later.
+ */
+const takenIntoHand = (events: readonly GameEvent[]): ReadonlyMap<InstanceId, PlayerId> => {
+  const taken = new Map<InstanceId, PlayerId>();
+  for (const event of events)
+    if (
+      event.type === "cardMoved" &&
+      event.to.kind === "hand" &&
+      event.from.kind !== "deck" &&
+      !taken.has(event.instanceId)
+    )
+      taken.set(event.instanceId, event.to.playerId);
+  return taken;
+};
+
 /** MC60 p. 13: "each unique ally and support that was removed from the game". Read off the zone transitions. */
 const removedFromGame = (events: readonly GameEvent[]): readonly InstanceId[] =>
   events.flatMap((event) =>
@@ -127,9 +144,32 @@ function evaluateQuery(
   const context = contextFor(state, playerId, deps);
   switch (query.kind) {
     case "cardsThatEnteredPlay": {
-      const entered = enteredPlay(events);
+      if (!query.orTakenIntoHand) {
+        const entered = enteredPlay(events);
+        const ids = query.distinct ? [...new Set(entered)] : entered;
+        return { kind: "cards", instanceIds: matching(state, ids, query.query, context) };
+      }
+      // A card taken into a hand is credited to the player whose hand it went into (MC10 p. 10's rescued ally), not to
+      // whoever controls it in the final state: a rescued ally one player discarded and another then played is still
+      // the first player's rescue. Such a card is matched without the query's `controller`, which reads the final
+      // state; every other card that entered play is read as before.
+      const taken = takenIntoHand(events);
+      const { controller: _controller, ...rescued } = query.query;
+      // In event order, so the log lists them as they were rescued or played.
+      const entered = events.flatMap((event): readonly InstanceId[] => {
+        if (event.type === "triggerEvent" && event.phase === "resolved" && event.event.kind === "cardEntersPlay")
+          return taken.has(event.event.instanceId) ? [] : [event.event.instanceId];
+        if (event.type === "cardMoved" && event.to.kind === "hand" && taken.get(event.instanceId) === event.to.playerId)
+          return playerId === null || event.to.playerId === playerId ? [event.instanceId] : [];
+        return [];
+      });
       const ids = query.distinct ? [...new Set(entered)] : entered;
-      return { kind: "cards", instanceIds: matching(state, ids, query.query, context) };
+      return {
+        kind: "cards",
+        instanceIds: ids.filter(
+          (id) => getInstance(state, id) && matchesQuery(state, id, taken.has(id) ? rescued : query.query, context),
+        ),
+      };
     }
     case "cardsRemovedFromGame":
       return { kind: "cards", instanceIds: matching(state, removedFromGame(events), query.query, context) };

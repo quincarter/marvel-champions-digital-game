@@ -96,6 +96,21 @@ describe("validatePack", () => {
     expect(issues).toMatch(/abilities\/x.tiny-pack.02.test-rally-action: an attack effect belongs to/);
   });
 
+  // Issue #1012: a keyword grant written as a bare string was ignored without a word.
+  it("rejects a keyword written as a bare string instead of a keyword object", async () => {
+    const issues = messages(
+      await broken((p) => {
+        p.abilities["x.tiny-pack.02.test-rally-action"] = {
+          trigger: { kind: "action" },
+          effects: [
+            { kind: "grantKeywordUntil", keyword: "villainous", target: { kind: "self" }, until: "endOfRound" },
+          ],
+        };
+      }),
+    );
+    expect(issues).toMatch(/test-rally-action: effects\[0\]\.keyword: a keyword is an object/);
+  });
+
   it("rejects a feature the client lacks", async () => {
     const issues = messages(await tinyPack(), { supportedFeatures: ["trigger:action"] });
     expect(issues).toMatch(/uses DSL feature "effect:thwart"/);

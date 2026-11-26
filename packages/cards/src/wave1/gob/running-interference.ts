@@ -2,17 +2,14 @@ import {
   action,
   after,
   alterEgoAction,
-  cards,
-  chooseCards,
-  chosen,
   constant,
   defineAbilities,
   discard,
+  discardFromHand,
   eachPlayer,
   forcedResponse,
   forEachPlayer,
   ifThen,
-  moveCards,
   not,
   placeThreat,
   rule,
@@ -23,7 +20,6 @@ import {
   varAtLeast,
   whenRevealed,
   you,
-  zone,
 } from "../../dsl/index.js";
 
 /**
@@ -47,11 +43,7 @@ export const RUNNING_INTERFERENCE = defineAbilities({
   // simply finds no candidates and skips when the hand has neither, which is "if able" (RRG "cannot" default).
   "02047.tombstone-forced-response": forcedResponse(
     after.enemyAttacks("self", { damagesYou: true }),
-    chooseCards("tossed", zone("hand", you, { filter: { anyPrintedResource: ["mental", "physical"] } }), {
-      min: 1,
-      max: 1,
-    }),
-    moveCards(cards(chosen("tossed")), "discard"),
+    discardFromHand(1, you, { filter: { anyPrintedResource: ["mental", "physical"] } }),
   ),
 
   // All Tied Up — Attach to your identity card (data). Attached character cannot ready or change form.

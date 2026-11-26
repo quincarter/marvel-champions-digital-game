@@ -303,6 +303,18 @@ export type TriggerEventBody =
       readonly playerId: PlayerId;
       /** Damage for an "(attack)" ability; absent/null = the attacker's ATK (a basic attack). */
       readonly amount?: number | null;
+      /**
+       * The first share of a divided basic attack (Wasp's Giant form) whose division is still to be settled: the
+       * division's targets in order, the event frames of every share (this one first), and `evenly` for a mandatory
+       * even split (Bombshell). As this event applies, the shares are checked against the ATK it deals then, and
+       * divided again if that changed (`settleBasicAttackDivision`, `resolve/divided-basic-attack.ts`; issue #1012 §5).
+       * Removed once settled.
+       */
+      readonly divisionToChoose?: {
+        readonly targets: readonly InstanceId[];
+        readonly shareFrameIds: readonly FrameId[];
+        readonly evenly?: true;
+      };
       readonly basic?: boolean;
       readonly overkill?: boolean;
       /** "This attack gains piercing/ranged": keywords this attack has that its attacker need not (`AttackKeyword`). */
@@ -1323,6 +1335,13 @@ export type TriggerEventBody =
       readonly stageIndex: number;
       readonly resolve: readonly ("setup" | "whenRevealed")[];
       readonly playerId: PlayerId;
+      /**
+       * The turn also places the stage's starting threat, read once it is the faceup side, before its `resolve`
+       * abilities: a main scheme advance (RRG 1.8 "Main Scheme", p. 27, step 3: "Flip … place threat on that card equal
+       * to its starting threat value, and resolve any 'When Revealed' ability on that side") and a stage revealed into a
+       * game area. Absent at setup, where step 11 has already placed it (RRG 1.8 Appendix II, p. 51).
+       */
+      readonly placeStartingThreat?: true;
     }
   /**
    * An enemy **would** activate (docs/phase7-wave5.md §3.2): "Hero Interrupt: When an enemy would activate, cancel that

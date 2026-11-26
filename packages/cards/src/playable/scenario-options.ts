@@ -167,6 +167,13 @@ export interface SkirmishOffer {
  *   God of Lies), several villains share the game with no printed rule (RRG 1.8 p. 29's "any one version of the villain"
  *   does not say which), or the villain deck has one version already, so there is nothing to shorten.
  *
+ * A villain chosen at setup by its set (Fear No Evil's Underling villains, MC60 p. 5; issue #995) is one villain, so the
+ * chosen option's stages and victory are read as the scenario's own: `villainSetId`, or the default when it is absent.
+ * A choice keyed by card (Shadowland's Dark Protégé villains) is drawn by the engine at setup, so it offers none.
+ * Every version is offered ("any one version", RRG 1.8 p. 29), even where a later stage leans on a card only an earlier
+ * one finds: Electro III never finds Electric Charge, so it stays set aside and his charge effects do nothing (settled by
+ * the rules expert on PR #1020's review).
+ *
  * A Civil War leader's stage II or IV prints no Setup, and picking it runs none: RRG 1.8 p. 29 removes the other versions
  * at step 8, and step 12c resolves Setup only on the villain in play. A Permanent attachment stays set aside (p. 32),
  * effects naming it do nothing, and the stage's When Revealed still resolves.
@@ -176,13 +183,19 @@ export function skirmishOffer(
     | Pick<Scenario, "villainStages" | "multipleVillains" | "villainOptions" | "victory" | "victoryCondition">
     | undefined,
   modes: PlayModes = {},
+  villainSetId?: string,
 ): SkirmishOffer | null {
   if (!scenario) return null;
   if (scenario.victoryCondition?.skirmish !== undefined || horsemanSidesOffer(scenario, modes) !== null)
     return { versions: [], printed: true };
-  if (scenario.multipleVillains || scenario.villainOptions) return null;
-  if ((scenario.victory ?? "finalVillainStage") !== "finalVillainStage") return null;
-  const [first, last] = scenario.villainStages[modes.expert ? "expert" : "standard"];
+  if (scenario.multipleVillains) return null;
+  const choice = scenario.villainOptions;
+  if (choice && choice.keyedBy === "card") return null;
+  const option = choice?.options.find((candidate) => candidate.villainSetId === (villainSetId ?? choice.defaultSetId));
+  if (choice && !option) return null;
+  const villain = option ?? scenario;
+  if ((villain.victory ?? "finalVillainStage") !== "finalVillainStage") return null;
+  const [first, last] = villain.villainStages[modes.expert ? "expert" : "standard"];
   if (first === last) return null;
   return { versions: Array.from({ length: last - first + 1 }, (_, i) => String(first + i)), printed: false };
 }
@@ -319,6 +332,8 @@ export interface PlayableScenarioChoices {
   readonly houseModularSetIds?: readonly string[];
   /** The main scheme stages picked so far (`CoreScenarioOptions.mainSchemeStageIds`); absent is the recommendation. */
   readonly mainSchemeStageIds?: readonly string[];
+  /** The villain picked at a set-keyed choice (Fear No Evil, `Scenario.villainOptions`); absent is the default. */
+  readonly villainSetId?: string;
 }
 
 export interface PlayableScenarioOffer {
@@ -525,7 +540,7 @@ export function playableScenarioOffer(
   return {
     difficultySets: difficultySetAlternativesFor(scenario),
     horsemanSides: horsemanSidesOffer(scenario, modes),
-    skirmish: skirmishOffer(scenario, modes),
+    skirmish: skirmishOffer(scenario, modes, choices.villainSetId),
     easierStart: offersEasierStart(scenarioId, modes.expert ? "expert" : "standard"),
     genePoolThreat: genePoolThreatOffer(
       [...scenarioGameSetIds(scenario, choices.modularSetIds), ...(choices.houseModularSetIds ?? [])],

@@ -194,13 +194,15 @@ export const RED_SKULL_SET = defineAbilities({
   // Bitter Rival — When Revealed (current, errata RRG 1.8 p. 66): for each side scheme in play, choose and
   // exhaust a character you control. [star] Boost: exhaust a character you control.
   "04136.when-revealed": whenRevealed(
-    chooseTarget("chars", query("character", { controller: "you" }), { count: countOf(query("sideScheme")) }),
+    chooseTarget("chars", query("character", { controller: "you", exhausted: false }), {
+      count: countOf(query("sideScheme")),
+    }),
     exhaust(chosen("chars")),
   ),
   // No "choose": an encounter card targeting one of several eligible cards; the first player selects
   // (RRG 1.8 "First Player", p. 19).
   "04136.boost": boost(
-    chooseTarget("char", query("character", { controller: "you" }), { chooser: firstPlayer }),
+    chooseTarget("char", query("character", { controller: "you", exhausted: false }), { chooser: firstPlayer }),
     exhaust(chosen("char")),
   ),
 

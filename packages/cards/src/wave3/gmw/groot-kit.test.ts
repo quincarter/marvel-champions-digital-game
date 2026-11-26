@@ -306,6 +306,16 @@ describe("Groot kit", () => {
     expect(playerOf(after, P1).hand.length).toBe(handBefore + 1);
   });
 
+  it("Starhawk: the interrupt is not offered when the damage is not exactly his remaining hit points (GitHub #1012)", () => {
+    const { state: withStarhawk } = playFromHand(runWave3(grootVsRhino(), toHero()), "16012", 2);
+    const starhawk = instancesOf(withStarhawk, "16012").find((id) => cardsInPlay(withStarhawk).includes(id))!;
+    // 2 damage on a 3 hit point ally leaves 1 remaining, never what Rhino's attack deals.
+    const hurt = patchInstance(withStarhawk, starhawk, { damage: 2 });
+    const offered = answer(toDeclareDefender(hurt), [starhawk], WAVE3_DEPS);
+    const options = offered.pendingChoice?.options.map((o) => o.optionId) ?? [];
+    expect(options.some((id) => id.endsWith("16012.starhawk-interrupt"))).toBe(false);
+  });
+
   it("Rocket Raccoon (ally): Interrupt, when he attacks a minion, +3 ATK for that attack; that attack gains overkill", () => {
     const { state: withRocket } = playFromHand(runWave3(grootVsRhino(), toHero()), "16019", 3);
     const rocket = instancesOf(withRocket, "16019").find((id) => cardsInPlay(withRocket).includes(id))!;

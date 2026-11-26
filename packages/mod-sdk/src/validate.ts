@@ -210,6 +210,9 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     }
     try {
       for (const problem of validateDefinition(definition as unknown as AbilityDefinition)) add(at, problem);
+      for (const path of bareKeywordsIn(definition)) {
+        add(at, `${path}: a keyword is an object such as { "name": "villainous" }, not a bare string`);
+      }
     } catch (error) {
       add(at, `could not be checked: ${errorText(error)}`);
     }
@@ -911,6 +914,20 @@ function checkFiles(input: PackInput, add: Add): void {
       }
     }
   }
+}
+
+/**
+ * Where an ability gives or names a keyword as a bare string (`"keyword": "villainous"`) instead of a keyword object
+ * (`{ "name": "villainous" }`): the engine reads `keyword.name`, so the grant was ignored without a word (issue #1012,
+ * a community pack's Twisted Allegiance). Every `keyword` field an ability definition holds is a keyword object.
+ */
+function bareKeywordsIn(value: unknown, path = ""): readonly string[] {
+  if (Array.isArray(value)) return value.flatMap((item, i) => bareKeywordsIn(item, `${path}[${i}]`));
+  if (!isObj(value)) return [];
+  return Object.entries(value).flatMap(([key, child]) => {
+    const at = path ? `${path}.${key}` : key;
+    return key === "keyword" && typeof child === "string" ? [at] : bareKeywordsIn(child, at);
+  });
 }
 
 /** Every ability id a card record names, on any face. */

@@ -126,8 +126,10 @@ export default definePackAbilities({
       /abilities\/index\.ts:4:\d+: TS2345: Argument of type '(string|"guard")' is not assignable to parameter of type 'KeywordInstance'/,
     );
     expect((await cli("validate", dir, "--allow-unscripted")).code).toBe(EXIT_PACK_PROBLEM);
-    // --skip-typecheck leaves the check out: the rest of validate does not see the mistake.
-    expect((await cli("validate", dir, "--skip-typecheck")).code).toBe(EXIT_OK);
+    // --skip-typecheck leaves the type check out, but the pack check still catches the bare keyword string (#1012).
+    const skipped = await cli("validate", dir, "--skip-typecheck");
+    expect(skipped.code).toBe(EXIT_PACK_PROBLEM);
+    expect(skipped.err).toMatch(/a keyword is an object/);
   });
 
   it("reports type errors alongside a load failure", async () => {

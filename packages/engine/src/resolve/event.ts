@@ -1,11 +1,17 @@
 /** Event frames (interrupts → apply → responses) and the state change each event kind makes. */
 
 import { declareFriendlyDefender } from "./friendly-attack.js";
+import { settleBasicAttackDivision } from "./divided-basic-attack.js";
 import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
 import { applyStatusBeingGiven, statusGiveNotMade, statusStillToGive } from "./status-being-given.js";
 import { resolveTuck } from "./tuck.js";
-import { endEliminatedAttack, endedByElimination, partOfEliminatedAttack } from "./eliminated-attack.js";
+import {
+  endEliminatedAttack,
+  endedByElimination,
+  endedEnemyAttackPart,
+  partOfEliminatedAttack,
+} from "./eliminated-attack.js";
 import { resolveImminentAttach } from "./imminent-attach.js";
 import { applyCountersBeingPlaced } from "./counters-being-placed.js";
 import { applyWouldDiscard, wouldDiscardNotMade } from "./would-discard.js";
@@ -82,11 +88,13 @@ import {
 } from "../rules.js";
 import {
   actingCharacterOf,
+  ATTACKED_PLAYERS_SLOT,
   cannotBeDefeatedAgain,
   cardsInPlay,
   categoriesOf,
   characterIgnores,
   controllerOf,
+  INITIATED_AGAINST_SLOT,
   isProtectedMainScheme,
   resolveValue,
   sourcePlayerOf,
@@ -190,6 +198,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
     popFrame(ctx);
     return;
   }
+  // The damage an enemy attack queued, not yet dealt, when a player was eliminated (RRG 1.8 p. 34): the attack ends.
+  if (endedEnemyAttackPart(ctx, frame)) return;
   switch (frame.stage) {
     case "interrupts": {
       // A standing "If …, discard this card" took the card out of play the moment it was in play (`fromEntering`,
@@ -395,6 +405,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // and FAQ Spider-Man (#1A) p. 57, "when attacks" interrupts resolve before the Declare Defender step; ruling Oct
       // 26, 2023 (102) allows defending.
       if (declareFriendlyDefender(ctx, frame)) return;
+      // A divided basic attack's first share: its division is settled from the ATK it deals now (issue #1012 §5).
+      if (settleBasicAttackDivision(ctx, frame)) return;
       // With nothing to ask, the step may still have recorded itself on the frame (its slot set, a declined answer
       // cleared): go on from the frame as it now is, so the writes below do not restore the old one.
       const declared =
@@ -993,6 +1005,16 @@ function reportResults(ctx: Ctx, frame: Frame<"event">, happened: boolean): void
   if (happened) {
     const slots: Record<string, readonly InstanceId[]> = {};
     for (const [key, ids] of Object.entries(frame.slots)) slots[`${prefix}.${key}`] = ids;
+    // Who this attack attacked, as it finished: the player it ended up against (a defense by another player moves it
+    // there), and the player it was initiated against, kept apart (`ATTACKED_PLAYERS_SLOT`, `select.ts`). Merged over
+    // every attack the effect made, so "each player who was not attacked this way" reads them all.
+    if (frame.event.kind === "enemyAttack") {
+      const identity = (playerId: PlayerId) => getPlayer(ctx.state, playerId)?.identity.instanceId;
+      const attacked = identity(frame.event.targetPlayerId);
+      const initiated = identity(frame.event.attackedPlayerId);
+      if (attacked) slots[`${prefix}.${ATTACKED_PLAYERS_SLOT}`] = [attacked];
+      if (initiated) slots[`${prefix}.${INITIATED_AGAINST_SLOT}`] = [initiated];
+    }
     addFrameSlots(ctx, frameId, slots);
   }
 }

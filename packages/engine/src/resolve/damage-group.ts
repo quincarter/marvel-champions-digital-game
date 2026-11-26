@@ -25,6 +25,7 @@ import {
   withUsedStat,
 } from "./event.js";
 import { base, type Frame } from "./frames.js";
+import { endedAttackDamageGroup } from "./eliminated-attack.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 
 type DamageEvent = Extract<TriggerEvent, { kind: "dealDamage" }>;
@@ -43,6 +44,8 @@ export const damageGroupFrame = (
 });
 
 export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): void {
+  // An enemy attack's shares, the attack ended by a player's elimination before they were dealt (RRG 1.8 p. 34).
+  if (endedAttackDamageGroup(ctx, frame)) return;
   switch (frame.stage) {
     case "interrupts": {
       const member = frame.members[frame.cursor];

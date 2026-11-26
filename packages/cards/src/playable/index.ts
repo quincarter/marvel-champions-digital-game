@@ -244,7 +244,10 @@ function withPlayModes(
   if (!Number.isInteger(heroic) || heroic < 0) throw new Error(`heroic level ${heroic} is not a whole number`);
   const leveled = heroic > 0 ? { ...built, heroicLevel: heroic } : built;
   if (!modes.skirmish) return leveled;
-  const offer = skirmishOffer(scenario, modes);
+  // RRG 1.8 p. 29 Skirmish: only the chosen version enters play, and only its own When Revealed resolves. A card only
+  // an earlier stage finds stays set aside (Electro III never finds Electric Charge). Settled reading, recorded in
+  // docs/phase7-wave11-scenarios.md §S4.0; do not add the earlier stages' setup back.
+  const offer = skirmishOffer(scenario, modes, options.villainSetId);
   if (!offer) throw new Error(`${scenario?.name ?? "this scenario"} has no skirmish mode`);
   if (offer.printed) return leveled;
   const version = modes.skirmish.villainVersion;

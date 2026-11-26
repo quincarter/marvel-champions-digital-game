@@ -578,7 +578,14 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
                   field: "rescuedAllies",
                   seat: "each",
                   mode: "append",
-                  value: { kind: "cardsThatEnteredPlay", query: { trait: CAPTIVE, controller: "you" } },
+                  // Each ally once (a unique ally played twice was recorded twice), and one rescued into hand and never
+                  // played still counts (issue #1012).
+                  value: {
+                    kind: "cardsThatEnteredPlay",
+                    query: { trait: CAPTIVE, controller: "you" },
+                    distinct: true,
+                    orTakenIntoHand: true,
+                  },
                 },
               ],
             },

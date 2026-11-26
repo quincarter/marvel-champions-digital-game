@@ -19,8 +19,9 @@
  * its own text ("If there is more than 1 player on your team, this stage gains hinder 2[per_hero]", the Civil War
  * stage 1B cards), so they are read once that side is the faceup one: the turn places `keywordTotal(hinder)` as one
  * placement, before the B side's Setup and When Revealed resolve. The stage's starting threat is its own placement
- * (at setup it is already on the stage; on an advance it follows on the stack), so the stage ends with both. Read
- * once, as the stage turns: a stage that gains hinder later, or loses it, has no threat placed or removed for it.
+ * (at setup it is already on the stage; on an advance, or a stage revealed into a game area, the turn places it just
+ * before the hinder, `placeStartingThreat`), so the stage ends with both. Read once, as the stage turns: a stage that
+ * gains hinder later, or loses it, has no threat placed or removed for it.
  */
 
 import type { Ctx } from "../ctx.js";
@@ -28,7 +29,7 @@ import { pushFrames } from "../ctx.js";
 import { updateMainSchemeState } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
-import { mainSchemeStageOf, mainSchemeStateOf } from "../query.js";
+import { mainSchemeStageOf, mainSchemeStateOf, mainSchemeValue } from "../query.js";
 import type { StackFrame } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { eventFrame, gameAbilityFrames } from "./frames.js";
@@ -45,6 +46,7 @@ export function mainSchemeStageFrames(
   aKind: SideAbilityKind,
   bKinds: readonly SideAbilityKind[],
   playerId: PlayerId,
+  options: { readonly placeStartingThreat?: boolean } = {},
 ): readonly StackFrame[] {
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (!scheme) return [];
@@ -57,6 +59,7 @@ export function mainSchemeStageFrames(
       stageIndex: scheme.stageIndex,
       resolve: bKinds,
       playerId,
+      ...(options.placeStartingThreat ? { placeStartingThreat: true as const } : {}),
     }),
   ];
 }
@@ -70,7 +73,22 @@ export function applyMainSchemeTurnsToB(ctx: Ctx, event: Extract<TriggerEvent, {
   if (!scheme || scheme.stageIndex !== event.stageIndex) return;
   updateMainSchemeState(ctx, event.schemeInstanceId, ({ faceupSide: _turned, ...turned }) => turned);
   const hinder = keywordTotal(ctx.state, event.schemeInstanceId, "hinder", ctx.deps);
+  // Step 3's starting threat, read with the B side faceup, goes on before that side's When Revealed resolves (RRG 1.8
+  // "Main Scheme", p. 27), so a When Revealed that counts or removes threat sees it.
+  const turned = mainSchemeStateOf(ctx.state, event.schemeInstanceId);
+  const startingThreat =
+    event.placeStartingThreat && turned ? mainSchemeValue(ctx.state, "startingThreat", ctx.deps, turned) : 0;
   pushFrames(ctx, [
+    ...(event.placeStartingThreat
+      ? [
+          eventFrame(ctx, {
+            kind: "placeThreat",
+            schemeInstanceId: event.schemeInstanceId,
+            amount: startingThreat,
+            sourceInstanceId: null,
+          }),
+        ]
+      : []),
     ...(hinder > 0
       ? [
           eventFrame(ctx, {
