@@ -214,6 +214,16 @@ describe("Wasp pack aggression cards, from She-Hulk (Aggression)'s own deck", ()
     expect(mainThreat(after)).toBe(4);
   });
 
+  it("13013 / 16042 Into the Fray: not playable with no minion in play (RRG 1.8 'Ability' p. 4; GitHub #1012)", () => {
+    for (const code of ["13013", "16042"]) {
+      const { state, id } = openHandFor(code, SHE_HULK);
+      const pay = filler(state, 3, [id]);
+      const result = applyCommand(pay.state, play(P1, id, pay.ids), PLAYABLE_DEPS);
+      expect(result.ok, code).toBe(false);
+      expect(playerOf(pay.state, P1).hand).toContain(id);
+    }
+  });
+
   it("13013.into-the-fray-action: a Hero Action, refused in alter-ego form", () => {
     expectRefusedInAlterEgo("13013", SHE_HULK);
   });

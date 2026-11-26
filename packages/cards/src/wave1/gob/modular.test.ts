@@ -212,6 +212,9 @@ describe("Running Interference", () => {
     expect(inst(round2, identityOf(round2)).damage).toBeGreaterThan(0); // Tombstone's own basic attack (ATK 3), undefended
     expect(playerOf(round2, P1).hand.length).toBeLessThan(handBefore);
     expect(playerOf(round2, P1).discard).toContain(backflip);
+    // Issue #1012: a real discard from hand, so "after you discard" abilities hear it (it used to be a plain move).
+    const { events } = driveEvents(given.state, toHero(), endTurn());
+    expect(events.some((e) => e.type === "cardDiscardedFromHand" && e.instanceId === backflip)).toBe(true);
   });
 });
 
