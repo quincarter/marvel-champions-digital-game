@@ -463,6 +463,20 @@ export class SeatEngineHost implements EngineHost {
       gameId: null,
       ...(snapshot.history ? { history: snapshot.history } : {}),
       ...(snapshot.trail ? { trail: snapshot.trail } : {}),
+      // A catch-up's villain phase, command by command, so the screen replays it with the table at each step (#1017).
+      ...(snapshot.villainPhase
+        ? {
+            villainPhase: {
+              startCommand: snapshot.villainPhase.startCommand,
+              before: { ...snapshot.villainPhase.before, cardPool: pool },
+              commands: snapshot.villainPhase.commands.map((command) => ({
+                events: command.events,
+                states: command.states.map(({ at, state }) => ({ at, state: { ...state, cardPool: pool } })),
+                after: { ...command.after, cardPool: pool },
+              })),
+            },
+          }
+        : {}),
       ...(snapshot.states
         ? { states: snapshot.states.map(({ at, state }) => ({ at, state: { ...state, cardPool: pool } })) }
         : {}),

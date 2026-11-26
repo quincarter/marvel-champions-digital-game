@@ -215,7 +215,7 @@ export const beginsVillainPhase = (events: readonly GameEvent[]): boolean =>
   );
 
 /** A villain phase found in a replay, sealed for the table (`VillainPhaseSeedCore`). */
-const villainPhaseSeedOf = (phase: {
+export const villainPhaseSeedOf = (phase: {
   readonly startCommand: number;
   readonly before: GameState;
   readonly commands: readonly {
