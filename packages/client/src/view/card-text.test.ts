@@ -4,7 +4,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import type { AnyCard } from "@mc/content";
-import { defaultFaceFor, printedFaceCodeOf } from "../art/art-source.js";
+import { defaultFaceFor, printedFaceCodeOf, type CardFace } from "../art/art-source.js";
 import { CARD_TEXT_ES } from "../content/card-text-es.js";
 import { CARDS_BY_ID } from "../content/pool.js";
 import { useEnglish, useSpanish } from "../i18n/test-language.js";
@@ -155,6 +155,76 @@ describe("the Inspect sheet in Spanish", () => {
     expect(front.rulesText).toBe(cardTextDisplayEs(TABLE["26002"]!.t!));
   });
 
+  it("prints the Spanish rules text on Fear No Evil's encounter cards, transcribed from scans (issue #995)", async () => {
+    useSpanish();
+    await loadSpanish();
+    // A villain stage, an attachment, a main scheme's setup side and its scheme side.
+    expect(cardInspectModel(card("60086"), { kind: "villainStage", sideIndex: 0, stageIndex: 0 }).rulesText).toMatch(
+      /Respuesta obligada: después de que Cabeza de Martillo ataque/,
+    );
+    expect(cardInspectModel(card("60089"), { kind: "front" }).rulesText).toMatch(/^Vincula esta carta a Cabeza/);
+    // MarvelCDB leaves "from a scheme" in English on Traffic Jam, and loses a trait bracket on the rescue side schemes;
+    // the generator corrects both (SPANISH_TEXT_CORRECTIONS, balancedTraits).
+    expect(cardInspectModel(card("60189"), { kind: "front" }).rulesText).toContain(
+      "Quitar Amenaza de un Plan, en vez de eso la Amenaza se quita de esta carta.",
+    );
+    for (const [id, trait] of [
+      ["60177", "Místico"],
+      ["60178", "Aéreo"],
+    ] as const) {
+      const text = cardInspectModel(card(id), { kind: "front" }).rulesText;
+      expect(text, id).toContain(`personaje ${trait})`);
+      expect(text, id).not.toMatch(/[[\]]/);
+    }
+    // Raising the Stakes returns to the encounter deck after any attack that defeats no friendly character ("Otherwise"),
+    // not only when removing it is impossible.
+    const stakes = cardInspectModel(card("60069"), { kind: "front" }).rulesText;
+    expect(stakes).toContain("Si este ataque derrota a un personaje amigo");
+    expect(stakes).toContain("En caso contrario, devuelve esta carta al mazo de Encuentros");
+    expect(stakes).not.toContain("De no ser posible");
+    // MarvelCDB drops "base" from Conversion; the generator puts it back (SPANISH_TEXT_CORRECTIONS).
+    expect(cardInspectModel(card("60100"), { kind: "front" }).rulesText).toContain("es igual a su INT básica y");
+    const scheme = card("60121a");
+    expect(cardInspectModel(scheme, { kind: "mainSchemeStage", stageIndex: 0, side: "A" }).rulesText).toMatch(
+      /^Contenido: el Villano Secuaz elegido/,
+    );
+    expect(cardInspectModel(scheme, { kind: "mainSchemeStage", stageIndex: 0, side: "B" }).rulesText).toMatch(
+      /^\S+ X es 1 más que el número de Accesorio Arte vinculados al Villano\./,
+    );
+  });
+
+  it("matches every Fear No Evil encounter face the table translates to the face's own English", async () => {
+    useSpanish();
+    await loadSpanish();
+    const faces = (c: AnyCard): CardFace[] => [
+      ...(c.type === "villain"
+        ? c.sides.flatMap((side, sideIndex) =>
+            side.stages.map((_, stageIndex) => ({ kind: "villainStage" as const, sideIndex, stageIndex })),
+          )
+        : c.type === "main_scheme"
+          ? c.stages.flatMap((_, stageIndex) =>
+              (["A", "B"] as const).map((side) => ({ kind: "mainSchemeStage" as const, stageIndex, side })),
+            )
+          : [{ kind: "front" as const }]),
+    ];
+    const encounter = [...CARDS_BY_ID.values()].filter(
+      (c) => (c.setCode as string) === "fne" && "encounterSetIds" in c,
+    );
+    expect(encounter.length).toBeGreaterThan(100);
+    const english: string[] = [];
+    let translated = 0;
+    for (const c of encounter)
+      for (const face of faces(c)) {
+        const code = printedFaceCodeOf(c, face);
+        const entry = code === null ? undefined : TABLE[code];
+        if (entry?.t === undefined) continue;
+        if (cardInspectModel(c, face).rulesText === cardTextDisplayEs(entry.t)) translated += 1;
+        else english.push(`${code}`);
+      }
+    expect(english).toEqual([]);
+    expect(translated).toBeGreaterThan(100);
+  });
+
   it("shows a flavor only on the face whose English it translates", async () => {
     useSpanish();
     await loadCardText("es", () =>
@@ -206,5 +276,14 @@ describe("Spanish icon words", () => {
     expect(cardTextDisplayEs("Coloca 1[per_hero] de Amenaza. Gasta un recurso [energy] [star] ([rasgos])")).toBe(
       "Coloca 1 por héroe de Amenaza. Gasta un recurso de energía ★ (rasgos)",
     );
+  });
+});
+
+describe("the generated Spanish table", () => {
+  it("has no trait marker left in its brackets, whole or half (issue #995: [[Místico], [ilusión]])", () => {
+    const broken = Object.entries(TABLE)
+      .filter(([, face]) => face.t !== undefined && /\[\[|\]\]/.test(face.t))
+      .map(([code]) => code);
+    expect(broken).toEqual([]);
   });
 });

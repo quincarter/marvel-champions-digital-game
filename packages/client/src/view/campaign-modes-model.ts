@@ -20,9 +20,12 @@ export interface IssueModeRow {
   readonly chips: readonly OptionChip[];
 }
 
-function skirmishOfferFor(scenarioId: string, modes: IssueModes): SkirmishOffer | null {
+/** The villain the issue is played against, where a Fear No Evil issue chose one by its set (`SessionConfig.villainSetId`). */
+type IssueVillain = string | undefined;
+
+function skirmishOfferFor(scenarioId: string, modes: IssueModes, villainSetId: IssueVillain): SkirmishOffer | null {
   try {
-    return playableScenarioOffer(scenarioId, { modes }).skirmish;
+    return playableScenarioOffer(scenarioId, { modes, ...(villainSetId ? { villainSetId } : {}) }).skirmish;
   } catch {
     return null;
   }
@@ -41,11 +44,15 @@ const chipsOf = (row: SetupOptionRow): readonly OptionChip[] => {
 };
 
 /** The Standard/Expert chips, then Heroic, then Skirmish where the scenario offers it. */
-export function issueModeRowsOf(scenarioId: string, modes: IssueModes): readonly IssueModeRow[] {
+export function issueModeRowsOf(
+  scenarioId: string,
+  modes: IssueModes,
+  villainSetId?: IssueVillain,
+): readonly IssueModeRow[] {
   const expert = modes.expert === true;
   const rows = playModeRows(
     { heroicLevel: modes.heroic ?? 0, skirmish: modes.skirmish ?? null },
-    skirmishOfferFor(scenarioId, modes),
+    skirmishOfferFor(scenarioId, modes, villainSetId),
   );
   return [
     {
@@ -62,11 +69,16 @@ export function issueModeRowsOf(scenarioId: string, modes: IssueModes): readonly
 }
 
 /** Applies one chip's action; a skirmish version the new difficulty does not use moves to the first one it does. */
-export function applyIssueMode(scenarioId: string, modes: IssueModes, action: string): IssueModes {
-  const offer = skirmishOfferFor(scenarioId, modes);
+export function applyIssueMode(
+  scenarioId: string,
+  modes: IssueModes,
+  action: string,
+  villainSetId?: IssueVillain,
+): IssueModes {
+  const offer = skirmishOfferFor(scenarioId, modes, villainSetId);
   if (action === "expert:on" || action === "expert:off") {
     const next: IssueModes = { ...withoutExpert(modes), ...(action === "expert:on" ? { expert: true as const } : {}) };
-    const skirmish = reconcileSkirmish(next.skirmish, skirmishOfferFor(scenarioId, next));
+    const skirmish = reconcileSkirmish(next.skirmish, skirmishOfferFor(scenarioId, next, villainSetId));
     const { skirmish: _old, ...rest } = next;
     return { ...rest, ...(skirmish ? { skirmish } : {}) };
   }
