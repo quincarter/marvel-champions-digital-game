@@ -10,9 +10,10 @@
  * proving the eviction and listener-cleanup logic without a DOM.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CardArt } from "./card-art.js";
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
+import { packFileArt, releasePackArt, resetPackArt, setPackArt } from "./pack-art.js";
 
 type Size = { readonly width: number; readonly height: number };
 type Listener = (...args: unknown[]) => void;
@@ -74,7 +75,10 @@ class FakeLoader {
   readonly files = new Map<string, { key: string; addToCache: () => void }>();
   #loading = false;
   constructor(private readonly textures: FakeTextures) {}
+  /** The URL each file was asked for, in order. */
+  readonly urls: string[] = [];
   image(key: string, url: string): void {
+    this.urls.push(url);
     this.#queue.push({ key, url });
     const file = { key, addToCache: () => this.textures.materialize(key) };
     this.files.set(key, file);
@@ -309,5 +313,58 @@ describe("CardArt residency budget", () => {
     // 500 distinct scans at ~2.9 MB each is ~1.4 GB unbounded; capped residency
     // must stay at or under budget regardless of how many keys were ever asked for.
     expect(art.residentBytes()).toBeLessThanOrEqual(256 * 1024 * 1024);
+  });
+});
+
+describe("CardArt with a pack picture held across an eviction", () => {
+  it("loads the fresh blob URL, not the revoked one a slot still holds", async () => {
+    vi.useFakeTimers();
+    try {
+      let issued = 0;
+      const revoked: string[] = [];
+      setPackArt(
+        [],
+        {
+          objectUrl: async (id, path) => `blob:test/${id}/${path}#${++issued}`,
+          revoke: (id, path) => void revoked.push(`${id}/${path}`),
+        },
+        [
+          {
+            id: "demo",
+            version: "1",
+            kind: "hero",
+            languages: { base: "en", available: ["en"] },
+            cover: "cover.webp",
+            files: [{ path: "cover.webp", bytes: 1, sha256: "" }],
+          } as never,
+        ],
+      );
+      packFileArt("demo", "cover.webp");
+      await vi.advanceTimersByTimeAsync(200);
+      const held = packFileArt("demo", "cover.webp")!;
+      expect(held.url).toBe("blob:test/demo/cover.webp#1");
+
+      const art = new CardArt();
+      const scene = new FakeScene() as unknown as import("phaser").Scene;
+      const raw = scene as unknown as FakeScene;
+      // The cache evicts the texture and revokes its URL, as it does when over budget.
+      releasePackArt(held.key);
+      expect(revoked).toEqual(["demo/cover.webp"]);
+
+      // Asking with the old source must not queue the revoked URL; the fresh one is being read.
+      expect(art.request(scene, held)).toBeNull();
+      raw.load.start();
+      expect(raw.load.urls).toEqual([]);
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(art.request(scene, held)).toBeNull();
+      raw.load.start();
+      expect(raw.load.urls).toEqual(["blob:test/demo/cover.webp#2"]);
+      expect(art.isMissing(held.key)).toBe(false);
+      expect(art.request(scene, held)).toBe(held.key);
+    } finally {
+      resetPackArt();
+      vi.useRealTimers();
+    }
   });
 });
