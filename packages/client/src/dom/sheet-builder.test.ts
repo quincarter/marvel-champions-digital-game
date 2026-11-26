@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { accent, surface } from "../tokens.js";
-import { sheetColor } from "./sheet-builder.js";
+import { SHEET_TOKENS, sheetColor } from "./sheet-builder.js";
+import { layerVariables } from "./ui-layer.js";
 
 describe("sheetColor", () => {
   it("draws a token through the panel layer's variable for its channel, so dark mode maps it", () => {
@@ -11,5 +12,13 @@ describe("sheetColor", () => {
 
   it("draws a color that is no token as it is", () => {
     expect(sheetColor(0x123456, "fill")).toBe("#123456");
+  });
+
+  it("names only tokens the panel layer defines, in both schemes", () => {
+    for (const scheme of ["light", "dark"] as const) {
+      const vars = layerVariables(scheme, false);
+      for (const name of SHEET_TOKENS.values())
+        for (const channel of ["text", "fill", "line"]) expect(vars[`--mc-${channel}-${name}`], name).toBeDefined();
+    }
   });
 });

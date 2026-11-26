@@ -44,7 +44,7 @@ export function sheetColor(hex: number, channel: Channel): string {
   return name ? `var(--mc-${channel}-${name}, ${hex6(hex)})` : hex6(hex);
 }
 
-/** Every token the sheet names, as the layer must define them (`ui-layer.ts` reads this). */
+/** Every token the sheet names; the panel layer must define each (`sheet-builder.test.ts` checks it does). */
 export const SHEET_TOKENS: ReadonlyMap<number, string> = TOKEN_NAMES;
 
 export interface TextOptions {

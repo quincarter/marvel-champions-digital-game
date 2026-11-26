@@ -103,8 +103,21 @@ export async function installPageHelpers(page: Page): Promise<void> {
               .trim();
             if (own && own.toLowerCase().includes(substr.toLowerCase())) {
               const box = child.getBoundingClientRect();
-              const onScreen =
+              // Inside the panel, and inside every scrolling box it sits in (crossing shadow roots): a row scrolled out
+              // of a list inside the panel is not on screen to press.
+              let onScreen =
                 box.right > view.left && box.left < view.right && box.bottom > view.top && box.top < view.bottom;
+              for (let at: Node | null = child.parentNode; at && at !== wrap && onScreen;) {
+                if (at instanceof Element) {
+                  const overflow = getComputedStyle(at).overflowY;
+                  if (overflow === "auto" || overflow === "scroll" || overflow === "hidden") {
+                    const clip = at.getBoundingClientRect();
+                    onScreen =
+                      box.right > clip.left && box.left < clip.right && box.bottom > clip.top && box.top < clip.bottom;
+                  }
+                }
+                at = at instanceof ShadowRoot ? at.host : at.parentNode;
+              }
               if (box.width > 0 && box.height > 0 && onScreen)
                 results.push({
                   scene: key,

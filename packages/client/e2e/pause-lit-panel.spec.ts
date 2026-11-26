@@ -77,6 +77,16 @@ test("on a phone, a swipe that lifts over a switch only scrolls the Table group"
   const toggle = sheet(page).locator(`[data-key="${key}"]`);
   await expect(toggle).toBeVisible();
   const before = await switchLabel(page, key!);
+  // Every switch's label, so a lift over any of them that fired would show.
+  const allLabels = () =>
+    sheet(page).evaluate((element) =>
+      [
+        ...(element as unknown as { renderRoot: ParentNode }).renderRoot.querySelectorAll<
+          HTMLElement & { label?: string }
+        >('[data-key^="table:"][data-key$=":switch"], [data-key^="guide:"][data-key$=":switch"]'),
+      ].map((found) => `${found.getAttribute("data-key")}=${found.label ?? ""}`),
+    );
+  const labelsBefore = await allLabels();
 
   const box = (await toggle.boundingBox())!;
   const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -90,5 +100,6 @@ test("on a phone, a swipe that lifts over a switch only scrolls the Table group"
   await waitFor(async () => ((await scrollTop()) > scrolledBefore ? true : null), "the group scrolled", 5000);
   // The lift landed over a row or a switch: none of them fired.
   expect(await switchLabel(page, key!)).toBe(before);
+  expect(await allLabels()).toEqual(labelsBefore);
   expect((await sheet(page).count()) > 0).toBe(true);
 });

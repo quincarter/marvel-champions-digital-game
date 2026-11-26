@@ -67,6 +67,10 @@ export class McButton extends LitElement {
     // The label is fitted to the button's own width, so a button sized after the fact (by its sheet) refits.
     if (typeof ResizeObserver !== "undefined") {
       this.#resize = new ResizeObserver(() => this.#fit());
+      // Fitted against the fallback font until the web fonts are in: fit again then.
+      void document.fonts?.ready.then(() => {
+        if (this.isConnected) this.#fit();
+      });
       this.#resize.observe(this);
     }
   }

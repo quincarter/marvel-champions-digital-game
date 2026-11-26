@@ -1,4 +1,5 @@
 import { html, LitElement, nothing, svg, type PropertyDeclarations } from "lit";
+import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { tapped } from "../../shared/tapped.js";
 import "../mc-button/mc-button.js";
@@ -100,6 +101,13 @@ export interface SheetScroll {
 
 export type SheetNode = SheetBox | SheetDots | SheetText | SheetButton | SheetTap | SheetScroll;
 
+/**
+ * A part's identity across redraws: its key when it has one (a button, a tap area, a scroller), so a press in flight or a
+ * list's scroll stays with its part when parts before it come and go; else its kind and place in the list.
+ */
+const keyOf = (node: SheetNode, index: number): string =>
+  "key" in node && node.key !== undefined ? `${node.kind}:key:${node.key}` : `${node.kind}:${index}`;
+
 const px = (rect: SheetRect): string =>
   `left:${rect.x}px;top:${rect.y}px;width:${rect.width}px;height:${rect.height}px`;
 
@@ -182,7 +190,7 @@ export class McSheet extends LitElement {
   }
 
   override render() {
-    return html`${this.nodes.map((node) => this.#node(node))}`;
+    return html`${repeat(this.nodes, keyOf, (node) => this.#node(node))}`;
   }
 
   /** `text` with its marked ranges in `mark` elements, written without whitespace between the parts. */
@@ -213,7 +221,7 @@ export class McSheet extends LitElement {
         return html`<div class="part" style=${style}></div>`;
       }
       case "dots": {
-        const id = `dots-${node.spacing}-${node.radius}`;
+        const id = `dots-${node.spacing}-${node.radius}-${node.color.replace(/[^a-z0-9]/gi, "")}`;
         return html`<svg class="part" style=${`${px(node.rect)};opacity:${node.opacity}`} aria-hidden="true">
           ${svg`<defs><pattern id=${id} width=${node.spacing} height=${node.spacing} patternUnits="userSpaceOnUse">
             <circle cx=${node.spacing / 2} cy=${node.spacing / 2} r=${node.radius} fill=${node.color}></circle>
@@ -275,7 +283,9 @@ export class McSheet extends LitElement {
         ></div>`;
       case "scroll":
         return html`<div class="part scroller" data-key=${node.key} style=${px(node.rect)}>
-          <div class="content" style=${`height:${node.height}px`}>${node.nodes.map((child) => this.#node(child))}</div>
+          <div class="content" style=${`height:${node.height}px`}>
+            ${repeat(node.nodes, keyOf, (child) => this.#node(child))}
+          </div>
         </div>`;
     }
   }
