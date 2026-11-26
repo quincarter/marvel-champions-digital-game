@@ -451,6 +451,18 @@ export const AFFECTED_SLOT = "affected";
 export const DEFENDER_SLOT = "defender";
 
 /**
+ * Reported by an `enemyAttack` effect's `bind` once each attack it made has finished (`reportResults`,
+ * `resolve/event.ts`), as the identity of a player, so `PlayerRef slot` names the players: `<bind>.attackedPlayers`
+ * holds the player each attack ended up attacking (the event's final `targetPlayerId`), `<bind>.initiatedAgainst` the
+ * player each was initiated against (its `attackedPlayerId`). The two differ when another player defends: FFG ruling
+ * July 25, 2024 (docs/rulings/post-rrg-1-6/01-july-2024.md), "Once a player defends an attack with a character they
+ * control, that player is the 'attacked player'"; RRG 1.8 "Defend, Defense" (p. 16), the defending player "becomes the
+ * new target of that attack". Hail Hydra! (`cap` 03030), "Each player who was not attacked this way", reads the first.
+ */
+export const ATTACKED_PLAYERS_SLOT = "attackedPlayers";
+export const INITIATED_AGAINST_SLOT = "initiatedAgainst";
+
+/**
  * RRG 1.8 "You, Your" (p. 49): "Some player cards are considered to be an extension of a player's identity" — events
  * the player plays, resources they spend, and upgrades they control "unless attached to a different friendly
  * character" — so what they do is done by that identity. Allies, supports, player side schemes and encounter cards are

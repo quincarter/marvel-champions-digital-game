@@ -19,6 +19,7 @@ import {
 import { withDamage, withForm } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { forceMinionIntoPlay } from "../../wave1/thor/testing.js";
 import { WASP_KIT } from "./kit.js";
 
 // Real wave 2 content: the Wasp (Aggression) precon against Rhino, standard, solo. Nadia Van Dyne starts in alter-ego.
@@ -52,6 +53,10 @@ function readyMinion(state: GameState): { readonly state: GameState; readonly id
   const near = { ...revealed, instances: { ...revealed.instances, [id]: { ...revealed.instances[id]!, damage: 999 } } };
   return { state: near, id };
 }
+
+/** Sandman (01102, a Rhino scenario encounter card) put into play engaged with P1. */
+const withEngagedMinion = (state: GameState): GameState =>
+  forceMinionIntoPlay(state, instancesOf(state, "01102")[0]!, P1);
 
 describe("Wasp kit", () => {
   it("Wasp's Helmet: +1 THW in Giant hero form, +1 ATK in Tiny hero form — a pure stat modifier gated by hasTrait, safe under §6.15's own boundary (no trait grant, so traitsOf's poisoned scan never sees it)", () => {
@@ -146,9 +151,9 @@ describe("Wasp kit", () => {
     const [pym] = given.ids as [InstanceId];
     const other = moveToHand(given.state, P1, "13013"); // Into the Fray, cost 3
     const [event] = other.ids as [InstanceId];
-    // Into the Fray is a thwart event: it needs a scheme holding threat (RRG 1.8 "Target" p. 42).
+    // Into the Fray needs a minion in play (RRG 1.8 "Ability" p. 4) and its excess damage removes threat.
     const damaged = patchInstance(
-      withDamage(other.state, identityOf(other.state), 3),
+      withDamage(withEngagedMinion(other.state), identityOf(other.state), 3),
       other.state.mainScheme.instanceId,
       {
         threat: 6,
@@ -168,7 +173,9 @@ describe("Wasp kit", () => {
     const [pymTiny] = givenTiny.ids as [InstanceId];
     const otherTiny = moveToHand(givenTiny.state, P1, "13013");
     const [eventTiny] = otherTiny.ids as [InstanceId];
-    const threatenedTiny = patchInstance(otherTiny.state, otherTiny.state.mainScheme.instanceId, { threat: 6 });
+    const threatenedTiny = patchInstance(withEngagedMinion(otherTiny.state), otherTiny.state.mainScheme.instanceId, {
+      threat: 6,
+    });
     const beforeHand = playerOf(threatenedTiny, P1).hand.length;
     const paymentTiny = [pymTiny, ...payWith(threatenedTiny, P1, 2, [pymTiny, eventTiny])];
     const playedTiny = settle(

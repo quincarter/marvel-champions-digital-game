@@ -357,29 +357,31 @@ describe("`discardFromHand` with a `filter`: 'discard 1 resource of any type fro
     const second = arrange(first.state, p2, { hand: [ICONLESS.id] });
     const state = playRaw(second.state, first.hand[3] as InstanceId);
 
-    // "Must … discard 3" with one matching card in hand discards that one and no more.
-    const choice = pending(state);
-    expect([choice.minSelections, choice.maxSelections]).toEqual([1, 1]);
-    expect(choice.options.map((o) => o.optionId)).toEqual([first.hand[0]]);
+    // "Must … discard 3" with one matching card in hand discards that one and no more. Every matching card must go, so
+    // nothing is asked (issue #1006).
+    expect(state.pendingChoice).toBeNull();
+    // (The discard may reset the empty deck at once, RRG 1.8 "Player Deck", p. 33, so only the hand is checked.)
+    expect(mustPlayer(state, p1).hand).toEqual([first.hand[1], first.hand[2]]);
   });
 
   it("asks each player in player order, one choice at a time, and skips a player with no match", () => {
     const first = arrange(drainGame(3), p1, { hand: [ICONLESS.id, DRAIN_ONE.card.id] });
     // p2's and p3's other cards stay in their decks: an empty deck would reset the moment a card is discarded (RRG 1.8
     // "Player Deck", p. 33), which is not what this test is about.
-    const second = arrange(first.state, p2, { hand: [PHYSICAL.id, ICONLESS.id], rest: "deck" });
-    const third = arrange(second.state, playerId("p3"), { hand: [FILLER.id], rest: "deck" });
+    const second = arrange(first.state, p2, { hand: [PHYSICAL.id, FILLER.id, ICONLESS.id], rest: "deck" });
+    const third = arrange(second.state, playerId("p3"), { hand: [FILLER.id, PHYSICAL.id], rest: "deck" });
     const started = playRaw(third.state, first.hand[1] as InstanceId);
 
-    // p1 holds nothing that matches, so p1 is skipped without a choice and p2 is asked first.
+    // p1 holds nothing that matches, so p1 is skipped without a choice and p2 is asked first. (Each holds two matches for
+    // one discard, so each is a real choice: a player with exactly as many matches as the count is not asked.)
     const p2Choice = pending(started);
     expect(p2Choice.playerId).toBe(p2);
-    expect(p2Choice.options.map((o) => o.optionId)).toEqual([second.hand[0]]);
+    expect(p2Choice.options.map((o) => o.optionId)).toEqual([second.hand[0], second.hand[1]]);
 
     const afterP2 = answer(started, [second.hand[0] as InstanceId]);
     const p3Choice = pending(afterP2);
     expect(p3Choice.playerId).toBe(playerId("p3"));
-    expect(p3Choice.options.map((o) => o.optionId)).toEqual([third.hand[0]]);
+    expect(p3Choice.options.map((o) => o.optionId)).toEqual([third.hand[0], third.hand[1]]);
 
     const done = answer(afterP2, [third.hand[0] as InstanceId]);
     expect(done.pendingChoice).toBeNull();
@@ -425,9 +427,12 @@ describe("`discardFromHand` with a `filter`: 'discard 1 resource of any type fro
     const set = arrange(start, p1, { hand: [PHYSICAL.id, FILLER.id, ICONLESS.id, CARD.id] });
     const state = playRaw(set.state, set.hand[3] as InstanceId, deps);
 
-    const choice = pending(state, deps);
-    expect([choice.minSelections, choice.maxSelections]).toEqual([2, 2]);
-    expect(choice.options.map((o) => o.optionId)).toEqual([set.hand[0], set.hand[1]]);
+    // Two to discard and exactly two matching cards: both go without a question (issue #1006).
+    expect(state.pendingChoice).toBeNull();
+    // (The discard may reset the empty deck at once, RRG 1.8 "Player Deck", p. 33, so only the hand is checked.)
+    expect(mustPlayer(state, p1).hand).toContain(set.hand[2]);
+    expect(mustPlayer(state, p1).hand).not.toContain(set.hand[0]);
+    expect(mustPlayer(state, p1).hand).not.toContain(set.hand[1]);
   });
 });
 

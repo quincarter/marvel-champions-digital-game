@@ -18,7 +18,6 @@ const worded = (): Set<string> =>
 /** Kinds with no line of their own: engine bookkeeping, or news the lines of neighbouring events already carry. */
 const SILENT: ReadonlySet<string> = new Set([
   "abilityUseRecorded",
-  "activationSkipped",
   "additionalFormChanged",
   "additionalMulligansGranted",
   "boostCardMoved",
@@ -28,7 +27,6 @@ const SILENT: ReadonlySet<string> = new Set([
   "campaignLogWritten",
   "cardDetached",
   "cardDiscardedFromDeck",
-  "cardDrawn",
   "cardFound",
   "cardTurnedFacedown",
   "cardTurnedFaceup",
@@ -39,7 +37,6 @@ const SILENT: ReadonlySet<string> = new Set([
   "costDamageSettled",
   "damageBeyondZeroLost",
   "damageIncreased",
-  "damagePlaced",
   "deckShuffled",
   "deckStacked",
   "defeatProtectionEnded",
@@ -103,7 +100,6 @@ const SILENT: ReadonlySet<string> = new Set([
   "thwartCostSettled",
   "thwartModified",
   "treatedAsChanged",
-  "triggerEvent",
   "turnEnded",
   "windowOpened",
 ]);

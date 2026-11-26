@@ -3681,7 +3681,11 @@ export type EffectSpec =
    * stunned enemy discards its stun instead and doesn't attack (RRG "Stun").
    * `bind`: `<bind>.made` (attacks made), `.damage`, `.undefended`, and slots
    * `<bind>.damaged` / `<bind>.target` ("if a character is damaged by this
-   * attack, that character is stunned"). `additionalResolution` marks the same
+   * attack, that character is stunned"), and the players as identities (for
+   * `PlayerRef slot`): `<bind>.attackedPlayers`, whom each attack ended up
+   * attacking (a defending player's, ruling July 25, 2024), and
+   * `<bind>.initiatedAgainst` (`ATTACKED_PLAYERS_SLOT`, `select.ts`;
+   * "each player who was not attacked this way", Hail Hydra! 03030). `additionalResolution` marks the same
    * attack resolved against more players (Whirlwind): the attacker's own "when
    * this enemy attacks" abilities don't trigger again for it.
    */

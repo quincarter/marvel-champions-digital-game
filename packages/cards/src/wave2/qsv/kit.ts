@@ -30,6 +30,7 @@ import {
   option,
   query,
   ready,
+  refMatches,
   removeThreat,
   resource,
   response,
@@ -110,7 +111,10 @@ export const QSV_KIT = defineAbilities({
   ),
 
   // Always Be Running — Hero Action: Ready Quicksilver.
-  "14003.always-be-running-action": heroAction(ready(yourIdentity)),
+  "14003.always-be-running-action": heroAction(
+    { while: refMatches(yourIdentity, { exhausted: true }) },
+    ready(yourIdentity),
+  ),
 
   // Double Time — Hero Action: Choose two of the following (you may choose the same option twice): Deal 2 damage
   // to an enemy / Remove 2 threat from a scheme (`chooseOptions`, built for this exact card). The two extra
@@ -160,7 +164,11 @@ export const QSV_KIT = defineAbilities({
   "14008.accelerated-reflex-constant": constant(gets("def", 1, YOUR_IDENTITY)),
 
   // Friction Resistance — Hero Response: After you ready Quicksilver, ready this card (module docblock, §21).
-  "14009.friction-resistance-response": heroResponse(on.cardReadied(YOUR_IDENTITY), ready(self)),
+  "14009.friction-resistance-response": heroResponse(
+    on.cardReadied(YOUR_IDENTITY),
+    { while: refMatches(self, { exhausted: true }) },
+    ready(self),
+  ),
   // Resource: Exhaust Friction Resistance → generate a [physical] resource.
   "14009.friction-resistance-resource": resource({ physical: 1 }, { cost: exhaustThis }),
 

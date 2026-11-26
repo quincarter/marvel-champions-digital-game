@@ -7498,21 +7498,58 @@ function makeBasicAttack(
       ]
     : // "Wasp is considered to attack each target affected by her divided basic attack" (FAQ "Wasp (#1C)"): one attack
       // per target, in the order given, so each retaliate resolves in the order of her choice.
-      pushEvents(
+      // The first share settles the division as it deals its damage, from the ATK it has then (`divisionToChoose`;
+      // issue #1012 §5): a "+2 to that power for this use" from the power's interrupt window is divided too.
+      markDivision(
         ctx,
-        shares.map(({ targetInstanceId, amount }) => ({
-          kind: "attack" as const,
-          attackerInstanceId: command.attackerInstanceId,
-          targetInstanceId,
-          playerId: command.playerId,
-          basic: true,
-          amount,
-        })),
-        consequential,
+        command.attackerInstanceId,
+        shares,
+        pushEvents(
+          ctx,
+          shares.map(({ targetInstanceId, amount }) => ({
+            kind: "attack" as const,
+            attackerInstanceId: command.attackerInstanceId,
+            targetInstanceId,
+            playerId: command.playerId,
+            basic: true,
+            amount,
+          })),
+          consequential,
+        ),
       );
   // "For its next basic thwart or attack" (§3.39): a waiting bonus starts applying with this attack.
   startNextBasicPowerEffects(ctx, command.attackerInstanceId, "attack", attackFrames);
   announceBasicPowerUsing(ctx, command.attackerInstanceId, "attack", command.playerId);
+}
+
+/**
+ * Records a divided basic attack's division on its first share's event (`attack.divisionToChoose`), to be settled from
+ * the ATK that share deals (`settleBasicAttackDivision`; issue #1012 §5). `evenly`: the attacker must divide as evenly
+ * as possible (`divideBasicPower.evenly`, Bombshell; ruling January 11, 2026 R4) and the shares are an even split, so
+ * a changed ATK is split evenly again rather than asked. A made-on-instruction division that is uneven
+ * (`basicPowerBy`, which does not enforce the even split) is asked as any other. Returns the share frames.
+ */
+function markDivision(
+  ctx: Ctx,
+  attacker: InstanceId,
+  shares: readonly BasicPowerShare[],
+  frameIds: readonly FrameId[],
+): readonly FrameId[] {
+  const [first] = frameIds;
+  if (shares.length < 2 || first === undefined) return frameIds;
+  const amounts = shares.map((share) => share.amount);
+  const evenly =
+    evenlyDividesBasicPower(ctx.state, ctx.deps, attacker, "attack") &&
+    Math.max(...amounts) - Math.min(...amounts) <= 1;
+  const divisionToChoose = {
+    targets: shares.map((share) => share.targetInstanceId),
+    shareFrameIds: frameIds,
+    ...(evenly ? { evenly: true as const } : {}),
+  };
+  updateFrame(ctx, first, (f) =>
+    f.kind === "event" && f.event.kind === "attack" ? { ...f, event: { ...f.event, divisionToChoose } } : f,
+  );
+  return frameIds;
 }
 
 /**

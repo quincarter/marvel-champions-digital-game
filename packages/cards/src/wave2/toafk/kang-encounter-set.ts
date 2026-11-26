@@ -368,7 +368,7 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
     discard(chosen("target")),
   ),
   "11040.boost": boost(
-    chooseTarget("char", query("character", { controller: "you" }), { chooser: firstPlayer }),
+    chooseTarget("char", query("character", { controller: "you", exhausted: false }), { chooser: firstPlayer }),
     exhaust(chosen("char")),
     modifyAttack({ extraBoostCards: 1 }),
   ),

@@ -124,19 +124,7 @@ test("Slingshot's hand Action is offered on a tap, pays with another card, and p
   const last = await store((s) => s.commandTrail.at(-1).command);
   expect(last).toMatchObject({ cardInstanceId: sling, abilityId: "50013.slingshot-action" });
   expect(last.payment).toEqual([{ fromHand: energy }]);
-  // "Choose a player" to control her: the one seat comes already picked, so Confirm.
-  await waitFor(
-    async () =>
-      (await visibleTexts(page)).find((t) => t.scene !== "Board" && /^maria hill \/ maria hill/i.test(t.text)) ?? null,
-    "the choose-a-player question",
-    15000,
-  );
-  const confirm = await waitFor(
-    async () => (await visibleTexts(page)).find((t) => t.scene !== "Board" && /^confirm$/i.test(t.text)) ?? null,
-    "Confirm",
-    10000,
-  );
-  await press(page, phone, confirm.x, confirm.y);
+  // "Choose a player" to control her: in a solo game the one seat is chosen without asking (issue #1006).
   await waitFor(
     async () =>
       (await facts(page, (game) => game.players[0].playArea.slice() as string[])).includes(sling) ? true : null,

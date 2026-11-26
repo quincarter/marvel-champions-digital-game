@@ -56,6 +56,7 @@ import {
 } from "../state.js";
 import { spillDefeatedKey, type TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherDefeated, defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
+import { markEnemyAttacksUnderway } from "./eliminated-attack.js";
 import { addFrameVars, base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { mainSchemeStageFrames } from "./main-scheme-side.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, leaveVillainRow, passActiveCounter } from "./game-areas.js";
@@ -512,9 +513,7 @@ export function advanceMainScheme(
   // condition already occurred nor a procedure under way against the old stage (a thwart of it; `entered-since.ts`).
   // A turn from A to B (`mainSchemeTurnsToB`) is the same card in play, and is not this.
   ctx.state = noteReplacedInPlay(ctx.state, schemeId);
-  const scheme = mainSchemeStateOf(ctx.state, schemeId);
-  if (!scheme) return;
-  const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme);
+  if (!mainSchemeStateOf(ctx.state, schemeId)) return;
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const which = central ? {} : { schemeInstanceId: schemeId };
   const returned = Object.entries(mustInstance(ctx.state, schemeId).counters).filter(
@@ -531,17 +530,15 @@ export function advanceMainScheme(
   }
   emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy });
   pushFrames(ctx, [
-    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], firstPlayerOfCard(ctx.state, schemeId)),
+    // Step 3's starting threat is placed by the turn to the B side, before that side's When Revealed (RRG 1.8 "Main
+    // Scheme", p. 27; #1012).
+    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], firstPlayerOfCard(ctx.state, schemeId), {
+      placeStartingThreat: true,
+    }),
     // Its own incite, printed or granted ("Each other encounter card gains incite 1"), on the new stage itself, with
     // its When Revealed abilities (docs/phase7-wave6.md §3.65, §4 Q37). No other reveal step: a main scheme advance
     // is not a reveal frame (§4.1 Q36 makes only a villain's new face one).
     ...inciteFrames(ctx, schemeId, schemeId),
-    eventFrame(ctx, {
-      kind: "placeThreat",
-      schemeInstanceId: schemeId,
-      amount: startingThreat,
-      sourceInstanceId: null,
-    }),
     eventFrame(ctx, { kind: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy }),
   ]);
 }
@@ -1209,6 +1206,8 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   // "If a player is eliminated in the middle of an attack, that attack ends" (RRG 1.8 "Player Elimination", p. 34): each
   // attack of theirs underway now is marked to end, at any step (`attackerEliminated`, `eliminated-attack.ts`).
   markAttacksUnderway(ctx, identityId);
+  // …and so does any enemy attack underway, whoever it attacks (`markEnemyAttacksUnderway`).
+  markEnemyAttacksUnderway(ctx);
   // Step 4, "each card owned by the eliminated player": the ones in play outside their play area, a player side
   // scheme beside the main scheme or an upgrade on another player's or the villain's card. Each leaves play as any
   // card does, so its threat and tokens are cleared and what is attached to it is discarded.

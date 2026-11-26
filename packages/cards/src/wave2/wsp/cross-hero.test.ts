@@ -1,6 +1,7 @@
-import { PLAYABLE_CARDS, type AnyCard } from "@mc/content";
+import { PLAYABLE_CARDS, cardId, type AnyCard } from "@mc/content";
 import {
   activeEncounterDeck,
+  activeEncounterDeckId,
   applyCommand,
   characterProfile,
   createGame,
@@ -212,6 +213,55 @@ describe("Wasp pack aggression cards, from She-Hulk (Aggression)'s own deck", ()
     // Sandman is defeated (4 HP) and the 2 excess damage came off the main scheme.
     expect(playerOf(after, P1).playArea).not.toContain(minion);
     expect(mainThreat(after)).toBe(4);
+  });
+
+  it("13013 / 16042 Into the Fray: not playable with no minion in play (RRG 1.8 'Ability' p. 4; GitHub #1012)", () => {
+    for (const code of ["13013", "16042"]) {
+      const { state, id } = openHandFor(code, SHE_HULK);
+      const pay = filler(state, 3, [id]);
+      const result = applyCommand(pay.state, play(P1, id, pay.ids), PLAYABLE_DEPS);
+      expect(result.ok, code).toBe(false);
+      expect(playerOf(pay.state, P1).hand).toContain(id);
+    }
+  });
+
+  // Encased in Ice (54035) is attacked "as if it were a minion", and only where an attack chooses its target. With the
+  // hero encased and no minion in play, the ice is the one legal attack target, so Into the Fray is playable (it was
+  // gated on `exists(query("minion"))`, which does not see the ice); the 6 damage lands on the ice.
+  it("13013 / 16042 Into the Fray: playable with only Encased in Ice to attack, which takes the damage (GitHub #1012)", () => {
+    for (const code of ["13013", "16042"]) {
+      const seat = buildCrossHeroDeck(PLAYABLE_CARDS, SHE_HULK, code);
+      const base = playableScenario("rhino", { seed: 11, players: [seat] });
+      const created = createGame({ ...base, encounterDeck: [cardId("54035"), ...base.encounterDeck] }, PLAYABLE_DEPS);
+      if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+      const opening = settle(created.state, firstLegal, (s) => s.step.phase === "player", PLAYABLE_DEPS);
+      const { state: ready, ids } = moveToHand(toHeroFirst(opening), P1, code);
+      const id = ids[0]!;
+      const pile = activeEncounterDeck(ready);
+      const ice = [...pile.deck, ...pile.discard].find((i) => ready.instances[i]!.cardId === cardId("54035"))!;
+      const hero = identityOf(ready);
+      const deckId = activeEncounterDeckId(ready);
+      const encased: GameState = {
+        ...ready,
+        encounterDecks: {
+          ...ready.encounterDecks,
+          [deckId]: { deck: pile.deck.filter((i) => i !== ice), discard: pile.discard.filter((i) => i !== ice) },
+        },
+        instances: {
+          ...ready.instances,
+          [ice]: { ...inst(ready, ice), attachedTo: hero, faceup: true },
+          [hero]: { ...inst(ready, hero), attachments: [...inst(ready, hero).attachments, ice] },
+        },
+      };
+      expect(ready.mainScheme).toBeDefined();
+      const pay = filler(encased, 3, [id]);
+      const result = applyCommand(pay.state, play(P1, id, pay.ids), PLAYABLE_DEPS);
+      expect(result.ok, code).toBe(true);
+      const after = settled(result.ok ? result.state : pay.state);
+      expect(playerOf(after, P1).discard, code).toContain(id);
+      // 6 damage placed on the ice, which is then discarded (State Check: damage beyond its 3).
+      expect(inst(after, hero).attachments, code).not.toContain(ice);
+    }
   });
 
   it("13013.into-the-fray-action: a Hero Action, refused in alter-ego form", () => {

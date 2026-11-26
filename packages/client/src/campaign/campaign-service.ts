@@ -15,6 +15,7 @@ import { campaignDefinitionOf, gmwBalancedHiddenFields, type GmwBalancedToggleId
 import { CAMPAIGNS as CONTENT_CAMPAIGNS, type Campaign, type CardId, type Deck, type PlayModes } from "@mc/content";
 import {
   applyCommands,
+  cardsInPlay,
   createCampaignLog,
   removedCardIdsOf,
   resolveBetweenGames,
@@ -50,6 +51,19 @@ import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-ste
 import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
 import { BALANCED_CAMPAIGN_ID } from "../view/campaign-balanced-model.js";
 import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
+
+/**
+ * Setup's own events are not stored with a save, so a card that entered play during setup (an Experimental attachment
+ * revealed at setup, MC10 p. 5) is read off the stored baseline instead: every card in play there entered play during
+ * setup (issue #1012). One `cardEntersPlay` for each, ahead of the commands' events.
+ */
+export function enteredPlayAtSetup(initialState: GameState): readonly GameEvent[] {
+  return cardsInPlay(initialState).map((instanceId) => ({
+    type: "triggerEvent",
+    phase: "resolved",
+    event: { kind: "cardEntersPlay", instanceId, playerId: initialState.instances[instanceId]?.controllerId ?? null },
+  }));
+}
 
 /** What `heroPacksOf` reads of a seat: its deck's identity, aspects and cards. */
 type HeroPackSeat = { readonly deck: Pick<Deck, "identityCardId" | "aspects" | "cards"> };
@@ -389,7 +403,7 @@ export class CampaignService {
     if (!replayed) {
       const result = applyCommands(saved.initialState, saved.commands, this.#engineDeps());
       if (!result.ok) throw new Error(`the finished game no longer replays: ${result.error.message}`);
-      replayed = { state: result.state, events: result.events };
+      replayed = { state: result.state, events: [...enteredPlayAtSetup(saved.initialState), ...result.events] };
       this.#replays.set(saved, replayed);
     }
     return this.foldState(record, replayed.state, replayed.events, answers, gameId, adjusted);

@@ -21,9 +21,9 @@ import { type Ctx, emit, requestChoice, setFrame } from "../ctx.js";
 import type { InstanceId } from "../ids.js";
 import { remainingHitPoints } from "../query.js";
 import { cannotTakeDamage } from "../rules.js";
-import { type EffectContext, resolvePlayers, resolveValue, selectTargets } from "../select.js";
+import { type EffectContext, resolveValue, selectTargets } from "../select.js";
 import type { EffectSpec } from "../spec.js";
-import { effectChoiceAuthority } from "../villain/authority.js";
+import { effectChoiceAuthority, resolveChooser } from "../villain/authority.js";
 import { type Frame, pushEvents } from "./frames.js";
 
 const LEFT = "_pool.left";
@@ -43,7 +43,7 @@ export function executeSequentialDamage(
     vars[POOL] = vars[LEFT];
   }
   const left = vars[LEFT] ?? 0;
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const [chooser] = resolveChooser(ctx.state, effect.chooser, context);
   const roomOf = (id: InstanceId): number => Math.max(0, remainingHitPoints(ctx.state, id, ctx.deps) ?? 0);
   const { [TARGET]: held, ...bindings } = frame.bindings;
 
