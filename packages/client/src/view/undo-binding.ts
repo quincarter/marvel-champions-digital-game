@@ -1,9 +1,9 @@
 /**
  * A guest's Each player Undo, bound to the moves it saw (#1019 review). The guest sends the command count it saw
- * (`base`), the count its Undo goes back to (`target`) and a fingerprint of the moves in between (`moves`); the room
- * refuses one from another log epoch, and the host's device does it only when its own table holds that very history:
- * the same count, the same target, and the same moves. A rewind followed by other moves up to the same count is a
- * different history, and its fingerprint does not match.
+ * (`base`), the count its Undo goes back to (`target`) and a fingerprint of every move up to `base` (`moves`); the
+ * room refuses one from another log epoch, and the host's device does it only when its own table holds that very
+ * history: the same count, the same target, and the same moves all the way back. Any rewind followed by other moves up
+ * to the same count is a different history, whichever moves changed, and its fingerprint does not match.
  */
 import type { Command } from "@mc/engine";
 
@@ -25,7 +25,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
-/** A short fingerprint of the moves an Undo takes back (FNV-1a over their canonical text, twice, as 16 hex digits). */
+/** A short fingerprint of a run of moves (FNV-1a over their canonical text, twice, as 16 hex digits). */
 export function movesFingerprint(commands: readonly Command[]): string {
   const text = canonical(commands);
   let a = 0x811c9dc5;
@@ -45,12 +45,14 @@ export function bindUndo(
   target: number,
 ): UndoBound | null {
   if (target < 0 || target > base || trail.length !== base) return null;
-  return { base, target, moves: movesFingerprint(trail.slice(target, base).map((entry) => entry.command)) };
+  // The whole history up to `base`, not only the moves taken back: a log rewound and replayed to the same count with
+  // the same last moves but a different past is still another table (Codex review on #1019).
+  return { base, target, moves: movesFingerprint(trail.slice(0, base).map((entry) => entry.command)) };
 }
 
 /**
  * Whether the host's table still holds the history a bound Undo was asked on: its count is `base`, its own Undo for
- * that hero goes back to `target`, and the moves in between are the ones the guest saw.
+ * that hero goes back to `target`, and every move up to `base` is the one the guest saw.
  */
 export function boundUndoMatches(
   trail: readonly { readonly command: Command }[],

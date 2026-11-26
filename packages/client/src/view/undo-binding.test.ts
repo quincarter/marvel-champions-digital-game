@@ -27,6 +27,13 @@ describe("a guest's bound Each player Undo (#1019 review)", () => {
     expect(boundUndoMatches(rewritten, 3, 2, bound)).toBe(false);
   });
 
+  it("refuses a queued Undo across a rewind that kept the last moves but changed an earlier one", () => {
+    const bound = bindUndo(trail, 3, 2)!;
+    // The log was cut back further and replayed: the same count and the same last move, another past.
+    const otherPast = [move("endTurn", "p1", { note: "replayed" }), ...trail.slice(1)];
+    expect(boundUndoMatches(otherPast, 3, 2, bound)).toBe(false);
+  });
+
   it("reads the same command written with its keys in another order as the same move", () => {
     const a = { type: "basicThwart", playerId: "p2", target: "i9" } as unknown as Command;
     const b = { target: "i9", playerId: "p2", type: "basicThwart" } as unknown as Command;

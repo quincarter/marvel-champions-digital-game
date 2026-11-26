@@ -195,7 +195,7 @@ export interface RoomRequest {
    */
   readonly base?: number;
   readonly target?: number;
-  /** A fingerprint of the moves the Undo takes back (`view/undo-binding.ts`): the host's table must hold the same. */
+  /** A fingerprint of every move up to `base` (`view/undo-binding.ts`): the host's table must hold the same history. */
   readonly moves?: string;
   /** The log epoch the room admitted it in. */
   readonly epoch?: number;

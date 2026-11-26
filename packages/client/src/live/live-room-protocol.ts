@@ -294,7 +294,7 @@ export type LiveControlMessage =
 export interface UndoBinding {
   readonly base: number;
   readonly target: number;
-  /** `view/undo-binding.ts`'s fingerprint of the moves between `target` and `base`. */
+  /** `view/undo-binding.ts`'s fingerprint of every move up to `base` (the whole history the guest saw). */
   readonly moves: string;
   readonly epoch?: number;
 }

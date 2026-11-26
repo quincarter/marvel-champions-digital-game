@@ -935,7 +935,7 @@ export type ClientMessage =
       readonly base?: number;
       readonly target?: number;
       readonly epoch?: number;
-      /** A fingerprint of the moves between `target` and `base` (at most `MAX_UNDO_MOVES_CHARS`), opaque to the room. */
+      /** A fingerprint of every move up to `base` (at most `MAX_UNDO_MOVES_CHARS`), opaque to the room. */
       readonly moves?: string;
     }
   /** Host only: answer a `request`. The room sends it to participant `to` alone. */
