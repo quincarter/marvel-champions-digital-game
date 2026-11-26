@@ -5,12 +5,13 @@
 """
 Rules Reference PDF -> Markdown (mechanical transcription, one `<!-- PDF page N -->` marker per page).
 
-Used for docs/rules/mc_rulesreference_v16_compressed.md. The PDF is not committed; download it from Hall of Heroes (the link is
-in docs/project/rules-authority.md) and pass its path. pymupdf4llm is pinned below 1.0 because the 2.0 release on
-PyPI ships no module.
+Used for docs/rules/mc_rulesreference_v16_compressed.md (the PDF is not committed; download it from Hall of Heroes, the link
+is in docs/project/rules-authority.md) and for the Spanish guide, docs/rules/es/mc_guia_de_referencia_es_2019.md (its PDF
+is beside it). pymupdf4llm is pinned below 1.0 because the 2.0 release on PyPI ships no module.
 
 Usage:
     uv run scripts/rrg_pdf_to_markdown.py <rrg.pdf> docs/rules/mc_rulesreference_v16_compressed.md
+    uv run scripts/rrg_pdf_to_markdown.py docs/rules/es/mc_guia_de_referencia_es_2019.pdf         docs/rules/es/mc_guia_de_referencia_es_2019.md --es
 """
 
 import datetime as dt
@@ -33,9 +34,24 @@ HEADER = """# Marvel Champions Rules Reference, v1.6 (July 2024): Markdown trans
 """
 
 
+HEADER_ES = """# Marvel Champions: El Juego de Cartas, Guía de referencia (Asmodee España, 2019): Markdown transcription
+
+> **Source:** [mc_guia_de_referencia_es_2019.pdf](mc_guia_de_referencia_es_2019.pdf), Asmodee España's official Spanish
+> reference guide for the Core Set ([download](https://cdn.svc.asmodee.net/production-asmodeees/uploads/2023/06/Referencia_Marvel_Champions.pdf)).
+> Converted mechanically with pymupdf4llm on {date}; layout artifacts (broken columns, index dot leaders) are left as
+> converted.
+> **Not a rules authority:** it predates RRG v1.8 ([`../mc_rulesreference_v18_compressed.md`](../mc_rulesreference_v18_compressed.md)),
+> which wins wherever they differ. It is the source of the Spanish game terms the app text uses
+> (`packages/client/src/i18n/es.ts`).
+> Each `<!-- PDF page N -->` marker starts a page of the PDF.
+
+"""
+
+
 def main() -> None:
     src, dest = sys.argv[1], sys.argv[2]
-    parts = [HEADER.replace("{date}", dt.date.today().isoformat())]
+    header = HEADER_ES if "--es" in sys.argv[3:] else HEADER
+    parts = [header.replace("{date}", dt.date.today().isoformat())]
     for i, chunk in enumerate(pymupdf4llm.to_markdown(src, page_chunks=True), 1):
         text = re.sub(r"\n{3,}", "\n\n", chunk["text"]).strip("\n")
         parts.append(f"<!-- PDF page {i} -->\n\n{text}\n\n")
