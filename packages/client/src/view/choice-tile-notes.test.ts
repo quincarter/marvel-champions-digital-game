@@ -121,8 +121,18 @@ describe("who a minion option is engaged with (issue #1001)", () => {
       "vs S.-M. 2",
       "vs Peter Parker 2",
       "vs P. P. 2",
+      "#2 vs S.-Man",
     ]);
     expect(engagedNoteForms(undefined)).toEqual([]);
+  });
+
+  test("two seats with the same hero keep their seat number even in the shortest form (Codex, PR #1014)", () => {
+    const names = ["Spider-Man (Peter Parker) 1", "Spider-Man (Peter Parker) 2"];
+    const [one, two] = names.map((name) => engagedNoteForms(name, names));
+    // Every form either keeps the number at its end or, last, leads with it, so a label cut from the end still has it.
+    expect(one!.at(-1)).toBe("#1 vs S.-Man");
+    expect(two!.at(-1)).toBe("#2 vs S.-Man");
+    expect(one!.some((form) => two!.includes(form))).toBe(false);
   });
 
   test("a shorter form two seats would share is never offered (Codex, PR #1014)", () => {

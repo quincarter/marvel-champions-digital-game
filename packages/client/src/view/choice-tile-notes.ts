@@ -79,6 +79,13 @@ function noteForms(name: string): readonly string[] {
     const aside = `${bracket[1]!.trim()}${bracket[2]!.trimEnd()}`;
     forms.push(`vs ${aside}`, engagedChipWords(aside, 0));
   }
+  // Two seats playing the same hero differ only by the seat number at the end, the first thing a narrow tile cuts.
+  // The last form puts it first ("#2 vs S.-Man"), so even a cut label keeps it (Codex, PR #1014).
+  const seat = /^(.*\S)\s+(\d+)$/.exec(name);
+  if (seat) {
+    const hero = seat[1]!.replace(/\s*\([^)]*\)/, "").trim() || seat[1]!;
+    forms.push(`#${seat[2]} ${engagedChipWords(hero, 0)}`);
+  }
   return [...new Set(forms)];
 }
 
