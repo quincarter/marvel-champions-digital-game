@@ -11,6 +11,7 @@ import { replayErrorKey } from "../replay/replay-files.js";
 import { ReplayHost, WorkerReplayBackend } from "../replay/replay-host.js";
 import type { SharedReplayResult } from "../replay/shared-replay.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
+import { appSession } from "../session.js";
 
 export interface WatchOpenDeps {
   /** The sync service's address, null when this build has none. */
@@ -25,7 +26,9 @@ const defaultDeps: WatchOpenDeps = {
   open: async (roomId, syncUrl) => {
     const host = new ReplayHost(new WorkerReplayBackend());
     try {
-      await host.watch(roomId, syncUrl, loadedPacks());
+      // The viewer's online name, so a room game's lobby lists them by it (#1021); none set, the room gives a stand-in.
+      const name = appSession().settings.onlineName.trim();
+      await host.watch(roomId, syncUrl, loadedPacks(), undefined, false, undefined, name || undefined);
       return host;
     } catch (cause) {
       host.dispose();

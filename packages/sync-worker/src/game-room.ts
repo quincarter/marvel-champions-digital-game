@@ -65,6 +65,7 @@ import {
   MAX_LOG_BYTES,
   MAX_DECK_REFUSAL_CHARS,
   MAX_NAME_LENGTH,
+  WATCH_LINK_NAME,
   MAX_ROOM_REFUSALS,
   MAX_SEAT_DECK_BYTES,
   ROOM_CHUNK_COMMANDS,
@@ -1580,7 +1581,17 @@ export class GameRoomLogic {
     const isRoomToken = message.token !== undefined && (await sha256Hex(message.token)) === meta.hostTokenHash;
     // A lobby room needs a name from everyone; any other room ignores `hello.name`, as watching always did.
     const lobbyRoom = meta.code !== undefined;
-    const name = lobbyRoom ? clip(cleanText(message.name ?? "").replace(/\s+/g, " "), MAX_NAME_LENGTH).trim() : "";
+    const given = lobbyRoom ? clip(cleanText(message.name ?? "").replace(/\s+/g, " "), MAX_NAME_LENGTH).trim() : "";
+    // A watch link's socket (`#watch=`, the Discord "Watch live" button) asks only to watch and, in builds up to 1.0.0,
+    // says no name: it is let in as a watcher under a stand-in name rather than refused, or a room game could never be
+    // watched from its link (#1021). Anyone asking for chat or seats, or holding a token, still has to give a name.
+    const watchOnly =
+      message.token === undefined &&
+      (message.seatTokens ?? []).length === 0 &&
+      (message.tableTokens ?? []).length === 0 &&
+      !message.caps.includes("chat") &&
+      !message.caps.includes("seats");
+    const name = lobbyRoom && !hasVisible(given) && watchOnly ? WATCH_LINK_NAME : given;
     if (lobbyRoom && !hasVisible(name)) {
       this.refuse(socket, "name-required");
       socket.close(1008, "name required");

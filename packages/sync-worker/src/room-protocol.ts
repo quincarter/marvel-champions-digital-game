@@ -50,6 +50,12 @@ export const DEFAULT_ROOMS_PER_IP_PER_DAY = 20;
  * other room ignores `hello.name`, so watching works as it did.
  */
 export const MAX_NAME_LENGTH = 24;
+
+/**
+ * The name a lobby room gives a watch-only participant that said none (a watch link's socket, #1021). A watcher who has
+ * set an online name sends it instead.
+ */
+export const WATCH_LINK_NAME = "Watcher";
 /** What `hello` may carry as a name (watch rooms ignore it); a lobby room cuts it to `MAX_NAME_LENGTH` code points. */
 export const MAX_HELLO_NAME_CHARS = 32;
 /** A room code's directory entry outlives the room's own expiry by this much, so the two alarms never race. */

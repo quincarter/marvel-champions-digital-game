@@ -7,6 +7,7 @@ import {
   type Participant,
   type RoomBuild,
   type ServerMessage,
+  WATCH_LINK_NAME,
 } from "./room-protocol.js";
 import { MemoryStorage } from "./test-support.js";
 
@@ -195,6 +196,40 @@ describe("play together: who may propose", () => {
     await room.close(host);
     await propose(ann);
     expect(ann.refusals).toEqual(["no-such-participant"]);
+  });
+});
+
+describe("play together: watching a room game from its watch link (#1021)", () => {
+  const watchLink = async (ctx: Awaited<ReturnType<typeof setup>>, extra: object = {}) => {
+    const s = new FakeSocket();
+    // What a `#watch=` link's socket says in builds up to 1.0.0: only `watch`, and no name.
+    await ctx.send(s, { ch: "room", kind: "hello", caps: ["watch"], ...extra });
+    return s;
+  };
+
+  it("lets a nameless watch-only hello in as a watcher under the stand-in name, with the game so far", async () => {
+    const ctx = await setup();
+    await ctx.send(ctx.host, { ch: "game", kind: "commands", table: "t1", from: 0, commands: [1, 2, 3] });
+    const w = await watchLink(ctx);
+    expect(w.refusals).toEqual([]);
+    expect(w.last("welcome")!.you).toMatchObject({ role: "watcher", name: WATCH_LINK_NAME });
+    expect(w.last("log")).toMatchObject({ table: "t1", header: { h: 1 }, commands: [1, 2, 3] });
+    // It counts as a watcher in the host's roster.
+    expect(ctx.host.last("roster")!.watchers).toBe(1);
+  });
+
+  it("keeps the name a watch link's socket gives", async () => {
+    const ctx = await setup();
+    const w = await watchLink(ctx, { name: "Gareth" });
+    expect(w.last("welcome")!.you).toMatchObject({ role: "watcher", name: "Gareth" });
+  });
+
+  it("still needs a name from anyone asking for chat or seats, or holding a seat token", async () => {
+    const ctx = await setup();
+    for (const extra of [{ caps: ["watch", "chat"] }, { caps: ["watch", "seats"] }, { seatTokens: ["x"] }]) {
+      const s = await watchLink(ctx, extra);
+      expect(s.refusals, JSON.stringify(extra)).toEqual(["name-required"]);
+    }
   });
 });
 

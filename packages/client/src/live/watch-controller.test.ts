@@ -404,3 +404,36 @@ describe("LiveWatcher hello device", () => {
     }
   });
 });
+
+describe("LiveWatcher hello name (#1021)", () => {
+  test("a watch link's hello says the viewer's online name when given, so a room game's lobby lets it in", () => {
+    for (const name of ["Gareth", undefined]) {
+      FakeSocket.all = [];
+      const { core } = fakeCore();
+      const w = new LiveWatcher({
+        core,
+        baseUrl: "http://sync",
+        roomId: "A".repeat(12),
+        packs: [],
+        emit: () => undefined,
+        ...(name ? { name } : {}),
+        deps: {
+          WebSocket: FakeSocket as never,
+          setTimer: () => undefined,
+          clearTimer: () => undefined,
+          random: () => 0.5,
+        },
+      });
+      void w.open().catch(() => undefined);
+      FakeSocket.all.at(-1)!.onopen?.({});
+      expect(FakeSocket.all.at(-1)!.sent[0]).toEqual({
+        v: 1,
+        ch: "room",
+        kind: "hello",
+        caps: ["watch"],
+        ...(name ? { name } : {}),
+      });
+      w.dispose();
+    }
+  });
+});

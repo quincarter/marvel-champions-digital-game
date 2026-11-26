@@ -48,7 +48,13 @@ export interface ReplayBackend {
   exportLog(): Promise<ReplayLogExport>;
   dispose(): void;
   /** Follows a live game room (issue #876). Absent on a backend that cannot (it then refuses a watch). */
-  watch?(roomId: string, syncUrl: string, packs: readonly PackRuntime[], feed?: MessagePort): Promise<ReplayOpened>;
+  watch?(
+    roomId: string,
+    syncUrl: string,
+    packs: readonly PackRuntime[],
+    feed?: MessagePort,
+    name?: string,
+  ): Promise<ReplayOpened>;
   /** Hears the live game's changes while one is followed. */
   onLive?(listener: (event: LiveWatchEvent) => void): void;
 }
@@ -154,6 +160,7 @@ export class WorkerReplayBackend implements ReplayBackend {
     syncUrl: string,
     packs: readonly PackRuntime[],
     feed?: MessagePort,
+    name?: string,
   ): Promise<ReplayOpened> {
     const device = currentRoomDevice();
     const response = await this.#request(
@@ -165,6 +172,7 @@ export class WorkerReplayBackend implements ReplayBackend {
         packs,
         ...(feed ? { feed } : {}),
         ...(device ? { device } : {}),
+        ...(name ? { name } : {}),
       },
       feed ? [feed] : [],
     );
@@ -281,6 +289,8 @@ export class ReplayHost implements EngineHost {
     own = false,
     /** The watched table and its game's admission id, read when the end arrives; absent for a watch link's own socket. */
     identity?: () => { readonly tableId: string | null; readonly gid: string | null },
+    /** A watch link's own socket: the name said in its hello (the online name; a room game's lobby needs one, #1021). */
+    name?: string,
   ): Promise<ReplayInfo> {
     this.#watchedRoom = roomId;
     this.#countsAsWatched = !own;
@@ -289,7 +299,7 @@ export class ReplayHost implements EngineHost {
     if (!watch || !this.#backend.onLive) throw new ReplayOpenError("setup", "this backend cannot follow a live game");
     this.#live = INITIAL_LIVE_STATE;
     this.#backend.onLive((event) => this.#onLive(event));
-    const { cardPool, info } = await watch.call(this.#backend, roomId, syncUrl, packs, feed);
+    const { cardPool, info } = await watch.call(this.#backend, roomId, syncUrl, packs, feed, name);
     this.#cardPool = cardPool;
     this.#info = info;
     this.#position = info.length;

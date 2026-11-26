@@ -226,6 +226,56 @@ test.describe("a room of one", () => {
   });
 });
 
+test.describe("a room game (#1021)", () => {
+  // The game streams into a lobby room, as a room game does: a lobby wants a name from everyone in it.
+  test.use({ roomOptions: { lobbyRooms: true } });
+
+  test("its watch link opens the game, for a viewer who has set no online name", async ({
+    page,
+    browser,
+    baseURL,
+    room,
+  }) => {
+    test.setTimeout(240_000);
+    const errors = trackErrors(page);
+    const host = await startHost(browser, baseURL!, room);
+    try {
+      const live = room.room()!;
+      await openWatch(page, live.id);
+      await reachBoard(page);
+      // What builds up to 1.0.0 always sent: no name. The room lets it watch under a stand-in name.
+      const hello = room.sent.find((m) => !m.host && m.kind === "hello");
+      expect(hello).not.toHaveProperty("name");
+      await waitFor(async () => ((await hasWord(page, /^LIVE$/)) ? true : null), "the LIVE label", 15000);
+      await waitFor(
+        positionIs(page, () => live.logLength()),
+        "at the host's newest move",
+        20000,
+      );
+      expect(await hasWord(page, /isn't open any more/i)).toBe(false);
+      expect(errors).toEqual([]);
+    } finally {
+      await host.context.close();
+    }
+  });
+
+  test("a viewer's watch link says their online name", async ({ page, room }) => {
+    test.setTimeout(120_000);
+    await page.addInitScript(() =>
+      localStorage.setItem("mc-settings", JSON.stringify({ version: 1, onlineName: "Gareth" })),
+    );
+    const created = await fetch("http://localhost:8787/room", { method: "POST", body: "{}" });
+    const { roomId } = (await created.json()) as { roomId: string };
+    await openWatch(page, roomId);
+    const hello = await waitFor(
+      async () => room.sent.find((m) => !m.host && m.kind === "hello") ?? null,
+      "the watcher's hello",
+      60000,
+    );
+    expect(hello.name).toBe("Gareth");
+  });
+});
+
 test("a link that names no room says it isn't valid", async ({ page, room }) => {
   test.setTimeout(120_000);
   await openWatch(page, "bad!");

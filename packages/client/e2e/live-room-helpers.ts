@@ -41,6 +41,11 @@ export interface Sent {
 export interface RoomServerOptions {
   /** The room's participant cap (host included); a joiner past it is turned away `full`. */
   readonly maxParticipants?: number;
+  /**
+   * Every room made is a lobby room (with a code), the kind a room game is played in, and a host's hello that says no
+   * name is given one: the dev `watch=1` game then streams into a lobby room the way a room game does (#1021).
+   */
+  readonly lobbyRooms?: boolean;
 }
 
 export interface ServerRoom {
@@ -116,7 +121,7 @@ export async function startRoomServer(options: RoomServerOptions = {}, waitMs = 
         // A lobby room (`{ "lobby": true }`, what Host makes) gets a 6-character code that `GET /room/code/:code` resolves.
         let lobby = false;
         try {
-          lobby = (JSON.parse(text) as { lobby?: unknown } | null)?.lobby === true;
+          lobby = options.lobbyRooms === true || (JSON.parse(text) as { lobby?: unknown } | null)?.lobby === true;
         } catch {
           lobby = false;
         }
@@ -184,8 +189,11 @@ export async function startRoomServer(options: RoomServerOptions = {}, waitMs = 
       // Messages are handled one at a time per socket, as the Durable Object does.
       let chain: Promise<void> = Promise.resolve();
       ws.on("message", (data) => {
-        const text = data.toString();
+        let text = data.toString();
         const parsed = JSON.parse(text) as Omit<Sent, "host">;
+        if (options.lobbyRooms && parsed.kind === "hello" && typeof parsed.token === "string" && !parsed.name) {
+          text = JSON.stringify({ ...parsed, name: "Hosty" });
+        }
         if (parsed.kind === "hello") isHost = typeof parsed.token === "string";
         sent.push({ ...parsed, host: isHost });
         chain = chain.then(() => room.logic.message(adapter, text));

@@ -44,6 +44,11 @@ export interface LiveWatcherOptions {
   readonly deps?: RoomSocketDeps;
   /** This device's platform and form, said in the watcher's own hello. */
   readonly device?: RoomDevice;
+  /**
+   * The viewer's online name, said in a watch link's hello: a room game's lobby lists everyone by name (#1021). Rooms
+   * give a nameless watch-only hello a stand-in name, so this may be absent.
+   */
+  readonly name?: string;
   /** How long to wait for the room to answer with the game before calling it gone. */
   readonly openTimeoutMs?: number;
   /** How long to wait for a host that has not started the game yet. */
@@ -126,6 +131,7 @@ export class LiveWatcher {
       roomId: this.#o.roomId,
       caps: CAPS,
       ...(this.#o.device ? { device: this.#o.device } : {}),
+      ...(this.#o.name ? { name: this.#o.name } : {}),
       ...(this.#o.deps ? { deps: this.#o.deps } : {}),
       onGone: () => {
         // The room cannot be reached for good: before the game opened that is "gone", after it the feed is lost.
