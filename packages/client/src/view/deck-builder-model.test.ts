@@ -51,27 +51,26 @@ const SPIDER_MAN_SIGNATURE = [
   { cardId: "01009", quantity: 2 },
 ];
 
-describe("browsablePool and not-ready packs", () => {
-  test("Shang-Chi (63015) and Luke Cage (64022) are not offered to any hero's builder", () => {
+describe("browsablePool and the released Elektra and Iron Fist packs", () => {
+  test("Shang-Chi (63015) and Luke Cage (64022) are offered to every hero's builder", () => {
     for (const hero of [spiderMan, identityOptions(POOL_CARDS).find((c) => c.name === "Captain America")!]) {
       const ids = new Set(
         browsablePool(POOL_CARDS, hero, ["justice", "aggression", "leadership", "protection"]).map(
           (c) => c.id as string,
         ),
       );
-      expect(ids.has("63015")).toBe(false);
-      expect(ids.has("64022")).toBe(false);
+      expect(ids.has("63015")).toBe(true);
+      expect(ids.has("64022")).toBe(true);
     }
     expect(POOL_CARDS.some((c) => (c.id as string) === "63015")).toBe(true);
   });
 });
 
 describe("identityOptions", () => {
-  test("a hero from a not-ready pack (Elektra, Iron Fist) is never offered", () => {
-    expect(POOL_CARDS.some((c) => (c.id as string) === "63001a")).toBe(true);
+  test("Elektra and Iron Fist, released from not-ready on 2026-11-25, are offered", () => {
     const ids = identityOptions(POOL_CARDS).map((c) => c.id as string);
-    expect(ids).not.toContain("63001a");
-    expect(ids).not.toContain("64001a");
+    expect(ids).toContain("63001a");
+    expect(ids).toContain("64001a");
     expect(ids).toContain("01001a");
   });
 

@@ -266,7 +266,8 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
     // Shadowland (MC65) is cycle 11 too and opens with it: no new hero reward, its three scenarios and its campaign
     // open under Fear No Evil's gate (docs/phase7-shadowland.md section 5 Q3, owner default).
     alsoCampaignIds: ["shadowland"],
-    starterHeroIds: ["60001a", "60037a", "61001a", "62001a"], // Daredevil, Echo, Jessica Jones, Luke Cage
+    // Elektra (MC63) and Iron Fist (MC64) open with the same gate as Jessica Jones and Luke Cage (released 2026-11-25).
+    starterHeroIds: ["60001a", "60037a", "61001a", "62001a", "63001a", "64001a"], // + Elektra, Iron Fist
     heroRewards: [],
   },
 ];

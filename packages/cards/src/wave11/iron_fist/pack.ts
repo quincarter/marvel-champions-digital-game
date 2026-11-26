@@ -15,12 +15,11 @@ import { wave11ModulesOf } from "../modules.js";
  * Its scripts are the registries of its `iron_fist/…` modules in `../modules.ts` (`WAVE11_MODULES`), in that list's order;
  * the modules' own skipped refs stay listed there.
  *
- * `status: "not-ready"`: the cards are in the pool, but the pack's cards are still being transcribed and scripted, so
- * the game doesn't offer its hero yet (`NOT_READY_PACK_CODES`). Delete the status to release it
- * (docs/phase7-elektra-iron-fist.md).
+ * Released 2026-11-25 (card data from MarvelCDB, scans by bluefireF5ran; docs/phase7-elektra-iron-fist.md). It was
+ * `status: "not-ready"` before that.
  */
 export const IRON_FIST_BUILTIN_PACK: BuiltinPack = defineBuiltinPack({
-  manifest: { id: "iron_fist", kind: "hero", name: IRON_FIST_PACK.name, product: IRON_FIST_PACK, status: "not-ready" },
+  manifest: { id: "iron_fist", kind: "hero", name: IRON_FIST_PACK.name, product: IRON_FIST_PACK },
   cards: IRON_FIST_CARDS,
   encounterSets: IRON_FIST_ENCOUNTER_SETS,
   scenarios: IRON_FIST_SCENARIOS,

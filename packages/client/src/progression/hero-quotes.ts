@@ -74,4 +74,6 @@ export const HERO_QUOTES: Readonly<Record<string, string>> = {
   Echo: "I See What You're Going to Do",
   "Jessica Jones": "Alias Investigations",
   "Luke Cage": "Sweet Christmas!",
+  Elektra: "Killer Instinct",
+  "Iron Fist": "I Am the Immortal Iron Fist",
 };

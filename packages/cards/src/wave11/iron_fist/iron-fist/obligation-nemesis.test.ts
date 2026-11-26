@@ -23,17 +23,16 @@ import { IF_DEPS, chiOf, drive, ironFistGame, pickCard, staged, takeAbility, wit
 vi.setConfig({ testTimeout: 180_000 });
 
 /**
- * Iron Fist's obligation and nemesis set (64034-64037). The card text is provisional (video and fan preview, see
- * docs/phase7-elektra-iron-fist.md section 3), so these tests pin the script to the text as recorded.
+ * Iron Fist's obligation and nemesis set (64026-64029), official text from MarvelCDB and the card images.
  */
-const OBLIGATION = "64034.obligation";
-const REVEALED = "64034.when-revealed";
-const LACK = "64034.lack-of-chi-forced-interrupt";
-const DAVOS_R = "64035.when-revealed";
-const DAVOS_I = "64035.davos-forced-interrupt";
-const SERPENT = "64036.steel-serpent-constant";
-const DAUGHTER_D = "64037.when-defeated";
-const DAUGHTER_B = "64037.boost";
+const OBLIGATION = "64026.obligation";
+const REVEALED = "64026.when-revealed";
+const LACK = "64026.lack-of-chi-forced-interrupt";
+const DAVOS_R = "64027.when-revealed";
+const DAVOS_I = "64027.davos-forced-interrupt";
+const SERPENT = "64029.steel-serpent-forced-interrupt";
+const DAUGHTER_D = "64028.when-defeated";
+const DAUGHTER_B = "64028.boost";
 const MASTER = "64001a.martial-arts-master";
 const ADVANCE = "01186";
 
@@ -45,7 +44,7 @@ const encounterDeckCodes = (s: GameState): string[] => activeEncounterDeck(s).de
 const encounterDiscardCodes = (s: GameState): string[] => activeEncounterDeck(s).discard.map((i) => codeOf(s, i));
 /** The Crane Daughters tucked under a card. */
 const tuckedDaughters = (s: GameState, under: InstanceId): InstanceId[] =>
-  inst(s, under).tucked.filter((i) => codeOf(s, i) === "64037");
+  inst(s, under).tucked.filter((i) => codeOf(s, i) === "64028");
 const declines: Picker = (s) => (s.pendingChoice!.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s));
 
 /**
@@ -120,14 +119,14 @@ describe("wave 11 iron_fist/iron-fist/obligation-nemesis registry", () => {
   });
   it("the game sets aside Iron Fist's nemesis cards", () => {
     const game = ironFistGame();
-    expect(setAsideOf(game, "64035").length).toBe(1);
-    expect(setAsideOf(game, "64037").length).toBe(3);
+    expect(setAsideOf(game, "64027").length).toBe(1);
+    expect(setAsideOf(game, "64028").length).toBe(3);
   });
 });
 
 describe(`${LACK}: chi is placed on the obligation instead of Iron Fist`, () => {
   const withObligation = (chiHere: number) => {
-    const placed = engageMinion(ironFistGame(), "64034", "lack");
+    const placed = engageMinion(ironFistGame(), "64026", "lack");
     return patchInstance(placed, "lack" as InstanceId, { engagedWith: null, counters: { chi: chiHere } });
   };
   it("Martial Arts Master's chi lands on the obligation", () => {
@@ -146,9 +145,9 @@ describe(`${LACK}: chi is placed on the obligation instead of Iron Fist`, () => 
 
 describe(`${REVEALED}: move all chi from your identity to this card`, () => {
   it("is revealed in the villain phase and takes every chi counter", () => {
-    const base = withChi(onTop(ironFistGame(), "64034"), 3);
+    const base = withChi(onTop(ironFistGame(), "64026"), 3);
     const run = driveEventsPicking(IF_DEPS, stunnedVillain(base), declines, endTurn(P1));
-    const [lack] = idsOf(run.state, "64034");
+    const [lack] = idsOf(run.state, "64026");
     expect(chiOf(run.state)).toBe(0);
     expect(inst(run.state, lack!).counters["chi"]).toBe(3);
     expect(playerOf(run.state, P1).playArea).toContain(lack);
@@ -157,14 +156,14 @@ describe(`${REVEALED}: move all chi from your identity to this card`, () => {
 
 describe(`${DAVOS_R}: find and tuck the 3 Crane Daughters under Davos`, () => {
   it("tucks all three facedown under him", () => {
-    const run = driveEventsPicking(IF_DEPS, stunnedVillain(onTop(ironFistGame(), "64035")), declines, endTurn(P1));
-    const [davos] = idsOf(run.state, "64035");
+    const run = driveEventsPicking(IF_DEPS, stunnedVillain(onTop(ironFistGame(), "64027")), declines, endTurn(P1));
+    const [davos] = idsOf(run.state, "64027");
     expect(tuckedDaughters(run.state, davos!).length).toBe(3);
-    expect(encounterDeckCodes(run.state)).not.toContain("64037");
+    expect(encounterDeckCodes(run.state)).not.toContain("64028");
   });
   it("finds one in the encounter deck and one in its discard pile too", () => {
     const base = ironFistGame();
-    const [inDeck, inDiscard] = setAsideOf(base, "64037") as [InstanceId, InstanceId];
+    const [inDeck, inDiscard] = setAsideOf(base, "64028") as [InstanceId, InstanceId];
     const deckId = activeEncounterDeckId(base);
     const pile = base.encounterDecks[deckId]!;
     const moved: GameState = {
@@ -177,17 +176,17 @@ describe(`${DAVOS_R}: find and tuck the 3 Crane Daughters under Davos`, () => {
         [deckId]: { deck: [...pile.deck, inDeck], discard: [...pile.discard, inDiscard] },
       },
     };
-    const run = driveEventsPicking(IF_DEPS, stunnedVillain(onTop(moved, "64035")), declines, endTurn(P1));
-    const [davos] = idsOf(run.state, "64035");
+    const run = driveEventsPicking(IF_DEPS, stunnedVillain(onTop(moved, "64027")), declines, endTurn(P1));
+    const [davos] = idsOf(run.state, "64027");
     expect(tuckedDaughters(run.state, davos!).length).toBe(3);
-    expect([...encounterDeckCodes(run.state), ...encounterDiscardCodes(run.state)]).not.toContain("64037");
+    expect([...encounterDeckCodes(run.state), ...encounterDiscardCodes(run.state)]).not.toContain("64028");
   });
 });
 
 describe(`${DAVOS_I}: damage to Davos shuffles a tucked Crane Daughter into the encounter deck instead`, () => {
   const setup = () => {
-    const e = engaged(ironFistGame(), "64035");
-    const daughters = setAsideOf(e.state, "64037");
+    const e = engaged(ironFistGame(), "64027");
+    const daughters = setAsideOf(e.state, "64028");
     return { state: tuckUnder(e.state, e.id, ...daughters), davos: e.id };
   };
   const basicAttack = (s: GameState, target: InstanceId): Command => ({
@@ -201,7 +200,7 @@ describe(`${DAVOS_I}: damage to Davos shuffles a tucked Crane Daughter into the 
     const { state: after } = drive(state, basicAttack(state, davos), declines);
     expect(inst(after, davos).damage).toBe(0);
     expect(tuckedDaughters(after, davos).length).toBe(2);
-    expect(encounterDeckCodes(after)).toContain("64037");
+    expect(encounterDeckCodes(after)).toContain("64028");
   });
   it("each instance of damage is replaced: Fists of Fury's three leave none tucked and Davos undamaged", () => {
     const { state, davos } = setup();
@@ -209,7 +208,7 @@ describe(`${DAVOS_I}: damage to Davos shuffles a tucked Crane Daughter into the 
     const { state: after } = drive(f.state, f.command, pickCard(davos, declines));
     expect(inst(after, davos).damage).toBe(0);
     expect(tuckedDaughters(after, davos).length).toBe(0);
-    expect(encounterDeckCodes(after).filter((c) => c === "64037").length).toBe(3);
+    expect(encounterDeckCodes(after).filter((c) => c === "64028").length).toBe(3);
   });
   it("with none tucked he takes the damage", () => {
     const { state, davos } = setup();
@@ -221,10 +220,10 @@ describe(`${DAVOS_I}: damage to Davos shuffles a tucked Crane Daughter into the 
 
 describe(`${SERPENT}: when Davos attacks, spend a Crane Daughter for +3 ATK`, () => {
   const attackRun = (withScheme: boolean, tucked: boolean) => {
-    const e = engaged(ironFistGame(), "64035");
+    const e = engaged(ironFistGame(), "64027");
     let state = e.state;
-    if (tucked) state = tuckUnder(state, e.id, ...setAsideOf(state, "64037").slice(0, 1));
-    if (withScheme) state = sideScheme(state, "64036");
+    if (tucked) state = tuckUnder(state, e.id, ...setAsideOf(state, "64028").slice(0, 1));
+    if (withScheme) state = sideScheme(state, "64029");
     const run = driveEventsPicking(IF_DEPS, stunnedVillain(state), declines, endTurn(P1));
     return { state: run.state, davos: e.id };
   };
@@ -232,7 +231,7 @@ describe(`${SERPENT}: when Davos attacks, spend a Crane Daughter for +3 ATK`, ()
     const { state, davos } = attackRun(true, true);
     expect(inst(state, identityOf(state)).damage).toBe(5);
     expect(tuckedDaughters(state, davos).length).toBe(0);
-    expect(encounterDiscardCodes(state)).toContain("64037");
+    expect(encounterDiscardCodes(state)).toContain("64028");
   });
   it("control: without the side scheme Davos hits for 2", () => {
     const { state } = attackRun(false, true);
@@ -243,12 +242,12 @@ describe(`${SERPENT}: when Davos attacks, spend a Crane Daughter for +3 ATK`, ()
     expect(inst(state, identityOf(state)).damage).toBe(2);
   });
   it("defeats a Crane Daughter in play instead", () => {
-    const e = engaged(ironFistGame(), "64035");
+    const e = engaged(ironFistGame(), "64027");
     const davosId = e.id as string;
-    const daughter = engaged(e.state, "64037");
+    const daughter = engaged(e.state, "64028");
     // The Crane Daughter is stunned so that only Davos's attack deals damage.
     const calm = patchInstance(daughter.state, daughter.id, { exhausted: true });
-    const stacked = onTop(sideScheme(calm, "64036"));
+    const stacked = onTop(sideScheme(calm, "64029"));
     const run = driveEventsPicking(IF_DEPS, stunnedVillain(stacked), declines, endTurn(P1));
     expect(playerOf(run.state, P1).playArea).not.toContain(daughter.id);
     // Davos's own attack: 2 + 3 (the villain's second activation is a separate attack).
@@ -256,13 +255,13 @@ describe(`${SERPENT}: when Davos attacks, spend a Crane Daughter for +3 ATK`, ()
       (e) => e.type === "damageDealt" && (e as { sourceInstanceId?: string }).sourceInstanceId === davosId,
     );
     expect(fromDavos.map((e) => (e as { amount: number }).amount)).toEqual([5]);
-    expect([...encounterDeckCodes(run.state), ...encounterDiscardCodes(run.state)]).toContain("64037");
+    expect([...encounterDeckCodes(run.state), ...encounterDiscardCodes(run.state)]).toContain("64028");
   });
 });
 
 describe(`${DAUGHTER_D}: shuffled into the encounter deck when defeated`, () => {
   it("returns to the encounter deck", () => {
-    const e = engaged(ironFistGame(), "64037");
+    const e = engaged(ironFistGame(), "64028");
     const hurt = patchInstance(e.state, e.id, { damage: 2 });
     const attack: Command = {
       type: "basicAttack",
@@ -272,19 +271,20 @@ describe(`${DAUGHTER_D}: shuffled into the encounter deck when defeated`, () => 
     };
     const { state: after } = drive(hurt, attack, declines);
     expect(playerOf(after, P1).playArea).not.toContain(e.id);
-    expect(encounterDeckCodes(after)).toContain("64037");
+    expect(encounterDeckCodes(after)).toContain("64028");
   });
 });
 
-describe(`${DAUGHTER_B}: with Davos engaged, put it facedown under him`, () => {
-  it("does nothing when Davos is not engaged with you", () => {
-    const run = driveEventsPicking(IF_DEPS, onTop(ironFistGame(), "64037"), declines, endTurn(P1));
-    const davosCards = idsOf(run.state, "64035");
+describe(`${DAUGHTER_B}: after the activation, tuck it under Davos`, () => {
+  it("with no Davos in play it is not tucked and is discarded like any boost card", () => {
+    const run = driveEventsPicking(IF_DEPS, onTop(ironFistGame(), "64028"), declines, endTurn(P1));
+    const davosCards = idsOf(run.state, "64027");
     for (const d of davosCards) expect(tuckedDaughters(run.state, d).length).toBe(0);
+    expect(encounterDiscardCodes(run.state)).toContain("64028");
   });
   it("is tucked under Davos when it is a boost card", () => {
-    const e = engaged(ironFistGame(), "64035");
-    const run = driveEventsPicking(IF_DEPS, onTop(e.state, "64037"), declines, endTurn(P1));
+    const e = engaged(ironFistGame(), "64027");
+    const run = driveEventsPicking(IF_DEPS, onTop(e.state, "64028"), declines, endTurn(P1));
     expect(tuckedDaughters(run.state, e.id).length).toBe(1);
   });
 });

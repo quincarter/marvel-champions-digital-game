@@ -1,5 +1,5 @@
 {
-  "heroCount": 67,
+  "heroCount": 69,
   "scenarioCount": 59,
   "scenarios": [
     {
@@ -632,6 +632,16 @@
           "id": "62001a",
           "name": "Luke Cage",
           "aspects": ["leadership"]
+        },
+        {
+          "id": "63001a",
+          "name": "Elektra",
+          "aspects": ["aggression"]
+        },
+        {
+          "id": "64001a",
+          "name": "Iron Fist",
+          "aspects": ["protection"]
         }
       ]
     }

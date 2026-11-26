@@ -300,11 +300,12 @@ describe("points and rank", () => {
 
   it("keeps ranks 1 to 8 where they were before the multiplayer points, and the last needs the new max (#909)", () => {
     // Pre-#909 max 38365 (RANK_FRACTIONS of it, rounded to 50); the multiplayer modules and the friends bonus add 4050.
-    expect(LEGACY_MAX_LIFETIME_POINTS).toBe(38365);
+    // Elektra and Iron Fist (2026-11-25) add their hero achievements: 38435, which moves ranks 6 to 8 up by 50.
+    expect(LEGACY_MAX_LIFETIME_POINTS).toBe(38435);
     expect(MULTIPLAYER_POINTS).toBe(3750 + MAX_FRIENDS_WIN_POINTS);
-    expect(MAX_LIFETIME_POINTS).toBe(38365 + 3750 + 300);
-    expect(RANKS.slice(0, 8).map((r) => r.threshold)).toEqual([0, 100, 1150, 3050, 6900, 12650, 19950, 29150]);
-    expect(RANKS[8]!.threshold).toBe(42415);
+    expect(MAX_LIFETIME_POINTS).toBe(38435 + 3750 + 300);
+    expect(RANKS.slice(0, 8).map((r) => r.threshold)).toEqual([0, 100, 1150, 3050, 6900, 12700, 20000, 29200]);
+    expect(RANKS[8]!.threshold).toBe(42485);
   });
 
   it("ranks by lifetime points, reaching rank 2 with the first win", () => {
