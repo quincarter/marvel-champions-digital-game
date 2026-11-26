@@ -173,8 +173,9 @@ describe("the host's own answers to Each player Undo", () => {
     appVersion: "1",
     contentVersion: "1",
   };
-  const undo = { id: "r1", from: "g1", name: "Ava", what: "undo" as const, note: "" };
-  const change = { ...undo, id: "r2", what: "adjust" as const };
+  // A bound Undo: the table the guest saw (`base`) and the count its Undo goes back to (`target`).
+  const undo = { id: "r1", from: "g1", name: "Ava", what: "undo" as const, note: "", base: 12, target: 11 };
+  const change = { id: "r2", from: "g1", name: "Ava", what: "adjust" as const, note: "" };
 
   it("answers a guest's Undo by itself, with no sound, and still sounds for a change", () => {
     const before = room({ role: "host", settings });
@@ -193,5 +194,10 @@ describe("the host's own answers to Each player Undo", () => {
       ),
     ).toEqual([undo]);
     expect(selfAnswered(room({ settings }), undo)).toBe(false);
+  });
+
+  it("leaves an Undo asked without its table (under Ask, before a switch) to the host", () => {
+    const { base: _base, target: _target, ...unbound } = undo;
+    expect(selfAnswered(room({ role: "host", settings }), unbound)).toBe(false);
   });
 });
