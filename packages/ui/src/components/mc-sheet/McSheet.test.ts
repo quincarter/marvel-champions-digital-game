@@ -353,3 +353,116 @@ describe("mc-sheet", () => {
     }
   });
 });
+
+describe("mc-sheet drawings, QR codes and sliders", () => {
+  it("draws a QR code as one path of its dark modules with the quiet zone round them", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "qr",
+        key: "qr",
+        rect: rect(0, 0, 100, 100),
+        rows: ["10", "01"],
+        border: 4,
+        background: "#fff",
+        foreground: "#000",
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const drawn = sheet.elementOf("qr")!;
+    expect(drawn.getAttribute("viewBox")).toBe("0 0 10 10");
+    expect(drawn.querySelector("path")!.getAttribute("d")).toBe("M4 4h1v1h-1zM5 5h1v1h-1z");
+    sheet.remove();
+  });
+
+  it("draws a drawing's shapes and keeps its text as text", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "svg",
+        key: "drawing",
+        rect: rect(0, 0, 200, 100),
+        viewBox: [400, 200],
+        ops: [
+          { k: "rect", x: 0, y: 0, w: 10, h: 10, fill: "#111" },
+          {
+            k: "text",
+            x: 5,
+            y: 5,
+            text: "Prev zone",
+            size: 12,
+            weight: 800,
+            anchor: "middle",
+            fill: "#fff",
+            font: "body",
+          },
+        ],
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const drawn = sheet.elementOf("drawing")!;
+    expect(drawn.querySelectorAll("rect")).toHaveLength(1);
+    expect(drawn.querySelector("text")!.textContent).toBe("Prev zone");
+    sheet.remove();
+  });
+
+  it("reports a step press, and a tap on the track as a committed share", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "slider",
+        key: "size",
+        rect: rect(0, 0, 300, 30),
+        share: 0.5,
+        label: "125%",
+        ground: "ink",
+        stepLabels: ["−", "+"],
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const steps: unknown[] = [];
+    const slides: unknown[] = [];
+    sheet.addEventListener("mc-step", (event) => steps.push((event as CustomEvent).detail));
+    sheet.addEventListener("mc-slide", (event) => slides.push((event as CustomEvent).detail));
+    expect(sheet.elementOf("size:label")!.textContent).toBe("125%");
+    sheet.elementOf("size:up")!.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true }));
+    expect(steps).toEqual([{ key: "size", direction: 1 }]);
+    const track = sheet.elementOf("size:track")!;
+    track.getBoundingClientRect = () =>
+      ({ left: 0, width: 100, top: 0, right: 100, bottom: 30, height: 30, x: 0, y: 0 }) as DOMRect;
+    const at = { bubbles: true, composed: true, clientX: 25, clientY: 5, pointerId: 1, button: 0 };
+    track.dispatchEvent(new PointerEvent("pointerdown", at));
+    track.dispatchEvent(new PointerEvent("pointerup", at));
+    expect(slides).toEqual([{ key: "size", share: 0.25, commit: true }]);
+    sheet.remove();
+  });
+
+  it("treats an up or down drag on the track as the page's scroll and reports nothing", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "slider",
+        key: "size",
+        rect: rect(0, 0, 300, 30),
+        share: 0,
+        label: "75%",
+        ground: "ink",
+        stepLabels: ["−", "+"],
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const slides: unknown[] = [];
+    sheet.addEventListener("mc-slide", (event) => slides.push((event as CustomEvent).detail));
+    const track = sheet.elementOf("size:track")!;
+    const at = (clientY: number) => ({ bubbles: true, composed: true, clientX: 20, clientY, pointerId: 1, button: 0 });
+    track.dispatchEvent(new PointerEvent("pointerdown", at(5)));
+    track.dispatchEvent(new PointerEvent("pointermove", at(40)));
+    track.dispatchEvent(new PointerEvent("pointerup", at(40)));
+    expect(slides).toEqual([]);
+    sheet.remove();
+  });
+});

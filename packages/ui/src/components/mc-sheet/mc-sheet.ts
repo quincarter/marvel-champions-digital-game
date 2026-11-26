@@ -18,8 +18,13 @@ export type {
   SheetImage,
   SheetNode,
   SheetPoly,
+  SheetQr,
   SheetRect,
   SheetScroll,
+  SheetSlider,
+  SheetSvg,
   SheetTap,
   SheetText,
+  SvgOp,
+  SvgStyle,
 } from "./McSheet.js";

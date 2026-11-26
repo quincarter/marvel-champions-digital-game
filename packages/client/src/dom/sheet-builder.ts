@@ -9,7 +9,7 @@
  *   same font the sheet draws it in (`measure`).
  * - Coordinates are the screen's; the builder subtracts the sheet's own origin.
  */
-import type { GlyphSpec as UiGlyphSpec, McGlyphGround, SheetNode, SheetRect } from "@mc/ui";
+import type { GlyphSpec as UiGlyphSpec, McGlyphGround, SheetNode, SheetRect, SvgOp } from "@mc/ui";
 import { accent, font, signal, status, surface, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { uiLayer } from "./ui-layer.js";
@@ -364,6 +364,50 @@ export class SheetBuilder {
       ...(options.hover !== undefined ? { hover: options.hover } : {}),
       ...(options.key !== undefined ? { key: options.key } : {}),
       ...(options.retry !== undefined ? { retry: options.retry } : {}),
+    });
+  }
+
+  /** A QR code (`uqr`'s rows of dark modules) filling `rect`, a light ground under the modules. */
+  qr(
+    rect: Rect,
+    rows: readonly string[],
+    border: number,
+    ground: { readonly background: number; readonly foreground: number },
+  ): void {
+    this.nodes.push({
+      kind: "qr",
+      rect: this.#rect(rect),
+      rows,
+      border,
+      background: sheetColor(ground.background, "fill"),
+      foreground: sheetColor(ground.foreground, "fill"),
+    });
+  }
+
+  /** A drawing in `viewBox` units scaled to `rect`: shapes with token colors already mapped (`sheetColor`). */
+  svg(rect: Rect, viewBox: readonly [number, number], ops: readonly SvgOp[], key?: string): void {
+    this.nodes.push({ kind: "svg", ...(key !== undefined ? { key } : {}), rect: this.#rect(rect), viewBox, ops });
+  }
+
+  /** A stepped slider (`mc-slide`, `mc-step`): its track, knob at `share` (0 to 1) and the value as `label`. */
+  slider(options: {
+    readonly key: string;
+    readonly rect: Rect;
+    readonly share: number;
+    readonly label: string;
+    readonly ground: "ink" | "paper";
+    readonly dimmed?: boolean;
+    readonly stepLabels: readonly [string, string];
+  }): void {
+    this.nodes.push({
+      kind: "slider",
+      key: options.key,
+      rect: this.#rect(options.rect),
+      share: options.share,
+      label: options.label,
+      ground: options.ground,
+      ...(options.dimmed ? { dimmed: true } : {}),
+      stepLabels: options.stepLabels,
     });
   }
 

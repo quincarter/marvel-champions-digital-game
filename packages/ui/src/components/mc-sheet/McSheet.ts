@@ -184,6 +184,97 @@ export interface SheetPoly {
   readonly strokeWidth?: number;
 }
 
+/** A QR code: dark modules on a light ground, with a quiet zone of `border` modules, scaled to fill `rect`. */
+export interface SheetQr {
+  readonly kind: "qr";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  /** One string per module row, "1" for a dark module. */
+  readonly rows: readonly string[];
+  /** The quiet zone round the modules, in modules. */
+  readonly border: number;
+  readonly background: string;
+  readonly foreground: string;
+}
+
+export interface SvgStyle {
+  readonly fill?: string;
+  readonly stroke?: string;
+  readonly sw?: number;
+  readonly alpha?: number;
+  readonly dash?: readonly [number, number];
+}
+
+/** One drawn shape of a `SheetSvg`, in the drawing's own units. */
+export type SvgOp =
+  | ({
+      readonly k: "rect";
+      readonly x: number;
+      readonly y: number;
+      readonly w: number;
+      readonly h: number;
+      readonly rx?: number;
+    } & SvgStyle)
+  | ({ readonly k: "circle"; readonly cx: number; readonly cy: number; readonly r: number } & SvgStyle)
+  | ({
+      readonly k: "line";
+      readonly x1: number;
+      readonly y1: number;
+      readonly x2: number;
+      readonly y2: number;
+    } & SvgStyle)
+  | ({ readonly k: "path"; readonly d: string } & SvgStyle)
+  | {
+      readonly k: "text";
+      readonly x: number;
+      readonly y: number;
+      readonly text: string;
+      readonly size: number;
+      readonly weight: number;
+      readonly anchor: "start" | "middle" | "end";
+      readonly fill: string;
+      readonly alpha?: number;
+      readonly spacing?: number;
+      readonly font: "display" | "body";
+    }
+  | {
+      readonly k: "image";
+      readonly href: string;
+      readonly x: number;
+      readonly y: number;
+      readonly w: number;
+      readonly h: number;
+    };
+
+/** A drawing (the Controls screen's controller): shapes and text laid out in `viewBox` units, scaled to `rect`. */
+export interface SheetSvg {
+  readonly kind: "svg";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly viewBox: readonly [number, number];
+  readonly ops: readonly SvgOp[];
+}
+
+/**
+ * A stepped slider: "−", a track with a filled share and a round knob, "+", and the value as text. A tap on the track
+ * or a sideways drag along it raises `mc-slide` (`share` 0 to 1 along the track; `commit` false while dragging and true
+ * on the release); a drag that goes up or down is the page's scroll and changes nothing. "−" and "+" raise `mc-step`.
+ */
+export interface SheetSlider {
+  readonly kind: "slider";
+  readonly key: string;
+  readonly rect: SheetRect;
+  /** The knob's share along the track (0 to 1). */
+  readonly share: number;
+  /** The value as text ("125%"), already formatted. */
+  readonly label: string;
+  /** Faded but still adjustable. */
+  readonly dimmed?: boolean;
+  /** The ground the slider sits on, for the track's colour. */
+  readonly ground: "ink" | "paper";
+  readonly stepLabels: readonly [string, string];
+}
+
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
 export interface SheetScroll {
   readonly kind: "scroll";
@@ -203,6 +294,9 @@ export type SheetNode =
   | SheetHalftone
   | SheetPoly
   | SheetTap
+  | SheetQr
+  | SheetSvg
+  | SheetSlider
   | SheetScroll;
 
 /**
@@ -227,6 +321,8 @@ const px = (rect: SheetRect): string =>
  * @fires mc-inspect - `detail.key`: a tap area with `inspect` was held or right-clicked.
  * @fires mc-image-error - `detail.key` (the image's `retry`), `detail.src`: a picture with `retry` failed to load, once per key until one loads.
  * @fires mc-hover - `detail.key`, `detail.over`: a mouse moved onto or off a tap area with `track`.
+ * @fires mc-slide - `detail.key`, `detail.share` (0 to 1 along the track), `detail.commit`: a slider track was tapped or dragged.
+ * @fires mc-step - `detail.key`, `detail.direction` (-1 or 1): a slider's minus or plus was tapped.
  */
 export class McSheet extends LitElement {
   static override styles = [ThemeStyles, McSheetStyles];
@@ -337,6 +433,127 @@ export class McSheet extends LitElement {
     }
     if (at < text.length) parts.push(text.slice(at));
     return parts;
+  }
+
+  #svgOp(op: SvgOp): unknown {
+    if (op.k === "text") {
+      return svg`<text x=${op.x} y=${op.y} text-anchor=${op.anchor} fill=${op.fill} fill-opacity=${op.alpha ?? 1}
+        font-size=${op.size} font-weight=${op.weight} letter-spacing=${op.spacing ?? 0}
+        font-family=${`var(--mc-font-${op.font})`}>${op.text}</text>`;
+    }
+    if (op.k === "image") return svg`<image href=${op.href} x=${op.x} y=${op.y} width=${op.w} height=${op.h}></image>`;
+    const fill = op.fill ?? "none";
+    const stroke = op.stroke ?? "none";
+    const width = op.sw ?? 1;
+    const opacity = op.alpha ?? 1;
+    const dash = op.dash ? `${op.dash[0]} ${op.dash[1]}` : "none";
+    switch (op.k) {
+      case "rect":
+        return svg`<rect x=${op.x} y=${op.y} width=${op.w} height=${op.h} rx=${op.rx ?? 0} fill=${fill} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></rect>`;
+      case "circle":
+        return svg`<circle cx=${op.cx} cy=${op.cy} r=${op.r} fill=${fill} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></circle>`;
+      case "line":
+        return svg`<line x1=${op.x1} y1=${op.y1} x2=${op.x2} y2=${op.y2} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></line>`;
+      case "path":
+        return svg`<path d=${op.d} fill=${fill} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></path>`;
+    }
+  }
+
+  /** The press that is on a slider's track now: where it began, and whether it turned into a drag or the page's scroll. */
+  readonly #slides = new Map<string, { x: number; y: number; mode: "none" | "drag" | "scroll"; id: number }>();
+
+  /** The share of the track's box a pointer is across (in the page's own pixels, whatever the scale). */
+  #shareAt(track: HTMLElement, clientX: number): number {
+    const box = track.getBoundingClientRect();
+    return box.width > 0 ? Math.min(1, Math.max(0, (clientX - box.left) / box.width)) : 0;
+  }
+
+  #emitSlide(key: string, share: number, commit: boolean): void {
+    this.dispatchEvent(new CustomEvent("mc-slide", { detail: { key, share, commit }, bubbles: true, composed: true }));
+  }
+
+  #step(key: string, direction: -1 | 1): void {
+    this.dispatchEvent(new CustomEvent("mc-step", { detail: { key, direction }, bubbles: true, composed: true }));
+  }
+
+  #slider(node: SheetSlider): unknown {
+    const STEP = 36;
+    const PERCENT = 50;
+    const KNOB = 9;
+    const upX = node.rect.width - PERCENT - STEP;
+    const left = STEP + 10 + KNOB;
+    const trackWidth = Math.max(0, upX - 10 - KNOB - left);
+    const base = node.ground === "ink" ? "var(--mc-fill-paper, #f2ede0)" : "var(--mc-fill-ink, #14110e)";
+    const key = node.key;
+    const slop = 6;
+    const mid = node.rect.height / 2;
+    // The track's box is the bar plus a knob's radius each side, so a press on a knob that sits at either end still hits.
+    const trackBox = (event: PointerEvent): HTMLElement => event.currentTarget as HTMLElement;
+    const down = (event: PointerEvent): void => {
+      this.#slides.set(key, { x: event.clientX, y: event.clientY, mode: "none", id: event.pointerId });
+    };
+    const move = (event: PointerEvent): void => {
+      const press = this.#slides.get(key);
+      if (!press || press.id !== event.pointerId) return;
+      if (press.mode === "none") {
+        const dx = Math.abs(event.clientX - press.x);
+        const dy = Math.abs(event.clientY - press.y);
+        if (dx <= slop && dy <= slop) return;
+        // Up or down is the page's scroll; sideways is this slider's drag.
+        press.mode = dy > dx ? "scroll" : "drag";
+        if (press.mode === "drag") trackBox(event).setPointerCapture(event.pointerId);
+      }
+      if (press.mode === "drag") this.#emitSlide(key, this.#shareAt(trackBox(event), event.clientX), false);
+    };
+    const up = (event: PointerEvent): void => {
+      const press = this.#slides.get(key);
+      this.#slides.delete(key);
+      if (!press || press.id !== event.pointerId || press.mode === "scroll") return;
+      this.#emitSlide(key, this.#shareAt(trackBox(event), event.clientX), true);
+    };
+    const cancel = (): void => {
+      this.#slides.delete(key);
+    };
+    return html`<div
+      class="part slider"
+      data-key=${key}
+      data-share=${node.share}
+      style=${`${px(node.rect)}${node.dimmed ? ";opacity:.45" : ""}`}
+    >
+      <mc-button
+        class="part"
+        data-key=${`${key}:down`}
+        style=${`left:0;top:0;width:${STEP}px;height:${node.rect.height}px`}
+        kind="quiet"
+        .label=${node.stepLabels[0]}
+        @mc-press=${() => this.#step(key, -1)}
+      ></mc-button>
+      <div
+        class="part slider-track"
+        data-key=${`${key}:track`}
+        style=${`left:${left - KNOB}px;top:0;width:${trackWidth + KNOB * 2}px;height:${node.rect.height}px`}
+        @pointerdown=${down}
+        @pointermove=${move}
+        @pointerup=${up}
+        @pointercancel=${cancel}
+      >
+        <div
+          class="slider-bar"
+          style=${`left:${KNOB}px;width:${trackWidth}px;top:${mid - 3}px;background:${base}`}
+        ></div>
+        <div class="slider-fill" style=${`left:${KNOB}px;width:${trackWidth * node.share}px;top:${mid - 3}px`}></div>
+        <div class="slider-knob" style=${`left:${trackWidth * node.share}px;top:${mid - KNOB}px`}></div>
+      </div>
+      <mc-button
+        class="part"
+        data-key=${`${key}:up`}
+        style=${`left:${upX}px;top:0;width:${STEP}px;height:${node.rect.height}px`}
+        kind="quiet"
+        .label=${node.stepLabels[1]}
+        @mc-press=${() => this.#step(key, 1)}
+      ></mc-button>
+      <span class="part text slider-label" data-key=${`${key}:label`}>${node.label}</span>
+    </div>`;
   }
 
   #node(node: SheetNode): unknown {
@@ -517,6 +734,36 @@ export class McSheet extends LitElement {
           @pointerleave=${node.track ? (event: PointerEvent) => this.#hover(node.key, false, event) : nothing}
           ${tapped(() => this.#activate(node.key), node.inspect ? () => this.#inspect(node.key) : undefined)}
         ></div>`;
+      case "qr": {
+        const n = node.rows.length + node.border * 2;
+        const path = node.rows
+          .flatMap((row, r) =>
+            [...row].flatMap((cell, c) => (cell === "1" ? [`M${c + node.border} ${r + node.border}h1v1h-1z`] : [])),
+          )
+          .join("");
+        return html`<svg
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          viewBox=${`0 0 ${n} ${n}`}
+          shape-rendering="crispEdges"
+          aria-hidden="true"
+        >
+          ${svg`<rect width=${n} height=${n} fill=${node.background}></rect><path d=${path} fill=${node.foreground}></path>`}
+        </svg>`;
+      }
+      case "svg":
+        return html`<svg
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          viewBox=${`0 0 ${node.viewBox[0]} ${node.viewBox[1]}`}
+          aria-hidden="true"
+        >
+          ${node.ops.map((op) => this.#svgOp(op))}
+        </svg>`;
+      case "slider":
+        return this.#slider(node);
       case "scroll":
         return html`<div class="part scroller" data-key=${node.key} style=${px(node.rect)}>
           <div class="content" style=${`height:${node.height}px`}>

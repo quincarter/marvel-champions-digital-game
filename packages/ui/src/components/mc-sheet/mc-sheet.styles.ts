@@ -63,4 +63,42 @@ export const McSheetStyles = css`
   .content {
     position: relative;
   }
+  /* A stepped slider: the track takes sideways drags itself and leaves the page's vertical scroll to the browser. */
+  .slider-track {
+    touch-action: pan-y;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .slider-bar,
+  .slider-fill {
+    position: absolute;
+    height: 6px;
+  }
+  .slider-bar {
+    opacity: 0.22;
+  }
+  .slider-fill {
+    background: var(--mc-fill-red, #c8102e);
+  }
+  .slider-knob {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    background: var(--mc-fill-paper, #f2ede0);
+    border: 2px solid var(--mc-line-ink, #14110e);
+  }
+  .slider-label {
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--mc-font-body);
+    font-weight: 800;
+    font-size: var(--mc-small-9, 9px);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--mc-text-paper, #f2ede0);
+  }
 `;
