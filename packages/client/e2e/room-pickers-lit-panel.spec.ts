@@ -152,7 +152,7 @@ test("the notice is a panel: the ring is on OK at once, two notices show Next, E
 
   await pressKey(page, "Enter");
   await expect(panel).toContainText("Second notice");
-  await expect(panel.locator('mc-button[data-key^="ok:"]')).toHaveText(/^ok$/i);
+  await expect(panel.locator('mc-button[data-key^="ok:"]')).toHaveText(/^\s*ok\s*$/i);
   // The second one offers "Don't show again" beside OK; the ring walks to it.
   await expect(panel.locator('mc-button[data-key^="never:"]')).toBeVisible();
   await walkTo(page, NOTICE, "never", "ArrowLeft", 4);

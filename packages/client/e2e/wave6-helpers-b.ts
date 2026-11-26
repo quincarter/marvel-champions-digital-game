@@ -136,7 +136,7 @@ export async function declineMulligans(page: Page): Promise<void> {
   }
 }
 
-/** Text objects that are really showing: the shared `findText` also matches hidden ones (a hover label, say). */
+/** Text that is really showing, Phaser's and the Lit panels': the shared `findText` also matches hidden Phaser ones (a hover label, say). */
 export async function findVisibleText(page: Page, substr: string, sceneKey?: string): Promise<TextMatch[]> {
   return page.evaluate(
     ({ substr, sceneKey }) => {
@@ -177,6 +177,47 @@ export async function findVisibleText(page: Page, substr: string, sceneKey?: str
           for (const child of o.list ?? []) walk(child, visible);
         };
         for (const child of scene.children.list) walk(child, true);
+      }
+      // The Lit panels over the canvas (`src/dom/dom-region.ts`), by the scene each names in `data-scene`: an element's
+      // own text, when the panel is showing and the element is inside it and every scrolling box it sits in.
+      const running = new Set(scenes.filter((s) => s.sys.isActive()).map((s) => s.sys.settings.key));
+      for (const wrap of Array.from(document.getElementById("mc-ui")?.children ?? []) as HTMLElement[]) {
+        const key = wrap.dataset.scene;
+        if (!key || !running.has(key) || (sceneKey && key !== sceneKey)) continue;
+        if (wrap.style.visibility === "hidden" || wrap.style.opacity === "0") continue;
+        const view = wrap.getBoundingClientRect();
+        const inside = (box: DOMRect, clip: DOMRect): boolean =>
+          box.right > clip.left && box.left < clip.right && box.bottom > clip.top && box.top < clip.bottom;
+        const visit = (node: Element | ShadowRoot): void => {
+          for (const child of Array.from(node.children)) {
+            const own = Array.from(child.childNodes)
+              .filter((n) => n.nodeType === Node.TEXT_NODE)
+              .map((n) => n.textContent ?? "")
+              .join("")
+              .trim();
+            if (own && own.toLowerCase().includes(substr.toLowerCase())) {
+              const box = child.getBoundingClientRect();
+              let shown = box.width > 0 && box.height > 0 && inside(box, view);
+              for (let at: Node | null = child.parentNode; at && at !== wrap && shown;) {
+                if (at instanceof Element && ["auto", "scroll", "hidden"].includes(getComputedStyle(at).overflowY))
+                  shown = inside(box, at.getBoundingClientRect());
+                at = at instanceof ShadowRoot ? at.host : at.parentNode;
+              }
+              if (shown)
+                out.push({
+                  scene: key,
+                  text: own,
+                  x: box.x + box.width / 2,
+                  y: box.y + box.height / 2,
+                  w: box.width,
+                  h: box.height,
+                });
+            }
+            if (child.shadowRoot) visit(child.shadowRoot);
+            visit(child);
+          }
+        };
+        visit(wrap);
       }
       return out;
     },

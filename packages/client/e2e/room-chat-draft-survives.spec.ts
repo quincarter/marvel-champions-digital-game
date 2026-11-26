@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { settle } from "./helpers.js";
+import { installPageHelpers, settle } from "./helpers.js";
 import { trackErrors, waitForScene } from "./wave6-helpers-a.js";
 
 /**
@@ -11,6 +11,7 @@ import { trackErrors, waitForScene } from "./wave6-helpers-a.js";
 test("a chat line arriving keeps the draft, its selection and the field's focus", async ({ page }) => {
   test.setTimeout(120_000);
   const errors = trackErrors(page);
+  await installPageHelpers(page);
   await page.goto("/?screen=room-chat");
   await waitForScene(page, "RoomChatOverlay", 30000);
   const input = page.locator("input, textarea").last();

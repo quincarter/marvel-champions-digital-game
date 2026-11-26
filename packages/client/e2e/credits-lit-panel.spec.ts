@@ -15,15 +15,15 @@ test("Art & Credits is a Lit panel that scrolls, takes focus and leaves with its
   await openApp(page, "screen=credits", { landing: "Credits" });
   await waitForText(page, "The Watchers", { sceneKey: "Credits" });
 
-  // Native scrolling: the wheel moves the list under the pointer.
+  // Native scrolling: the wheel moves the list under the pointer. `findText` only finds text inside the panel's box,
+  // so a row that scrolls out of view stops being found; the scroller's own offset is the measure.
+  const scroller = page.locator('#mc-ui [data-scene="Credits"] .scroller');
   const before = (await findText(page, "The Watchers", "Credits"))[0]!;
+  expect(await scroller.evaluate((el) => el.scrollTop)).toBe(0);
   await page.mouse.move(before.x, before.y);
   await page.mouse.wheel(0, 400);
   await waitFor(
-    async () => {
-      const now = (await findText(page, "The Watchers", "Credits"))[0];
-      return now && now.y < before.y - 100 ? true : null;
-    },
+    async () => ((await scroller.evaluate((el) => el.scrollTop)) > 100 ? true : null),
     "the list scrolled",
     5000,
   );
@@ -55,5 +55,6 @@ test("Art & Credits reads in Spanish", async ({ page }) => {
   await openApp(page, "screen=credits", { landing: "Credits" });
   await waitForText(page, "Arte y créditos", { sceneKey: "Credits" });
   await waitForText(page, "Este es un proyecto hecho por fans", { sceneKey: "Credits" });
-  await waitForText(page, "Música y sonido", { sceneKey: "Credits" });
+  // A group heading far down the list is in the panel but outside its box: found in the DOM, not as on-screen text.
+  await expect(page.locator('#mc-ui [data-scene="Credits"]').getByText("Música y sonido")).toHaveCount(1);
 });
