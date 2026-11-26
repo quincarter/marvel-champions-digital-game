@@ -81,6 +81,58 @@ describe("skirmish mode", () => {
     },
   );
 
+  describe("at Fear No Evil, against the chosen Underling villain (MC60 p. 5; issue #995)", () => {
+    const UNDERLING_SCENARIOS = [
+      "art-museum-heist",
+      "the-getaway",
+      "protection-racket",
+      "the-raft-breakout",
+      "stop-the-presses",
+    ];
+
+    it.each(UNDERLING_SCENARIOS)("offers the chosen villain's versions at %s", (scenarioId) => {
+      expect(playableScenarioOffer(scenarioId).skirmish).toEqual({ versions: ["1", "2"], printed: false });
+      expect(playableScenarioOffer(scenarioId, { villainSetId: "electro", modes: { expert: true } }).skirmish).toEqual({
+        versions: ["2", "3"],
+        printed: false,
+      });
+      // Typhoid Mary is one double-sided card that wins by its own text: nothing to shorten.
+      expect(playableScenarioOffer(scenarioId, { villainSetId: "typhoid_mary" }).skirmish).toBeNull();
+      expect(() =>
+        playableScenario("art-museum-heist", {
+          players: seats,
+          seed: 1,
+          villainSetId: "typhoid_mary",
+          modes: { skirmish: { villainVersion: "1" } },
+        }),
+      ).toThrow(/no skirmish mode/);
+    });
+
+    it("is not offered at Kingpin, one double-sided villain card per mode", () => {
+      expect(playableScenarioOffer("kingpin").skirmish).toBeNull();
+    });
+
+    it("sets up a game at every villain and version, in both difficulties", () => {
+      for (const villainSetId of ["hammerhead", "bullseye", "electro", "purple_man"])
+        for (const expert of [{}, { expert: true as const }]) {
+          const offer = playableScenarioOffer("art-museum-heist", { villainSetId, modes: expert }).skirmish;
+          expect(offer?.versions.length, villainSetId).toBe(2);
+          for (const villainVersion of offer!.versions) {
+            const config = playableScenario("art-museum-heist", {
+              players: seats,
+              seed: 1,
+              villainSetId,
+              modes: { ...expert, skirmish: { villainVersion } },
+            });
+            const label = `${villainSetId} ${villainVersion}`;
+            expect(config.villainStartStageIndex, label).toBe(Number(villainVersion) - 1);
+            expect(config.villainLastStageIndex, label).toBe(Number(villainVersion) - 1);
+            expect(createGame(config, PLAYABLE_DEPS).ok, label).toBe(true);
+          }
+        }
+    });
+  });
+
   it("sets up a game at every scenario and version, in both difficulties", () => {
     for (const scenario of PLAYABLE_SCENARIO_RECORDS) {
       for (const expert of [{}, { expert: true as const }]) {

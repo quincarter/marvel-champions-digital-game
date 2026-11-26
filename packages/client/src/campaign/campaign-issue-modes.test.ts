@@ -8,6 +8,9 @@ import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage, type CampaignRecord } from "../engine/campaign-storage.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { EngineSessionCore } from "../engine/session-core.js";
+import { POOL_VERSION } from "../content/pool.js";
+import { applyIssueMode, issueModeRowsOf } from "../view/campaign-modes-model.js";
+import { preconDecks } from "../view/deck-list-model.js";
 import { CampaignService } from "./campaign-service.js";
 import { seedAoaRun } from "./dev-fixtures.js";
 
@@ -93,5 +96,35 @@ describe("the modes of one campaign issue", () => {
     const next = await compose(campaigns, folded.record);
     expect(next.attempt?.modes.heroic).toBeUndefined();
     expect(next.attempt?.modes.expert).toBeUndefined();
+  });
+});
+
+describe("skirmish at a Fear No Evil issue (MC60 p. 5; issue #995)", () => {
+  test("offers the chosen Underling villain's versions, and the game is built with the one picked", async () => {
+    const campaigns = service();
+    const jj = preconDecks(POOL_VERSION).find((deck) => (deck.identityCardId as string) === "61001a")!;
+    const signed = await campaigns.start({
+      campaignId: "fne",
+      seats: [{ identityCardId: jj.identityCardId, deck: jj }],
+      poolVersion: POOL_VERSION,
+      seed: 42,
+    });
+    const record = await compose(campaigns, signed);
+    const { scenarioId, villainSetId } = campaigns.launchConfig(record);
+    expect(villainSetId).toBeDefined();
+    expect(villainSetId).not.toBe("typhoid_mary");
+    // The scenario's villain is a choice: the Briefing reads the issue's own villain for its versions.
+    const skirmish = issueModeRowsOf(scenarioId, {}, villainSetId).find((row) => row.id === "skirmish");
+    expect(skirmish?.chips.map((chip) => chip.action)).toEqual(["skirmish:off", "skirmish:1", "skirmish:2"]);
+    const modes = applyIssueMode(scenarioId, {}, "skirmish:2", villainSetId);
+    expect(modes).toEqual({ skirmish: { villainVersion: "2" } });
+    const composed = await compose(campaigns, await campaigns.setIssueModes(record, modes));
+    const config = campaigns.launchConfig(composed);
+    expect(config.villainSetId).toBe(villainSetId);
+    expect(config.modes?.skirmish).toEqual({ villainVersion: "2" });
+    const { snapshot } = await new EngineSessionCore({ storage: new MemoryGameStorage() }).start(config);
+    const [villain] = snapshot.state.villains;
+    expect(villain?.stageIndex).toBe(1);
+    expect(villain?.lastStageIndex).toBe(1);
   });
 });

@@ -244,7 +244,7 @@ function withPlayModes(
   if (!Number.isInteger(heroic) || heroic < 0) throw new Error(`heroic level ${heroic} is not a whole number`);
   const leveled = heroic > 0 ? { ...built, heroicLevel: heroic } : built;
   if (!modes.skirmish) return leveled;
-  const offer = skirmishOffer(scenario, modes);
+  const offer = skirmishOffer(scenario, modes, options.villainSetId);
   if (!offer) throw new Error(`${scenario?.name ?? "this scenario"} has no skirmish mode`);
   if (offer.printed) return leveled;
   const version = modes.skirmish.villainVersion;
