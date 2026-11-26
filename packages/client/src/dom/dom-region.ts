@@ -86,19 +86,54 @@ export function gameRectOf(target: Element, layer: HTMLElement): Rect {
   };
 }
 
+/**
+ * `rects` as disjoint rectangles covering the same area (their union), so overlapping cutouts cut once: the even-odd
+ * rule would put the panel back wherever two holes overlap. Split on every hole edge and keep the covered cells,
+ * merging each run of covered cells along a row.
+ */
+export function disjointUnion(rects: readonly Rect[]): Rect[] {
+  const xs = [...new Set(rects.flatMap((r) => [r.x, r.x + r.width]))].sort((a, b) => a - b);
+  const ys = [...new Set(rects.flatMap((r) => [r.y, r.y + r.height]))].sort((a, b) => a - b);
+  const covered = (x: number, y: number): boolean =>
+    rects.some((r) => x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height);
+  const out: Rect[] = [];
+  for (let row = 0; row + 1 < ys.length; row++) {
+    const top = ys[row]!;
+    const bottom = ys[row + 1]!;
+    let runStart: number | null = null;
+    for (let col = 0; col + 1 < xs.length; col++) {
+      const inside = covered(xs[col]!, top);
+      if (inside && runStart === null) runStart = xs[col]!;
+      if (!inside && runStart !== null) {
+        out.push({ x: runStart, y: top, width: xs[col]! - runStart, height: bottom - top });
+        runStart = null;
+      }
+    }
+    if (runStart !== null)
+      out.push({ x: runStart, y: top, width: xs[xs.length - 1]! - runStart, height: bottom - top });
+  }
+  return out;
+}
+
 /** A CSS clip path (even-odd) covering `box` with `holes` cut out of it, in the box's own coordinates; null for none. */
 export function clipWithHoles(box: Rect, holes: readonly Rect[]): string | null {
-  const cut = holes
-    .map((hole) => ({
-      x: Math.max(0, hole.x - box.x),
-      y: Math.max(0, hole.y - box.y),
-      right: Math.min(box.width, hole.x + hole.width - box.x),
-      bottom: Math.min(box.height, hole.y + hole.height - box.y),
-    }))
-    .filter((hole) => hole.right > hole.x && hole.bottom > hole.y);
-  if (cut.length === 0) return null;
+  const clipped = holes
+    .map((hole) => {
+      const x = Math.max(0, hole.x - box.x);
+      const y = Math.max(0, hole.y - box.y);
+      return {
+        x,
+        y,
+        width: Math.min(box.width, hole.x + hole.width - box.x) - x,
+        height: Math.min(box.height, hole.y + hole.height - box.y) - y,
+      };
+    })
+    .filter((hole) => hole.width > 0 && hole.height > 0);
+  if (clipped.length === 0) return null;
   const outer = `M0 0H${box.width}V${box.height}H0Z`;
-  const inner = cut.map((h) => `M${h.x} ${h.y}H${h.right}V${h.bottom}H${h.x}Z`).join("");
+  const inner = disjointUnion(clipped)
+    .map((h) => `M${h.x} ${h.y}H${h.x + h.width}V${h.y + h.height}H${h.x}Z`)
+    .join("");
   return `path(evenodd, "${outer}${inner}")`;
 }
 
