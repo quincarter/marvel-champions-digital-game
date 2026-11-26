@@ -462,4 +462,47 @@ describe("CardArt with a pack picture held across an eviction", () => {
     expect(decoder.asked.some((ask) => ask.url === "blob:q2")).toBe(true);
     resolve.mockImplementation((s) => s);
   });
+
+  it("does not decode a queued pack job after its pack is removed, through the real pack-art module", async () => {
+    const real = await vi.importActual<typeof import("./pack-art.js")>("./pack-art.js");
+    const resolve = vi.mocked(currentPackArt);
+    resolve.mockImplementation(real.currentPackArt);
+    const store = {
+      objectUrl: async (id: string, path: string) => `blob:${id}/${path}`,
+      revoke: () => undefined,
+    };
+    const manifest = {
+      id: "demo",
+      version: "1.0.0",
+      languages: { base: "en", available: ["en"] },
+      files: [{ path: "cards/en/x.demo.01a.webp", bytes: 1, sha256: "" }],
+    } as unknown as Parameters<typeof real.setPackArt>[0][number];
+    real.setPackArt([manifest], store);
+    real.packArtFor("x.demo.01a", "en");
+    await vi.advanceTimersByTimeAsync(250);
+    const held = real.packArtFor("x.demo.01a", "en");
+    expect(held).not.toBeNull();
+    const decoder = new FakeDecoder();
+    const gates: (() => void)[] = [];
+    const decode: ScanDecoder = (url, slot) => new Promise((done) => gates.push(() => done(decoder.decode(url, slot))));
+    const { art, scene } = setup({ decode });
+    for (const key of ["a", "b", "c", "d"]) {
+      decoder.stage(urlOf(key), { width: 627, height: 900 });
+      art.request(scene, source(key));
+    }
+    decoder.stage(held!.url, { width: 627, height: 900 });
+    art.request(scene, held!);
+    expect(art.stats).toMatchObject({ decoding: 4, queued: 1 });
+    // The pack is uninstalled while its decode waits; the queue then drains.
+    real.setPackArt([], store);
+    for (const open of gates.splice(0)) open();
+    await settle();
+    // Whatever the queue started once a slot freed is let finish, then checked.
+    for (const open of gates.splice(0)) open();
+    await settle();
+    expect(decoder.asked.some((ask) => ask.url === held!.url)).toBe(false);
+    expect(art.isMissing(held!.key)).toBe(false);
+    real.resetPackArt();
+    resolve.mockImplementation((s) => s);
+  });
 });
