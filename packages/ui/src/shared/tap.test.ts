@@ -21,6 +21,22 @@ describe("onHold", () => {
     expect(tapped).not.toHaveBeenCalled();
   });
 
+  it("is no hold when the mouse leaves the element and is released elsewhere before the timer fires", () => {
+    const element = document.createElement("div");
+    const held = vi.fn();
+    onHold(element, held);
+    element.dispatchEvent(pointer("pointerdown"));
+    element.dispatchEvent(pointer("pointerleave"));
+    document.body.dispatchEvent(pointer("pointerup", 300, 300));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).not.toHaveBeenCalled();
+    // Left and still held down past the timeout: still nothing.
+    element.dispatchEvent(pointer("pointerdown"));
+    element.dispatchEvent(pointer("pointerleave"));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).not.toHaveBeenCalled();
+  });
+
   it("never taps on the release of a hold, however long the press lasts after the hold fires", () => {
     const element = document.createElement("div");
     const held = vi.fn();

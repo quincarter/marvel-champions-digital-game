@@ -124,6 +124,11 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
     press.lastX = event.clientX;
     press.lastY = event.clientY;
   };
+  // A mouse that leaves the element has left the gesture: its release lands elsewhere, so the hold is off. (A touch
+  // press stays captured by the element it began on, so its moves still arrive here and the slop check above decides.)
+  const leave = (event: PointerEvent): void => {
+    if (press?.id === event.pointerId) end();
+  };
   const up = (event: PointerEvent): void => {
     end();
     // The release that ends a hold is not a tap: stopped before the element's tap listener hears it.
@@ -142,6 +147,7 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
   element.addEventListener("pointermove", move);
   element.addEventListener("pointerup", up, { capture: true });
   element.addEventListener("pointercancel", end);
+  element.addEventListener("pointerleave", leave);
   element.addEventListener("contextmenu", menu);
   return () => {
     end();
@@ -149,6 +155,7 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
     element.removeEventListener("pointermove", move);
     element.removeEventListener("pointerup", up, { capture: true });
     element.removeEventListener("pointercancel", end);
+    element.removeEventListener("pointerleave", leave);
     element.removeEventListener("contextmenu", menu);
   };
 }
