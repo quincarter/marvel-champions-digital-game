@@ -637,8 +637,8 @@ export class SheetBuilder {
   }
 
   /** Titled groups of one-line entries (`mc-line-list`). */
-  lineList(rect: Rect, groups: readonly LineListGroup[]): void {
-    this.nodes.push({ kind: "lineList", rect: this.#rect(rect), groups });
+  lineList(rect: Rect, groups: readonly LineListGroup[], dark = false): void {
+    this.nodes.push({ kind: "lineList", rect: this.#rect(rect), groups, ...(dark ? { dark: true } : {}) });
   }
 
   /** A framed row (`mc-media-row`): a picture, a title, meta lines and a state badge; a tap raises `mc-activate`. */

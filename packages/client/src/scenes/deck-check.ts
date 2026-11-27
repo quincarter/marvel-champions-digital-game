@@ -1,80 +1,30 @@
 /**
- * Deck check (W1, docs/phase4-screen-gaps.md §3, P04/D04): a deck's resource
- * curve, composition, legality and full card list at a glance, with "Edit
- * deck" back into the builder and "Start game ▸" into the setup flow —
- * reached today from the Decks screen's own "Check" button on every row,
- * precon or saved, and from Seats' "Deck check ▸" for the active seat.
+ * Deck check (W1, docs/phase4-screen-gaps.md §3, P04/D04): a deck's resource curve, composition, legality and full card
+ * list at a glance, with "Edit deck" back into the builder and "Start game ▸" into the setup flow — reached from the
+ * Decks screen's "Check" button on every row and from Seats' "Deck check ▸" for the active seat.
  *
- * **Rebuilt 2026-09-18 for the owner's fidelity note: "The 'Deck Check'
- * screens and elements there don't flow well with the design."** — and
- * rebuilt again the same day once a real screenshot of D04
- * (`artifacts/design-screenshots/individual/screens-desktop.dc/04-s04.png`)
- * showed what the first rebuild guessed wrong: D04 ("Deck builder — live
- * validation against the 40–50 rule") **is** this step's own desktop
- * composition, the same canvas `scenes/deck-builder.ts` already draws —
- * this screen draws the read-only "check" version of exactly that
- * three-column layout, not an unrelated two-column shape. See
- * `view/deck-check-layout.ts`'s own doc comment for the column-by-column
- * accounting; the short version: an ink header (Back, "HERO — ASPECT",
- * a green/red "N CARDS · LEGAL" badge) over `rail` (aspect tiles, read-only;
- * type filter chips, live; the cost curve, pinned at the rail's own foot) ·
- * `cards` (the deck's own card grid, real scans) · `panel` (the full ink
- * "YOUR DECK" list, with Edit deck and Start game ▸ pinned at its foot) —
- * `scenes/deck-builder.ts`'s own rail/pool/rail widths reused verbatim so
- * the two screens' columns line up when a player moves between them.
+ * Wide (D04's own three columns, read-only; `view/deck-check-layout.ts` has the accounting): an ink header (Back,
+ * "HERO — ASPECT", a green/red "N CARDS · LEGAL" badge) over a rail (aspect tiles with their tips, the type filter chips,
+ * the cost curve pinned at its foot), the deck's own cards (`mc-card-sections`) and the ink "YOUR DECK" list
+ * (`mc-line-list`) with Edit deck and Start game ▸ at its foot. Narrow (P04): a "YOUR DECK · N" header, a Curve / Cards /
+ * Aspect tab strip and a footer with Edit deck and Start game ▸. The Curve tab's bars are one chart (`mc-bar-chart`,
+ * its commonest cost in red) rather than the Phaser screen's per-bucket rainbow.
  *
- * Narrow (phone/tabletPortrait) stays P04's own shape: a "YOUR DECK · N"
- * header with a step fraction, a Curve/Cards/Aspect tab strip, and a footer
- * (Edit deck, Start game ▸). The Curve tab draws P04's own per-bucket
- * rainbow bars (`ui/deck-stats-widgets.ts`'s `drawRainbowCurveBars`) — a
- * genuinely different chart from the wide rail's "ink bars, peak cost in
- * red" one (`drawStatCurveBars`, the same chart Decks & Collection's own ink
- * stats rail draws), not a simplification of it — plus the three sample
- * tiles (Resources/Allies/Events) and a short few-card preview P04 itself
- * shows there; the full list lives one tab over. The amber advice banner
- * P04 also draws is skipped (docs/phase4-screen-gaps.md §4: advice text is
- * unsettled/out of scope).
+ * Everything under the header is Lit panels over the canvas (`dom/dom-region.ts`): one sheet for the header, the rail,
+ * the panel, the tabs and the footer (with the kit's stat tiles, bar chart and line list as sheet parts), and the card
+ * sections as a panel of their own over it, scrolling natively. The scene keeps the focus route (ring in the panel
+ * layer) and the card hover popover. The card list's one action is Inspect: a tap opens it.
  *
- * **The entry point is deliberately caller-agnostic**: `DeckCheckSceneData`
- * takes a `Deck` plus an optional `returnTo` (defaults to the Decks screen)
- * and an optional `onStartGame`. The header's Back label and narrow's step
- * fraction both read `returnTo.scene` to tell whether this is a step in
- * Seats' own setup flow or a standalone visit from Decks — nothing else
- * about this scene depends on which. Until Seats supplies `onStartGame`,
- * "Start game ▸" draws unavailable with its reason, per §0's "dashed = not
- * yet real" rather than being omitted.
- *
- * Every number comes from `view/deck-stats.ts` (`deckStatsOf`, `costCurveBars`,
- * `deckListGroupsOf`, `filterDeckListGroups`) and `@mc/engine`'s own legality
- * verdict (`view/deck-list-model.ts`'s `deckOptionOf`) — this scene only
- * draws what those already computed, the same "client renders, never
- * computes" rule `deck-builder.ts` follows. The rail's type filter chips are
- * a display filter only (which of the deck's own cards the grid shows), like
- * the builder's own pool filter — never a deckbuilding rule.
- *
- * **Multi-seat note**: Seats can have several filled seats, but neither P04
- * nor D04 draws a seat switcher for this step — there is nowhere in the
- * design for one, and inventing a control the tile doesn't show risks
- * exactly the "doesn't flow with the design" complaint this pass is fixing.
- * Checking a different seat's deck means going Back to Seats, selecting that
- * seat, and reopening "Deck check ▸" — a real gap, left for a follow-up
- * rather than guessed at here.
- *
- * **Tap-to-inspect, not tap-plus-hold.** The card grid's only action is
- * Inspect, so a tap alone opens it (`McVariableList#onRowActivate`, the same
- * "a row with no button of its own" pattern Decks' and Rules' own card grids
- * already use — `scenes/decks.ts`'s `#drawPoolPane`, `scenes/rules.ts`'s
- * `#drawCardListTab`) rather than wiring `ui/hold-target.ts`'s separate
- * tap/long-press gesture for a second action this screen has no use for.
+ * Every number comes from `view/deck-stats.ts` and `@mc/engine`'s own legality verdict (`view/deck-list-model.ts`): this
+ * scene only draws what those computed. The rail's type filter chips are a display filter only, like the builder's.
  */
-import { isDesktopType } from "../ui/desktop-type.js";
 import Phaser from "phaser";
+import "@mc/ui";
+import type { BarChartBar, CardCellModel, CardSection, McCardSections, McSheet, PictureSource, StatTile } from "@mc/ui";
 import type { CoreAspect, Deck } from "@mc/content";
 import { POOL_VERSION, currentCardsById, currentDeps, currentPool } from "../content/pool.js";
-import { artFor, artLanguageNow } from "../art/art-source.js";
-import { cardArt } from "../art/card-art.js";
-import { drawArtSlot } from "../art/art-slot.js";
-import { markRenderDirty } from "../ui/idle-render.js";
+import { artFor, artLanguageNow, type ArtSource } from "../art/art-source.js";
+import { PackLeases, refreshPackArt } from "../art/pack-art.js";
 import { SELECTABLE_ASPECTS } from "../view/deck-builder-model.js";
 import {
   costCurveBars,
@@ -90,59 +40,40 @@ import {
   type DeckListSort,
   type PlayerCardType,
 } from "../view/deck-stats.js";
-import {
-  deckFaceGroupLayout,
-  deckFaceGroups,
-  type DeckFaceGroup,
-  type DeckFaceGroupLayout,
-} from "../view/deck-faces.js";
+import { deckFaceGroupLayout, deckFaceGroups } from "../view/deck-faces.js";
 import { deckOptionOf } from "../view/deck-list-model.js";
 import { addCommunityDeck, testedEntryOf } from "../view/community-decks-model.js";
-import { onLanguageChange } from "../language-change.js";
+import { onArtChange, onLanguageChange } from "../language-change.js";
 import { testedCatalog } from "../view/seatable-decks.js";
 import { deckStatusOf, type DeckStatusTone } from "../view/deck-status.js";
 import type { CampaignDeckVerdict } from "../view/campaign-deck-edit-model.js";
 import { aspectLabelOf } from "../view/seat-slots.js";
 import { deckCheckFocusOrder } from "../view/screen-focus.js";
-import { deckCheckLayout, type DeckCheckTab } from "../view/deck-check-layout.js";
-import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
+import { deckCheckLayout, type DeckCheckLayout, type DeckCheckTab } from "../view/deck-check-layout.js";
+import { poolGridGeometry } from "../view/deck-pool-grid.js";
 import { appSession } from "../session.js";
 import { cardSizeFactor } from "../settings.js";
-import { CHIP_GAP, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout.js";
+import { CHIP_GAP, wrapChipsToRows } from "../view/chip-layout.js";
 import type { Rect } from "../view/layout.js";
-import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { McVariableList } from "../ui/variable-list.js";
-import {
-  HoverPreview,
-  hoverCardIdsOf,
-  noteHoverCardId,
-  resetHoverCards,
-  screenHoverArea,
-} from "../ui/card-hover-preview.js";
+import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
-import type { VirtualListRow } from "../ui/virtual-list.js";
 import { deckBuilderView, rememberDeckListSort } from "../platform/deck-builder-view.js";
-import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
-import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McTabs, fitText, fitWrapped, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
-import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
-import {
-  costPipColor,
-  drawGroupedCardList,
-  drawRainbowCurveBars,
-  drawStatCurveBars,
-  drawStatTiles,
-} from "../ui/deck-stats-widgets.js";
+import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { cssOf } from "../ui/theme.js";
+import { costPipColor } from "../ui/deck-stats-widgets.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import { SCENES, type SceneKey } from "./keys.js";
-import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 import { t, type MessageKey } from "../i18n/translate.js";
 import { cardTypeWordOf } from "../view/card-type-word.js";
 import { aspectName } from "../view/aspect-stamp.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder, sheetColor } from "../dom/sheet-builder.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 
 /** The sort control: wide enough for its longest words, "Sort: Aspect". */
 const SORT_WIDTH = 132;
@@ -164,33 +95,13 @@ export interface DeckCheckSceneData {
   readonly tab?: DeckCheckTab;
 }
 
-/** One flattened slot of the card grid's `McVariableList`: a group's own header, or one row of that group's cards. */
-type CardGridSlot =
-  | { readonly kind: "header"; readonly group: DeckListGroup }
-  | { readonly kind: "gridRow"; readonly group: DeckListGroup; readonly startIndex: number; readonly count: number }
-  /** The identity's faces, or a multi-faced card's, as a row of tiles (issue #754). */
-  | { readonly kind: "faces"; readonly group: DeckFaceGroup; readonly layout: DeckFaceGroupLayout }
-  /** The "no cards match" line, under the face groups when the filter leaves no cards. */
-  | { readonly kind: "empty" };
-
-/** How tall the "no cards match" slot is. */
-const EMPTY_SLOT_HEIGHT = 40;
-
-/** How tall a group-header slot is (Bangers label + rule + count) — matches `scenes/rules.ts`'s own `SET_HEADER_HEIGHT` for the identical shape. */
-const GROUP_HEADER_HEIGHT = 34;
-/** The face tiles' inset from the card list's own edge (the group title sits at +4). */
+/** How tall a group-header slot is, and the room a face tile's caption takes (as `view/deck-faces.ts`). */
 const FACES_INSET = 4;
-/** A card cell's own header strip (cost pip, name, type) and footer strip (a short line of rules text) — D04's own card-cell shape, header above the art rather than a caption below it. */
-// A name wraps to two lines (never "EXPLOIT WEAK…"), with the type under it; the rules strip holds two whole lines.
-const CELL_HEADER_HEIGHT = 46;
-const CELL_FOOTER_HEIGHT = 34;
-
-/** Matches `scenes/deck-builder.ts`'s own `LEFT_RAIL_WIDTH`/`RIGHT_RAIL_WIDTH`/`RAIL_GAP` — see `view/deck-check-layout.ts`. */
 const RAIL_CHIP_HEIGHT = 26;
 /** Matches `scenes/deck-builder.ts`'s own `STATS_LIST_ENTRY_CAP` for its identical right rail. */
 const PANEL_LIST_ENTRY_CAP = 12;
-/** The narrow Curve tab's own "RESOURCE CURVE" card (P04). */
 const CURVE_CARD_HEIGHT = 150;
+const PAGE = 0.85;
 
 const TONE_COLOR: Readonly<Record<DeckStatusTone, number>> = {
   legal: signal.heal.hex,
@@ -199,11 +110,7 @@ const TONE_COLOR: Readonly<Record<DeckStatusTone, number>> = {
   poolChanged: signal.caution.hex,
 };
 
-/**
- * D04's own left-rail filter chips: the same seven `scenes/deck-builder.ts`'s `TYPE_FILTERS` offers, redeclared here
- * (that constant isn't exported — the builder's own doc comment notes it has no shared layout module to export one
- * from) rather than filtering the deck's own pool of *card types* by name a second, different way.
- */
+/** D04's own left-rail filter chips: the same seven `scenes/deck-builder.ts`'s `TYPE_FILTERS` offers. */
 const TYPE_FILTERS: readonly {
   readonly id: string;
   readonly label: MessageKey;
@@ -218,7 +125,7 @@ const TYPE_FILTERS: readonly {
   { id: "scheme", label: "cardType.sideScheme", type: "player_side_scheme" },
 ];
 
-/** One flattened, unwrapped line of a card's rules text, for a cell's own short footer strip — the full text is always one tap away, in Inspect. */
+/** One flattened, unwrapped line of a card's rules text, for a cell's own short strip — the full text is a tap away, in Inspect. */
 function truncate(text: string, maxChars: number): string {
   const flat = text.replace(/\s+/g, " ").trim();
   return flat.length > maxChars ? `${flat.slice(0, maxChars - 1)}…` : flat;
@@ -246,32 +153,35 @@ export class DeckCheckScene extends Phaser.Scene {
   #deckSort: DeckListSort = "aspect";
   #onStartGame: ((from: Phaser.Scene) => void) | undefined;
   #verdict: DeckCheckSceneData["verdict"];
-  /** Narrow only — wide shows every tab's content at once, so this is ignored there. */
   #activeTab: DeckCheckTab = "curve";
   /** Wide only: the rail's own type filter, applied to the grid (a display filter, never a deckbuilding rule). */
   #typeFilter: PlayerCardType | null = null;
-  #buttons: McButton[] = [];
-  #tabs: McTabs | null = null;
-  #cardList: McVariableList | null = null;
-  /** The face tiles drawn above the card grid, as `<slot>.<tile>` ids, for the focus route. */
-  #faceIds: string[] = [];
-  #cardListScroll = new VariableListScroll();
+  #alive = false;
+  #sheet: DomRegion<McSheet> | null = null;
+  #cards: DomRegion<McCardSections> | null = null;
+  readonly #leases = new PackLeases();
+  #actions = new Map<string, () => void>();
   #route: FocusRoute | null = null;
-  #hints!: GlyphHints;
-  #obstacles: Rect[] = [];
+  #glyphs!: SheetGlyphs;
   #stops = new Map<string, FocusStop>();
-  /** Which aspect tile's inline tip (G10b) is open, if any — wide only, the rail's own aspect tiles. */
+  /** Which aspect tile's inline tip is open, if any — wide only. */
   #aspectTipOpen: CoreAspect | null = null;
-  /** The desktop hover popover over the card grid's cells and the panel's "Your deck" lines. */
   #hover: HoverPreview | null = null;
-  /** The card grid's on-screen cells, computed on demand from its scroll (a scroll draws nothing). */
-  #gridHover: (() => readonly (readonly [string, HoverCardIdRect])[]) | null = null;
+  /** The cards' box on screen: what a hover popover is clipped to. */
+  #view: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  /** The face each face tile shows, by its `face:<id>` key, for the hover popover and Inspect. */
+  #faces = new Map<string, { readonly cardId: string; readonly face: object }>();
+  /** The cards list reads from its top on the next compose (a new filter, sort or tab). */
+  #fromTop = false;
+  #leaving = false;
 
   constructor() {
     super(SCENES.deckCheck);
   }
 
   create(data: DeckCheckSceneData): void {
+    this.#alive = true;
+    this.#leaving = false;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#deck = data.deck;
     this.#returnTo = data.returnTo ?? { scene: SCENES.decks };
@@ -280,99 +190,157 @@ export class DeckCheckScene extends Phaser.Scene {
     this.#verdict = data.verdict;
     this.#activeTab = data.tab ?? "curve";
     this.#typeFilter = null;
-    this.#cardListScroll = new VariableListScroll();
-
-    const onResize = (): void => this.#rebuild();
-    this.scale.on("resize", onResize, this);
-    // Only the card grid shows scans, and its tiles fill themselves in (`art/art-slot.ts`): no redraw of the screen,
-    // unless every face may have a new source (a card language switch, a pack's pictures).
-    const artOff = cardArt(this).onArrived((why) => {
-      if (why === "all") {
-        this.#rebuild();
-        return;
-      }
-      this.#cardList?.refreshRows();
-      markRenderDirty();
+    this.#aspectTipOpen = null;
+    this.#sheet = null;
+    this.#cards = null;
+    this.#glyphs = new SheetGlyphs(this, () => this.#compose());
+    this.scale.on("resize", this.#compose, this);
+    // A pack picture that resolves later, or a card language switch (#390), reads the screen again.
+    const artOff = onArtChange(() => {
+      if (this.sys.isActive()) this.#compose();
+    });
+    const languageOff = onLanguageChange(() => {
+      if (this.sys.isActive()) this.#compose();
     });
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
-      cardIds: () => {
-        const all = new Map(hoverCardIdsOf(this));
-        for (const [slot, rect] of this.#gridHover?.() ?? []) all.set(slot, rect);
-        return all;
-      },
+      cardIds: () => this.#hoverCards(),
       area: (pointer) => screenHoverArea(this, pointer),
     });
-    // A language switch (#390): the screen reads again in the new language.
-    const languageOff = onLanguageChange(() => {
-      if (this.sys.isActive()) this.#rebuild();
-    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.scale.off("resize", onResize, this);
+      this.#alive = false;
+      this.scale.off("resize", this.#compose, this);
       artOff();
       languageOff();
       this.#hover?.destroy();
       this.#hover = null;
-      this.#hints.dispose();
-      this.#tabs?.destroy();
-      this.#tabs = null;
-      this.#cardList?.destroy();
-      this.#cardList = null;
+      this.#glyphs.dispose();
+      this.#leases.dispose();
+      this.#sheet = null;
+      this.#cards = null;
     });
-    this.#hints = new GlyphHints(this, () => this.#obstacles);
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       blocked: () => this.scene.isActive(SCENES.inspect),
       onCancel: () => {
         // An open aspect tip closes first; the next B leaves.
         if (this.#aspectTipOpen !== null) {
           this.#aspectTipOpen = null;
-          this.#rebuild();
+          this.#compose();
         } else this.#stops.get("back")?.activate();
       },
       // LB / RB step Curve, Cards and Aspect on a narrow screen; the wide layout has no strip, so they page the cards.
       onTab: (direction) => {
-        if (this.#tabs === null) {
-          this.#cardList?.scrollByPage(direction);
+        if (this.#wide()) {
+          this.#page(direction);
           return;
         }
         const order: readonly DeckCheckTab[] = ["curve", "cards", "aspect"];
         const next = order[order.indexOf(this.#activeTab) + direction];
         if (next) this.#setTab(next);
       },
-      onPage: (direction) => this.#cardList?.scrollByPage(direction),
-      onHomeEnd: (edge) => (edge === "home" ? this.#cardList?.scrollToStart() : this.#cardList?.scrollToEnd()),
+      onScroll: (_dx, dy) => this.#cards?.element.scroller?.scrollBy({ top: dy }),
+      onPage: (direction) => this.#page(direction),
+      onHomeEnd: (edge) =>
+        this.#cards?.element.scroller?.scrollTo({ top: edge === "home" ? 0 : Number.MAX_SAFE_INTEGER }),
     });
-    this.#rebuild();
+    this.#compose();
     fadeScreenIn(this);
+  }
+
+  #wide(): boolean {
+    const { width, height } = this.scale.gameSize;
+    return deckCheckLayout({ width, height }).wide;
+  }
+
+  #page(direction: 1 | -1): void {
+    const scroller = this.#cards?.element.scroller;
+    scroller?.scrollBy({ top: direction * scroller.clientHeight * PAGE });
   }
 
   #setTab(tab: DeckCheckTab): void {
     if (tab === this.#activeTab) return;
     this.#activeTab = tab;
-    this.#cardListScroll.reset();
-    this.#rebuild();
+    this.#fromTop = true;
+    this.#compose();
   }
 
-  #rebuild(): void {
-    resetHoverCards(this);
-    this.#gridHover = null;
-    this.#faceIds = [];
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-    this.#stops = new Map();
-    this.#hints.reset();
-    this.#obstacles = [];
-    this.#tabs?.destroy();
-    this.#tabs = null;
-    // The card grid only exists on wide, or on narrow's Cards tab; recreated fresh every rebuild like every other
-    // non-DOM widget (`ui/virtual-list.ts`'s own doc comment) — only its scroll position (`#cardListScroll`) survives.
-    this.#cardList?.destroy();
-    this.#cardList = null;
-    destroyChildren(this);
+  #goBack(): void {
+    if (this.#leaving) return;
+    this.#leaving = true;
+    goToScreen(this, this.#returnTo.scene, this.#returnTo.data);
+  }
 
+  /** Back in the builder when it opened this screen, on the deck it handed over; else a builder opened on this deck. */
+  #edit(): void {
+    if (this.#leaving) return;
+    this.#leaving = true;
+    if (this.#returnTo.scene === SCENES.deckBuilder) goToScreen(this, SCENES.deckBuilder, this.#returnTo.data);
+    else goToScreen(this, SCENES.deckBuilder, { deck: editableCopyOf(this.#deck) } satisfies DeckBuilderSceneData);
+  }
+
+  #sort(): void {
+    this.#deckSort = nextDeckListSort(this.#deckSort);
+    rememberDeckListSort(this.#deckSort);
+    this.#fromTop = true;
+    this.#compose();
+  }
+
+  #inspectFace(key: string): void {
+    const found = this.#faces.get(key);
+    if (found) this.scene.launch(SCENES.inspect, { card: { cardId: found.cardId, face: found.face } });
+  }
+
+  #inspect(entry: DeckListEntry): void {
+    this.scene.launch(SCENES.inspect, { card: { cardId: entry.cardId, face: { kind: "front" } } });
+  }
+
+  #liveRect(region: DomRegion<McSheet> | DomRegion<McCardSections> | null, key: string, fallback: Rect): Rect {
+    const found = (region?.element as { elementOf(key: string): HTMLElement | null } | undefined)?.elementOf(key);
+    return found && region ? region.rectOf(found) : fallback;
+  }
+
+  #wire<E extends McSheet | McCardSections>(element: E, rect: Rect): DomRegion<E> {
+    element.addEventListener("mc-activate", (event) => {
+      if (this.#leaving) return;
+      this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+    });
+    element.addEventListener("mc-image-error", (event) => {
+      const { key, src } = (event as CustomEvent<{ key?: string; src: string | null }>).detail;
+      if (key) refreshPackArt(key, src ?? undefined);
+    });
+    const region = new DomRegion<E>(this, element, rect);
+    // The hover popover is drawn in the canvas, so its box is left out of the panel.
+    region.forwardMouseMoves();
+    region.setHoles(() => {
+      const popover = this.#hover?.shownRect;
+      return popover ? [popover] : [];
+    });
+    return region;
+  }
+
+  /** A scan's picture: its URL (held while shown) cropped toward the top, where a card's art and title sit. */
+  #pictureOf(source: ArtSource | null): PictureSource {
+    const held = this.#leases.image(source);
+    return {
+      src: held.src,
+      cover: { x: 0.5, y: 0.2 },
+      missing: t("deckCheck.noScan"),
+      ...(held.retry !== undefined ? { retry: held.retry } : {}),
+    };
+  }
+
+  /** Builds the panels from the deck and the filters, and the focus stops that walk them. */
+  #compose(): void {
+    if (!this.#alive) return;
+    this.#actions = new Map();
+    this.#stops = new Map();
+    this.#faces = new Map();
+    this.#glyphs.reset();
+    this.#leases.begin();
+    resetHoverCards(this);
     const { width, height } = this.scale.gameSize;
     const layout = deckCheckLayout({ width, height });
-
     const option = deckOptionOf(this.#deck, currentPool(), POOL_VERSION, currentDeps());
     const stats = deckStatsOf(this.#deck, currentPool());
     // The Curve and Aspect tabs read the deck by aspect whatever the card list's sort.
@@ -381,134 +349,99 @@ export class DeckCheckScene extends Phaser.Scene {
     const status = this.#verdict?.status ?? deckStatusOf(option, artLanguageNow());
     const inFlow = this.#returnTo.scene === SCENES.seats;
 
+    const b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
     // Ground: paper body under the same full-width ink header bar every setup-flow screen shares.
-    this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
-    paintDotGrid(this, { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height }, "paper", {
-      spacing: 6,
-      radius: 1,
-      alpha: 0.1,
+    b.box({ x: 0, y: 0, width, height }, { fill: surface.paper.hex });
+    b.dots({ x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height }, "paper", 6, 1, 0.1);
+    b.box(layout.headerBar, { fill: surface.ink.hex });
+    this.#glyphs.button(b, {
+      key: "back",
+      rect: layout.back,
+      label: this.#returnTo.scene === SCENES.seats ? t("deckCheck.backToSeats") : t("scenario.back"),
+      look: "onInk",
+      type: typeRole.backLabel,
+      ids: ["cancel"],
+      ground: "ink",
     });
-    this.add
-      .rectangle(
-        layout.headerBar.x,
-        layout.headerBar.y,
-        layout.headerBar.width,
-        layout.headerBar.height,
-        surface.ink.hex,
-      )
-      .setOrigin(0, 0);
-
-    const backLabel = this.#returnTo.scene === SCENES.seats ? t("deckCheck.backToSeats") : t("scenario.back");
-    const goBack = (): void => {
-      goToScreen(this, this.#returnTo.scene, this.#returnTo.data);
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: backLabel,
-        type: typeRole.backLabel,
-        rect: layout.back,
-        onClick: goBack,
-      }),
-    );
-    this.#stops.set("back", { rect: layout.back, activate: goBack });
-    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "paper");
-
+    this.#actions.set("back", () => this.#goBack());
+    this.#stops.set("back", { rect: layout.back, activate: () => this.#goBack() });
     const titleX = layout.back.x + layout.back.width + 16;
-    if (layout.wide) this.#drawWideHeader(titleX, layout, this.#deck, option, stats, status);
-    else this.#drawNarrowHeader(titleX, layout, stats, status, inFlow);
+    if (layout.wide) this.#drawWideHeader(b, titleX, layout, option.identityName, stats, status);
+    else this.#drawNarrowHeader(b, titleX, layout, stats, status, inFlow);
 
-    let cardIds: readonly string[] = [];
-    let filterChipIds: readonly string[] = [];
+    let cardRect: Rect | null = null;
+    let cardGroups: readonly DeckListGroup[] = [];
+    let sortRect: Rect | null = null;
     if (layout.wide) {
-      filterChipIds = TYPE_FILTERS.map((f) => f.id);
-      const filteredGroups = filterDeckListGroups(sorted, this.#typeFilter);
-      cardIds = this.#drawCardGrid(layout.cards!, filteredGroups);
-      this.#drawRail(layout.rail!, this.#deck, stats, { x: 0, y: 0, width, height });
-      this.#drawPanel(layout.panel!, layout.editDeck, layout.startGame, sorted);
+      cardRect = layout.cards!;
+      cardGroups = filterDeckListGroups(sorted, this.#typeFilter);
+      this.#drawRail(b, layout.rail!, stats, { x: 0, y: 0, width, height });
+      sortRect = this.#drawPanel(b, layout.panel!, layout.editDeck, layout.startGame, sorted);
     } else {
-      this.#tabs = new McTabs(this, {
-        rect: layout.tabs!,
-        tabs: [
-          { id: "curve", label: t("deckCheck.tabCurve") },
-          { id: "cards", label: t("deckCheck.tabCards") },
-          { id: "aspect", label: t("deckCheck.tabAspect") },
-        ],
-        activeId: this.#activeTab,
-        onSelect: (id) => this.#setTab(id as DeckCheckTab),
-      });
-      const strip = layout.tabs!;
-      this.#obstacles.push(layout.content!);
-      this.#hints.custom(
-        (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
-        14,
-        ({ width }) => ({ x: strip.x + strip.width - width, y: strip.y + strip.height + 11 }),
-        { avoidObstacles: true },
+      const tabs = layout.tabs!;
+      const tabList = [
+        { id: "curve", label: t("deckCheck.tabCurve") },
+        { id: "cards", label: t("deckCheck.tabCards") },
+        { id: "aspect", label: t("deckCheck.tabAspect") },
+      ] as const;
+      b.tabRail(
+        tabs,
+        tabList.map((tab) => ({ id: tab.id, label: tab.label, selected: tab.id === this.#activeTab })),
+        { prefix: "tab:" },
       );
-      const tabWidth = layout.tabs!.width / 3;
-      this.#stops.set("tab:curve", {
-        rect: { ...layout.tabs!, width: tabWidth },
-        activate: () => this.#setTab("curve"),
+      const tabWidth = tabs.width / 3;
+      tabList.forEach((tab, index) => {
+        const go = (): void => this.#setTab(tab.id);
+        this.#actions.set(`tab:${tab.id}`, go);
+        this.#stops.set(`tab:${tab.id}`, {
+          rect: { ...tabs, x: tabs.x + tabWidth * index, width: tabWidth },
+          activate: go,
+        });
       });
-      this.#stops.set("tab:cards", {
-        rect: { ...layout.tabs!, x: layout.tabs!.x + tabWidth, width: tabWidth },
-        activate: () => this.#setTab("cards"),
-      });
-      this.#stops.set("tab:aspect", {
-        rect: { ...layout.tabs!, x: layout.tabs!.x + tabWidth * 2, width: tabWidth },
-        activate: () => this.#setTab("aspect"),
-      });
-
-      if (this.#activeTab === "curve") this.#drawCurveTab(layout.content!, stats, groups);
-      else if (this.#activeTab === "aspect") this.#drawAspectTab(layout.content!, groups);
+      const content = layout.content!;
+      if (this.#activeTab === "curve") this.#drawCurveTab(b, content, stats, groups);
+      else if (this.#activeTab === "aspect") this.#drawAspectTab(b, content, groups);
       else {
-        const content = layout.content!;
+        sortRect = { x: content.x, y: content.y, width: SORT_WIDTH, height: hit.target };
         const top = content.y + hit.target + 8;
-        this.#drawSort({ x: content.x, y: content.y, width: SORT_WIDTH, height: hit.target }, "secondary");
-        const height = Math.max(0, content.y + content.height - top);
-        cardIds = this.#drawCardGrid({ ...content, y: top, height }, sorted);
+        cardRect = { ...content, y: top, height: Math.max(0, content.y + content.height - top) };
+        cardGroups = sorted;
+        this.#drawSortButton(b, sortRect, "secondary");
       }
-
-      const footerBg = this.add.graphics();
-      paintPanel(footerBg, layout.footer!, "onInk", "rest");
-      const openEdit = (): void => this.#edit();
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "onInk",
-          label: t("deckCheck.editDeck"),
-          type: typeRole.label,
-          rect: layout.editDeck,
-          onClick: openEdit,
-        }),
-      );
-      this.#stops.set("edit-deck", { rect: layout.editDeck, activate: openEdit });
-
-      const canStart = this.#onStartGame !== undefined;
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "primary",
-          label: t("deckCheck.startGame"),
-          type: typeRole.barTitle,
-          rect: layout.startGame,
-          enabled: canStart,
-          ...(canStart ? {} : { reason: "Setup flow isn't built yet — coming with the title-menu rework (W2)." }),
-          onClick: () => this.#onStartGame?.(this),
-        }),
-      );
-      this.#stops.set("start", { rect: layout.startGame, activate: () => this.#onStartGame?.(this) });
+      b.box(layout.footer!, { fill: surface.ink.hex });
+      this.#drawActions(b, layout.editDeck, layout.startGame);
     }
 
+    const full: Rect = { x: 0, y: 0, width, height };
+    const sheet = (this.#sheet ??= this.#wire(document.createElement("mc-sheet") as McSheet, full));
+    sheet.setRect(full);
+    sheet.element.nodes = b.nodes;
+    renderNow(sheet.element);
+
+    let cardIds: readonly string[] = [];
+    let faceIds: readonly string[] = [];
+    if (cardRect && cardRect.height > 0) {
+      const mounted = this.#mountCards(cardRect, cardGroups);
+      cardIds = mounted.cardIds;
+      faceIds = mounted.faceIds;
+    } else {
+      this.#cards?.setHidden(true);
+      this.#view = { x: 0, y: 0, width: 0, height: 0 };
+    }
+    // The sheet's buttons keep their fixed rects; the sort button lives where it was drawn.
+    void sortRect;
     this.#route?.set(
       deckCheckFocusOrder({
         wide: layout.wide,
         activeTab: this.#activeTab,
         cardIds,
-        faceIds: this.#faceIds,
-        filterChipIds,
+        faceIds,
+        filterChipIds: layout.wide ? TYPE_FILTERS.map((f) => f.id) : [],
         showSort: layout.wide || this.#activeTab === "cards",
       }),
       this.#stops,
     );
+    this.#leases.end();
     this.#hover?.onDraw();
   }
 
@@ -517,138 +450,136 @@ export class DeckCheckScene extends Phaser.Scene {
   // own "YOUR DECK · N" title and step fraction — two real, different headers rather than one shape stretched.
   // ------------------------------------------------------------------------------------------------------------
   #drawWideHeader(
+    b: SheetBuilder,
     titleX: number,
-    layout: ReturnType<typeof deckCheckLayout>,
-    deck: Deck,
-    option: ReturnType<typeof deckOptionOf>,
+    layout: DeckCheckLayout,
+    identityName: string | null | undefined,
     stats: ReturnType<typeof deckStatsOf>,
     status: ReturnType<typeof deckStatusOf>,
   ): void {
     const count = this.#verdict?.count ?? deckCountText(stats, artLanguageNow());
     const badgeText = `${count.toUpperCase()} · ${status.text.toUpperCase()}`;
-    const badgeTextStyle = { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "18px" };
-    // The background graphics object is created (and so z-ordered) *before* the text it sits behind — these two
-    // calls aren't reparented into a container that would reorder them by array position (unlike a virtualized
-    // row's own `objects`), so draw order here follows `scene.add` call order alone. Creating the text first to
-    // measure it, then the background, left the badge's own fill painted *over* its text every time.
-    const badgeBg = this.add.graphics();
-    const measure = this.add.text(0, 0, badgeText, badgeTextStyle).setLetterSpacing(typeRole.barTitle.letterSpacing);
-    const badgeWidth = Math.ceil(measure.width) + 24;
-    const badgeHeight = 32;
-    const badgeRect: Rect = {
+    const badgeType = { ...typeRole.barTitle, size: 18 };
+    const badgeWidth = Math.ceil(b.measure(badgeText, badgeType).width) + 24;
+    const badge: Rect = {
       x: layout.headerBar.width - 16 - badgeWidth,
-      y: (layout.headerBar.height - badgeHeight) / 2,
+      y: (layout.headerBar.height - 32) / 2,
       width: badgeWidth,
-      height: badgeHeight,
+      height: 32,
     };
-    badgeBg.fillStyle(TONE_COLOR[status.tone], 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
-    measure.setPosition(badgeRect.x + badgeRect.width / 2, badgeRect.y + badgeRect.height / 2).setOrigin(0.5);
-
-    const title = `${option.identityName ?? t("deckCheck.unknown")} — ${aspectLabelOf(deck.aspects, artLanguageNow()).toUpperCase()}`;
-    const titleText = this.add
-      .text(titleX, layout.headerBar.height / 2, title, textStyle(typeRole.pageTitle, surface.paper.hex))
-      .setOrigin(0, 0.5);
-    fitText(titleText, badgeRect.x - titleX - 16, typeRole.pageTitle.size);
+    b.box(badge, { fill: TONE_COLOR[status.tone] });
+    b.text(badge.x + badge.width / 2, badge.y + badge.height / 2, badgeText, badgeType, {
+      color: surface.paper.hex,
+      origin: [0.5, 0.5],
+    });
+    const title = `${identityName ?? t("deckCheck.unknown")} — ${aspectLabelOf(this.#deck.aspects, artLanguageNow()).toUpperCase()}`;
+    b.text(titleX, layout.headerBar.height / 2, title, typeRole.pageTitle, {
+      color: surface.paper.hex,
+      origin: [0, 0.5],
+      fitWidth: badge.x - titleX - 16,
+    });
   }
 
   #drawNarrowHeader(
+    b: SheetBuilder,
     titleX: number,
-    layout: ReturnType<typeof deckCheckLayout>,
+    layout: DeckCheckLayout,
     stats: ReturnType<typeof deckStatsOf>,
     status: ReturnType<typeof deckStatusOf>,
     inFlow: boolean,
   ): void {
-    const title = this.add
-      .text(
-        titleX,
-        layout.headerBar.height / 2,
-        t("deckCheck.yourDeckCount", { count: this.#verdict?.counted ?? stats.countedCards }),
-        textStyle(typeRole.pageTitle, surface.paper.hex),
-      )
-      .setOrigin(0, 0.5);
-    fitText(title, layout.meta.x - titleX - 12, typeRole.pageTitle.size);
-
+    b.text(
+      titleX,
+      layout.headerBar.height / 2,
+      t("deckCheck.yourDeckCount", { count: this.#verdict?.counted ?? stats.countedCards }),
+      typeRole.pageTitle,
+      { color: surface.paper.hex, origin: [0, 0.5], fitWidth: layout.meta.x - titleX - 12 },
+    );
     const count = this.#verdict?.count ?? deckCountText(stats, artLanguageNow());
     const metaWords = inFlow ? "3/4" : `${count.toUpperCase()} · ${status.text.toUpperCase()}`;
-    const metaText = this.add
-      .text(
-        layout.meta.x + layout.meta.width,
-        layout.headerBar.height / 2,
-        metaWords,
-        textStyle(typeRole.label, surface.paper.hex, ink.label),
-      )
-      .setOrigin(1, 0.5);
-    fitText(metaText, layout.meta.width, typeRole.label.size);
+    b.text(layout.meta.x + layout.meta.width, layout.headerBar.height / 2, metaWords, typeRole.label, {
+      color: surface.paper.hex,
+      alpha: ink.label,
+      origin: [1, 0.5],
+      fitWidth: layout.meta.width,
+    });
   }
 
   // ------------------------------------------------------------------------------------------------------------
-  // The left parchment rail (wide only, D04): aspect tiles (read-only — this screen never edits a deck's
-  // aspects), the type filter chips (filtering `cards`, never the deck), and the cost curve pinned at the rail's
-  // own foot ("ink bars, peak cost in red" — Decks & Collection's own chart, not P04's rainbow).
+  // The left rail (wide only, D04): aspect tiles (read-only, with their tips), the type filter chips (filtering the
+  // cards, never the deck), and the cost curve pinned at the rail's foot.
   // ------------------------------------------------------------------------------------------------------------
-  #drawRail(rect: Rect, deck: Deck, stats: ReturnType<typeof deckStatsOf>, viewport: Rect): void {
+  #drawRail(b: SheetBuilder, rect: Rect, stats: ReturnType<typeof deckStatsOf>, viewport: Rect): void {
     const left = rect.x;
     const column = rect.width;
     let y = rect.y;
-
-    label(this, left, y, t("deckCheck.aspect"), typeRole.label, surface.ink.hex, ink.label);
+    const labelOf = (text: string, at: number): void => {
+      b.text(left, at, text, typeRole.label, { color: surface.ink.hex, alpha: ink.label });
+    };
+    labelOf(t("deckCheck.aspect"), y);
     y += 16;
     const aspectGap = 7;
-    let openInfoRect: Rect | null = null;
-    let openContent: ReturnType<typeof aspectTipContentOf> = null;
+    let tip: { readonly rect: Rect; readonly text: string } | null = null;
     SELECTABLE_ASPECTS.forEach((aspect, index) => {
-      const fullRect: Rect = { x: left, y: y + index * (hit.target + aspectGap), width: column, height: hit.target };
+      const full: Rect = { x: left, y: y + index * (hit.target + aspectGap), width: column, height: hit.target };
       const content = aspectTipContentOf(aspect);
-      // G10b's tip: a split "i" segment at the tile's right-hand end (`ui/aspect-tip.ts`). The tiles are read-only
-      // here (this screen never edits a deck's aspects), so the segment only ever opens the tip.
-      const split = content ? splitInfoSegment(fullRect) : null;
-      const tileRect = split?.main ?? fullRect;
-      const chosen = deck.aspects.includes(aspect);
-      const g = this.add.graphics();
-      if (chosen) g.fillStyle(signal.heal.hex, 1).fillRect(tileRect.x, tileRect.y, tileRect.width, tileRect.height);
-      g.lineStyle(border.object, surface.ink.hex, chosen ? 1 : 0.4).strokeRect(
-        tileRect.x,
-        tileRect.y,
-        tileRect.width,
-        tileRect.height,
+      // G10b's tip: an "i" segment at the tile's right-hand end opens it. The tiles are read-only, so it only opens the tip.
+      const info: Rect | null = content
+        ? { x: full.x + full.width - hit.target, y: full.y, width: hit.target, height: full.height }
+        : null;
+      const tile: Rect = info ? { ...full, width: full.width - hit.target } : full;
+      const chosen = this.#deck.aspects.includes(aspect);
+      b.box(tile, {
+        ...(chosen ? { fill: signal.heal.hex } : {}),
+        stroke: surface.ink.hex,
+        strokeWidth: 2,
+        ...(chosen ? {} : { alpha: 0.7 }),
+      });
+      b.text(
+        tile.x + 11,
+        tile.y + tile.height / 2,
+        aspectName(aspect, artLanguageNow()).toUpperCase(),
+        typeRole.barTitle,
+        {
+          size: 16,
+          color: chosen ? surface.paper.hex : surface.ink.hex,
+          alpha: chosen ? 1 : ink.disabled,
+          origin: [0, 0.5],
+          fitWidth: tile.width - 22,
+        },
       );
-      const text = this.add
-        .text(tileRect.x + 11, tileRect.y + tileRect.height / 2, aspectName(aspect, artLanguageNow()).toUpperCase(), {
-          ...textStyle(typeRole.barTitle, chosen ? surface.paper.hex : surface.ink.hex),
-          fontSize: "16px",
-        })
-        .setOrigin(0, 0.5);
-      if (!chosen) text.setAlpha(ink.disabled);
-
-      if (content && split) {
-        const isOpen = this.#aspectTipOpen === aspect;
-        const infoRect = drawAspectInfoSegment(
-          this,
-          split.info,
-          isOpen,
-          () => {
-            this.#aspectTipOpen = aspect;
-            this.#rebuild();
-          },
-          () => {
-            this.#aspectTipOpen = null;
-            this.#rebuild();
-          },
-        );
-        if (isOpen) {
-          openInfoRect = infoRect;
-          openContent = content;
-        }
+      if (content && info) {
+        const open = this.#aspectTipOpen === aspect;
+        const key = `aspect-info:${aspect}`;
+        b.button({
+          key,
+          rect: info,
+          label: "i",
+          look: "secondary",
+          selected: open,
+          aria: content.title,
+          type: typeRole.rowTitle,
+        });
+        this.#actions.set(key, () => {
+          this.#aspectTipOpen = open ? null : aspect;
+          this.#compose();
+        });
+        if (open) tip = { rect: full, text: `${content.title}. ${content.tagline}. ${content.tipLine}` };
       }
     });
     y += SELECTABLE_ASPECTS.length * (hit.target + aspectGap) + 3;
-    if (openInfoRect && openContent) drawAspectTipPanel(this, openInfoRect, openContent, viewport);
-
-    const rule = this.add.graphics();
-    rule.fillStyle(surface.ink.hex, 1).fillRect(left, y, column, 3);
+    if (tip) {
+      const open: { readonly rect: Rect; readonly text: string } = tip;
+      const width = Math.min(260, viewport.width - open.rect.x - 8);
+      const size = b.measure(open.text, typeRole.body, { wrapWidth: width - 20 });
+      const box: Rect = { x: open.rect.x, y: open.rect.y + open.rect.height + 4, width, height: size.height + 20 };
+      b.box(box, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2 });
+      b.text(box.x + 10, box.y + 10, open.text, typeRole.body, { color: surface.ink.hex, wrapWidth: width - 20 });
+    }
+    b.box({ x: left, y, width: column, height: 3 }, { fill: surface.ink.hex });
     y += 16;
 
-    label(this, left, y, t("deckCheck.filter"), typeRole.label, surface.ink.hex, ink.label);
+    labelOf(t("deckCheck.filter"), y);
     y += 16;
     const chipRows = wrapChipsToRows(
       TYPE_FILTERS.map((f) => ({ id: f.id, text: t(f.label) })),
@@ -658,235 +589,216 @@ export class DeckCheckScene extends Phaser.Scene {
     chipRows.forEach((row, rowIndex) => {
       const cellWidth = (column - (row.length - 1) * CHIP_GAP) / row.length;
       row.forEach((chip, index) => {
-        const chipDef = TYPE_FILTERS.find((f) => f.id === chip.id)!;
+        const def = TYPE_FILTERS.find((f) => f.id === chip.id)!;
         const chipRect: Rect = {
           x: left + index * (cellWidth + CHIP_GAP),
           y: y + rowIndex * (RAIL_CHIP_HEIGHT + CHIP_GAP),
           width: cellWidth,
           height: RAIL_CHIP_HEIGHT,
         };
-        const selected = chip.id === activeFilterId;
         const apply = (): void => {
-          this.#typeFilter = chipDef.type;
-          this.#cardListScroll.reset();
-          this.#rebuild();
+          this.#typeFilter = def.type;
+          this.#fromTop = true;
+          this.#compose();
         };
-        this.#buttons.push(
-          new McButton(this, {
-            kind: "secondary",
-            label: t(chipDef.label),
-            type: typeRole.label,
-            rect: chipRect,
-            selected,
-            onClick: apply,
-          }),
-        );
-        this.#stops.set(`filter:${chip.id}`, { rect: chipRect, activate: apply });
+        const key = `filter:${chip.id}`;
+        b.button({
+          key,
+          rect: chipRect,
+          label: t(def.label),
+          look: "secondary",
+          type: typeRole.label,
+          selected: chip.id === activeFilterId,
+        });
+        this.#actions.set(key, apply);
+        this.#stops.set(key, { rect: chipRect, activate: apply });
       });
     });
 
-    // The cost curve, pinned at the rail's own foot regardless of how tall the aspect/filter groups above ended up
-    // (D04's own `margin-top:auto` on this block) — computed bottom-up rather than continuing the `y` cursor.
+    // The cost curve, pinned at the rail's foot regardless of how tall the groups above ended up.
     const chartHeight = 74;
-    const curveBlockTop = rect.y + rect.height - 16 - chartHeight;
-    label(this, left, curveBlockTop, t("deckCheck.costCurve"), typeRole.label, surface.ink.hex, ink.label);
-    drawStatCurveBars(
-      this,
-      { x: left, y: curveBlockTop + 16, width: column, height: chartHeight },
-      costCurveBars(stats),
-      false,
-    );
+    const curveTop = rect.y + rect.height - 16 - chartHeight;
+    labelOf(t("deckCheck.costCurve"), curveTop);
+    b.barChart({ x: left, y: curveTop + 16, width: column, height: chartHeight }, this.#barsOf(stats));
   }
 
-  /** Back in the builder when it opened this screen, on the deck it handed over; else a builder opened on this deck. */
-  #edit(): void {
-    if (this.#returnTo.scene === SCENES.deckBuilder) goToScreen(this, SCENES.deckBuilder, this.#returnTo.data);
-    else goToScreen(this, SCENES.deckBuilder, { deck: editableCopyOf(this.#deck) } satisfies DeckBuilderSceneData);
+  /** The cost curve as bars, its commonest cost standing out in red. */
+  #barsOf(stats: ReturnType<typeof deckStatsOf>): readonly BarChartBar[] {
+    const bars = costCurveBars(stats);
+    const peak = Math.max(0, ...bars.map((bar) => bar.count));
+    return bars.map((bar) => ({ label: bar.label, count: bar.count, highlight: peak > 0 && bar.count === peak }));
   }
 
   /** The card list's sort (issue #594), the builder's own kept setting. */
-  #drawSort(rect: Rect, kind: "onInk" | "secondary"): void {
-    const sort = (): void => {
-      this.#deckSort = nextDeckListSort(this.#deckSort);
-      rememberDeckListSort(this.#deckSort);
-      this.#cardListScroll.reset();
-      this.#rebuild();
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind,
-        label: deckListSortLabel(this.#deckSort, artLanguageNow()),
-        type: typeRole.label,
-        rect,
-        onClick: sort,
-      }),
-    );
-    this.#stops.set("deck-sort", { rect, activate: sort });
+  #drawSortButton(b: SheetBuilder, rect: Rect, look: "onInk" | "secondary"): void {
+    b.button({
+      key: "deck-sort",
+      rect,
+      label: deckListSortLabel(this.#deckSort, artLanguageNow()),
+      look,
+      type: typeRole.label,
+    });
+    this.#actions.set("deck-sort", () => this.#sort());
+    this.#stops.set("deck-sort", { rect, activate: () => this.#sort() });
+  }
+
+  /** Edit deck and Start game ▸, the foot of the panel (wide) or the footer (narrow). */
+  #drawActions(b: SheetBuilder, editRect: Rect, startRect: Rect): void {
+    b.button({ key: "edit-deck", rect: editRect, label: t("deckCheck.editDeck"), look: "onInk", type: typeRole.label });
+    this.#actions.set("edit-deck", () => this.#edit());
+    this.#stops.set("edit-deck", { rect: editRect, activate: () => this.#edit() });
+    const canStart = this.#onStartGame !== undefined;
+    b.button({
+      key: "start",
+      rect: startRect,
+      label: t("deckCheck.startGame"),
+      look: "primary",
+      type: typeRole.barTitle,
+      ...(canStart ? {} : { disabled: "Setup flow isn't built yet — coming with the title-menu rework (W2)." }),
+    });
+    const start = (): void => this.#onStartGame?.(this);
+    this.#actions.set("start", start);
+    this.#stops.set("start", { rect: startRect, activate: start });
   }
 
   // ------------------------------------------------------------------------------------------------------------
-  // The right ink rail (wide only, D04): "YOUR DECK", the grouped list (`scenes/deck-builder.ts`'s own
-  // `drawGroupedCardList`, so the two screens' right rails read identically), then Edit deck and Start game ▸
-  // pinned at the rail's own foot.
+  // The right ink panel (wide only, D04): "YOUR DECK", the grouped list (`mc-line-list`), then Edit deck and Start
+  // game ▸ pinned at the panel's foot.
   // ------------------------------------------------------------------------------------------------------------
-  #drawPanel(rect: Rect, editDeckRect: Rect, startGameRect: Rect, groups: readonly DeckListGroup[]): void {
-    const bg = this.add.graphics();
-    paintPanel(bg, rect, "onInk", "rest");
-
+  #drawPanel(b: SheetBuilder, rect: Rect, editRect: Rect, startRect: Rect, groups: readonly DeckListGroup[]): Rect {
+    b.box(rect, { fill: surface.ink.hex });
     const left = rect.x + 16;
     const column = rect.width - 32;
-    label(this, left, rect.y + 16, t("deckCheck.yourDeck"), typeRole.label, surface.paper.hex, ink.secondary);
-    this.#drawSort({ x: left + column - SORT_WIDTH, y: rect.y + 8, width: SORT_WIDTH, height: hit.target }, "onInk");
-    // The panel's lines have no zone of their own, so each line's card is `through` to nothing under the pointer.
-    drawGroupedCardList(
-      this,
-      left,
-      rect.y + 16 + hit.target,
-      column,
-      groups,
-      PANEL_LIST_ENTRY_CAP,
-      true,
-      undefined,
-      undefined,
-      undefined,
-      (entry, lineRect) => noteHoverCardId(this, entry.cardId as string, lineRect, true),
-      artLanguageNow(),
-    );
-
-    const openEdit = (): void => this.#edit();
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: t("deckCheck.editDeck"),
-        type: typeRole.label,
-        rect: editDeckRect,
-        onClick: openEdit,
-      }),
-    );
-    this.#stops.set("edit-deck", { rect: editDeckRect, activate: openEdit });
-
-    const canStart = this.#onStartGame !== undefined;
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: t("deckCheck.startGame"),
-        type: typeRole.barTitle,
-        rect: startGameRect,
-        enabled: canStart,
-        ...(canStart ? {} : { reason: "Setup flow isn't built yet — coming with the title-menu rework (W2)." }),
-        onClick: () => this.#onStartGame?.(this),
-      }),
-    );
-    this.#stops.set("start", { rect: startGameRect, activate: () => this.#onStartGame?.(this) });
+    b.text(left, rect.y + 16, t("deckCheck.yourDeck").toUpperCase(), typeRole.label, {
+      color: surface.paper.hex,
+      alpha: ink.secondary,
+    });
+    const sortRect: Rect = { x: left + column - SORT_WIDTH, y: rect.y + 8, width: SORT_WIDTH, height: hit.target };
+    this.#drawSortButton(b, sortRect, "onInk");
+    // The first lines up to the cap, the rest as "+ N more".
+    let room = PANEL_LIST_ENTRY_CAP;
+    let more = 0;
+    const lines = groups
+      .map((group) => {
+        const shown = group.entries.slice(0, Math.max(0, room));
+        room -= shown.length;
+        more += group.entries.length - shown.length;
+        return {
+          label: `${group.label} · ${group.count}`,
+          entries: shown.map((entry) => ({
+            name: entry.name,
+            quantity: entry.quantity,
+            hover: entry.cardId as string,
+          })),
+        };
+      })
+      .filter((group) => group.entries.length > 0);
+    const listTop = rect.y + 16 + hit.target;
+    b.lineList({ x: left, y: listTop, width: column, height: Math.max(0, editRect.y - 8 - listTop) }, lines, true);
+    if (more > 0) {
+      b.text(left, editRect.y - 28, t("deckList.more", { count: more }), typeRole.label, {
+        color: surface.paper.hex,
+        alpha: ink.label,
+      });
+    }
+    this.#drawActions(b, editRect, startRect);
+    return sortRect;
   }
 
   // ------------------------------------------------------------------------------------------------------------
-  // Narrow's Curve tab (P04): the "RESOURCE CURVE" card (P04's own per-bucket rainbow bars, `avg N.N` at its own
-  // right), three sample tiles (Resources/Allies/Events, P04's own three — not every non-empty type), then a short
-  // few-card preview in the simple cost-pip/name/qty row P04 itself draws there. The full list lives on Cards.
+  // Narrow's Curve tab (P04): the "RESOURCE CURVE" card, three sample tiles (Resources/Allies/Events), then a short
+  // few-card preview. The full list lives on Cards.
   // ------------------------------------------------------------------------------------------------------------
-  #drawCurveTab(rect: Rect, stats: ReturnType<typeof deckStatsOf>, groups: readonly DeckListGroup[]): void {
-    const chartRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: CURVE_CARD_HEIGHT };
-    const panel = this.add.graphics();
-    paintPanel(panel, chartRect, "card", "rest");
-    const heading = this.add.text(chartRect.x + 12, chartRect.y + 10, t("deckCheck.resourceCurve"), {
-      ...textStyle(typeRole.barTitle, surface.ink.hex),
-      fontSize: "18px",
+  #drawCurveTab(
+    b: SheetBuilder,
+    rect: Rect,
+    stats: ReturnType<typeof deckStatsOf>,
+    groups: readonly DeckListGroup[],
+  ): void {
+    const chart: Rect = { x: rect.x, y: rect.y, width: rect.width, height: CURVE_CARD_HEIGHT };
+    b.box(chart, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 3 });
+    b.text(chart.x + 12, chart.y + 10, t("deckCheck.resourceCurve"), typeRole.barTitle, {
+      size: 18,
+      color: surface.ink.hex,
     });
     if (stats.averageCost !== null) {
-      label(
-        this,
-        chartRect.x + chartRect.width - 12,
-        chartRect.y + 10 + heading.height / 2,
+      b.text(
+        chart.x + chart.width - 12,
+        chart.y + 20,
         t("deckCheck.average", { avg: stats.averageCost.toFixed(1) }),
         typeRole.label,
-        surface.ink.hex,
-        ink.meta,
-      ).setOrigin(1, 0.5);
+        {
+          color: surface.ink.hex,
+          alpha: ink.meta,
+          origin: [1, 0.5],
+        },
+      );
     }
-    drawRainbowCurveBars(
-      this,
-      { x: chartRect.x + 12, y: chartRect.y + 34, width: chartRect.width - 24, height: chartRect.height - 34 - 6 },
-      costCurveBars(stats),
+    b.barChart(
+      { x: chart.x + 12, y: chart.y + 38, width: chart.width - 24, height: chart.height - 44 },
+      this.#barsOf(stats),
     );
-
-    let y = chartRect.y + chartRect.height + 12;
-    const threeTiles = [
-      { id: "resource", label: t("deckTypes.resource"), count: stats.countsByType.resource ?? 0 },
-      { id: "ally", label: t("deckTypes.ally"), count: stats.countsByType.ally ?? 0 },
-      { id: "event", label: t("deckTypes.event"), count: stats.countsByType.event ?? 0 },
+    let y = chart.y + chart.height + 12;
+    const tile = (label: string, count: number): StatTile => ({ id: label, text: `${label} ${count}` });
+    const tiles: readonly StatTile[] = [
+      tile(t("deckTypes.resource"), stats.countsByType.resource ?? 0),
+      tile(t("deckTypes.ally"), stats.countsByType.ally ?? 0),
+      tile(t("deckTypes.event"), stats.countsByType.event ?? 0),
     ];
-    y = drawStatTiles(this, rect.x, y, rect.width, threeTiles, false, 3) + 12;
-
-    const preview = groups.flatMap((g) => g.entries).slice(0, 3);
-    for (const entry of preview) y = this.#drawPreviewRow(rect.x, y, rect.width, entry);
+    b.statTiles({ x: rect.x, y, width: rect.width, height: 46 }, [tiles]);
+    y += 46 + 12;
+    for (const entry of groups.flatMap((g) => g.entries).slice(0, 3)) {
+      const row: Rect = { x: rect.x, y, width: rect.width, height: 26 };
+      b.box(row, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2 });
+      b.box(
+        { x: row.x, y: row.y, width: 26, height: row.height },
+        {
+          fill: entry.cost !== null ? costPipColor(entry.cost) : surface.ink.hex,
+        },
+      );
+      if (entry.cost !== null) {
+        b.text(row.x + 13, row.y + 13, String(entry.cost), typeRole.rowTitle, {
+          color: surface.paper.hex,
+          origin: [0.5, 0.5],
+        });
+      }
+      b.text(row.x + 34, row.y + 13, entry.name, typeRole.body, {
+        color: surface.ink.hex,
+        origin: [0, 0.5],
+        fitWidth: row.width - 34 - 50,
+      });
+      b.text(row.x + row.width - 10, row.y + 13, `×${entry.quantity}`, typeRole.label, {
+        color: surface.ink.hex,
+        alpha: ink.secondary,
+        origin: [1, 0.5],
+      });
+      y += 32;
+    }
   }
 
-  /** One of the Curve tab's few sample rows: a cost pip, the name, and its quantity — P04's own small preview shape, distinct from the full-scan grid the Cards tab draws. */
-  #drawPreviewRow(left: number, y: number, width: number, entry: DeckListEntry): number {
-    const rowHeight = 32;
-    const rowRect: Rect = { x: left, y, width, height: rowHeight - 6 };
-    const g = this.add.graphics();
-    paintPanel(g, rowRect, "card", "rest");
-    const pipWidth = 26;
-    const pipColor = entry.cost !== null ? costPipColor(entry.cost) : surface.ink.hex;
-    const pipBg = this.add.graphics();
-    pipBg.fillStyle(pipColor, 1).fillRect(rowRect.x, rowRect.y, pipWidth, rowRect.height);
-    if (entry.cost !== null)
-      label(
-        this,
-        rowRect.x + pipWidth / 2,
-        rowRect.y + rowRect.height / 2,
-        String(entry.cost),
-        typeRole.rowTitle,
-        surface.paper.hex,
-        1,
-      ).setOrigin(0.5);
-    const name = this.add
-      .text(
-        rowRect.x + pipWidth + 8,
-        rowRect.y + rowRect.height / 2,
-        entry.name,
-        textStyle(typeRole.body, surface.ink.hex),
-      )
-      .setOrigin(0, 0.5);
-    fitText(name, width - pipWidth - 8 - 50);
-    label(
-      this,
-      rowRect.x + width - 10,
-      rowRect.y + rowRect.height / 2,
-      `×${entry.quantity}`,
-      typeRole.label,
-      surface.ink.hex,
-      ink.secondary,
-    ).setOrigin(1, 0.5);
-    return y + rowHeight;
-  }
-
-  #drawAspectTab(rect: Rect, groups: readonly DeckListGroup[]): void {
-    label(this, rect.x, rect.y, t("deckCheck.composition"), typeRole.label, surface.ink.hex, ink.label);
+  #drawAspectTab(b: SheetBuilder, rect: Rect, groups: readonly DeckListGroup[]): void {
+    b.text(rect.x, rect.y, t("deckCheck.composition"), typeRole.label, { color: surface.ink.hex, alpha: ink.label });
     if (groups.length === 0) {
-      this.add.text(rect.x, rect.y + 20, t("deckCheck.noCards"), textStyle(typeRole.body, surface.ink.hex, ink.meta));
+      b.text(rect.x, rect.y + 20, t("deckCheck.noCards"), typeRole.body, { color: surface.ink.hex, alpha: ink.meta });
       return;
     }
-    drawStatTiles(
-      this,
-      rect.x,
-      rect.y + 16,
-      rect.width,
-      groups.map((g) => ({ id: g.key, label: g.label, count: g.count })),
-      false,
+    const tiles: StatTile[] = groups.map((g) => ({ id: g.key, text: `${g.label} ${g.count}` }));
+    const rows: StatTile[][] = [];
+    for (let i = 0; i < tiles.length; i += 3) rows.push(tiles.slice(i, i + 3));
+    b.statTiles(
+      { x: rect.x, y: rect.y + 16, width: rect.width, height: rows.length * 46 + (rows.length - 1) * 7 },
+      rows,
     );
   }
 
   // ------------------------------------------------------------------------------------------------------------
-  // The card grid: the deck's own cards (already narrowed by the rail's type filter, on wide), as a real-scan
-  // grid grouped by signature-set/aspect, a Bangers header (with its own rule and count) per group. Virtualized
-  // at grid-row granularity (`ui/variable-list.ts`'s `McVariableList` — a plain `McVirtualList` can't mix a short
-  // header slot with a taller grid-row slot in one uniform-height list, the same reason `scenes/rules.ts`'s own
-  // Card list tab uses it).
+  // The card sections: the deck's own cards (narrowed by the rail's type filter, on wide), grouped by signature set or
+  // aspect, with the identity's faces above them and what the identity brings beside the deck under them.
   // ------------------------------------------------------------------------------------------------------------
-  #drawCardGrid(rect: Rect, groups: readonly DeckListGroup[]): readonly string[] {
+  #mountCards(
+    rect: Rect,
+    groups: readonly DeckListGroup[],
+  ): { readonly cardIds: readonly string[]; readonly faceIds: readonly string[] } {
     const totalCount = groups.reduce((sum, g) => sum + g.entries.length, 0);
     const geometry = poolGridGeometry(
       rect.width,
@@ -894,384 +806,131 @@ export class DeckCheckScene extends Phaser.Scene {
       isDesktopType(),
       cardSizeFactor(appSession().settings.cardSize),
     );
-    const slots: CardGridSlot[] = [];
+    const sections: CardSection[] = [];
+    const faceIds: string[] = [];
+    const cardIds: string[] = [];
     // The identity's faces and every multi-faced card's, above the cards; a type filter narrows to cards alone.
-    const faceWidth = rect.width - FACES_INSET * 2;
-    if (this.#typeFilter === null)
-      for (const group of deckFaceGroups(this.#deck, currentCardsById()))
-        slots.push({ kind: "faces", group, layout: deckFaceGroupLayout(faceWidth, group.tiles.length) });
-    // The identity's faces stay on screen when the card list is empty; the message goes under them.
-    if (groups.length === 0) {
-      if (slots.length === 0) {
-        this.add.text(
-          rect.x + 10,
-          rect.y + 10,
-          t("deckCheck.noMatch"),
-          textStyle(typeRole.body, surface.ink.hex, ink.meta),
-        );
-        return [];
-      }
-      slots.push({ kind: "empty" });
+    const faceWidth = rect.width - 8 - FACES_INSET * 2;
+    if (this.#typeFilter === null) {
+      deckFaceGroups(this.#deck, currentCardsById()).forEach((group, groupIndex) => {
+        const layout = deckFaceGroupLayout(faceWidth, group.tiles.length);
+        const count = group.tiles.length;
+        const art = layout.art[0];
+        const gap = layout.art[1] ? layout.art[1].x - art!.x - art!.width : 8;
+        sections.push({
+          kind: "faces",
+          title: group.identity
+            ? t("deckCheck.identityFaces", { count })
+            : t("deckCheck.cardFaces", { title: group.title.toUpperCase(), count }),
+          tileWidth: art?.width ?? 84,
+          tileHeight: art?.height ?? 118,
+          tiles: group.tiles.map((tile, i) => {
+            const id = `${groupIndex}.${i}`;
+            faceIds.push(id);
+            this.#faces.set(`face:${id}`, { cardId: group.cardId, face: tile.face });
+            this.#actions.set(`face:${id}`, () => this.#inspectFace(`face:${id}`));
+            return { id, cardId: group.cardId, picture: this.#pictureOf(tile.art), label: tile.label, name: tile.name };
+          }),
+        });
+        void gap;
+      });
     }
-    // What the identity brings besides the deck (#960): its separate decks, obligation and nemesis set, under the
-    // deck's own cards and never counted in it. A type filter narrows to the deck's cards alone, as it does the faces.
+    // The identity's faces stay on screen when the card list is empty; the message goes under them.
+    if (groups.length === 0) sections.push({ kind: "note", text: t("deckCheck.noMatch") });
+    // What the identity brings besides the deck (#960), under the deck's own cards and never counted in it.
     const outside =
       this.#typeFilter === null ? outsideDeckGroupsOf(this.#deck.identityCardId, currentPool(), artLanguageNow()) : [];
     for (const group of [...groups, ...outside]) {
-      slots.push({ kind: "header", group });
-      const rows = Math.max(1, Math.ceil(group.entries.length / geometry.columns));
-      for (let r = 0; r < rows; r++) {
-        const startIndex = r * geometry.columns;
-        slots.push({
-          kind: "gridRow",
-          group,
-          startIndex,
-          count: Math.min(geometry.columns, group.entries.length - startIndex),
-        });
-      }
-    }
-
-    const heights = slots.map((slot) =>
-      slot.kind === "header"
-        ? GROUP_HEADER_HEIGHT
-        : slot.kind === "faces"
-          ? slot.layout.height
-          : slot.kind === "empty"
-            ? EMPTY_SLOT_HEIGHT
-            : geometry.cellHeight,
-    );
-    const renderRow = (index: number, rowRect: Rect): VirtualListRow =>
-      this.#renderCardGridSlot(rowRect, slots[index]!, geometry);
-    const onRowActivate = (index: number, pointer: Phaser.Input.Pointer): void => {
-      const slot = slots[index];
-      const list = this.#cardList;
-      if (!list) return;
-      if (slot?.kind === "faces") {
-        const at = list.rectFor(index);
-        const tile = slot.layout.tiles.findIndex(
-          (t) =>
-            pointer.x >= at.x + FACES_INSET + t.x &&
-            pointer.x <= at.x + FACES_INSET + t.x + t.width &&
-            pointer.y >= at.y + t.y &&
-            pointer.y <= at.y + t.y + t.height,
-        );
-        if (tile >= 0) this.#inspectFace(slot.group, tile);
-        return;
-      }
-      if (slot?.kind !== "gridRow") return;
-      const column = poolColumnAt(geometry, list.rectFor(index), pointer.x, slot.count);
-      if (column === null) return;
-      const entry = slot.group.entries[slot.startIndex + column];
-      if (entry) this.#inspect(entry);
-    };
-    this.#cardList = new McVariableList(this, {
-      rect,
-      heights,
-      renderRow,
-      scroll: this.#cardListScroll,
-      onRowActivate,
-      background: false,
-    });
-    const list = this.#cardList;
-    this.#gridHover = () => {
-      const found: (readonly [string, HoverCardIdRect])[] = [];
-      const view = list.rect;
-      slots.forEach((slot, index) => {
-        if (slot.kind === "faces") {
-          const at = list.rectFor(index);
-          slot.layout.art.forEach((art, i) => {
-            const rect = clipHoverRect(
-              { x: at.x + FACES_INSET + art.x, y: at.y + art.y, width: art.width, height: art.height },
-              view,
-            );
-            const tile = slot.group.tiles[i]!;
-            if (rect)
-              found.push([
-                hoverSlotOf(slot.group.cardId, `face${index}.${i}`),
-                { ...rect, cardId: slot.group.cardId, face: tile.face, through: true },
-              ]);
-          });
-          return;
-        }
-        if (slot.kind !== "gridRow") return;
-        const at = list.rectFor(index);
-        if (at.y + at.height <= view.y || at.y >= view.y + view.height) return;
-        for (let col = 0; col < slot.count; col++) {
-          const entry = slot.group.entries[slot.startIndex + col];
-          if (!entry) continue;
-          const cell = poolCellRect(geometry, at, col);
-          const rect = clipHoverRect(
-            { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 },
-            view,
-          );
-          const cardId = entry.cardId as string;
-          if (rect) found.push([hoverSlotOf(cardId, `cell${index}.${col}`), { ...rect, cardId, through: true }]);
-        }
+      sections.push({
+        kind: "cards",
+        title: `${group.label.toUpperCase()} · ${group.count}`,
+        cells: group.entries.map((entry) => this.#cellOf(entry)),
       });
-      return found;
-    };
-
-    const cardIds: string[] = [];
-    this.#faceIds = [];
-    slots.forEach((slot, index) => {
-      if (slot.kind === "faces") {
-        slot.group.tiles.forEach((_, i) => {
-          const id = `${index}.${i}`;
-          this.#faceIds.push(id);
-          this.#stops.set(`face:${id}`, {
-            rect: () => {
-              const at = list.rectFor(index);
-              const t = slot.layout.tiles[i]!;
-              return { x: at.x + FACES_INSET + t.x, y: at.y + t.y, width: t.width, height: t.height };
-            },
-            activate: () => this.#inspectFace(slot.group, i),
-            inspect: () => this.#inspectFace(slot.group, i),
-            // The tile's own bounds: a wrapped group taller than the view must not jump between its ends.
-            ensureVisible: () => {
-              const t = slot.layout.tiles[i]!;
-              list.scrollIntoView(index, { y: t.y, height: t.height });
-            },
-          });
-        });
-        return;
-      }
-      if (slot.kind !== "gridRow") return;
-      for (let col = 0; col < slot.count; col++) {
-        const entry = slot.group.entries[slot.startIndex + col];
-        if (!entry) continue;
+      for (const entry of group.entries) {
         const id = entry.cardId as string;
+        if (this.#actions.has(`card:${id}`)) continue;
         cardIds.push(id);
-        this.#stops.set(`card:${id}`, {
-          rect: () => poolCellRect(geometry, list.rectFor(index), col),
-          activate: () => this.#inspect(entry),
-          inspect: () => this.#inspect(entry),
-          ensureVisible: () => list.scrollIntoView(index),
+        this.#actions.set(`card:${id}`, () => this.#inspect(entry));
+      }
+    }
+    const fresh = this.#cards === null;
+    const region = (this.#cards ??= this.#wire(document.createElement("mc-card-sections") as McCardSections, rect));
+    region.setRect(rect);
+    region.setHidden(false);
+    region.element.model = {
+      sections,
+      contentWidth: rect.width - 8,
+      columns: geometry.columns,
+      cellHeight: geometry.cellHeight,
+      gap: 8,
+    };
+    renderNow(region.element);
+    if (this.#fromTop || fresh) {
+      const scroller = region.element.scroller;
+      if (scroller) scroller.scrollTop = 0;
+      this.#fromTop = false;
+    }
+    this.#view = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    for (const id of faceIds) this.#stopOf(region, `face:${id}`, rect);
+    for (const id of cardIds) this.#stopOf(region, `card:${id}`, rect);
+    return { cardIds, faceIds };
+  }
+
+  #stopOf(region: DomRegion<McCardSections>, key: string, view: Rect): void {
+    const activate = this.#actions.get(key) ?? (() => undefined);
+    this.#stops.set(key, {
+      rect: () => this.#liveRect(region, key, view),
+      activate,
+      inspect: activate,
+      view: () => view,
+      ensureVisible: () => region.element.elementOf(key)?.scrollIntoView({ block: "nearest" }),
+    });
+  }
+
+  /** One card a deck runs, as a cell: cost pip, name, type, scan, a short strip of rules and its copies. */
+  #cellOf(entry: DeckListEntry): CardCellModel {
+    const card = currentCardsById().get(entry.cardId as string);
+    const rules =
+      card && "text" in card ? truncate((card as unknown as { text: { current: string } }).text.current, 120) : "";
+    return {
+      id: entry.cardId as string,
+      cardId: entry.cardId as string,
+      cost: entry.cost,
+      costColor: sheetColor(entry.cost !== null ? costPipColor(entry.cost) : surface.ink.hex, "fill"),
+      name: entry.name,
+      typeWord: cardTypeWordOf(entry.type),
+      picture: this.#pictureOf(artFor(card, { kind: "front" })),
+      rules,
+      quantity: entry.quantity,
+    };
+  }
+
+  /** The cards and the panel's "Your deck" lines on screen, for the hover popover. */
+  #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const view = this.#view;
+    const cards = this.#cards;
+    if (cards && view.width > 0) {
+      for (const { cardId, element, key } of cards.element.hoverFaces()) {
+        const rect = clipHoverRect(cards.rectOf(element), view);
+        if (!rect) continue;
+        const face = this.#faces.get(key)?.face;
+        found.set(hoverSlotOf(cardId, key), {
+          ...rect,
+          cardId,
+          through: true,
+          ...(face ? { face: face as never } : {}),
         });
       }
-    });
-    return cardIds;
-  }
-
-  #renderCardGridSlot(rect: Rect, slot: CardGridSlot, geometry: PoolGridGeometry): VirtualListRow {
-    if (slot.kind === "header") return this.#renderGroupHeaderRow(rect, slot.group);
-    if (slot.kind === "faces") return this.#renderFaceGroupRow(rect, slot.group, slot.layout);
-    if (slot.kind === "empty")
-      return {
-        objects: [
-          this.add.text(
-            rect.x + 10,
-            rect.y + 10,
-            t("deckCheck.noMatch"),
-            textStyle(typeRole.body, surface.ink.hex, ink.meta),
-          ),
-        ],
-      };
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const waiting: (() => boolean)[] = [];
-    for (let col = 0; col < slot.count; col++) {
-      const entry = slot.group.entries[slot.startIndex + col];
-      if (!entry) continue;
-      const cell = poolCellRect(geometry, rect, col);
-      const cardRect: Rect = { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 };
-      this.#renderCardCell(cardRect, entry, objects, waiting);
     }
-    return waiting.length > 0 ? { objects, refresh: () => waiting.forEach((fill) => fill()) } : { objects };
-  }
-
-  /**
-   * A group's own header slot: Bangers label, a rule to the row's own right edge, and its count — visually
-   * `ui/widgets.ts`'s `sectionHeader`, but returning every object it drew (`sectionHeader` itself adds straight to
-   * the scene's root display list and returns none) so `McVariableList` can reparent them into its own scrolled,
-   * masked layer and destroy them when the row recycles out of view, the same as every other row this list draws.
-   */
-  #renderGroupHeaderRow(rect: Rect, group: DeckListGroup): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const heading = this.add.text(rect.x + 4, rect.y + 4, `${group.label.toUpperCase()} · ${group.count}`, {
-      ...textStyle(typeRole.barTitle, surface.ink.hex),
-      fontSize: "19px",
-    });
-    objects.push(heading);
-    const ruleX = rect.x + 4 + heading.width + 10;
-    if (ruleX < rect.x + rect.width) {
-      const rule = this.add.graphics();
-      rule
-        .fillStyle(surface.ink.hex, 1)
-        .fillRect(ruleX, rect.y + 4 + heading.height / 2 - 1.5, rect.x + rect.width - 4 - ruleX, 3);
-      objects.push(rule);
-    }
-    return { objects };
-  }
-
-  /**
-   * One card cell, D04's own shape: a header strip (a colored cost pip, the card's own Bangers name, its type),
-   * the art, a short one-line strip of its rules text, and a green "×N" copies badge floating over the cell's own
-   * top-right corner — not the caption-under-the-art shape Decks' and Rules' own pool grids draw, since those are
-   * browsing a *pool*, not reading a card this deck already runs. A missing scan draws "no scan" rather than
-   * blocking anything — art availability never blocks this screen (CLAUDE.md).
-   */
-  #renderCardCell(
-    cardRect: Rect,
-    entry: DeckListEntry,
-    objects: Phaser.GameObjects.GameObject[],
-    waiting: (() => boolean)[],
-  ): void {
-    const g = this.add.graphics();
-    paintPanel(g, cardRect, "card", "rest");
-    objects.push(g);
-
-    const headerRect: Rect = { x: cardRect.x, y: cardRect.y, width: cardRect.width, height: CELL_HEADER_HEIGHT };
-    const pipWidth = 22;
-    const pipColor = entry.cost !== null ? costPipColor(entry.cost) : surface.ink.hex;
-    const pipG = this.add.graphics();
-    pipG.fillStyle(pipColor, 1).fillRect(headerRect.x, headerRect.y, pipWidth, headerRect.height);
-    objects.push(pipG);
-    if (entry.cost !== null) {
-      const pipText = label(
-        this,
-        headerRect.x + pipWidth / 2,
-        headerRect.y + headerRect.height / 2,
-        String(entry.cost),
-        typeRole.rowTitle,
-        surface.paper.hex,
-        1,
-      ).setOrigin(0.5);
-      objects.push(pipText);
-    }
-    const nameX = headerRect.x + pipWidth + 6;
-    const name = this.add.text(nameX, headerRect.y + 2, entry.name, {
-      ...textStyle(typeRole.barTitle, surface.ink.hex),
-      fontSize: "12px",
-    });
-    fitWrapped(name, cardRect.width - pipWidth - 6 - 32, 2, 12);
-    objects.push(name);
-    const typeText = label(
-      this,
-      nameX,
-      headerRect.y + 2 + Math.ceil(name.height) + 1,
-      cardTypeWordOf(entry.type),
-      typeRole.label,
-      surface.ink.hex,
-      ink.meta,
-    );
-    objects.push(typeText);
-
-    const headerRuleY = headerRect.y + headerRect.height;
-    const headerRule = this.add.graphics();
-    headerRule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, headerRuleY, cardRect.width, 2);
-    objects.push(headerRule);
-
-    const artRect: Rect = {
-      x: cardRect.x + 2,
-      y: headerRuleY + 2,
-      width: cardRect.width - 4,
-      height: Math.max(0, cardRect.height - CELL_HEADER_HEIGHT - CELL_FOOTER_HEIGHT - 6),
-    };
-    const artFill = this.add.graphics();
-    artFill.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
-    objects.push(artFill);
-    const card = currentCardsById().get(entry.cardId as string);
-    const fill = drawArtSlot(this, artFor(card, { kind: "front" }), artRect, objects, () =>
-      label(
-        this,
-        artRect.x + artRect.width / 2,
-        artRect.y + artRect.height / 2,
-        t("deckCheck.noScan"),
-        typeRole.label,
-        surface.ink.hex,
-        ink.meta,
-      ).setOrigin(0.5),
-    );
-    waiting.push(fill);
-
-    const footerRuleY = artRect.y + artRect.height + 2;
-    const footerRule = this.add.graphics();
-    footerRule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, footerRuleY, cardRect.width, 2);
-    objects.push(footerRule);
-    const ruleText =
-      card && "text" in card ? truncate((card as unknown as { text: { current: string } }).text.current, 120) : "";
-    if (ruleText) {
-      const rules = this.add.text(
-        cardRect.x + 6,
-        footerRuleY + 4,
-        ruleText,
-        textStyle(typeRole.label, surface.ink.hex, ink.meta),
-      );
-      // Two whole lines of the card's text, stepping the size down; the rest is one tap away in Inspect.
-      fitWrapped(rules, cardRect.width - 12, 2, typeRole.label.size);
-      objects.push(rules);
-    }
-
-    // The "×N" copies badge, floating over the cell's own top-right corner (D04's own absolute-positioned badge).
-    const qtyLabel = `×${entry.quantity}`;
-    const qtyText = label(this, 0, 0, qtyLabel, typeRole.label, surface.paper.hex, 1);
-    const qtyWidth = Math.ceil(qtyText.width) + 10;
-    const qtyHeight = 16;
-    const qtyBg = this.add.graphics();
-    qtyBg
-      .fillStyle(signal.heal.hex, 1)
-      .fillRect(cardRect.x + cardRect.width - qtyWidth, cardRect.y - 2, qtyWidth, qtyHeight);
-    qtyText.setPosition(cardRect.x + cardRect.width - qtyWidth / 2, cardRect.y - 2 + qtyHeight / 2).setOrigin(0.5);
-    objects.push(qtyBg, qtyText);
-  }
-
-  /**
-   * One identity or multi-faced card: a title over a row (wrapping on a narrow screen) of its faces, each a scan with
-   * its label and printed name under it. A missing scan draws t("deckCheck.noScan"), as the card cells do.
-   */
-  #renderFaceGroupRow(rect: Rect, group: DeckFaceGroup, layout: DeckFaceGroupLayout): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const waiting: (() => boolean)[] = [];
-    const count = group.tiles.length;
-    const title = group.identity
-      ? t("deckCheck.identityFaces", { count })
-      : t("deckCheck.cardFaces", { title: group.title.toUpperCase(), count });
-    const heading = this.add.text(rect.x + 4, rect.y + 4, title, {
-      ...textStyle(typeRole.barTitle, surface.ink.hex),
-      fontSize: "19px",
-    });
-    fitText(heading, rect.width - 8, 19);
-    objects.push(heading);
-    group.tiles.forEach((tile, i) => {
-      const spot = layout.tiles[i]!;
-      const a = layout.art[i]!;
-      const x = rect.x + FACES_INSET;
-      const artRect: Rect = { x: x + a.x, y: rect.y + a.y, width: a.width, height: a.height };
-      const frame = this.add.graphics();
-      paintPanel(frame, artRect, "card", "rest");
-      objects.push(frame);
-      const fill = drawArtSlot(this, tile.art, artRect, objects, () =>
-        label(
-          this,
-          artRect.x + artRect.width / 2,
-          artRect.y + artRect.height / 2,
-          t("deckCheck.noScan"),
-          typeRole.label,
-          surface.ink.hex,
-          ink.meta,
-        ).setOrigin(0.5),
-      );
-      waiting.push(fill);
-      const captionY = rect.y + spot.y + a.height + 3;
-      objects.push(
-        label(this, x + spot.x, captionY, tile.label.toUpperCase(), typeRole.label, surface.ink.hex, ink.meta),
-      );
-      const name = this.add.text(x + spot.x, captionY + 14, tile.name, {
-        ...textStyle(typeRole.barTitle, surface.ink.hex),
-        fontSize: "13px",
+    const sheet = this.#sheet;
+    const list = sheet?.element.renderRoot.querySelector("mc-line-list");
+    if (sheet && list) {
+      list.hoverEntries().forEach(({ cardId, element }, index) => {
+        const rect = sheet.rectOf(element);
+        if (rect.width > 0) found.set(hoverSlotOf(cardId, `line${index}`), { ...rect, cardId, through: true });
       });
-      fitWrapped(name, spot.width, 1, 13);
-      objects.push(name);
-    });
-    return waiting.length > 0 ? { objects, refresh: () => waiting.forEach((fill) => fill()) } : { objects };
-  }
-
-  #inspectFace(group: DeckFaceGroup, tile: number): void {
-    const face = group.tiles[tile]?.face;
-    if (!face) return;
-    this.scene.launch(SCENES.inspect, { card: { cardId: group.cardId, face } });
-  }
-
-  #inspect(entry: DeckListEntry): void {
-    this.scene.launch(SCENES.inspect, { card: { cardId: entry.cardId, face: { kind: "front" } } });
+    }
+    return found;
   }
 }

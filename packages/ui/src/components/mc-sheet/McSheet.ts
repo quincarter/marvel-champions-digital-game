@@ -754,7 +754,12 @@ export class McSheet extends LitElement {
           .height=${node.rect.height}
         ></mc-bar-chart>`;
       case "lineList":
-        return html`<mc-line-list class="part" style=${px(node.rect)} .groups=${node.groups}></mc-line-list>`;
+        return html`<mc-line-list
+          class="part"
+          style=${px(node.rect)}
+          .groups=${node.groups}
+          ?dark=${node.dark ?? false}
+        ></mc-line-list>`;
       case "mediaRow": {
         const events = this.#pictureEvents(node.retry);
         return html`<mc-media-row

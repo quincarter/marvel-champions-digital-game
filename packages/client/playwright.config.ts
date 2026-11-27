@@ -104,6 +104,7 @@ export default defineConfig({
         "rules-howto-lit-panel.spec.ts",
         "guide-chooser-lit-panel.spec.ts",
         "scenario-select-lit-panel.spec.ts",
+        "deck-check-lit-panel.spec.ts",
         "how-to-win-lit-panel.spec.ts",
         "extras-lit-panel.spec.ts",
         "extras-reader-lit-panel.spec.ts",

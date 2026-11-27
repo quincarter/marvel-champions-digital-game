@@ -484,6 +484,8 @@ export interface SheetLineList {
   readonly key?: string;
   readonly rect: SheetRect;
   readonly groups: readonly LineListGroup[];
+  /** Paper words, for a list on an ink panel. */
+  readonly dark?: boolean;
 }
 
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
