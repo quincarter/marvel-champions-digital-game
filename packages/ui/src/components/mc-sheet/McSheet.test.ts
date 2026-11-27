@@ -147,6 +147,38 @@ describe("mc-sheet", () => {
     sheet.remove();
   });
 
+  it("re-arms a picture tile's retry once its picture loads", async () => {
+    const sheet = document.createElement("mc-sheet");
+    const tile = (src: string): SheetNode => ({
+      kind: "pictureTile",
+      key: "hero",
+      rect: rect(0, 0, 56, 56),
+      src,
+      retry: "art:pack:demo@1/h.webp",
+    });
+    sheet.nodes = [tile("blob:a")];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const asked: unknown[] = [];
+    sheet.addEventListener("mc-image-error", (event) => asked.push((event as CustomEvent).detail));
+    const inner = (): HTMLElement => sheet.elementOf("hero") as HTMLElement;
+    const img = (): HTMLImageElement => inner().shadowRoot!.querySelector("img")!;
+    img().dispatchEvent(new Event("error"));
+    await sheet.updateComplete;
+    expect(asked).toHaveLength(1);
+    // A fresh URL that loads clears the flag, so a later failure asks again.
+    sheet.nodes = [tile("blob:b")];
+    await sheet.updateComplete;
+    await (inner() as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    img().dispatchEvent(new Event("load"));
+    sheet.nodes = [tile("blob:c")];
+    await sheet.updateComplete;
+    await (inner() as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    img().dispatchEvent(new Event("error"));
+    expect(asked).toHaveLength(2);
+    sheet.remove();
+  });
+
   it("cancels a hold that is still armed, so a covered panel raises no mc-inspect", async () => {
     vi.useFakeTimers();
     try {
@@ -591,5 +623,243 @@ describe("scrollBox", () => {
     const r = rect(10, 20, 300, 100);
     expect(scrollBox({ rect: r, height: 400 })).toEqual({ ...r, width: 300 + SCROLL_GUTTER });
     expect(scrollBox({ rect: r, height: 100 })).toBe(r);
+  });
+
+  it("centers a cover crop on its focal point once the picture's size is known, and keeps it inside the picture", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "image",
+        key: "hero",
+        rect: rect(0, 0, 100, 100),
+        src: "/h.png",
+        cover: { x: 0.5, y: 0.6, centered: true },
+      },
+      {
+        kind: "button",
+        key: "go",
+        rect: rect(0, 0, 10, 10),
+        label: "Go",
+        look: "secondary",
+        disabled: "No",
+        pressable: true,
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const img = sheet.elementOf("hero")!.querySelector("img")!;
+    // Not loaded yet: the point is a share of the overflow.
+    expect(img.style.objectPosition).toBe("50% 60%");
+    // A 200 x 400 picture in a 100 x 100 box scales by 0.5: the crop is 200 x 200 of it. Centered on 0.6 (240) it starts at 140 of 200 spare.
+    Object.defineProperty(img, "naturalWidth", { value: 200 });
+    Object.defineProperty(img, "naturalHeight", { value: 400 });
+    img.dispatchEvent(new Event("load"));
+    await sheet.updateComplete;
+    expect(sheet.elementOf("hero")!.querySelector("img")!.style.objectPosition).toBe("50% 70%");
+    expect(sheet.elementOf("go")!.hasAttribute("pressable")).toBe(true);
+    sheet.remove();
+  });
+});
+
+describe("mc-sheet kit parts", () => {
+  const mount = async (nodes: SheetNode[]) => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = nodes;
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    return sheet;
+  };
+  const ready = (el: Element) => (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+
+  it("draws a section header, a tab rail, a picture tile and card, a row, an empty state and a search", async () => {
+    const sheet = await mount([
+      {
+        kind: "sectionHeader",
+        key: "h",
+        rect: rect(0, 0, 200, 24),
+        label: "Heroes",
+        count: "3 of 7",
+        underline: true,
+        open: false,
+      },
+      {
+        kind: "tabRail",
+        key: "tabs",
+        rect: rect(0, 30, 200, 30),
+        tabs: [
+          { id: "a", label: "A" },
+          { id: "b", label: "B" },
+        ],
+        selected: "b",
+      },
+      {
+        kind: "pictureTile",
+        key: "t",
+        rect: rect(0, 70, 50, 50),
+        src: "/a.png",
+        fit: "contain",
+        dim: true,
+        hover: "01001",
+      },
+      {
+        kind: "pictureCard",
+        key: "c",
+        rect: rect(60, 70, 80, 100),
+        model: {
+          src: null,
+          focusY: 0.3,
+          dim: false,
+          chip: "READ",
+          chipTone: "action",
+          title: "T",
+          detail: "D",
+          detailTone: "meta",
+          initial: "T",
+        },
+      },
+      {
+        kind: "listRow",
+        key: "r",
+        rect: rect(0, 180, 200, 40),
+        model: { leading: "▶", title: "Song", detail: "x", open: true, active: false },
+      },
+      { kind: "emptyState", key: "e", x: 0, y: 230, width: 200, height: 40, message: "Nothing", align: "center" },
+      {
+        kind: "search",
+        key: "s",
+        rect: rect(0, 280, 200, 40),
+        value: "ab",
+        placeholder: "Search",
+        clearLabel: "Clear",
+        escapeClears: true,
+      },
+    ]);
+    const header = sheet.elementOf("h") as HTMLElement & { open: boolean; underline: boolean; count: string };
+    expect([header.open, header.underline, header.count]).toEqual([false, true, "3 of 7"]);
+    const rail = sheet.elementOf("tabs") as HTMLElement & { selected: string };
+    expect(rail.selected).toBe("b");
+    const tile = sheet.elementOf("t") as HTMLElement & { fit: string; dim: boolean };
+    expect([tile.fit, tile.dim, tile.dataset.hover]).toEqual(["contain", true, "01001"]);
+    expect((sheet.elementOf("c") as HTMLElement & { model: { title: string } }).model.title).toBe("T");
+    expect((sheet.elementOf("r") as HTMLElement & { model: { title: string } }).model.title).toBe("Song");
+    expect((sheet.elementOf("e") as HTMLElement & { align: string }).align).toBe("center");
+    expect((sheet.elementOf("s") as HTMLElement & { escapeClears: boolean }).escapeClears).toBe(true);
+    sheet.remove();
+  });
+
+  it("turns a tab rail tap into mc-activate with the prefixed key, and finds a rail cell by its key", async () => {
+    const sheet = await mount([
+      { kind: "tabRail", rect: rect(0, 0, 200, 30), tabs: [{ id: "a", label: "A" }], prefix: "panel:" },
+    ]);
+    const keys: string[] = [];
+    sheet.addEventListener("mc-activate", (e) => keys.push((e as CustomEvent<{ key: string }>).detail.key));
+    const cell = sheet.elementOf("panel:a")!;
+    expect(cell.tagName).toBe("MC-BUTTON");
+    cell.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true }));
+    expect(keys).toEqual(["panel:a"]);
+    sheet.remove();
+  });
+
+  it("turns a filter bar chip tap into mc-activate, finds the chip by key, and lets mc-sort through", async () => {
+    const sheet = await mount([
+      {
+        kind: "filterBar",
+        key: "filters",
+        rect: rect(0, 0, 300, 90),
+        chips: [{ id: "x", label: "X", selected: false, width: 60 }],
+        sort: {
+          label: "Sort",
+          value: "a",
+          options: [
+            { value: "a", label: "A" },
+            { value: "b", label: "B" },
+          ],
+        },
+        rows: 2,
+        rowHeight: 40,
+      },
+    ]);
+    const seen: string[] = [];
+    sheet.addEventListener("mc-activate", (e) => seen.push((e as CustomEvent<{ key: string }>).detail.key));
+    sheet.addEventListener("mc-sort", (e) => seen.push(`sort:${(e as CustomEvent<{ value: string }>).detail.value}`));
+    expect(sheet.elementOf("chip:x")).not.toBeNull();
+    const bar = sheet.elementOf("filters")!;
+    const chip = bar.shadowRoot!.querySelector("mc-filter-chip")!;
+    await ready(chip);
+    tap(chip.shadowRoot!.querySelector("mc-button")!);
+    const select = bar.shadowRoot!.querySelector("select")!;
+    select.value = "b";
+    select.dispatchEvent(new Event("change"));
+    expect(seen).toEqual(["chip:x", "sort:b"]);
+    sheet.remove();
+  });
+
+  it("asks once to resolve a picture again when a tile or a media row picture fails, and says missing after", async () => {
+    const sheet = await mount([
+      {
+        kind: "pictureTile",
+        key: "t",
+        rect: rect(0, 0, 50, 50),
+        src: "/gone.png",
+        missing: "No scan",
+        retry: "pack:1",
+      },
+      {
+        kind: "mediaRow",
+        key: "m",
+        rect: rect(0, 60, 300, 80),
+        heading: "Pack",
+        meta: "",
+        summary: "",
+        foot: "",
+        badge: "+ Install",
+        src: "/gone2.png",
+        letter: "P",
+        retry: "pack:2",
+      },
+    ]);
+    const asked: unknown[] = [];
+    sheet.addEventListener("mc-image-error", (e) => asked.push((e as CustomEvent).detail));
+    const tile = sheet.elementOf("t")!;
+    await ready(tile);
+    tile.shadowRoot!.querySelector("img")!.dispatchEvent(new Event("error"));
+    const row = sheet.elementOf("m")!;
+    await ready(row);
+    const inner = row.shadowRoot!.querySelector("mc-picture-tile")!;
+    await ready(inner);
+    inner.shadowRoot!.querySelector("img")!.dispatchEvent(new Event("error"));
+    expect(asked).toEqual([
+      { key: "pack:1", src: "/gone.png" },
+      { key: "pack:2", src: "/gone2.png" },
+    ]);
+    await sheet.updateComplete;
+    expect((sheet.elementOf("t") as unknown as { src: string }).src).toBe("");
+    sheet.remove();
+  });
+
+  it("raises mc-activate for a media row tap, names a symbol button, and ghosts a dim image", async () => {
+    const sheet = await mount([
+      {
+        kind: "mediaRow",
+        key: "m",
+        rect: rect(0, 0, 300, 80),
+        heading: "P",
+        meta: "",
+        summary: "",
+        foot: "",
+        badge: "",
+        src: null,
+        letter: "P",
+      },
+      { kind: "button", key: "plus", rect: rect(0, 90, 40, 40), label: "+", look: "secondary", aria: "Add a seat" },
+      { kind: "image", key: "img", rect: rect(0, 140, 50, 50), src: "/a.png", cover: { x: 0.5, y: 0.5 }, dim: true },
+    ]);
+    const keys: string[] = [];
+    sheet.addEventListener("mc-activate", (e) => keys.push((e as CustomEvent<{ key: string }>).detail.key));
+    tap(sheet.elementOf("m")!);
+    expect(keys).toEqual(["m"]);
+    expect(sheet.elementOf("plus")!.getAttribute("aria-label")).toBe("Add a seat");
+    expect(sheet.elementOf("img")!.querySelector("img")!.style.opacity).toBe("0.3");
+    sheet.remove();
   });
 });

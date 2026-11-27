@@ -1,6 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import { settle, waitFor } from "./helpers.js";
-import { clickStop, installWave6Helpers, routeStops, trackErrors, waitForScene } from "./wave6-helpers-a.js";
+import {
+  clickStop,
+  installWave6Helpers,
+  routeStops,
+  trackErrors,
+  visibleTexts,
+  waitForScene,
+} from "./wave6-helpers-a.js";
 
 /**
  * The lobby's seat list and chat list scroll, and the end of a swipe must never press whatever control the finger
@@ -100,6 +107,15 @@ test("a swipe of the deck picker that lifts on Pick chooses nothing; a tap choos
   await installWave6Helpers(page);
   await page.goto("/?screen=room-deck-picker&as=guest");
   await waitForScene(page, "RoomDeckPicker");
+  await settle(page);
+  // The decks are judged by a worker and the ones that cannot be seated sink to the end of the list: wait for the
+  // verdicts, or the deck tapped below may be one that turns out to be unusable.
+  await waitFor(
+    async () =>
+      (await visibleTexts(page)).some((t) => t.scene === "RoomDeckPicker" && /checking/i.test(t.text)) ? null : true,
+    "the decks are judged",
+    30_000,
+  );
   await settle(page);
   const pick = ((await routeStops(page, "RoomDeckPicker"))?.stops ?? []).find((stop) => stop.key.startsWith("deck:"));
   expect(pick, "a Pick button").toBeTruthy();

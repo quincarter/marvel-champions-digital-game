@@ -44,6 +44,8 @@ export interface PopupSheetOptions {
    * scene keeps over the panel (`McTextInput.slide`) moves with the box, and the hole it is seen through moves too.
    */
   readonly onSlide?: (dy: number) => void;
+  /** A picture with a `retry` key failed to load (its URL went stale): the owner reads it again (`refreshPackArt`). */
+  readonly onImageError?: (key: string, src: string | null) => void;
 }
 
 interface Drag {
@@ -60,6 +62,7 @@ export class PopupSheet {
   readonly #onHover: ((key: string, over: boolean) => void) | undefined;
   readonly #onDismiss: (() => void) | undefined;
   readonly #onSlide: ((dy: number) => void) | undefined;
+  readonly #onImageError: ((key: string, src: string | null) => void) | undefined;
   #region: DomRegion<McSheet> | null = null;
   #followed: Followed | null = null;
   /** One activation a frame, none once the scene stops or turns its input off (a second Send/Concede/Confirm tap). */
@@ -70,6 +73,7 @@ export class PopupSheet {
   /** Whether this sheet runs the slide itself (it has no anchor of its own). */
   #moving = false;
   #leaving = false;
+  #forwarding = false;
   #travel = 0;
   #boxHeight = 0;
   #box: Rect | null = null;
@@ -88,6 +92,7 @@ export class PopupSheet {
     this.#onHover = onHover;
     this.#onDismiss = options.onDismiss;
     this.#onSlide = options.onSlide;
+    this.#onImageError = options.onImageError;
     const m = this.#m;
     ringMotion.set(scene, m);
     this.#anchor = {
@@ -215,6 +220,13 @@ export class PopupSheet {
     return this.#region?.rectOf(target) ?? null;
   }
 
+  /** Passes the mouse over the panel on to Phaser's canvas, for a pop-up that shows the card hover popover. Once. */
+  forwardMouseMoves(): void {
+    if (this.#forwarding || !this.#region) return;
+    this.#forwarding = true;
+    this.#region.forwardMouseMoves();
+  }
+
   /** A builder over the whole screen, with the dim scrim (Phaser's `void`, at 0.7 unless `scrim` says) already laid. */
   begin(width: number, height: number, scrim = 0.7): SheetBuilder {
     const builder = new SheetBuilder(this.#scene.game, { x: 0, y: 0 }, isDesktopType);
@@ -223,7 +235,13 @@ export class PopupSheet {
   }
 
   /** Hands the built parts to the panel (made on first use) and renders them now, so stops can be read this frame. */
-  mount(builder: SheetBuilder, width: number, height: number, holes: readonly Rect[] = []): void {
+  mount(
+    builder: SheetBuilder,
+    width: number,
+    height: number,
+    /** Rects left out of the panel (a field, a card hover popover); a function is read each frame. */
+    holes: readonly Rect[] | (() => readonly Rect[]) = [],
+  ): void {
     this.#width = width;
     this.#measure(builder, width, height);
     if (!this.#region) {
@@ -233,6 +251,12 @@ export class PopupSheet {
         if (key === GRAB_KEY || !this.#gate.take()) return;
         this.#onActivate(key);
       });
+      if (this.#onImageError) {
+        element.addEventListener("mc-image-error", (event) => {
+          const { key, src } = (event as CustomEvent<{ key?: string; src: string | null }>).detail;
+          if (key) this.#onImageError?.(key, src);
+        });
+      }
       if (this.#onHover) {
         element.addEventListener("mc-hover", (event) => {
           const { key, over } = (event as CustomEvent<{ key: string; over: boolean }>).detail;
@@ -247,7 +271,8 @@ export class PopupSheet {
     this.#addHandle(builder, width, height);
     region.setRect({ x: 0, y: 0, width, height });
     // A field's hole travels with the box, or the box would be cut where the field is not.
-    region.setHoles(holes.length === 0 ? holes : () => holes.map((hole) => ({ ...hole, y: hole.y + this.#m.y })));
+    if (typeof holes === "function") region.setHoles(holes);
+    else region.setHoles(holes.length === 0 ? holes : () => holes.map((hole) => ({ ...hole, y: hole.y + this.#m.y })));
     region.element.nodes = builder.nodes;
     renderNow(region.element);
     this.#onSlide?.(this.#m.y);
