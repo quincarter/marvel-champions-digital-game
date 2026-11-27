@@ -45,10 +45,14 @@ button names (`LB`, `Enter`), numbers, Markdown marks and the ▸ arrows.
 
 - Card, hero, villain, scenario, set, pack and campaign box names: Spider-Man, Rhino, The Rise of Red Skull, Hela.
 - Keywords: Guard, Overkill, Retaliate, Toughness, Quickstrike, Surge, Peril, Restricted, Stalwart, Steady, Uses.
-- Screen, button and setting names: Settings ▸ More, Your stats, Take Your Seats, Cards left, Trophy Room, Pause,
-  New game, Use this art. Give the English label as it is. Add a Spanish gloss in brackets only where a reader
-  couldn't follow without one.
 - Developer names: engine, DSL, CI, e2e, Vitest, Tauri, Phaser, Worker. Names of code things stay in `code`.
+
+**Screen, button and setting names use the Spanish build's own labels**, from `packages/client/src/i18n/es.ts`
+(Opciones, Pausa, Referencia de reglas, Aprende a jugar, Toma asiento, Deshacer ▸ Cada jugador, Escaramuza, Mazos y
+colección), and the same in headings, alt text and the release notes. A screen or button the Spanish build still shows in
+English (it has no key in `es.ts`) keeps its English name. Add the English label in brackets only where it identifies
+an English screenshot. Game terms follow the official Spanish guide in `docs/rules/es/` and the glossary in
+`content/glossary-es.ts` (Aumento, Intervención, Infame, atributo básico).
 
 **Game terms:**
 
@@ -63,11 +67,11 @@ button names (`LB`, `Enter`), numbers, Markdown marks and the ▸ arrows.
 | main scheme        | plan principal        | event            | evento            |
 | side scheme        | plan secundario       | resource         | recurso           |
 | threat             | amenaza               | obligation       | obligación        |
-| thwart             | frustrar              | treachery        | traición          |
+| thwart             | intervenir            | treachery        | traición          |
 | attack / defend    | atacar / defender     | attachment       | vinculada         |
 | damage             | daño                  | environment      | entorno           |
 | exhaust / ready    | agotar / preparar     | nemesis          | némesis           |
-| stunned / confused | aturdido / confundido | boost            | potenciación      |
+| stunned / confused | aturdido / confundido | boost            | aumento           |
 | round / phase      | ronda / fase          | modular set      | set modular       |
 | villain phase      | fase de villano       | scenario         | escenario         |
 | hero phase         | fase de héroe         | campaign         | campaña           |

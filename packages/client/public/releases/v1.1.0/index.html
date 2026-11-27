@@ -6,7 +6,7 @@
     <title>v1.1.0 · Marvel Champions: Digital Edition</title>
     <meta
       name="description"
-      content="What's new in v1.1.0 of the fan-made Marvel Champions digital game: Elektra and Iron Fist are playable, the menu screens are faster and lighter with the same look, more of the game reads in Spanish, online rooms get Each player Undo, the Fear No Evil scenarios get Skirmish, and long games use less memory."
+      content="What's new in v1.1.0 of the fan-made Marvel Champions digital game: Elektra and Iron Fist are playable, the menu screens move off the game's canvas with the same look, more of the game reads in Spanish, online rooms get Each player Undo, the Fear No Evil scenarios get Skirmish, and memory grows more slowly in long games."
     />
     <meta property="og:title" content="Marvel Champions: Digital Edition v1.1.0" />
     <meta
@@ -662,9 +662,9 @@
         <p>
           <b>Elektra and Iron Fist are playable</b>, with their precon decks, their obligation and nemesis sets, and
           card scans in English and Spanish from @bluefireF5ran. Under the hood, the menu screens are moving off the
-          game's canvas onto plain web pages drawn over it: <b>the same look, but faster and lighter</b>, and each one
-          reads in Spanish as it moves. Online rooms get an Undo for every player, the Fear No Evil scenarios get
-          Skirmish, long games use much less memory, and a stack of your reports is fixed.
+          game's canvas onto plain web pages drawn over it: <b>the same look, with less drawing work for the game</b>,
+          and each one reads in Spanish as it moves. Online rooms get an Undo for every player, the Fear No Evil
+          scenarios get Skirmish, memory grows more slowly in long games, and a stack of your reports is fixed.
         </p>
       </section>
 
@@ -675,14 +675,14 @@
           <p>Elektra and Iron Fist, each with a precon deck and their own obligation and nemesis sets.</p>
         </div>
         <div class="tile">
-          <h4>Less scroll stutter</h4>
+          <h4>Less blocked time scrolling</h4>
           <div class="n c-blue">−94%</div>
-          <p>scrolling the card pool in Decks &amp; Collection, on a slowed-down CPU.</p>
+          <p>in Decks &amp; Collection's card pool, 15 wheel ticks with the CPU slowed four times.</p>
         </div>
         <div class="tile">
           <h4>Less memory growth</h4>
           <div class="n c-green">−38%</div>
-          <p>over five rounds of a four-hero game in Chromium.</p>
+          <p>in Chromium, over five rounds of one scripted four-hero game.</p>
         </div>
       </section>
 
@@ -788,10 +788,10 @@
         <div><small>Achievement unlocked</small><span>Lighter Than Air</span></div>
       </div>
       <p class="lead">
-        <b>This isn't a new look. It's a faster game.</b> The menu and list screens used to be drawn on the same canvas
-        as the table, so the game repainted them like a board full of cards. They are moving onto plain web pages laid
-        over the canvas, which the browser draws and scrolls on its own. They look and work the same, controller and
-        keyboard included, and the game does less work on every frame.
+        <b>This isn't a new look. It's about performance.</b> The menu and list screens used to be drawn on the same
+        canvas as the table, so the game painted every line of text and every scroll itself. They are moving onto plain
+        web pages laid over the canvas, which the browser draws and scrolls on its own. They look and work the same,
+        controller and keyboard included.
       </p>
       <div class="shots">
         <figure class="a">
@@ -861,17 +861,18 @@
           <!-- PENDING: Lit phases 4 (#1051) and 5 were not merged when this was written. Confirm or cut this paragraph. -->
           <p>
             Also moving: the Title, Decks &amp; Collection, the deck builder, the Mod Store, Past games, Your stats, the
-            Trophy Room, Extras, How to win, the guide chooser and the game setup screens. Their pictures are sent
-            smaller too, so they open faster.
+            Trophy Room, Extras, How to win, the guide chooser and the game setup screens. Their pictures are sent as
+            smaller files too.
           </p>
         </div>
         <div class="box">
-          <h3>Faster where it counts</h3>
+          <h3>What we measured</h3>
           <p>
             Card pictures in Decks &amp; Collection and a deck's check now fill in their own tile as they arrive,
-            instead of the whole screen being drawn again. On a CPU slowed four times, scrolling the card pool went from
-            about 2.1 to 2.6 seconds of stutter to under 0.2. The check the game runs every frame to skip unchanged
-            frames costs about a third less, which helps the table too.
+            instead of the whole screen being drawn again. On our Windows test machine, with the CPU slowed four times,
+            15 wheel ticks through the card pool went from 2.1 to 2.6 seconds of blocked time to under 0.2 seconds. The
+            check the game runs every frame to skip unchanged frames took about a third less time in a 400-object test,
+            which helps the table too.
           </p>
           <p>
             Pop-ups slide up from the bottom, and on a phone you can swipe one down by its handle. Every close and back
@@ -1038,9 +1039,9 @@
         <div class="lab">PR #1034</div>
       </div>
       <p class="lead">
-        <b>Long games no longer pile up memory.</b> A player on an 8 GB MacBook saw the game reach 3.9 GB by round 12.
-        Card pictures are now kept at the size the table shows them, with the full scan only for the hover and Inspect;
-        painted labels are capped; and Safari and the Mac and Linux apps keep a smaller picture cache.
+        <b>Memory grows more slowly during long games.</b> A player on an 8 GB MacBook saw the game reach 3.9 GB by
+        round 12. Card pictures are now kept at the size the table shows them, with the full scan only for the hover and
+        Inspect; painted labels are capped; and Safari and the Mac and Linux apps keep a smaller picture cache.
       </p>
       <div class="shots s-phone">
         <figure class="a">
@@ -1054,11 +1055,15 @@
           <figcaption>Table-size pictures, the full scan on hover</figcaption>
         </figure>
         <div class="box">
-          <h3>Five rounds, measured</h3>
+          <h3>Five rounds, measured in Chromium</h3>
           <ul class="ck">
             <li>Memory growth in Chromium: <b>1,210 MB down to 752 MB</b>.</li>
             <li>Card pictures held by the GPU at the end: <b>287 MB down to 122 MB</b>.</li>
             <li>Painted labels kept: <b>2,200 down to 500 at most</b>.</li>
+            <li>
+              The game still grows, just less. These are Chromium numbers, which the Windows app and the browser use;
+              the Mac check is still to come.
+            </li>
           </ul>
         </div>
       </div>
