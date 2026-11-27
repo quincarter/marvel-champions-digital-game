@@ -155,14 +155,27 @@ test("the keyboard walks the lobby's stops with the DOM ring, and Escape asks be
   expect(errors).toEqual([]);
 });
 
-test("a seat's picture, a request and the host's seat count are panel controls that send their calls", async ({
-  page,
-}) => {
+test("a seat's button on the panel sends its call, and a kept table changes what Start waits for", async ({ page }) => {
   const errors = trackPageErrors(page);
   await openLobby(page, "as=host&v=open");
   await key(page, "seat:s1").scrollIntoViewIfNeeded();
   await key(page, "seat:s1").click();
   await expect.poll(() => calls(page)).toEqual(["denySeat(s1,p1)"]);
-  await key(page, "seats:more").scrollIntoViewIfNeeded();
+  // With a table set up the strip stops asking for one and names the next thing Start waits for (open seats here).
+  await expect(sheet(page).locator('[data-key="footer-words"]')).toContainText("Set up the table first");
+  await page.evaluate(async () => {
+    const setup = (await import("/src/view/room-table-setup.ts")) as unknown as {
+      keepRoomDraft(draft: unknown): void;
+    };
+    const title = (await import("/src/scenes/title.ts")) as unknown as { newGameDraft(): unknown };
+    setup.keepRoomDraft(title.newGameDraft());
+  });
+  // A new layout redraws the panel with the kept table.
+  await page.setViewportSize({
+    width: (page.viewportSize()?.width ?? 1440) - 10,
+    height: page.viewportSize()?.height ?? 900,
+  });
+  await expect(sheet(page).locator('[data-key="footer-words"]')).toContainText("open", { timeout: 10000 });
+  await expect(sheet(page).locator('mc-button[data-key="start"]')).toHaveAttribute("disabled", "");
   expect(errors).toEqual([]);
 });
