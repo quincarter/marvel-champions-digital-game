@@ -120,6 +120,7 @@ export default defineConfig({
         "holdon.spec.ts",
         "campaign-deck-edit-parity.spec.ts",
         "saga-phone-page.spec.ts",
+        "campaign-cover-lit-panel.spec.ts",
         "gmw-market-sold-out-tier.spec.ts",
         "release-history.spec.ts",
         "deck-builder-quick-filters.spec.ts",

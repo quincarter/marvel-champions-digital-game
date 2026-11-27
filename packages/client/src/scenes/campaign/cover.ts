@@ -310,7 +310,13 @@ export class CampaignCoverScene extends Phaser.Scene {
       { fill: surface.ink.hex, fillAlpha: 0.6 },
     );
     this.#drawBack(b, 16, 16);
-    this.#drawChip(b, 0, 16, this.#chipText(model), frame.width - 16);
+    // The dark mode toggle hangs at the top centre with a press area cut out of the panel: a chip that would reach under
+    // it (the Spanish "CAJA DE CAMPAÑA") gives way to the box code alone.
+    const chipFull = this.#chipText(model);
+    const chipRoom = frame.width - 16 - 215;
+    const chipWide =
+      b.measure(caseOf(typeRole.label, chipFull.toLocaleUpperCase()), typeRole.label, { letterSpacing: 1 }).width + 20;
+    this.#drawChip(b, 0, 16, chipWide <= chipRoom ? chipFull : model.boxCode, frame.width - 16);
 
     const titleHeight = this.#drawBalancedTitle(b, 16, artHeight - 14, frame.width - 32, 100, model.name, "bottom");
     this.#drawTag(b, 16, artHeight - 14 - titleHeight - 8, model.tagline);
