@@ -1,5 +1,12 @@
+import type { McArticleModel } from "../components/mc-article/mc-article.types.js";
+import type { McListRowModel } from "../components/mc-list-row/mc-list-row.types.js";
+import type { McPictureCardModel } from "../components/mc-picture-card/mc-picture-card.types.js";
+import type { SectionHeaderLevel } from "../components/mc-section-header/mc-section-header.types.js";
 import type { McButtonKind } from "./button.types.js";
+import type { FilterBarModel } from "./filter.types.js";
 import type { GlyphSpec, McGlyphGround } from "./glyph.types.js";
+import type { PictureFit, PictureFocus, PictureGround } from "./picture.types.js";
+import type { TabRailTab } from "./tab-rail.types.js";
 
 /** A box in the sheet's own coordinates (from its top left). */
 export interface SheetRect {
@@ -96,6 +103,8 @@ export interface SheetButton {
   readonly keyshortcuts?: string;
   /** Faded but still pressable (a setting that has no effect while another is off). */
   readonly opacity?: number;
+  /** The button name for assistive tech when its label is a symbol ("+"), already translated. */
+  readonly aria?: string;
 }
 
 /** An aspect chip (`mc-aspect-chip`) with its top left at `x`, `y`: decorative, the row it sits on takes the press. */
@@ -166,6 +175,8 @@ export interface SheetImage {
   readonly retry?: string;
   /** Fills the box, cropped (never stretched) around this focal point, 0 to 1 each way, instead of fitting whole. */
   readonly cover?: { readonly x: number; readonly y: number };
+  /** A gray, faded ghost of the picture on its ground (a locked tile: what there is to earn). */
+  readonly dim?: boolean;
 }
 
 /** Ink dots thickening toward the foot of a box, the way the comic pages shade a panel (a game mode box's art). */
@@ -283,6 +294,155 @@ export interface SheetSlider {
   readonly stepLabels: readonly [string, string];
 }
 
+/**
+ * A section heading with its rule (`mc-section-header`), its top left at the top left of the rect. Inline the rule runs
+ * on to the end of the line; `underline` puts it under the row with the count at the right; `open` makes it a folding
+ * section with a chevron. A tap area laid over it takes the press.
+ */
+export interface SheetSectionHeader {
+  readonly kind: "sectionHeader";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly label: string;
+  readonly count?: string;
+  /** The heading px size; absent for the default of its look. */
+  readonly size?: number;
+  readonly level?: SectionHeaderLevel;
+  /** False leaves the in-line rule out (a bare heading). */
+  readonly rule?: boolean;
+  readonly underline?: boolean;
+  readonly open?: boolean;
+}
+
+/**
+ * A rail of tabs (`mc-tab-rail`): a tap on a cell raises `mc-activate` with `prefix + id` as its key. The chosen tab is
+ * the `selected` id of the rail or the own `selected` of a tab.
+ */
+export interface SheetTabRail {
+  readonly kind: "tabRail";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly tabs: readonly TabRailTab[];
+  readonly selected?: string;
+  readonly prefix?: string;
+  readonly size?: number;
+}
+
+/**
+ * A framed picture (`mc-picture-tile`): cropped around a focal point, or fitted whole; `missing` says so when it has
+ * none. Decorative: a tap area over it takes the press.
+ */
+export interface SheetPictureTile {
+  readonly kind: "pictureTile";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly src: string | null;
+  readonly missing?: string;
+  readonly fit?: PictureFit;
+  readonly focus?: PictureFocus;
+  /** The ink frame width in px (2 when absent, 0 for none). */
+  readonly frame?: number;
+  readonly ground?: PictureGround;
+  readonly dim?: boolean;
+  /** Names the card the picture shows (the client card hover popover reads it). */
+  readonly hover?: string;
+  /** Names where `src` came from, as `SheetImage.retry`. */
+  readonly retry?: string;
+}
+
+/** A picture card (`mc-picture-card`): a picture tile over a caption strip with a chip. Decorative: a tap area takes the press. */
+export interface SheetPictureCard {
+  readonly kind: "pictureCard";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly model: McPictureCardModel;
+  readonly hover?: string;
+  /** Names where the picture URL came from, as `SheetImage.retry`. */
+  readonly retry?: string;
+}
+
+/** A list row (`mc-list-row`) filling `rect`: decorative, a tap area over it takes the press. */
+export interface SheetListRow {
+  readonly kind: "listRow";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly model: McListRowModel;
+}
+
+/** A search field (`mc-search-field`) filling `rect`: raises `mc-search` (debounced) and `mc-search-focus`; `key` finds it. */
+export interface SheetSearch {
+  readonly kind: "search";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly value: string;
+  readonly placeholder: string;
+  readonly clearLabel: string;
+  readonly focusPlaceholder?: string;
+  readonly debounce?: number;
+  readonly size?: number;
+  /** Escape empties a filled field before it leaves an empty one. */
+  readonly escapeClears?: boolean;
+}
+
+/** Reading text that scrolls natively (`mc-article`) in `rect` (drawn a scrollbar gutter wider); `key` finds the scroller. */
+export interface SheetArticle {
+  readonly kind: "article";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly model: McArticleModel;
+  readonly pictureMax: number;
+  readonly pad: number;
+}
+
+/**
+ * The quiet line an empty list says (`mc-empty-state`) with its top left at `x`, `y`. With a `width` (and `height`)
+ * it fills that box, so `align: "center"` has a middle to center in.
+ */
+export interface SheetEmptyState {
+  readonly kind: "emptyState";
+  readonly key?: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width?: number;
+  readonly height?: number;
+  readonly message: string;
+  readonly detail?: string;
+  readonly size?: number;
+  readonly align?: "start" | "center";
+}
+
+/**
+ * A filter bar (`mc-filter-bar`) filling `rect`: chips, an optional sort and an optional filter sheet button, wrapping or
+ * packed into `rows`. A tap on a chip raises `mc-activate` with `prefix + id`; the sort raises `mc-sort` (`detail.value`)
+ * and the sheet button `mc-filter-sheet`.
+ */
+export interface SheetFilterBar extends FilterBarModel {
+  readonly kind: "filterBar";
+  readonly key: string;
+  readonly rect: SheetRect;
+}
+
+/**
+ * A framed row (`mc-media-row`): a portrait picture (or a letter), a title, meta lines and a state badge. Its own tap
+ * raises `mc-activate` with `key`. A failed load raises `mc-image-error` for `retry`, as `SheetImage.retry`.
+ */
+export interface SheetMediaRow {
+  readonly kind: "mediaRow";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly heading: string;
+  readonly meta: string;
+  readonly summary: string;
+  readonly foot: string;
+  readonly badge: string;
+  readonly solid?: boolean;
+  readonly src: string | null;
+  readonly letter: string;
+  readonly retry?: string;
+  readonly focusY?: number;
+  readonly fit?: PictureFit;
+}
+
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
 export interface SheetScroll {
   readonly kind: "scroll";
@@ -306,4 +466,14 @@ export type SheetNode =
   | SheetQr
   | SheetSvg
   | SheetSlider
+  | SheetSectionHeader
+  | SheetTabRail
+  | SheetPictureTile
+  | SheetPictureCard
+  | SheetListRow
+  | SheetSearch
+  | SheetArticle
+  | SheetEmptyState
+  | SheetFilterBar
+  | SheetMediaRow
   | SheetScroll;

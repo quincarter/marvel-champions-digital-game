@@ -26,6 +26,17 @@ export {
   parseArt,
 } from "./components/mc-glyph/mc-glyph.js";
 export { McGameLog } from "./components/mc-game-log/mc-game-log.js";
+export { McSectionHeader } from "./components/mc-section-header/mc-section-header.js";
+export { McTabRail } from "./components/mc-tab-rail/mc-tab-rail.js";
+export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
+export { McPictureCard } from "./components/mc-picture-card/mc-picture-card.js";
+export { McListRow } from "./components/mc-list-row/mc-list-row.js";
+export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
+export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
+export { McArticle } from "./components/mc-article/mc-article.js";
+export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
+export { McMediaRow } from "./components/mc-media-row/mc-media-row.js";
+export { McFilterBar } from "./components/mc-filter-bar/mc-filter-bar.js";
 export type { McButtonKind } from "./shared/button.types.js";
 export type {
   GlyphKeySpec,
@@ -39,18 +50,27 @@ export type {
   McGlyphGround,
 } from "./shared/glyph.types.js";
 export type {
+  SheetArticle,
   SheetBox,
   SheetButton,
   SheetChip,
   SheetDots,
+  SheetEmptyState,
+  SheetFilterBar,
   SheetGlyph,
   SheetHalftone,
   SheetImage,
+  SheetListRow,
+  SheetMediaRow,
   SheetNode,
+  SheetPictureCard,
+  SheetPictureTile,
   SheetPoly,
   SheetQr,
   SheetRect,
   SheetScroll,
+  SheetSearch,
+  SheetSectionHeader,
   SheetSlider,
   SheetSvg,
   SheetTap,
@@ -59,6 +79,15 @@ export type {
   SvgStyle,
 } from "./shared/sheet.types.js";
 export type { TapOptions } from "./shared/tap.types.js";
+export type { TabRailTab } from "./shared/tab-rail.types.js";
+export type { FilterBarModel, FilterChip, FilterSort } from "./shared/filter.types.js";
+export type { PictureFit, PictureFocus, PictureGround } from "./shared/picture.types.js";
+export type { SectionHeaderLevel } from "./components/mc-section-header/mc-section-header.types.js";
+export type { PictureErrorDetail } from "./components/mc-picture-tile/mc-picture-tile.types.js";
+export type { McPictureCardModel } from "./components/mc-picture-card/mc-picture-card.types.js";
+export type { McListRowModel } from "./components/mc-list-row/mc-list-row.types.js";
+export type { McSearchDetail, McSearchFocusDetail } from "./components/mc-search-field/mc-search-field.types.js";
+export type { McArticleBlock, McArticleModel } from "./components/mc-article/mc-article.types.js";
 export type { CreditsListRow } from "./components/mc-credits-list/mc-credits-list.types.js";
 export type {
   GameLogClose,

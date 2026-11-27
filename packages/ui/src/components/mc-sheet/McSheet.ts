@@ -7,7 +7,18 @@ import { cancelHold } from "../../shared/tap.js";
 import "../mc-aspect-chip/mc-aspect-chip.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
+import "../mc-section-header/mc-section-header.js";
+import "../mc-tab-rail/mc-tab-rail.js";
+import "../mc-picture-tile/mc-picture-tile.js";
+import "../mc-picture-card/mc-picture-card.js";
+import "../mc-list-row/mc-list-row.js";
+import "../mc-empty-state/mc-empty-state.js";
+import "../mc-search-field/mc-search-field.js";
+import "../mc-article/mc-article.js";
+import "../mc-filter-bar/mc-filter-bar.js";
+import "../mc-media-row/mc-media-row.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
+import type { PictureErrorDetail } from "../mc-picture-tile/mc-picture-tile.types.js";
 import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
 
@@ -69,7 +80,18 @@ export class McSheet extends LitElement {
 
   /** The element drawn for a key (a button, a tap area, a keyed text, a scroll region). */
   elementOf(key: string): HTMLElement | null {
-    return this.renderRoot.querySelector(`[data-key="${CSS.escape(key)}"]`);
+    const own = this.renderRoot.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+    if (own) return own;
+    // A part of a component the sheet draws (a chip in a filter bar, a tab in a rail).
+    for (const bar of this.renderRoot.querySelectorAll("mc-filter-bar")) {
+      const found = bar.elementOf(key);
+      if (found) return found;
+    }
+    for (const rail of this.renderRoot.querySelectorAll("mc-tab-rail")) {
+      const found = rail.shadowRoot?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+      if (found) return found;
+    }
+    return null;
   }
 
   #activate(key: string): void {
@@ -316,6 +338,35 @@ export class McSheet extends LitElement {
     </div>`;
   }
 
+  /**
+   * The two listeners a picture part puts on its component: a load clears the key asked to resolve again, a failure
+   * is remembered (so the part keeps saying `missing` across redraws) and, once per `retry` key until one loads,
+   * raised as `mc-image-error` for the owner to hand a fresh URL. The component own copies are stopped here.
+   */
+  #pictureEvents(retry: string | undefined) {
+    return {
+      load: (event: Event): void => {
+        event.stopPropagation();
+        if (retry !== undefined) this.#retried.delete(retry);
+      },
+      error: (event: CustomEvent<PictureErrorDetail>): void => {
+        event.stopPropagation();
+        this.#failed.add(event.detail.src);
+        if (retry !== undefined && !this.#retried.has(retry)) {
+          this.#retried.add(retry);
+          this.dispatchEvent(
+            new CustomEvent("mc-image-error", {
+              detail: { key: retry, src: event.detail.src },
+              bubbles: true,
+              composed: true,
+            }),
+          );
+        }
+        this.requestUpdate();
+      },
+    };
+  }
+
   #node(node: SheetNode): unknown {
     switch (node.kind) {
       case "box": {
@@ -397,6 +448,7 @@ export class McSheet extends LitElement {
           ?disabled=${node.disabled !== undefined}
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
           aria-keyshortcuts=${node.keyshortcuts ?? nothing}
+          aria-label=${node.aria ?? nothing}
           @mc-press=${() => this.#activate(node.key)}
         ></mc-button>`;
       case "chip":
@@ -443,7 +495,14 @@ export class McSheet extends LitElement {
                   alt=""
                   loading="lazy"
                   decoding="async"
-                  style=${node.cover ? `object-fit:cover;object-position:${node.cover.x * 100}% ${node.cover.y * 100}%` : nothing}
+                  style=${
+                    [
+                      node.cover
+                        ? `object-fit:cover;object-position:${node.cover.x * 100}% ${node.cover.y * 100}%`
+                        : "",
+                      node.dim ? "filter:grayscale(1);opacity:0.3" : "",
+                    ].join(";") || nothing
+                  }
                   draggable="false"
                   @load=${() => {
                     if (node.retry !== undefined) this.#retried.delete(node.retry);
@@ -538,6 +597,142 @@ export class McSheet extends LitElement {
           }`;
       case "slider":
         return this.#slider(node);
+      case "sectionHeader":
+        return html`<mc-section-header
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          .label=${node.label}
+          .count=${node.count ?? ""}
+          .size=${node.size ?? 0}
+          .level=${node.level ?? "large"}
+          .rule=${node.rule ?? true}
+          .underline=${node.underline ?? false}
+          .open=${node.open}
+        ></mc-section-header>`;
+      case "tabRail":
+        return html`<mc-tab-rail
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          .tabs=${node.tabs}
+          .selected=${node.selected ?? ""}
+          .prefix=${node.prefix ?? "tab:"}
+          .size=${node.size ?? 0}
+          @mc-activate=${(event: CustomEvent<{ key: string }>) => {
+            event.stopPropagation();
+            this.#activate(event.detail.key);
+          }}
+        ></mc-tab-rail>`;
+      case "pictureTile": {
+        const src = node.src !== null && !this.#failed.has(node.src) ? node.src : "";
+        const events = this.#pictureEvents(node.retry);
+        return html`<mc-picture-tile
+          class="part"
+          data-key=${node.key ?? nothing}
+          data-hover=${node.hover ?? nothing}
+          style=${px(node.rect)}
+          .src=${src}
+          .missing=${node.missing ?? ""}
+          .fit=${node.fit ?? "cover"}
+          .subject=${node.focus ?? { x: 0.5, y: 0.5 }}
+          .frame=${node.frame ?? 2}
+          .ground=${node.ground ?? "spent"}
+          .dim=${node.dim ?? false}
+          @mc-image-load=${events.load}
+          @mc-image-error=${events.error}
+        ></mc-picture-tile>`;
+      }
+      case "pictureCard": {
+        const failed = node.model.src !== null && this.#failed.has(node.model.src);
+        const events = this.#pictureEvents(node.retry);
+        return html`<mc-picture-card
+          class="part"
+          data-key=${node.key ?? nothing}
+          data-hover=${node.hover ?? nothing}
+          style=${px(node.rect)}
+          .model=${failed ? { ...node.model, src: null } : node.model}
+          @mc-image-load=${events.load}
+          @mc-image-error=${events.error}
+        ></mc-picture-card>`;
+      }
+      case "listRow":
+        return html`<mc-list-row
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          .model=${node.model}
+        ></mc-list-row>`;
+      case "search":
+        return html`<mc-search-field
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .value=${node.value}
+          .placeholder=${node.placeholder}
+          .clearLabel=${node.clearLabel}
+          .focusPlaceholder=${node.focusPlaceholder ?? ""}
+          .debounce=${node.debounce ?? 200}
+          .size=${node.size ?? 16}
+          .escapeClears=${node.escapeClears ?? false}
+        ></mc-search-field>`;
+      case "article":
+        return html`<mc-article
+          class="part"
+          data-key=${node.key}
+          style=${px({ ...node.rect, width: node.rect.width + SCROLL_GUTTER })}
+          .model=${node.model}
+          .pictureMax=${node.pictureMax}
+          .pad=${node.pad}
+        ></mc-article>`;
+      case "emptyState":
+        return html`<mc-empty-state
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${`left:${node.x}px;top:${node.y}px${node.width !== undefined ? `;width:${node.width}px` : ""}${node.height !== undefined ? `;height:${node.height}px` : ""}`}
+          .message=${node.message}
+          .detail=${node.detail ?? ""}
+          .size=${node.size ?? 14}
+          .align=${node.align ?? "start"}
+        ></mc-empty-state>`;
+      case "filterBar":
+        return html`<mc-filter-bar
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .chips=${node.chips}
+          .sort=${node.sort}
+          .sheetLabel=${node.sheetLabel ?? ""}
+          .prefix=${node.prefix ?? "chip:"}
+          .rows=${node.rows ?? 0}
+          .rowHeight=${node.rowHeight ?? 0}
+          .gap=${node.gap ?? 8}
+          @mc-activate=${(event: CustomEvent<{ key: string }>) => {
+            event.stopPropagation();
+            this.#activate(event.detail.key);
+          }}
+        ></mc-filter-bar>`;
+      case "mediaRow": {
+        const events = this.#pictureEvents(node.retry);
+        return html`<mc-media-row
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .heading=${node.heading}
+          .meta=${node.meta}
+          .summary=${node.summary}
+          .foot=${node.foot}
+          .badge=${node.badge}
+          ?solid=${node.solid ?? false}
+          .src=${node.src !== null && !this.#failed.has(node.src) ? node.src : ""}
+          .letter=${node.letter}
+          .focusY=${node.focusY ?? 0.3}
+          .fit=${node.fit ?? "contain"}
+          @mc-image-load=${events.load}
+          @mc-image-error=${events.error}
+          ${tapped(() => this.#activate(node.key))}
+        ></mc-media-row>`;
+      }
       case "scroll":
         return html`<div class="part scroller" data-key=${node.key} style=${px(scrollBox(node))}>
           <div class="content" style=${`height:${node.height}px`}>
