@@ -7,7 +7,8 @@
 import type { AnyCard } from "@mc/content";
 import { artFor } from "../art/art-source.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import type { PackLeases } from "../art/pack-art.js";
+import { isPackArtKey, type PackLeases } from "../art/pack-art.js";
+import type { Picture } from "../art/pictures.js";
 import { POOL_CARDS } from "../content/pool.js";
 
 /** Where the face usually is in a hero picture: the upper third. */
@@ -41,6 +42,39 @@ export function heroPictureOf(
           ? { x: focus.x ?? 0.5, y: focus.y, centered: true }
           : { x: focus?.x ?? 0.5, y: FACE_FOCUS_Y, centered: false },
     };
+  }
+  if (!identity) return { src: null, cover: { x: 0.5, y: SCAN_FOCUS_Y } };
+  const held = leases.image(artFor(identity, { kind: "hero" }));
+  return {
+    src: held.src,
+    cover: { x: 0.5, y: SCAN_FOCUS_Y },
+    ...(held.retry !== undefined ? { retry: held.retry } : {}),
+  };
+}
+
+/**
+ * A hero tile's picture where the screen has already chosen which one (Take your seats' art setting: the game's own,
+ * the card's or a promo; an installed pack's): the tile copy of it, cropped around its focal point (`fallbackY` down when
+ * the folder names none). A pack picture is held through `leases` and carries its key for a stale blob URL. With none
+ * chosen the identity's printed scan stands in, as `heroPictureOf` does.
+ */
+export function heroTilePictureOf(
+  chosen: Picture | null,
+  identity: AnyCard | undefined,
+  leases: PackLeases,
+  fallbackY = 0.34,
+): HeroPicture {
+  if (chosen) {
+    const focus = chosen.focus;
+    const cover =
+      focus?.y !== undefined
+        ? { x: focus.x ?? 0.5, y: focus.y, centered: true }
+        : { x: focus?.x ?? 0.5, y: fallbackY, centered: false };
+    if (isPackArtKey(chosen.key)) {
+      const held = leases.image(chosen);
+      return { src: held.src, cover, ...(held.retry !== undefined ? { retry: held.retry } : {}) };
+    }
+    return { src: chosen.tileUrl ?? chosen.url, cover };
   }
   if (!identity) return { src: null, cover: { x: 0.5, y: SCAN_FOCUS_Y } };
   const held = leases.image(artFor(identity, { kind: "hero" }));

@@ -137,3 +137,20 @@ describe("mc-shelf-roster", () => {
     expect(el.elementOf("chev:core:next")?.getAttribute("aria-label")).toBe("Later heroes");
   });
 });
+
+describe("mc-shelf-roster row-paging glyphs", () => {
+  it("draws a glyph over a chevron gutter only for the shelf the hint names, and only the ends it has specs for", async () => {
+    const spec = { kind: "pad" as const, label: "LT", shape: "pill" };
+    const el = await roster(
+      model({
+        shelves: [shelf("core", ["a"]), shelf("wave1", ["b"])],
+        hint: { shelfId: "core", previous: [spec], next: null, height: 18, still: true },
+      }),
+    );
+    const root = el.renderRoot;
+    expect(root.querySelectorAll(".hint")).toHaveLength(1);
+    expect(root.querySelector(".shelf[data-shelf='core'] .hint.prev mc-glyph")).toBeTruthy();
+    expect(root.querySelector(".shelf[data-shelf='wave1'] .hint")).toBeNull();
+    expect(root.querySelector(".hint.next")).toBeNull();
+  });
+});

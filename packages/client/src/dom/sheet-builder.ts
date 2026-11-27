@@ -617,6 +617,8 @@ export class SheetBuilder {
       readonly rows?: number;
       readonly rowHeight?: number;
       readonly gap?: number;
+      /** One row that scrolls sideways (a phone's chip rail). */
+      readonly sideways?: boolean;
     } = {},
   ): void {
     this.nodes.push({ kind: "filterBar", key, rect: this.#rect(rect), chips, ...options });

@@ -87,6 +87,9 @@ export const McShelfRosterStyles = css`
     width: 100%;
     height: 100%;
   }
+  .cell[data-dim] mc-picture-card {
+    opacity: 0.5;
+  }
   .chev {
     position: absolute;
     top: 50%;
@@ -112,6 +115,24 @@ export const McShelfRosterStyles = css`
   }
   .shelf[data-prev] .chev.prev,
   .shelf[data-next] .chev.next {
+    display: flex;
+  }
+  .hint {
+    position: absolute;
+    top: calc(50% - 28px - 6px - var(--hint-height, 18px));
+    width: var(--mc-chevron, 36px);
+    display: none;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .hint.prev {
+    left: 0;
+  }
+  .hint.next {
+    right: 0;
+  }
+  .shelf[data-prev] .hint.prev,
+  .shelf[data-next] .hint.next {
     display: flex;
   }
   .grid {

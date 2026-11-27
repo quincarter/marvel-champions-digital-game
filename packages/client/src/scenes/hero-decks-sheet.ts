@@ -6,25 +6,26 @@
  * It decides nothing. The caller words each row from the facts the shelf tile already used (`view/hero-deck-groups.ts`)
  * and handles the pick with the very code a tap on a single-deck tile runs, so blocked reasons, locked decks and name
  * conflicts behave exactly as before. Like the other sheets it switches off the launching screen's input while up.
+ *
+ * The box, the rows and their buttons are a Lit pop-up panel over the canvas (`dom/popup-sheet.ts`), so Take your seats
+ * stays shown under its scrim; the list scrolls natively and every control is a tap (a swipe's lift presses no Seat
+ * button: the "no tap on finger lift" rule, issue #227). The card hover popover over each row's picture is drawn in the
+ * canvas and seen through a hole.
  */
-import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
+import { domFocusRing } from "../dom/dom-ring.js";
+import type { HeroPicture } from "../dom/hero-picture.js";
+import { PopupSheet } from "../dom/popup-sheet.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { t } from "../i18n/translate.js";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
-import { cardFaces } from "../art/card-face-baker.js";
-import { textStyle } from "../ui/theme.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
-import { McButton, clampLines, fitText } from "../ui/widgets.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import type { HeroDeckRow } from "../view/hero-deck-groups.js";
 import type { Rect } from "../view/layout.js";
-import { ListScroll } from "../view/list-scroll.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { renderArtThumb } from "./roster-panel.js";
 import { SCENES } from "./keys.js";
-import { t } from "../i18n/translate.js";
 
 export interface HeroDecksSheetRow {
   readonly row: HeroDeckRow;
@@ -37,32 +38,35 @@ export interface HeroDecksSheetData {
   readonly heroName: string;
   /** The hero's identity card, which the pictures' hover popover shows. */
   readonly identityCardId: string;
-  readonly artUrl: string | null;
-  /** The hero art's focus point (`Picture.focus`), when `artUrl` is hero art. */
-  readonly artFocus?: PictureFocus;
+  /** The hero's picture (the tile copy where there is one), cropped around its subject. */
+  readonly picture: HeroPicture;
   readonly rows: readonly HeroDecksSheetRow[];
   /** The player chose a deck: the sheet is already closed. */
   readonly onPick: (deckId: string) => void;
 }
 
-const ROW_HEIGHT = 104;
+export const ROW_HEIGHT = 104;
 const ROW_PAD = 10;
 const THUMB_WIDTH = 56;
 const THUMB_HEIGHT = ROW_HEIGHT - 6 - ROW_PAD * 2;
 const BUTTON_TYPE = { ...typeRole.label, size: 12 };
 const STAMP_TYPE = { ...typeRole.label, size: 9 };
+const LIST = "decks-list";
 
 /** A status word is never color alone: a leading mark says which kind it is. */
 const STATUS_MARK = { ok: "✓", warning: "!", blocked: "✕", locked: "" } as const;
 
 export class HeroDecksSheet extends Phaser.Scene {
   #data!: HeroDecksSheetData;
-  #buttons: McButton[] = [];
-  #list: McVirtualList | null = null;
+  #panel!: PopupSheet;
+  #glyphs!: SheetGlyphs;
   #route: FocusRoute | null = null;
-  #scroll = new ListScroll();
   #hover: HoverPreview | null = null;
-  #hints!: GlyphHints;
+  #actions = new Map<string, () => void>();
+  /** Each row's picture in the list's own coordinates, and the box the list shows (what a hover rect is clipped to). */
+  #thumbs: Rect[] = [];
+  #listRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  #from: Phaser.Scene | null = null;
 
   constructor() {
     super(SCENES.heroDecks);
@@ -70,238 +74,217 @@ export class HeroDecksSheet extends Phaser.Scene {
 
   create(data: HeroDecksSheetData): void {
     this.#data = data;
-    this.#scroll = new ListScroll();
-    const from = this.scene.get(data.from);
-    if (from) from.input.enabled = false;
+    this.#from = this.scene.get(data.from) ?? null;
+    if (this.#from) this.#from.input.enabled = false;
     this.input.enabled = true;
-    const onResize = (): void => this.#draw();
-    this.scale.on("resize", onResize, this);
+    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.(), undefined, {
+      onDismiss: () => this.#close(),
+    });
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
+    this.scale.on("resize", this.#draw, this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCards(),
       area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.scene.isActive(SCENES.inspect) }),
     });
-    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect),
+      ring: domFocusRing,
+      blocked: () => this.scene.isActive(SCENES.inspect) || this.#panel.leaving,
       onCancel: () => this.#close(),
-      onPage: (direction) => this.#list?.scrollByPage(direction),
-      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      onPage: (direction) => {
+        const scroller = this.#scroller();
+        scroller?.scrollBy({ top: direction * scroller.clientHeight * 0.85 });
+      },
+      onScroll: (_dx, dy) => this.#scroller()?.scrollBy({ top: dy }),
     });
-    const offBaked = cardFaces(this).onBaked(() => this.#list?.layout(this.#list.rect));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      offBaked();
-      this.#hints.dispose();
-      this.scale.off("resize", onResize, this);
+      this.#glyphs.dispose();
+      this.scale.off("resize", this.#draw, this);
       this.#hover?.destroy();
       this.#hover = null;
-      for (const button of this.#buttons) button.destroy();
-      this.#buttons = [];
-      this.#list?.destroy();
-      this.#list = null;
-      if (from) from.input.enabled = true;
+      if (this.#from) this.#from.input.enabled = true;
     });
     this.#draw();
   }
 
+  #scroller(): HTMLElement | null {
+    return this.#panel.element?.elementOf(LIST) ?? null;
+  }
+
   #close(): void {
-    this.scene.stop();
+    this.#panel.close();
   }
 
   #pick(deckId: string): void {
     const { onPick } = this.#data;
-    this.scene.stop();
-    onPick(deckId);
+    this.#panel.close(() => onPick(deckId));
   }
 
-  /** Where row `index`'s picture is on screen now. */
-  #thumbRect(rowRect: Rect): Rect {
-    return { x: rowRect.x + 4 + ROW_PAD, y: rowRect.y + ROW_PAD, width: THUMB_WIDTH, height: THUMB_HEIGHT };
-  }
-
-  /** The hero picture of every row on screen (the list scrolls without a draw), clipped to the list's window. */
+  /** The hero picture of every row on screen, clipped to the list's window: the list scrolls without a draw. */
   #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
     const found = new Map<string, HoverCardIdRect>();
-    const list = this.#list;
-    if (!list) return found;
-    this.#data.rows.forEach((_, index) => {
-      const rect = clipHoverRect(this.#thumbRect(list.rectFor(index)), list.rect);
-      if (!rect) return;
-      const cardId = this.#data.identityCardId;
-      found.set(hoverSlotOf(cardId, `deck${index}`), { ...rect, cardId, face: { kind: "hero" }, through: true });
+    const scrolled = this.#scroller()?.scrollTop ?? 0;
+    const cardId = this.#data.identityCardId;
+    this.#thumbs.forEach((thumb, index) => {
+      const rect = clipHoverRect({ ...thumb, y: thumb.y - scrolled + this.#listRect.y }, this.#listRect);
+      if (rect)
+        found.set(hoverSlotOf(cardId, `deck${index}`), { ...rect, cardId, face: { kind: "hero" }, through: true });
     });
     return found;
   }
 
+  /** An element of the panel in game coordinates (it follows the list's scroll), or `fallback` while it is not drawn. */
+  #boxOf(key: string, fallback: Rect): Rect {
+    const found = this.#panel.element?.elementOf(key);
+    return (found ? this.#panel.rectOf(found) : null) ?? fallback;
+  }
+
   #draw(): void {
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-    this.#list?.destroy();
-    this.#list = null;
-    this.#hints.reset();
-    destroyChildren(this);
-
+    this.#glyphs.reset();
+    this.#actions = new Map();
+    this.#thumbs = [];
+    const stops = new Map<string, FocusStop>();
+    const order: string[] = [];
     const { width, height } = this.scale.gameSize;
+    // Swallows every press that lands on no control of this pop-up's own.
+    destroyChildren(this);
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    this.add.graphics().fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
 
+    const b = this.#panel.begin(width, height);
     const phone = width < 600;
     const margin = phone ? 8 : 24;
     const boxWidth = Math.min(680, width - margin * 2);
-    const boxX = (width - boxWidth) / 2;
     const innerWidth = boxWidth - 32;
     const { rows } = this.#data;
-    const stops = new Map<string, FocusStop>();
-    const order: string[] = [];
 
-    const ground = this.add.graphics();
-    const title = this.add.text(boxX + 16, 0, this.#data.heroName, textStyle(typeRole.barTitle, surface.ink.hex));
-    fitText(title, innerWidth, typeRole.barTitle.size);
-    const subtitle = this.add
-      .text(
-        boxX + 16,
-        0,
-        t("seats.decksSheetSubtitle", { count: rows.length }),
-        textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-      )
-      .setFontSize(13)
-      .setWordWrapWidth(innerWidth);
-    clampLines(subtitle, 2);
-
-    const headerHeight = title.height + 4 + subtitle.height + 12;
+    const titleSize = b.measure(this.#data.heroName, typeRole.barTitle, { fitWidth: innerWidth });
+    const subtitleText = t("seats.decksSheetSubtitle", { count: rows.length });
+    const subtitle = b.measure(subtitleText, typeRole.body, { size: 13, wrapWidth: innerWidth, maxLines: 2 });
+    const headerHeight = titleSize.height + 4 + subtitle.height + 12;
     const chrome = 16 + headerHeight + 12 + hit.primary + 16;
-    const maxHeight = height - margin * 2;
-    const boxHeight = Math.min(maxHeight, chrome + rows.length * ROW_HEIGHT + 8);
-    const box: Rect = { x: boxX, y: Math.round((height - boxHeight) / 2), width: boxWidth, height: boxHeight };
-    ground.fillStyle(surface.paper.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    ground.lineStyle(4, surface.ink.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
+    const boxHeight = Math.min(height - margin * 2, chrome + rows.length * ROW_HEIGHT + 8);
+    const box: Rect = {
+      x: (width - boxWidth) / 2,
+      y: Math.round((height - boxHeight) / 2),
+      width: boxWidth,
+      height: boxHeight,
+    };
+    b.box(box, { fill: surface.paper.hex });
+    b.box(box, { stroke: surface.ink.hex, strokeWidth: 4 });
     const inner: Rect = { x: box.x + 16, y: box.y + 16, width: innerWidth, height: box.height - 32 };
-    title.setPosition(inner.x, inner.y);
-    subtitle.setPosition(inner.x, title.y + title.height + 4);
+    b.text(inner.x, inner.y, this.#data.heroName, typeRole.barTitle, { color: surface.ink.hex, fitWidth: innerWidth });
+    b.text(inner.x, inner.y + titleSize.height + 4, subtitleText, typeRole.body, {
+      size: 13,
+      color: surface.ink.hex,
+      alpha: ink.secondary,
+      wrapWidth: innerWidth,
+      maxLines: 2,
+    });
 
     const footerY = inner.y + inner.height - hit.primary;
-    const listTop = subtitle.y + subtitle.height + 12;
-    const listRect: Rect = { x: inner.x, y: listTop, width: inner.width, height: footerY - 12 - listTop };
-
-    const clip = (): Rect | null => this.#list?.rect ?? null;
-    const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
+    const listTop = inner.y + titleSize.height + 4 + subtitle.height + 12;
+    const listRect: Rect = { x: inner.x, y: listTop, width: inner.width - 12, height: footerY - 12 - listTop };
+    this.#listRect = { ...listRect, width: listRect.width + 12 };
     const buttonWidth = phone ? 76 : 96;
-    const buttonRectOf = (rowRect: Rect): Rect => ({
-      x: rowRect.x + 4 + (rowRect.width - 12) - ROW_PAD - buttonWidth,
-      y: rowRect.y + (ROW_HEIGHT - 6 - hit.target) / 2,
-      width: buttonWidth,
-      height: hit.target,
-    });
+    b.scrollFit(LIST, listRect, (list) => {
+      rows.forEach(({ row, stamps }, index) => {
+        const top = index * ROW_HEIGHT;
+        const body: Rect = { x: listRect.x + 4, y: top, width: listRect.width - 12, height: ROW_HEIGHT - 6 };
+        list.box(body, { fill: surface.parchment.hex });
+        list.box(body, { stroke: surface.ink.hex, strokeWidth: 2 });
+        const thumb: Rect = { x: body.x + ROW_PAD, y: top + ROW_PAD, width: THUMB_WIDTH, height: THUMB_HEIGHT };
+        this.#thumbs.push(thumb);
+        const picture = this.#data.picture;
+        list.image(thumb, {
+          src: picture.src,
+          fill: surface.parchment.hex,
+          cover: picture.cover,
+          key: `deck-thumb:${row.deckId}`,
+          ...(picture.retry !== undefined ? { retry: picture.retry } : {}),
+        });
+        list.box(thumb, { stroke: surface.ink.hex, strokeWidth: 1.5, alpha: ink.label });
 
-    const renderRow = (index: number, rect: Rect): VirtualListRow => {
-      const { row, stamps } = rows[index]!;
-      const body: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 12, height: ROW_HEIGHT - 6 };
-      const objects: Phaser.GameObjects.GameObject[] = [];
-      const g = this.add.graphics();
-      g.fillStyle(surface.parchment.hex, 1).fillRect(body.x, body.y, body.width, body.height);
-      g.lineStyle(2, surface.ink.hex, 1).strokeRect(body.x, body.y, body.width, body.height);
-      objects.push(g);
-      objects.push(renderArtThumb(this, this.#thumbRect(rect), this.#data.artUrl, 0.2, this.#data.artFocus));
-
-      const textX = body.x + ROW_PAD + THUMB_WIDTH + 10;
-      const textWidth = body.x + body.width - ROW_PAD - buttonWidth - 10 - textX;
-      const name = this.add.text(textX, body.y + ROW_PAD, row.title, textStyle(typeRole.rowTitle, surface.ink.hex));
-      fitText(name, textWidth, typeRole.rowTitle.size);
-      objects.push(name);
-
-      // Aspect stamps: the aspect's own card-frame color with its name on it, so the color is never the only clue.
-      let stampX = textX;
-      const stampY = body.y + ROW_PAD + 24;
-      for (const stamp of stamps) {
-        const text = this.add
-          .text(0, 0, stamp.label.toUpperCase(), textStyle(STAMP_TYPE, stamp.ink))
-          .setPadding(5, 2, 5, 2);
-        const stampWidth = text.width;
-        if (stampX + stampWidth > textX + textWidth) {
-          text.destroy();
-          break;
+        const textX = thumb.x + THUMB_WIDTH + 10;
+        const textWidth = body.x + body.width - ROW_PAD - buttonWidth - 10 - textX;
+        list.text(textX, top + ROW_PAD, row.title, typeRole.rowTitle, { color: surface.ink.hex, fitWidth: textWidth });
+        // Aspect stamps: the aspect's own card-frame color with its name on it, so the color is never the only clue.
+        let stampX = textX;
+        const stampY = top + ROW_PAD + 24;
+        for (const stamp of stamps) {
+          const word = stamp.label.toUpperCase();
+          const stampWidth = list.measure(word, STAMP_TYPE).width + 10;
+          if (stampX + stampWidth > textX + textWidth) break;
+          list.box({ x: stampX, y: stampY, width: stampWidth, height: 16 }, { fill: stamp.fill });
+          list.box(
+            { x: stampX + 0.5, y: stampY + 0.5, width: stampWidth - 1, height: 15 },
+            { stroke: surface.ink.hex, strokeWidth: 1 },
+          );
+          list.text(stampX + 5, stampY + 8, word, STAMP_TYPE, { color: stamp.ink, origin: [0, 0.5] });
+          stampX += stampWidth + 4;
         }
-        g.fillStyle(stamp.fill, 1).fillRect(stampX, stampY, stampWidth, text.height);
-        g.lineStyle(1, surface.ink.hex, 1).strokeRect(stampX + 0.5, stampY + 0.5, stampWidth - 1, text.height - 1);
-        text.setPosition(stampX, stampY);
-        objects.push(text);
-        stampX += stampWidth + 4;
-      }
-
-      const meta = this.add.text(
-        textX,
-        body.y + ROW_PAD + 46,
-        `${row.source} · ${row.cards}`,
-        textStyle(typeRole.label, surface.ink.hex, ink.label),
-      );
-      fitText(meta, textWidth, typeRole.label.size);
-      objects.push(meta);
-
-      const statusColor =
-        row.statusKind === "ok"
-          ? signal.heal.hex
-          : row.statusKind === "warning"
-            ? surface.ink.hex
-            : row.statusKind === "locked"
+        list.text(textX, top + ROW_PAD + 46, `${row.source} · ${row.cards}`, typeRole.label, {
+          color: surface.ink.hex,
+          alpha: ink.label,
+          fitWidth: textWidth,
+        });
+        const statusColor =
+          row.statusKind === "ok"
+            ? signal.heal.hex
+            : row.statusKind === "warning" || row.statusKind === "locked"
               ? surface.ink.hex
               : accent.heroRed.hex;
-      const status = this.add.text(
-        textX,
-        body.y + ROW_PAD + 62,
-        `${row.statusKind === "locked" ? t("seats.lockedMark") : STATUS_MARK[row.statusKind]} ${row.status}`,
-        textStyle(typeRole.label, statusColor, 1),
-      );
-      fitText(status, textWidth, typeRole.label.size);
-      objects.push(status);
-
-      const seat = new McButton(this, {
-        kind: row.enabled ? "primary" : "secondary",
-        label: row.action,
-        type: BUTTON_TYPE,
-        rect: buttonRectOf(rect),
-        enabled: row.enabled,
-        ...(row.enabled ? {} : { reason: row.status }),
-        onClick: () => this.#pick(row.deckId),
-        clip,
-        suppressClick,
+        list.text(
+          textX,
+          top + ROW_PAD + 62,
+          `${row.statusKind === "locked" ? t("seats.lockedMark") : STATUS_MARK[row.statusKind]} ${row.status}`,
+          typeRole.label,
+          { color: statusColor, fitWidth: textWidth },
+        );
+        const button: Rect = {
+          x: body.x + body.width - ROW_PAD - buttonWidth,
+          y: top + (ROW_HEIGHT - 6 - hit.target) / 2,
+          width: buttonWidth,
+          height: hit.target,
+        };
+        const key = `deck:${row.deckId}`;
+        list.button({
+          key,
+          rect: button,
+          label: row.action,
+          look: row.enabled ? "primary" : "secondary",
+          type: BUTTON_TYPE,
+          ...(row.enabled ? {} : { disabled: row.status }),
+        });
+        this.#actions.set(key, () => (row.enabled ? this.#pick(row.deckId) : undefined));
+        stops.set(key, {
+          rect: () => this.#boxOf(key, { ...button, y: button.y + listTop }),
+          activate: () => (row.enabled ? this.#pick(row.deckId) : undefined),
+          view: () => this.#boxOf(LIST, this.#listRect),
+          ensureVisible: () => this.#panel.element?.elementOf(key)?.scrollIntoView({ block: "nearest" }),
+        });
+        order.push(key);
       });
-      objects.push(seat.container);
-      return { objects };
-    };
-
-    this.#list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight: ROW_HEIGHT,
-      count: rows.length,
-      renderRow,
-      scroll: this.#scroll,
-    });
-    const list = this.#list;
-    rows.forEach(({ row }, index) => {
-      const key = `deck:${row.deckId}`;
-      stops.set(key, {
-        rect: () => {
-          const at = list.rectFor(index);
-          return buttonRectOf({ ...at, x: at.x, width: at.width });
-        },
-        activate: () => (row.enabled ? this.#pick(row.deckId) : undefined),
-        ensureVisible: () => list.scrollIntoView(index),
-      });
-      order.push(key);
+      return rows.length * ROW_HEIGHT;
     });
 
     const closeRect: Rect = { x: inner.x, y: footerY, width: inner.width, height: hit.primary };
-    const backButton = new McButton(this, {
-      kind: "secondary",
-      label: t("common.back"),
-      type: BUTTON_TYPE,
+    this.#glyphs.button(b, {
+      key: "back",
       rect: closeRect,
-      onClick: () => this.#close(),
+      label: t("common.back"),
+      look: "secondary",
+      type: BUTTON_TYPE,
+      ids: ["cancel"],
+      ground: "paper",
     });
-    this.#buttons.push(backButton);
-    this.#hints.button(backButton, ["cancel"], "paper");
+    this.#actions.set("back", () => this.#close());
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
     order.push("back");
 
+    this.#panel.mount(b, width, height, () => {
+      const popover = this.#hover?.shownRect;
+      return popover ? [popover] : [];
+    });
+    this.#panel.forwardMouseMoves();
     this.#route?.set(order, stops);
     this.#hover?.onDraw();
   }

@@ -4,11 +4,13 @@ import { ThemeStyles } from "../../shared/theme.styles.js";
 import { tapped } from "../../shared/tapped.js";
 import "../mc-button/mc-button.js";
 import "../mc-empty-state/mc-empty-state.js";
+import "../mc-glyph/mc-glyph.js";
 import "../mc-picture-card/mc-picture-card.js";
 import "../mc-section-header/mc-section-header.js";
 import type { McPictureCard } from "../mc-picture-card/McPictureCard.js";
 import type {
   ShelfRosterCard,
+  ShelfRosterHint,
   ShelfRosterModel,
   ShelfRosterScroll,
   ShelfRosterShelf,
@@ -213,6 +215,7 @@ export class McShelfRoster extends LitElement {
     return html`<div
       class="cell"
       data-key=${card.key}
+      ?data-dim=${card.dim === true}
       style=${`width:${cardWidth}px;height:${cardHeight}px`}
       ${tapped(
         () => this.#emit("mc-activate", card.key),
@@ -220,6 +223,19 @@ export class McShelfRoster extends LitElement {
       )}
     >
       <mc-picture-card data-card=${card.cardId} .model=${card.model} .picture=${card.picture ?? null}></mc-picture-card>
+    </div>`;
+  }
+
+  /** A trigger glyph in a chevron's gutter, above the chevron: shown only while that end can page (the shelf's own flags). */
+  #hint(hint: ShelfRosterHint, direction: "prev" | "next") {
+    const specs = direction === "prev" ? hint.previous : hint.next;
+    if (!specs) return nothing;
+    return html`<div
+      class=${`hint ${direction}`}
+      style=${`--hint-height:${hint.height}px`}
+      data-key=${`hint:${direction}`}
+    >
+      <mc-glyph .specs=${specs} .height=${hint.height} .openness=${1} ground="paper" ?still=${hint.still}></mc-glyph>
     </div>`;
   }
 
@@ -277,6 +293,7 @@ export class McShelfRoster extends LitElement {
                 )}
               </div>
               ${this.#chevron(shelf, "prev")}${this.#chevron(shelf, "next")}
+              ${this.model.hint?.shelfId === shelf.id ? html`${this.#hint(this.model.hint, "prev")}${this.#hint(this.model.hint, "next")}` : nothing}
             </div>`
       }
     </section>`;

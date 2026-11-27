@@ -105,6 +105,7 @@ export type { PictureErrorDetail } from "./components/mc-picture-tile/mc-picture
 export type { McPictureCardModel, PictureCardStamp } from "./components/mc-picture-card/mc-picture-card.types.js";
 export type {
   ShelfRosterCard,
+  ShelfRosterHint,
   ShelfRosterLink,
   ShelfRosterModel,
   ShelfRosterScroll,

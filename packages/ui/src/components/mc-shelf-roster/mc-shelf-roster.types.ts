@@ -1,3 +1,4 @@
+import type { GlyphSpec } from "../../shared/glyph.types.js";
 import type { PictureSource } from "../../shared/picture.types.js";
 import type { McPictureCardModel } from "../mc-picture-card/mc-picture-card.types.js";
 
@@ -10,6 +11,8 @@ export interface ShelfRosterCard {
   readonly model: McPictureCardModel;
   /** The picture as one value (a hero's picture, cropped around a centered subject); overrides the model picture. */
   readonly picture?: PictureSource;
+  /** Present but not available now (a hero already at the table, a locked one): the whole card dims. */
+  readonly dim?: boolean;
 }
 
 /** The link at a shelf header's right end ("See all ▸"): a press reports `key`. */
@@ -34,6 +37,20 @@ export interface ShelfRosterShelf {
   readonly cards: readonly ShelfRosterCard[];
 }
 
+/**
+ * The glyphs that say which trigger pages a row (LT / RT on a pad), drawn over the chevron gutters of one shelf, the one
+ * focus is in, and only at an end that row can still go to. Absent specs draw nothing.
+ */
+export interface ShelfRosterHint {
+  readonly shelfId: string;
+  readonly previous: readonly GlyphSpec[] | null;
+  readonly next: readonly GlyphSpec[] | null;
+  /** The glyph height in px, already scaled by the hint size setting. */
+  readonly height: number;
+  /** No open / close transition (reduced motion). */
+  readonly still: boolean;
+}
+
 /** What a shelf roster shows. */
 export interface ShelfRosterModel {
   /** `shelves`: a header and a sideways row per shelf. `grid`: the cards of the first shelf wrapped into rows, no header. */
@@ -54,6 +71,8 @@ export interface ShelfRosterModel {
   /** The chevrons' names for assistive tech. */
   readonly previousLabel: string;
   readonly nextLabel: string;
+  /** The row-paging glyphs (a pad is in use), or none. */
+  readonly hint?: ShelfRosterHint | null;
 }
 
 /** Where a roster is scrolled: down the column, and along each shelf's row (by shelf id). */
