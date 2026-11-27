@@ -119,6 +119,11 @@ export class SheetBuilder {
     this.#desktop = desktop;
   }
 
+  /** A text size as the sheet draws it: a small one grows on desktop, as the client desktop type does. */
+  typeSize(size: number): number {
+    return this.#desktop() && size <= 12 ? Math.min(13, size + 2) : size;
+  }
+
   #rect(rect: Rect): SheetRect {
     return { x: rect.x - this.#origin.x, y: rect.y - this.#origin.y, width: rect.width, height: rect.height };
   }

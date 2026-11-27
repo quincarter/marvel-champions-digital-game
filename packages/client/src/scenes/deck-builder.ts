@@ -118,7 +118,7 @@ import {
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
-import { poolCellRect, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
+import { poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
 import { accent, hit, ink, signal, surface, typeRole, dotGrid, type TypeSpec } from "../tokens.js";
 import { caseOf, cssOf } from "../ui/theme.js";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
@@ -187,6 +187,13 @@ import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-mo
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import { parsePoolQuery } from "../view/pool-query.js";
+import {
+  drawCardPool,
+  poolWindowKey,
+  POOL_GRID_CONTROLS_HEIGHT,
+  POOL_ROW_CONTROLS_WIDTH,
+} from "../dom/card-pool-sheet.js";
+import type { CardPoolCard } from "../dom/card-pool-sheet.types.js";
 import type { SearchHelpSheetData } from "./search-help-sheet.js";
 import type { PoolPickSheetData } from "./pool-pick-sheet.js";
 import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from "../view/deck-odds.js";
@@ -194,8 +201,7 @@ import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-build
 import type { DeckCheckSceneData } from "./deck-check.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import type { CardLanguage } from "../art/card-language.js";
-import { cardSearchDocumentOf } from "../view/card-search-document.js";
-import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-names.js";
+import { CardPoolSearch, poolSearchDocuments } from "../view/card-pool-search.js";
 import { localizedLabelOf } from "../view/card-text.js";
 import { onArtChange } from "../language-change.js";
 import { t, type MessageKey } from "../i18n/translate.js";
@@ -243,18 +249,10 @@ export interface DeckBuilderSceneData {
 
 /** The identity row's art window, wide for its height: a cover crop of the hero's face and shoulders. */
 const IDENTITY_THUMB_ASPECT = 1.5;
-/** The −, quantity and + at a pool row's right end. */
-const POOL_ROW_CONTROLS_WIDTH = 146;
-/** Card view: the −, quantity and + strip under each cell's caption. */
-const GRID_CONTROLS_HEIGHT = hit.target + 8;
-/** Lines of rules text a pool row shows before the ellipsis; Inspect has the rest. */
-const CARD_TEXT_LINES = 3;
 /** Room left at a scrolling region's right edge for its scrollbar, so no control sits under it. */
 const NARROW_SCROLLBAR_GUTTER = 10;
 /** The small label type in the case it is written in (a type line, a note, rules text): the old Phaser text drew these without capitals. */
 const SENTENCE_LABEL: TypeSpec = { ...typeRole.label, uppercase: false };
-/** Rows built above and below the pool list's viewport, so a scroll shows pictures already in place. */
-const POOL_OVERSCAN_ROWS = 2;
 /**
  * The pool this screen builds against: the base pool plus every loaded custom pack's cards (`currentPool()`). Each
  * derived list below is kept until the loaded packs change, so a pack installed or removed shows on the next visit
@@ -278,43 +276,25 @@ const poolKeyNow = (): string =>
         .join(",")}`
     : currentPoolKey();
 
-/**
- * `filter` plus the search's `field:value` terms (`pool-query.ts`) as clauses this side applies; the search worker
- * answers the search's free words.
- */
-function withSearchClauses(filter: PoolFilter, search: string): PoolFilter {
-  const clauses = parsePoolQuery(search).clauses;
-  return clauses.length > 0 ? { ...filter, clauses } : filter;
-}
-
-/** The free words of a search, for the search worker; its `field:value` terms filter without it. */
-const freeTextOf = (text: string): string => parsePoolQuery(text).text.trim();
-
-/** Built on first search and kept: the documents the search worker ranks (every card; every hero). */
-let poolSearchDocuments: {
+const POOL_SEARCH_DOCUMENTS = (): { readonly docs: readonly SearchDocument[]; readonly version: string } => {
+  const now = poolNow();
+  const lang = artLanguageNow();
+  if (poolSearchDocumentsCache?.pool !== now || poolSearchDocumentsCache.lang !== lang) {
+    const infos = packInfos();
+    poolSearchDocumentsCache = {
+      pool: now,
+      lang,
+      docs: poolSearchDocuments(now, lang, (code) => infos.find((pack) => pack.code === code)?.name),
+    };
+  }
+  return { docs: poolSearchDocumentsCache.docs, version: `${poolKeyNow()}:${lang}` };
+};
+/** Built on first search and kept: the documents the search worker ranks (every card). */
+let poolSearchDocumentsCache: {
   readonly pool: readonly AnyCard[];
   readonly lang: CardLanguage;
   readonly docs: readonly SearchDocument[];
 } | null = null;
-const POOL_SEARCH_DOCUMENTS = (): readonly SearchDocument[] => {
-  const now = poolNow();
-  const lang = artLanguageNow();
-  if (poolSearchDocuments?.pool !== now || poolSearchDocuments.lang !== lang) {
-    const infos = packInfos();
-    poolSearchDocuments = {
-      pool: now,
-      lang,
-      docs: now.map((card) =>
-        cardSearchDocumentOf(
-          card,
-          infos.find((pack) => pack.code === (card.setCode as string))?.name,
-          localizedNameOf(card.id as string, lang),
-        ),
-      ),
-    };
-  }
-  return poolSearchDocuments.docs;
-};
 /** Every villain's name in the pool (what the Worker keys its villains by), for Everyone's Against stepper. */
 let poolVillains: readonly string[] | null = null;
 const poolVillainNames = (): readonly string[] =>
@@ -505,10 +485,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   #startFor: HeroIdentityCard | null = null;
   #identitySearch = "";
   /** The pool search and the hero search, ranked off the main thread (`view/deck-search-client.ts`); new per visit. */
-  #poolSearch: DeckSearchClient | null = null;
+  #poolSearch: CardPoolSearch | null = null;
   #heroSearch: DeckSearchClient | null = null;
-  /** The newest answer to the pool search (card id → score); null with no search text. */
-  #poolRanking: ReadonlyMap<string, number> | null = null;
   #heroRanking: ReadonlyMap<string, number> | null = null;
   #busy = false;
   #returnTo: CampaignReturn | null = null;
@@ -620,9 +598,16 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#deleteArmed = false;
     this.#startFor = null;
     this.#identitySearch = "";
-    this.#poolRanking = null;
     this.#heroRanking = null;
-    this.#poolSearch = new DeckSearchClient();
+    this.#poolSearch = new CardPoolSearch({
+      alive: () => this.sys.isActive(),
+      language: () => artLanguageNow(),
+      documents: POOL_SEARCH_DOCUMENTS,
+      onChange: () => {
+        this.#resetPool();
+        this.#rebuild();
+      },
+    });
     this.#heroSearch = new DeckSearchClient();
     // A campaign seat's hero may come from a pack the run carries but that is no longer installed (#978).
     const heroes = this.#campaign ? identityOptions(campaignPool()) : identities();
@@ -1237,11 +1222,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   #poolWindowFor(top: number): string {
-    const rowHeight = this.#poolRowHeight;
-    if (rowHeight <= 0 || this.#poolRowCount <= 0) return "";
-    const start = Math.max(0, Math.floor(top / rowHeight) - POOL_OVERSCAN_ROWS);
-    const end = Math.min(this.#poolRowCount, Math.ceil((top + this.#poolViewHeight) / rowHeight) + POOL_OVERSCAN_ROWS);
-    return `${start}-${end}-${this.#poolRowCount}`;
+    return poolWindowKey(this.#poolRowHeight, this.#poolRowCount, this.#poolViewHeight, top);
   }
 
   /** What the pool list last drew (`#drawPoolList`): its row height, row count and window height. */
@@ -1308,12 +1289,12 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A card the deck already holds stays listed even if its rules now refuse it (so its "-" can remove it); campaign
     // mode keeps its own marks for that (`#campaignModel`), and its granted lines are never browsable.
     const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
-    const ranking = freeTextOf(this.#filterText) ? this.#poolRanking : null;
+    const ranking = this.#poolSearch?.ranking ?? null;
     const listed = browsablePool(
       this.#pool(),
       this.#identity!,
       deck.aspects,
-      withSearchClauses(this.#filter, this.#filterText),
+      this.#poolSearch?.filterFor(this.#filter) ?? this.#filter,
       this.#sort,
       packInfos(),
       held,
@@ -1951,7 +1932,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#pool(),
       this.#identity!,
       deck.aspects,
-      withSearchClauses(this.#filter, this.#filterText),
+      this.#poolSearch?.filterFor(this.#filter) ?? this.#filter,
       packInfos(),
     );
     const arrow = hit.target;
@@ -1987,7 +1968,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#pool(),
       this.#identity!,
       deck.aspects,
-      withSearchClauses(this.#filter, this.#filterText),
+      this.#poolSearch?.filterFor(this.#filter) ?? this.#filter,
       packInfos(),
     );
     const apply = (next: PoolFilter): void => {
@@ -3121,53 +3102,37 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
     const grid = this.#poolView === "grid";
     const geometry = grid ? this.#gridGeometry(listRect.width, pool.length) : null;
-    const rowHeight = geometry ? geometry.cellHeight : this.#rows.cardRowHeight;
-    const rowCount = geometry ? geometry.rows : pool.length;
+    const scope: Scope = { key: POOL_LIST, view: listRect };
+    const layout = drawCardPool(b, {
+      key: POOL_LIST,
+      rect: listRect,
+      view: grid ? "grid" : "list",
+      count: pool.length,
+      geometry,
+      listRow: { height: this.#rows.cardRowHeight, thumbWidth: this.#rows.cardThumbWidth },
+      scrollTop: this.#scrollTop(POOL_LIST),
+      cardAt: (index) => this.#poolCardView(deck, pool[index]!, geometry, listRect.width),
+    });
+    const { rowHeight, rowCount } = layout;
     this.#poolRowHeight = rowHeight;
     this.#poolRowCount = rowCount;
     this.#poolViewHeight = listRect.height;
-    const window = this.#poolWindowFor(this.#scrollTop(POOL_LIST));
-    this.#poolWindow = window;
-    const [start, end] = window.split("-").map(Number) as [number, number];
-    const scope: Scope = { key: POOL_LIST, view: listRect };
-    const rowRectOf = (index: number): Rect => ({
-      x: listRect.x,
-      y: index * rowHeight,
-      width: listRect.width,
-      height: rowHeight,
-    });
-    if (!grid) b.box(listRect, { stroke: surface.ink.hex, strokeWidth: 2 });
-    b.scroll(POOL_LIST, listRect, rowCount * rowHeight, (inner) => {
-      this.#b = inner;
-      for (let index = start; index < end; index++) {
-        if (geometry) this.#gridRow(rowRectOf(index), geometry, deck, pool, index);
-        else this.#listRow(rowRectOf(index), deck, pool[index]!);
-      }
-      this.#b = b;
-    });
+    this.#poolWindow = layout.window;
     // A card is hovered over its picture and text, not its -/+ strip; only the part inside the list's window counts.
     this.#hoverLists.push(() => {
       const found: (readonly [string, HoverCardIdRect])[] = [];
       const top = this.#scrollTop(POOL_LIST);
       const first = Math.max(0, Math.floor(top / rowHeight));
       const last = Math.min(rowCount, Math.ceil((top + listRect.height) / rowHeight));
-      for (let index = first; index < last; index++) {
-        const at = rowRectOf(index);
-        const cells = geometry ? Math.min(geometry.columns, pool.length - index * geometry.columns) : 1;
+      const perRow = geometry ? geometry.columns : 1;
+      for (let row = first; row < last; row++) {
+        const cells = Math.min(perRow, pool.length - row * perRow);
         for (let col = 0; col < cells; col++) {
-          const card = pool[geometry ? index * geometry.columns + col : index]!;
-          const cell = geometry ? poolCellRect(geometry, at, col) : at;
-          const area: Rect = geometry
-            ? {
-                x: cell.x + 4,
-                y: cell.y + 2,
-                width: cell.width - 8,
-                height: geometry.cellHeight - GRID_CONTROLS_HEIGHT - 4,
-              }
-            : { x: cell.x + 4, y: cell.y, width: cell.width - 8 - POOL_ROW_CONTROLS_WIDTH, height: rowHeight - 6 };
-          const rect = clipHoverRect(this.#inScope(scope, area), listRect);
+          const index = row * perRow + col;
+          const card = pool[index]!;
+          const rect = clipHoverRect(this.#inScope(scope, layout.faceRect(index)), listRect);
           const cardId = card.id as string;
-          if (rect) found.push([hoverSlotOf(cardId, `pool${index}.${col}`), { ...rect, cardId, through: true }]);
+          if (rect) found.push([hoverSlotOf(cardId, `pool${row}.${col}`), { ...rect, cardId, through: true }]);
         }
       }
       return found;
@@ -3176,12 +3141,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#scope = scope;
     pool.forEach((card, index) => {
       const cardId = card.id as string;
-      const rowIndex = geometry ? Math.floor(index / geometry.columns) : index;
-      const at = rowRectOf(rowIndex);
-      const rect = geometry ? poolCellRect(geometry, at, index % geometry.columns) : at;
       this.#stop(
         `card:${cardId}`,
-        rect,
+        layout.cellRect(index),
         // Keyboard/pad activation mirrors the card's own "+" button, including its campaign refusals: a stop still
         // exists for every browsable card (so its reason reads), but pressing it on a refused or frozen row is a no-op,
         // exactly like pressing a disabled "+".
@@ -3213,7 +3175,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       cardSizeFactor(appSession().settings.cardSize) * phoneScale,
       POOL_MAX_COLUMNS,
     );
-    return { ...geometry, cellHeight: geometry.cellHeight + GRID_CONTROLS_HEIGHT };
+    return { ...geometry, cellHeight: geometry.cellHeight + POOL_GRID_CONTROLS_HEIGHT };
   }
 
   /** The rendered px size of a text spec on this screen (the desktop bump for sizes up to 12). */
@@ -3232,10 +3194,44 @@ export class DeckBuilderScene extends Phaser.Scene {
     return { shown, cut: subtitleCutFrom(card, shown) };
   }
 
-  /** A card's "−" and "+" as parts, with the refusals the campaign and the rule settings give. */
-  #quantityButtons(deck: Deck, card: AnyCard, minusRect: Rect, plusRect: Rect, quantity: number, name: string): void {
+  /** A card as the pool draws it: its words, its copies in the deck, and the refusals the campaign and the rules give. */
+  #poolCardView(deck: Deck, card: AnyCard, geometry: PoolGridGeometry | null, listWidth: number): CardPoolCard {
     const cardId = card.id as string;
+    const quantity = deck.cards.find((line) => line.cardId === card.id)?.quantity ?? 0;
     const campaignRow = this.#campaignRowFor(cardId);
+    const lang = artLanguageNow();
+    // The title fits the width its row or cell gives it (the same arithmetic the drawing lays out with).
+    const width = geometry
+      ? geometry.cellWidth - 8 - 12
+      : listWidth - 8 - POOL_ROW_CONTROLS_WIDTH - 16 - this.#rows.cardThumbWidth;
+    const { shown, cut } = this.#titleOf(card, width);
+    const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
+    // Card view's caption: why a card is offered, or what the campaign says of it, else its type line.
+    const caption = campaignRow?.locked
+      ? t("deckBuilder.campaignGrant")
+      : campaignRow?.refused
+        ? t("deckBuilder.removedFromCampaign")
+        : cut && note
+          ? `${cut} · ${note}`
+          : (note ?? cut ?? poolTypeLine(card));
+    // List view's lines.
+    let typeLine = "";
+    let rules = "";
+    if (!geometry) {
+      const typeBase = cut ? `${cut} · ${poolTypeLine(card)}` : poolTypeLine(card);
+      // A card from an installed custom pack says so in words.
+      const customBadge = customCardBadgeOf(cardId);
+      const typeText = customBadge ? `${typeBase} · ${customBadge}` : typeBase;
+      // MC27 p. 22's Enhanced side (`CampaignDeckEditRow.face`): named on its own, in front of "campaign grant", so
+      // the row never reads as an ordinary grant when the printed card in play is actually the flipped side.
+      const faceLabel = campaignRow?.face ? ` · ${campaignRow.face} (Enhanced)` : "";
+      typeLine = campaignRow?.locked
+        ? `${typeText} · ${t("deckBuilder.campaignGrant")}${faceLabel}`
+        : campaignRow?.refused
+          ? `${typeText} · ${t("deckBuilder.removedFromCampaign")}`
+          : typeText;
+      rules = cardInspectModel(card, campaignRow?.face ? { kind: "flipSide" } : { kind: "front" }).rulesText ?? "";
+    }
     const frozen = this.#campaignModel?.editingDisabled ?? false;
     // The rule settings (issue #531) only matter where nothing else already disables the button.
     const minusRefused = quantity > 0 ? this.#ruleRefusal(deck, card.id, -1) : null;
@@ -3248,218 +3244,36 @@ export class DeckBuilderScene extends Phaser.Scene {
     const plusReason = frozen
       ? (this.#campaignModel?.editingDisabledReason ?? undefined)
       : (campaignRow?.refusedReason ?? plusRefused ?? undefined);
-    this.#b.button({
-      key: `minus:${cardId}`,
-      rect: minusRect,
-      label: "−",
-      look: "secondary",
-      type: typeRole.rowTitle,
-      aria: t("deckBuilder.removeCopy", { name }),
-      ...(minusOff ? { disabled: minusReason ?? true } : {}),
-    });
     this.#actions.set(`minus:${cardId}`, () => {
       if (!minusOff) this.#setDeck(removeCard(deck, card.id));
-    });
-    this.#b.button({
-      key: `plus:${cardId}`,
-      rect: plusRect,
-      label: "+",
-      look: "secondary",
-      type: typeRole.rowTitle,
-      aria: t("deckBuilder.addCopy", { name }),
-      ...(plusOff ? { disabled: plusReason ?? true } : {}),
     });
     this.#actions.set(`plus:${cardId}`, () => {
       if (!plusOff) this.#setDeck(addCard(deck, card.id));
     });
-  }
-
-  /** One row of Card view (a row of cells), in the list's content space. */
-  #gridRow(rowRect: Rect, geometry: PoolGridGeometry, deck: Deck, pool: readonly AnyCard[], rowIndex: number): void {
-    const b = this.#b;
-    const start = rowIndex * geometry.columns;
-    const inRow = Math.min(geometry.columns, pool.length - start);
-    const lang = artLanguageNow();
-    for (let col = 0; col < inRow; col++) {
-      const card = pool[start + col]!;
-      const cardId = card.id as string;
-      const cell = poolCellRect(geometry, rowRect, col);
-      const cardRect: Rect = { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 6 };
-      const quantity = deck.cards.find((line) => line.cardId === card.id)?.quantity ?? 0;
-      const campaignRow = this.#campaignRowFor(cardId);
-      b.box(cardRect, {
-        fill: surface.card.hex,
-        stroke: quantity > 0 ? accent.heroRed.hex : surface.ink.hex,
-        strokeWidth: quantity > 0 ? 4 : 2,
-        key: `cell:${cardId}`,
-      });
-      const artRect: Rect = {
-        x: cardRect.x + 3,
-        y: cardRect.y + 3,
-        width: cardRect.width - 6,
-        height: geometry.artHeight - 6,
-      };
-      const { shown, cut } = this.#titleOf(card, cardRect.width - 12);
-      b.image(artRect, {
-        src: artFor(card, { kind: "front" })?.url ?? null,
-        fill: surface.parchment.hex,
-        missing: localizedLabelOf(card, lang),
-        key: `art:${cardId}`,
-      });
-      if ("cost" in card && typeof card.cost === "number") {
-        const pipWidth = String(card.cost).length * 7 + 12;
-        b.box(
-          { x: artRect.x, y: artRect.y, width: pipWidth, height: 18 },
-          { fill: surface.ink.hex, key: `cost-tab:${cardId}` },
-        );
-        b.text(artRect.x + 6, artRect.y + 9, String(card.cost), typeRole.label, {
-          color: surface.paper.hex,
-          origin: [0, 0.5],
-          key: `cost:${cardId}`,
-        });
-      }
-      const captionY = cardRect.y + geometry.artHeight;
-      b.text(cardRect.x + 6, captionY, shown, typeRole.rowTitle, {
-        color: surface.ink.hex,
-        fitWidth: cardRect.width - 12,
-        key: `name:${cardId}`,
-      });
-      const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
-      const captionText = campaignRow?.locked
-        ? t("deckBuilder.campaignGrant")
-        : campaignRow?.refused
-          ? t("deckBuilder.removedFromCampaign")
-          : cut && note
-            ? `${cut} · ${note}`
-            : (note ?? cut ?? poolTypeLine(card));
-      b.text(cardRect.x + 6, captionY + this.#px(11) * 1.25 + 2, captionText, typeRole.label, {
-        color: surface.ink.hex,
-        ...(note || campaignRow ? { alpha: ink.label } : { alpha: ink.meta }),
-        fitWidth: cardRect.width - 12,
-        key: `caption:${cardId}`,
-      });
-      // A tap on the picture or caption opens Inspect (a hold or a right-click does too), the full card with its keywords explained.
-      b.tap(
-        `open:${cardId}`,
-        { x: cardRect.x, y: cardRect.y, width: cardRect.width, height: geometry.cellHeight - GRID_CONTROLS_HEIGHT - 4 },
-        { inspect: true },
-      );
-      this.#actions.set(`open:${cardId}`, () => this.#inspect(card, campaignRow?.face ?? null));
-
-      // The −, quantity and + strip along the cell's foot.
-      const stripY = cell.y + geometry.cellHeight - GRID_CONTROLS_HEIGHT;
-      const buttonWidth = Math.min(44, (cardRect.width - 12) / 3);
-      const minusRect: Rect = { x: cardRect.x + 4, y: stripY, width: buttonWidth, height: hit.target };
-      const plusRect: Rect = {
-        x: cardRect.x + cardRect.width - 4 - buttonWidth,
-        y: stripY,
-        width: buttonWidth,
-        height: hit.target,
-      };
-      this.#quantityButtons(deck, card, minusRect, plusRect, quantity, shown);
-      b.text(
-        cardRect.x + cardRect.width / 2,
-        stripY + hit.target / 2,
-        quantity > 0 ? `×${quantity}` : "",
-        typeRole.rowTitle,
-        {
-          color: surface.ink.hex,
-          ...(quantity > 0 ? {} : { alpha: ink.meta }),
-          origin: [0.5, 0.5],
-          key: `qty:${cardId}`,
-        },
-      );
-    }
-  }
-
-  /** One row of List view: the picture, name, type line, why it is offered, its rules text, and the −, quantity and +. */
-  #listRow(rect: Rect, deck: Deck, card: AnyCard): void {
-    const b = this.#b;
-    const cardId = card.id as string;
-    const row: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: this.#rows.cardRowHeight - 6 };
-    b.box(row, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2, key: `row:${cardId}` });
-    const quantity = deck.cards.find((c) => c.cardId === card.id)?.quantity ?? 0;
-    const campaignRow = this.#campaignRowFor(cardId);
-    // The card's own picture, then its name, type line and what it does; a tap anywhere left of −/+ inspects it.
-    b.image(
-      { x: row.x + 6, y: row.y + 6, width: this.#rows.cardThumbWidth, height: row.height - 12 },
-      {
-        src: artFor(card, { kind: "front" })?.url ?? null,
-        fill: surface.parchment.hex,
-        missing: localizedLabelOf(card, artLanguageNow()),
-        key: `art:${cardId}`,
-      },
-    );
-    const textX = row.x + 6 + this.#rows.cardThumbWidth + 10;
-    const textWidth = row.x + row.width - POOL_ROW_CONTROLS_WIDTH - textX;
-    const { shown, cut } = this.#titleOf(card, textWidth);
-    b.text(textX, row.y + 6, shown, typeRole.rowTitle, {
-      color: surface.ink.hex,
-      fitWidth: textWidth,
-      key: `name:${cardId}`,
-    });
-    const typeBase = cut ? `${cut} · ${poolTypeLine(card)}` : poolTypeLine(card);
-    // A card from an installed custom pack says so in words.
-    const customBadge = customCardBadgeOf(cardId);
-    const typeText = customBadge ? `${typeBase} · ${customBadge}` : typeBase;
-    // Why a card is listed when the chosen aspect would not allow it, or why it is refused (held, but not allowed).
-    const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
-    // MC27 p. 22's Enhanced side (`CampaignDeckEditRow.face`): named on its own, in front of "campaign grant", so
-    // the row never reads as an ordinary grant when the printed card in play is actually the flipped side.
-    const faceLabel = campaignRow?.face ? ` · ${campaignRow.face} (Enhanced)` : "";
-    const typeLineText = campaignRow?.locked
-      ? `${typeText} · ${t("deckBuilder.campaignGrant")}${faceLabel}`
-      : campaignRow?.refused
-        ? `${typeText} · ${t("deckBuilder.removedFromCampaign")}`
-        : typeText;
-    const nameH = this.#px(11) * 1.25;
-    const labelH = this.#px(9) * 1.2;
-    const typeY = row.y + 6 + nameH + 2;
-    b.text(textX, typeY, typeLineText, SENTENCE_LABEL, {
-      color: surface.ink.hex,
-      alpha: ink.meta,
-      fitWidth: textWidth,
-      key: `type:${cardId}`,
-    });
-    // Why the card is offered or refused: its own line, so the type line never cuts it off on a narrow row.
-    let belowY = typeY + labelH;
-    if (note) {
-      b.text(textX, belowY + 1, note, SENTENCE_LABEL, {
-        color: surface.ink.hex,
-        alpha: ink.label,
-        fitWidth: textWidth,
-        key: `note:${cardId}`,
-      });
-      belowY += labelH + 1;
-    }
-    const rules = cardInspectModel(card, campaignRow?.face ? { kind: "flipSide" } : { kind: "front" }).rulesText;
-    if (rules) {
-      b.text(textX, belowY + 4, rules, SENTENCE_LABEL, {
-        color: surface.ink.hex,
-        wrapWidth: textWidth,
-        maxLines: note ? CARD_TEXT_LINES - 1 : CARD_TEXT_LINES,
-        key: `rules:${cardId}`,
-      });
-    }
-    b.text(row.x + row.width - 128, row.y + row.height / 2, String(quantity), typeRole.rowTitle, {
-      color: surface.ink.hex,
-      origin: [0.5, 0.5],
-      key: `qty:${cardId}`,
-    });
-    b.tap(
-      `open:${cardId}`,
-      { x: row.x, y: row.y, width: row.width - POOL_ROW_CONTROLS_WIDTH - 4, height: row.height },
-      { inspect: true },
-    );
     this.#actions.set(`open:${cardId}`, () => this.#inspect(card, campaignRow?.face ?? null));
-    const minusRect: Rect = {
-      x: row.x + row.width - 106,
-      y: row.y + (row.height - hit.target) / 2,
-      width: 40,
-      height: hit.target,
+    return {
+      cardId,
+      imageUrl: artFor(card, { kind: "front" })?.url ?? null,
+      missing: localizedLabelOf(card, lang),
+      title: shown,
+      cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+      caption,
+      captionStrong: Boolean(note || campaignRow),
+      typeLine,
+      note,
+      rules,
+      quantity,
+      controls: {
+        minus: {
+          aria: t("deckBuilder.removeCopy", { name: shown }),
+          ...(minusOff ? { disabled: minusReason ?? true } : {}),
+        },
+        plus: {
+          aria: t("deckBuilder.addCopy", { name: shown }),
+          ...(plusOff ? { disabled: plusReason ?? true } : {}),
+        },
+      },
     };
-    const plusRect: Rect = { x: row.x + row.width - 46, y: minusRect.y, width: 40, height: hit.target };
-    this.#quantityButtons(deck, card, minusRect, plusRect, quantity, shown);
   }
 
   /** The focal point to crop a hero's picture around: its `focus.json`, else the face-and-shoulders default. */
@@ -3590,32 +3404,7 @@ export class DeckBuilderScene extends Phaser.Scene {
    * on this side, so a ranking never needs redoing when an aspect or chip changes.
    */
   #requestPoolSearch(text: string): void {
-    const search = this.#poolSearch;
-    if (!search) return;
-    text = freeTextOf(text);
-    if (text === "") {
-      search.cancel();
-      this.#poolRanking = null;
-      this.#rebuild();
-      return;
-    }
-    // The card language's names load on first use (English needs none); the search runs once they are in.
-    const lang = artLanguageNow();
-    if (!cardNamesReady(lang)) {
-      void loadCardNames(lang).then(() => {
-        // The field may have changed (or been cleared) while the names loaded: ask for what it holds now.
-        if (this.sys.isActive() && this.#poolSearch === search) this.#requestPoolSearch(this.#filterText);
-      });
-      return;
-    }
-    search.setDocuments(POOL_SEARCH_DOCUMENTS(), `${poolKeyNow()}:${lang}`);
-    search.search(text, (ranked) => {
-      if (!this.sys.isActive()) return;
-      this.#poolRanking = new Map(ranked.map((r) => [r.id, r.score]));
-      this.#resetPool();
-      this.#rebuild();
-    });
-    this.#rebuild();
+    this.#poolSearch?.request(text);
   }
 
   /** The hero picker's search, ranked the same way: names first, then traits. */
