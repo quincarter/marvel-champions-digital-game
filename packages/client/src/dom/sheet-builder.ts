@@ -9,7 +9,15 @@
  *   same font the sheet draws it in (`measure`).
  * - Coordinates are the screen's; the builder subtracts the sheet's own origin.
  */
-import type { GlyphSpec as UiGlyphSpec, McGlyphGround, SheetNode, SheetRect, SvgOp, TabRailTab } from "@mc/ui";
+import type {
+  GlyphSpec as UiGlyphSpec,
+  McGlyphGround,
+  SheetNode,
+  SheetRect,
+  SvgOp,
+  TabRailTab,
+  FilterChip,
+} from "@mc/ui";
 import { accent, font, signal, status, surface, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { uiLayer } from "./ui-layer.js";
@@ -447,6 +455,46 @@ export class SheetBuilder {
       ...(options.retry !== undefined ? { retry: options.retry } : {}),
       ...(options.key !== undefined ? { key: options.key } : {}),
     });
+  }
+
+  /** A search box (`mc-search-field`, a real input) at `rect`; its events (`mc-search`, `mc-search-submit`, `mc-field-focus`) carry `key`. */
+  searchField(
+    key: string,
+    rect: Rect,
+    options: { readonly value: string; readonly placeholder: string; readonly clearLabel: string },
+  ): void {
+    this.nodes.push({ kind: "searchField", key, rect: this.#rect(rect), ...options });
+  }
+
+  /** A wrapping row of filter chips (`mc-filter-bar`) at `rect`: a tap raises `mc-activate` with `prefix + id`. */
+  filterBar(
+    key: string,
+    rect: Rect,
+    chips: readonly FilterChip[],
+    options: { readonly prefix?: string; readonly rows?: number; readonly rowHeight?: number } = {},
+  ): void {
+    this.nodes.push({ kind: "filterBar", key, rect: this.#rect(rect), chips, ...options });
+  }
+
+  /** A framed row (`mc-list-row`): a picture, a title, meta lines and a state badge; a tap raises `mc-activate`. */
+  listRow(
+    key: string,
+    rect: Rect,
+    row: {
+      readonly heading: string;
+      readonly meta: string;
+      readonly summary: string;
+      readonly foot: string;
+      readonly badge: string;
+      readonly solid?: boolean;
+      readonly src: string | null;
+      readonly letter: string;
+      readonly retry?: string;
+      readonly focusY?: number;
+      readonly fit?: "cover" | "contain";
+    },
+  ): void {
+    this.nodes.push({ kind: "listRow", key, rect: this.#rect(rect), ...row });
   }
 
   /** A QR code (`uqr`'s rows of dark modules) filling `rect`, a light ground under the modules. */

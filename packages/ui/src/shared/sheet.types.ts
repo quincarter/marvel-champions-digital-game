@@ -1,3 +1,4 @@
+import type { FilterChip } from "./filter-bar.types.js";
 import type { TabRailTab } from "./tab-rail.types.js";
 import type { McButtonKind } from "./button.types.js";
 import type { GlyphSpec, McGlyphGround } from "./glyph.types.js";
@@ -322,6 +323,45 @@ export interface SheetPictureTile {
   readonly key?: string;
 }
 
+/** A search box (`mc-search-field`, a real input): raises `mc-search` (debounced), `mc-search-submit` and `mc-field-focus` with its key. */
+export interface SheetSearchField {
+  readonly kind: "searchField";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly value: string;
+  readonly placeholder: string;
+  readonly clearLabel: string;
+}
+
+/** A wrapping row of filter chips (`mc-filter-bar`): a tap raises `mc-activate` with `prefix + id`. */
+export interface SheetFilterBar {
+  readonly kind: "filterBar";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly chips: readonly FilterChip[];
+  readonly prefix?: string;
+  readonly rows?: number;
+  readonly rowHeight?: number;
+}
+
+/** A framed row (`mc-list-row`): a picture, a title, meta lines and a state badge. A tap raises `mc-activate`. */
+export interface SheetListRow {
+  readonly kind: "listRow";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly heading: string;
+  readonly meta: string;
+  readonly summary: string;
+  readonly foot: string;
+  readonly badge: string;
+  readonly solid?: boolean;
+  readonly src: string | null;
+  readonly letter: string;
+  readonly retry?: string;
+  readonly focusY?: number;
+  readonly fit?: "cover" | "contain";
+}
+
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
 export interface SheetScroll {
   readonly kind: "scroll";
@@ -348,4 +388,7 @@ export type SheetNode =
   | SheetSectionHeader
   | SheetTabRail
   | SheetPictureTile
+  | SheetSearchField
+  | SheetFilterBar
+  | SheetListRow
   | SheetScroll;

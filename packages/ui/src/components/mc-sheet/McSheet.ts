@@ -10,6 +10,9 @@ import "../mc-glyph/mc-glyph.js";
 import "../mc-section-header/mc-section-header.js";
 import "../mc-tab-rail/mc-tab-rail.js";
 import "../mc-picture-tile/mc-picture-tile.js";
+import "../mc-search-field/mc-search-field.js";
+import "../mc-filter-bar/mc-filter-bar.js";
+import "../mc-list-row/mc-list-row.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
@@ -72,11 +75,45 @@ export class McSheet extends LitElement {
 
   /** The element drawn for a key (a button, a tap area, a keyed text, a scroll region). */
   elementOf(key: string): HTMLElement | null {
-    return this.renderRoot.querySelector(`[data-key="${CSS.escape(key)}"]`);
+    const own = this.renderRoot.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+    if (own) return own;
+    // A part of a component the sheet draws (a chip in a filter bar, a tab in a rail).
+    for (const bar of this.renderRoot.querySelectorAll<HTMLElement & { elementOf?: (k: string) => HTMLElement | null }>(
+      "mc-filter-bar",
+    )) {
+      const found = bar.elementOf?.(key);
+      if (found) return found;
+    }
+    for (const rail of this.renderRoot.querySelectorAll("mc-tab-rail")) {
+      const found = rail.shadowRoot?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  /** Puts the caret in a search field by its key. */
+  focusField(key: string): void {
+    (this.elementOf(key) as { focusField?: () => void } | null)?.focusField?.();
+  }
+
+  /** Whether the caret is in a search field. */
+  fieldFocused(key: string): boolean {
+    return (this.elementOf(key) as { focused?: boolean } | null)?.focused === true;
+  }
+
+  /** Takes the caret out of a search field. */
+  blurField(key: string): void {
+    (this.elementOf(key) as { blurField?: () => void } | null)?.blurField?.();
   }
 
   #activate(key: string): void {
     this.dispatchEvent(new CustomEvent("mc-activate", { detail: { key }, bubbles: true, composed: true }));
+  }
+
+  /** A field part's event, said again by the sheet with the part's key. */
+  #relay(event: CustomEvent<Record<string, unknown>>, key: string, name: string): void {
+    event.stopPropagation();
+    this.dispatchEvent(new CustomEvent(name, { detail: { ...event.detail, key }, bubbles: true, composed: true }));
   }
 
   #hover(key: string, over: boolean, event: PointerEvent): void {
@@ -596,6 +633,66 @@ export class McSheet extends LitElement {
             this.requestUpdate();
           }}
         ></mc-picture-tile>`;
+      }
+      case "searchField":
+        return html`<mc-search-field
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .value=${node.value}
+          .placeholder=${node.placeholder}
+          .clearLabel=${node.clearLabel}
+          @mc-search=${(event: CustomEvent<{ value: string }>) => this.#relay(event, node.key, "mc-search")}
+          @mc-search-submit=${(event: CustomEvent<{ value: string }>) => this.#relay(event, node.key, "mc-search-submit")}
+          @mc-field-focus=${(event: CustomEvent<{ focused: boolean }>) => this.#relay(event, node.key, "mc-field-focus")}
+        ></mc-search-field>`;
+      case "filterBar":
+        return html`<mc-filter-bar
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .chips=${node.chips}
+          .prefix=${node.prefix ?? "chip:"}
+          .rows=${node.rows ?? 2}
+          .rowHeight=${node.rowHeight ?? 40}
+          @mc-activate=${(event: CustomEvent<{ key: string }>) => {
+            event.stopPropagation();
+            this.#activate(event.detail.key);
+          }}
+        ></mc-filter-bar>`;
+      case "listRow": {
+        const src = node.src !== null && !this.#failed.has(node.src) ? node.src : "";
+        return html`<mc-list-row
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .heading=${node.heading}
+          .meta=${node.meta}
+          .summary=${node.summary}
+          .foot=${node.foot}
+          .badge=${node.badge}
+          ?solid=${node.solid ?? false}
+          .src=${src}
+          .letter=${node.letter}
+          .focusY=${node.focusY ?? 0.3}
+          .fit=${node.fit ?? "contain"}
+          @mc-image-error=${(event: CustomEvent<{ src: string }>) => {
+            event.stopPropagation();
+            this.#failed.add(event.detail.src);
+            if (node.retry !== undefined && !this.#retried.has(node.retry)) {
+              this.#retried.add(node.retry);
+              this.dispatchEvent(
+                new CustomEvent("mc-image-error", {
+                  detail: { key: node.retry, src: event.detail.src },
+                  bubbles: true,
+                  composed: true,
+                }),
+              );
+            }
+            this.requestUpdate();
+          }}
+          ${tapped(() => this.#activate(node.key))}
+        ></mc-list-row>`;
       }
       case "scroll":
         return html`<div class="part scroller" data-key=${node.key} style=${px(scrollBox(node))}>

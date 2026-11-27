@@ -25,6 +25,11 @@ export {
   measureGlyphText,
   parseArt,
 } from "./components/mc-glyph/mc-glyph.js";
+export { McSearchField, SEARCH_DEBOUNCE_MS } from "./components/mc-search-field/mc-search-field.js";
+export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
+export { McFilterBar } from "./components/mc-filter-bar/mc-filter-bar.js";
+export { McListRow } from "./components/mc-list-row/mc-list-row.js";
+export type { FilterChip } from "./shared/filter-bar.types.js";
 export { McSectionHeader } from "./components/mc-section-header/mc-section-header.js";
 export { McTabRail } from "./components/mc-tab-rail/mc-tab-rail.js";
 export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
@@ -54,7 +59,10 @@ export type {
   SheetPoly,
   SheetQr,
   SheetRect,
+  SheetFilterBar,
+  SheetListRow,
   SheetPictureTile,
+  SheetSearchField,
   SheetScroll,
   SheetSectionHeader,
   SheetTabRail,

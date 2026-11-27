@@ -22,6 +22,16 @@ export const McPictureTileStyles = css`
     height: 100%;
     user-select: none;
   }
+  .tile {
+    container-type: size;
+  }
+  .missing.letter {
+    font-family: var(--mc-font-display);
+    font-weight: 400;
+    font-size: 55cqh;
+    letter-spacing: 0;
+    opacity: 0.3;
+  }
   .missing {
     position: absolute;
     inset: 0;

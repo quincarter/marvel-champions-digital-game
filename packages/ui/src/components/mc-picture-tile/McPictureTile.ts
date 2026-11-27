@@ -15,6 +15,7 @@ import { McPictureTileStyles } from "./mc-picture-tile.styles.js";
  * @attr focus-x - Where the subject sits across the picture, 0 to 1 (cover).
  * @attr focus-y - Where the subject sits down the picture, 0 to 1 (cover).
  * @attr frame - The ink frame's width in px (0 for none).
+ * @attr letter - `missing` is a single letter drawn big and faint (a pack's initial).
  * @fires mc-image-load - The picture loaded.
  * @fires mc-image-error - The picture failed to load; `detail.src`.
  */
@@ -28,6 +29,7 @@ export class McPictureTile extends LitElement {
     focusX: { type: Number, attribute: "focus-x" },
     focusY: { type: Number, attribute: "focus-y" },
     frame: { type: Number },
+    letter: { type: Boolean },
     failedSrc: { state: true },
   };
 
@@ -37,6 +39,8 @@ export class McPictureTile extends LitElement {
   declare focusX: number;
   declare focusY: number;
   declare frame: number;
+  /** `missing` is one letter drawn big and faint (a pack's initial) rather than a small caption. */
+  declare letter: boolean;
   /** The URL that failed to load, so the box says `missing` for it and tries again for a new one. */
   declare failedSrc: string;
 
@@ -48,6 +52,7 @@ export class McPictureTile extends LitElement {
     this.focusX = 0.5;
     this.focusY = 0.5;
     this.frame = 2;
+    this.letter = false;
     this.failedSrc = "";
   }
 
@@ -57,7 +62,7 @@ export class McPictureTile extends LitElement {
       ${
         gone
           ? this.missing
-            ? html`<span class="missing">${this.missing}</span>`
+            ? html`<span class="missing ${this.letter ? "letter" : ""}">${this.missing}</span>`
             : nothing
           : html`<img
               src=${this.src}
