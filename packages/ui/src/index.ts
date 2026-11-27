@@ -36,6 +36,14 @@ export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
 export { McArticle } from "./components/mc-article/mc-article.js";
 export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
 export { McMediaRow } from "./components/mc-media-row/mc-media-row.js";
+export { McActionBar } from "./components/mc-action-bar/mc-action-bar.js";
+export { McBarChart } from "./components/mc-bar-chart/mc-bar-chart.js";
+export { McStatTiles } from "./components/mc-stat-tiles/mc-stat-tiles.js";
+export { McLineList } from "./components/mc-line-list/mc-line-list.js";
+export { McDeckGrid } from "./components/mc-deck-grid/mc-deck-grid.js";
+export { McDeckDetails } from "./components/mc-deck-details/mc-deck-details.js";
+export { fitTextWithin } from "./shared/fit-text.js";
+export { lineOf, sizeCss } from "./shared/text-line.js";
 export { McFilterBar } from "./components/mc-filter-bar/mc-filter-bar.js";
 export type { McButtonKind } from "./shared/button.types.js";
 export type {
@@ -81,12 +89,16 @@ export type {
 export type { TapOptions } from "./shared/tap.types.js";
 export type { TabRailTab } from "./shared/tab-rail.types.js";
 export type { FilterBarModel, FilterChip, FilterSort } from "./shared/filter.types.js";
-export type { PictureFit, PictureFocus, PictureGround } from "./shared/picture.types.js";
+export type { PictureFit, PictureFocus, PictureGround, PictureSource } from "./shared/picture.types.js";
 export type { SectionHeaderLevel } from "./components/mc-section-header/mc-section-header.types.js";
 export type { PictureErrorDetail } from "./components/mc-picture-tile/mc-picture-tile.types.js";
 export type { McPictureCardModel } from "./components/mc-picture-card/mc-picture-card.types.js";
 export type { McListRowModel } from "./components/mc-list-row/mc-list-row.types.js";
-export type { McSearchDetail, McSearchFocusDetail } from "./components/mc-search-field/mc-search-field.types.js";
+export type {
+  McSearchDetail,
+  McSearchFocusDetail,
+  McSubmitDetail,
+} from "./components/mc-search-field/mc-search-field.types.js";
 export type { McArticleBlock, McArticleModel } from "./components/mc-article/mc-article.types.js";
 export type { CreditsListRow } from "./components/mc-credits-list/mc-credits-list.types.js";
 export type {
@@ -106,3 +118,9 @@ export type {
   BodyRow,
   SettingsBodyModel,
 } from "./components/mc-settings-body/mc-settings-body.types.js";
+export type { TextLine } from "./shared/text-line.types.js";
+export type { BarChartBar } from "./components/mc-bar-chart/mc-bar-chart.types.js";
+export type { StatTile } from "./components/mc-stat-tiles/mc-stat-tiles.types.js";
+export type { LineListEntry, LineListGroup } from "./components/mc-line-list/mc-line-list.types.js";
+export type { DeckGridItem, DeckGridModel, DeckGridPick } from "./components/mc-deck-grid/mc-deck-grid.types.js";
+export type { DeckDetailsAction, DeckDetailsModel } from "./components/mc-deck-details/mc-deck-details.types.js";

@@ -8,6 +8,9 @@ export const McEmptyStateStyles = css`
   :host([align="center"]) {
     text-align: center;
   }
+  :host([dim]) .message {
+    opacity: 0.5;
+  }
   .message {
     font-size: var(--mc-empty-size, 14px);
     line-height: 1.45;

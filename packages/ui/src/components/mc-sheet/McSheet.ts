@@ -19,7 +19,8 @@ import "../mc-filter-bar/mc-filter-bar.js";
 import "../mc-media-row/mc-media-row.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { PictureErrorDetail } from "../mc-picture-tile/mc-picture-tile.types.js";
-import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
+import { objectPositionFor } from "../../shared/crop.js";
+import type { SheetImage, SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
 
 /**
@@ -56,6 +57,9 @@ const px = (rect: SheetRect): string =>
  * @fires mc-activate - `detail.key`: a button or tap area was tapped.
  * @fires mc-inspect - `detail.key`: a tap area with `inspect` was held or right-clicked.
  * @fires mc-image-error - `detail.key` (the image's `retry`), `detail.src`: a picture with `retry` failed to load, once per key until one loads.
+ * @fires mc-search - `detail.key`, `detail.value`, `detail.immediate`: a search field text changed (debounced).
+ * @fires mc-submit - `detail.key`, `detail.value`: Enter in a search field.
+ * @fires mc-search-focus - `detail.key`, `detail.focused`: the caret went into or out of a search field.
  * @fires mc-hover - `detail.key`, `detail.over`: a mouse moved onto or off a tap area with `track`.
  * @fires mc-slide - `detail.key`, `detail.share` (0 to 1 along the track), `detail.commit`: a slider track was tapped or dragged.
  * @fires mc-step - `detail.key`, `detail.direction` (-1 or 1): a slider's minus or plus was tapped.
@@ -72,6 +76,8 @@ export class McSheet extends LitElement {
   readonly #failed = new Set<string>();
   /** Keys already asked to resolve again; cleared when one of their pictures loads. */
   readonly #retried = new Set<string>();
+  /** The natural size of each picture that has loaded, for a cover crop centered on a focal point. */
+  readonly #sizes = new Map<string, { readonly width: number; readonly height: number }>();
 
   constructor() {
     super();
@@ -101,6 +107,18 @@ export class McSheet extends LitElement {
   #hover(key: string, over: boolean, event: PointerEvent): void {
     if (event.pointerType !== "mouse") return;
     this.dispatchEvent(new CustomEvent("mc-hover", { detail: { key, over }, bubbles: true, composed: true }));
+  }
+
+  /** A field own event, handed on with the key of the field. */
+  #keyed(event: Event, name: string, key: string): void {
+    event.stopPropagation();
+    const detail = (event as CustomEvent<object>).detail;
+    this.dispatchEvent(new CustomEvent(name, { detail: { ...detail, key }, bubbles: true, composed: true }));
+  }
+
+  /** A cover picture `object-position` (see `objectPositionFor`; a centered crop needs the loaded size). */
+  #objectPosition(node: SheetImage): string {
+    return objectPositionFor(node.cover!, node.src ? this.#sizes.get(node.src) : undefined, node.rect);
   }
 
   #inspect(key: string): void {
@@ -446,6 +464,7 @@ export class McSheet extends LitElement {
           ?plain=${node.plain ?? false}
           ?still=${node.still ?? false}
           ?disabled=${node.disabled !== undefined}
+          ?pressable=${node.pressable ?? false}
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
           aria-keyshortcuts=${node.keyshortcuts ?? nothing}
           aria-label=${node.aria ?? nothing}
@@ -497,15 +516,18 @@ export class McSheet extends LitElement {
                   decoding="async"
                   style=${
                     [
-                      node.cover
-                        ? `object-fit:cover;object-position:${node.cover.x * 100}% ${node.cover.y * 100}%`
-                        : "",
+                      node.cover ? `object-fit:cover;object-position:${this.#objectPosition(node)}` : "",
                       node.dim ? "filter:grayscale(1);opacity:0.3" : "",
                     ].join(";") || nothing
                   }
                   draggable="false"
-                  @load=${() => {
+                  @load=${(event: Event) => {
                     if (node.retry !== undefined) this.#retried.delete(node.retry);
+                    const img = event.target as HTMLImageElement;
+                    if (node.cover?.centered && node.src && !this.#sizes.has(node.src) && img.naturalWidth > 0) {
+                      this.#sizes.set(node.src, { width: img.naturalWidth, height: img.naturalHeight });
+                      this.requestUpdate();
+                    }
                   }}
                   @error=${() => {
                     this.#failed.add(node.src!);
@@ -675,6 +697,12 @@ export class McSheet extends LitElement {
           .debounce=${node.debounce ?? 200}
           .size=${node.size ?? 16}
           .escapeClears=${node.escapeClears ?? false}
+          .maxLength=${node.maxLength ?? 0}
+          .clearable=${node.clearable ?? true}
+          ?keep-focus=${node.keepFocus ?? false}
+          @mc-search=${(event: Event) => this.#keyed(event, "mc-search", node.key)}
+          @mc-submit=${(event: Event) => this.#keyed(event, "mc-submit", node.key)}
+          @mc-search-focus=${(event: Event) => this.#keyed(event, "mc-search-focus", node.key)}
         ></mc-search-field>`;
       case "article":
         return html`<mc-article

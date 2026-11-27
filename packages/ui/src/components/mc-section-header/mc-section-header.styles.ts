@@ -66,4 +66,15 @@ export const McSectionHeaderStyles = css`
     font-size: 13px;
     letter-spacing: 0;
   }
+  .head.caption {
+    gap: 8px;
+  }
+  .head.caption .label {
+    font-family: var(--mc-font-body);
+    font-weight: 800;
+    font-size: var(--mc-small-9, 9px);
+    letter-spacing: 1.2px;
+    line-height: 12px;
+    opacity: var(--mc-section-opacity, 0.6);
+  }
 `;

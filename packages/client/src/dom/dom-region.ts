@@ -275,7 +275,7 @@ export function forwardMouseMoves(
 }
 
 /** The panel events that act on the game or the settings (a slider drag included): stopped at the region while its scene isn't the one taking input. */
-export const GUARDED_EVENTS = ["mc-activate", "mc-inspect", "mc-slide", "mc-step"] as const;
+export const GUARDED_EVENTS = ["mc-activate", "mc-inspect", "mc-slide", "mc-step", "mc-search", "mc-submit"] as const;
 
 /**
  * Whether a panel's guarded event may reach its scene: the scene takes presses (`sceneTakesPresses`) and its panel is

@@ -88,6 +88,11 @@ export interface SheetButton {
   readonly look: McButtonKind;
   readonly selected?: boolean;
   readonly disabled?: string | true;
+  /**
+   * With `disabled`: dimmed as unavailable, but a tap still raises `mc-activate`, so the scene can say why it does
+   * nothing (a touch has no hover to show the reason).
+   */
+  readonly pressable?: boolean;
   readonly framed?: boolean;
   /** A Bangers label. */
   readonly display?: boolean;
@@ -173,8 +178,8 @@ export interface SheetImage {
    * loaded yet). A failed load then raises `mc-image-error` once for this key, so the owner can hand a fresh URL.
    */
   readonly retry?: string;
-  /** Fills the box, cropped (never stretched) around this focal point, 0 to 1 each way, instead of fitting whole. */
-  readonly cover?: { readonly x: number; readonly y: number };
+  /** Fills the box, cropped (never stretched) around this focal point, 0 to 1 each way, instead of fitting whole; `centered`: the crop is centered on the point and kept inside the picture. */
+  readonly cover?: PictureFocus;
   /** A gray, faded ghost of the picture on its ground (a locked tile: what there is to earn). */
   readonly dim?: boolean;
 }
@@ -369,7 +374,11 @@ export interface SheetListRow {
   readonly model: McListRowModel;
 }
 
-/** A search field (`mc-search-field`) filling `rect`: raises `mc-search` (debounced) and `mc-search-focus`; `key` finds it. */
+/**
+ * A search field (`mc-search-field`) filling `rect`: raises `mc-search` (`detail.key`, `detail.value`, `detail.immediate`:
+ * debounced), `mc-submit` (`detail.key`, `detail.value`: Enter) and `mc-search-focus` (`detail.key`, `detail.focused`);
+ * `key` finds the element, for the caret.
+ */
 export interface SheetSearch {
   readonly kind: "search";
   readonly key: string;
@@ -378,10 +387,17 @@ export interface SheetSearch {
   readonly placeholder: string;
   readonly clearLabel: string;
   readonly focusPlaceholder?: string;
+  /** Debounce in ms (200; 0 raises every change). */
   readonly debounce?: number;
   readonly size?: number;
   /** Escape empties a filled field before it leaves an empty one. */
   readonly escapeClears?: boolean;
+  /** The longest text in characters (0 or absent: no limit). */
+  readonly maxLength?: number;
+  /** Enter keeps the caret in (a field that submits). */
+  readonly keepFocus?: boolean;
+  /** A clear button while there is text (on by default). */
+  readonly clearable?: boolean;
 }
 
 /** Reading text that scrolls natively (`mc-article`) in `rect` (drawn a scrollbar gutter wider); `key` finds the scroller. */

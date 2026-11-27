@@ -254,6 +254,8 @@ export class SheetBuilder {
     readonly look: "primary" | "secondary" | "quiet" | "onInk" | "rail";
     readonly selected?: boolean;
     readonly disabled?: string | true;
+    /** With `disabled`: dimmed, but a tap still presses (the scene says why it does nothing). */
+    readonly pressable?: boolean;
     readonly framed?: boolean;
     readonly type?: TypeSpec;
     /** The label slides right by this many px to make room for a glyph beside it. */
@@ -279,6 +281,7 @@ export class SheetBuilder {
       look: options.look,
       ...(options.selected ? { selected: true } : {}),
       ...(options.disabled !== undefined ? { disabled: options.disabled } : {}),
+      ...(options.pressable ? { pressable: true } : {}),
       ...(options.framed ? { framed: true } : {}),
       ...(type?.family === font.display ? { display: true } : {}),
       ...(type && !type.uppercase && type.family !== font.display ? { plain: true } : {}),
@@ -393,7 +396,7 @@ export class SheetBuilder {
       /** The pack picture key the URL came from: a failed load asks the scene once to resolve it again (`mc-image-error`). */
       readonly retry?: string;
       /** Fills the box, cropped around this focal point (0 to 1 each way), instead of fitting the whole picture. */
-      readonly cover?: { readonly x: number; readonly y: number };
+      readonly cover?: PictureFocus;
       /** A gray, faded ghost of the picture on its ground (a locked tile). */
       readonly dim?: boolean;
     },
@@ -536,6 +539,9 @@ export class SheetBuilder {
       readonly focusPlaceholder?: string;
       readonly debounce?: number;
       readonly escapeClears?: boolean;
+      readonly maxLength?: number;
+      readonly keepFocus?: boolean;
+      readonly clearable?: boolean;
     },
   ): void {
     this.nodes.push({
@@ -548,6 +554,9 @@ export class SheetBuilder {
       ...(options.focusPlaceholder ? { focusPlaceholder: options.focusPlaceholder } : {}),
       ...(options.debounce !== undefined ? { debounce: options.debounce } : {}),
       ...(options.escapeClears ? { escapeClears: true } : {}),
+      ...(options.maxLength !== undefined ? { maxLength: options.maxLength } : {}),
+      ...(options.keepFocus ? { keepFocus: true } : {}),
+      ...(options.clearable === false ? { clearable: false } : {}),
     });
   }
 

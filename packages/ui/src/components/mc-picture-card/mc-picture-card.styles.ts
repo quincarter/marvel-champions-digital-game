@@ -9,6 +9,9 @@ export const McPictureCardStyles = css`
     background: var(--mc-fill-parchment);
     pointer-events: none;
   }
+  :host([paper]) {
+    background: var(--mc-fill-paper);
+  }
   .art {
     position: absolute;
     left: 0;
@@ -82,9 +85,39 @@ export const McPictureCardStyles = css`
     color: var(--mc-text-red);
     opacity: 1;
   }
+  .stripe {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 7px;
+    display: flex;
+  }
+  .stripe span {
+    flex: 1;
+  }
+  .words {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+  }
+  .line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .frame {
     position: absolute;
     inset: 0;
-    border: 2px solid var(--mc-line-ink);
+    box-shadow: inset 0 0 0 var(--mc-card-border, 2px) var(--mc-line-ink);
+    pointer-events: none;
+  }
+  .tap {
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
   }
 `;

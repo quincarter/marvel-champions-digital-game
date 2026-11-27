@@ -12,6 +12,7 @@ import { McEmptyStateStyles } from "./mc-empty-state.styles.js";
  * @attr detail - An optional smaller line under it.
  * @attr size - The message's font size in px (14).
  * @attr align - start (default) | center.
+ * @attr dim - Fainter, for "loading" rather than "none".
  */
 export class McEmptyState extends LitElement {
   static override styles = [ThemeStyles, McEmptyStateStyles];
@@ -21,12 +22,14 @@ export class McEmptyState extends LitElement {
     detail: { type: String },
     size: { type: Number },
     align: { type: String, reflect: true },
+    dim: { type: Boolean, reflect: true },
   };
 
   declare message: string;
   declare detail: string;
   declare size: number;
   declare align: "start" | "center";
+  declare dim: boolean;
 
   constructor() {
     super();
@@ -34,6 +37,7 @@ export class McEmptyState extends LitElement {
     this.detail = "";
     this.size = 14;
     this.align = "start";
+    this.dim = false;
   }
 
   protected override willUpdate(changed: PropertyValues): void {

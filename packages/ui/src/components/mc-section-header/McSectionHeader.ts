@@ -15,7 +15,8 @@ import { McSectionHeaderStyles } from "./mc-section-header.styles.js";
  * @attr label - The heading, already translated (drawn in capitals).
  * @attr count - What is under it, already worded; none when empty.
  * @attr size - The heading's font size in px (0: the default for its look, 17 inline, 24 underlined, 13 small).
- * @attr level - large (default) | small: a small heading is the body face, bold, with a hairline rule.
+ * @attr level - large (default) | small | caption: a small heading is the body face, bold, with a hairline rule; a caption is a tiny capitals
+ * label (`--mc-section-opacity` sets its strength) that takes the in-line rule.
  * @attr rule - Draws the rule after the heading (on by default; assign `false` for a bare heading).
  * @attr underline - Puts the rule under the row, with the count at its right end, instead of in line.
  * @prop open - A folding section says whether it is unfolded (true shows a down chevron, false a right one); undefined for a plain heading.

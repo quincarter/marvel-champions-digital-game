@@ -1,7 +1,7 @@
 import { html, LitElement, nothing, type PropertyDeclarations, type PropertyValues } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { tapped } from "../../shared/tapped.js";
-import type { McSearchDetail, McSearchFocusDetail } from "./mc-search-field.types.js";
+import type { McSearchDetail, McSearchFocusDetail, McSubmitDetail } from "./mc-search-field.types.js";
 import { McSearchFieldStyles } from "./mc-search-field.styles.js";
 
 /**
@@ -28,9 +28,13 @@ import { McSearchFieldStyles } from "./mc-search-field.styles.js";
  * @attr focus-placeholder - What it says while empty and focused (a Steam pad: "Steam + X opens the keyboard"); optional.
  * @attr clear-label - The clear button accessible name, already translated.
  * @attr debounce - The typing pause in ms (200).
+ * @attr max-length - The longest text in characters (0: no limit).
+ * @attr clearable - Shows the clear button while there is text (on by default).
+ * @attr keep-focus - Enter does not take the caret out (a field that submits, like an import link).
  * @attr escape-clears - Escape empties a filled field (firing `mc-search` at once) before it leaves an empty one.
  * @attr size - The typed text px size (16: a phone browser zooms in on anything smaller).
  * @fires mc-search - `McSearchDetail`.
+ * @fires mc-submit - `McSubmitDetail`: Enter (after the `mc-search` it raises at once).
  * @fires mc-search-focus - `McSearchFocusDetail`.
  */
 export class McSearchField extends LitElement {
@@ -44,6 +48,9 @@ export class McSearchField extends LitElement {
     debounce: { type: Number },
     size: { type: Number },
     escapeClears: { type: Boolean, attribute: "escape-clears" },
+    maxLength: { type: Number, attribute: "max-length" },
+    clearable: { type: Boolean },
+    keepFocus: { type: Boolean, attribute: "keep-focus" },
     focused: { state: true },
   };
 
@@ -54,6 +61,9 @@ export class McSearchField extends LitElement {
   declare debounce: number;
   declare size: number;
   declare escapeClears: boolean;
+  declare maxLength: number;
+  declare clearable: boolean;
+  declare keepFocus: boolean;
   declare focused: boolean;
   /** What the field holds now (the typist own, ahead of the `value` property). */
   #text = "";
@@ -69,12 +79,20 @@ export class McSearchField extends LitElement {
     this.debounce = 200;
     this.size = 16;
     this.escapeClears = false;
+    this.maxLength = 0;
+    this.clearable = true;
+    this.keepFocus = false;
     this.focused = false;
   }
 
   /** True while the caret is in the field. */
   get isFocused(): boolean {
     return this.focused;
+  }
+
+  /** What the field holds now: the typist own text, ahead of the `value` property a redraw may hand in stale. */
+  get text(): string {
+    return this.#text;
   }
 
   /** Same as `focusInput()`, so a screen that calls `element.focus()` lands in the field. */
@@ -90,6 +108,11 @@ export class McSearchField extends LitElement {
   /** Takes the caret out of the field. */
   blurInput(): void {
     this.#input()?.blur();
+  }
+
+  /** The caret leaves (a focus route pad helper takes this name). */
+  override blur(): void {
+    this.blurInput();
   }
 
   #input(): HTMLInputElement | null {
@@ -116,7 +139,8 @@ export class McSearchField extends LitElement {
     this.requestUpdate();
     if (this.#composing) return;
     clearTimeout(this.#timer);
-    this.#timer = setTimeout(() => this.#emit(false), this.debounce);
+    if (this.debounce <= 0) this.#emit(false);
+    else this.#timer = setTimeout(() => this.#emit(false), this.debounce);
   };
 
   #onKey = (event: KeyboardEvent): void => {
@@ -128,7 +152,12 @@ export class McSearchField extends LitElement {
       this.#clear();
       return;
     }
-    if (event.key === "Enter") this.#emit(true);
+    if (event.key === "Enter") {
+      this.#emit(true);
+      const detail: McSubmitDetail = { value: this.#text };
+      this.dispatchEvent(new CustomEvent("mc-submit", { detail, bubbles: true, composed: true }));
+      if (this.keepFocus) return;
+    }
     this.blurInput();
   };
 
@@ -153,12 +182,13 @@ export class McSearchField extends LitElement {
       <input
         type="text"
         inputmode="search"
-        enterkeyhint="search"
+        enterkeyhint=${this.keepFocus ? "go" : "search"}
         autocomplete="off"
         autocapitalize="off"
         autocorrect="off"
         spellcheck="false"
         aria-label=${this.placeholder}
+        maxlength=${this.maxLength > 0 ? this.maxLength : nothing}
         placeholder=${hint}
         .value=${this.#text}
         @input=${this.#onInput}
@@ -175,7 +205,7 @@ export class McSearchField extends LitElement {
         @blur=${() => this.#setFocus(false)}
       />
       ${
-        this.#text === ""
+        this.#text === "" || !this.clearable
           ? nothing
           : html`<button type="button" class="clear" tabindex="-1" aria-label=${this.clearLabel} ${tapped(this.#clear)}>
               ✕
