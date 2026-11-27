@@ -191,3 +191,20 @@ describe("hero tile art is found and intact on a case-sensitive disk", () => {
     expect(bad).toEqual([]);
   });
 });
+
+describe("parseHeroArt tile copies", () => {
+  test("tileUrl is set only where a copy exists, and url is untouched", () => {
+    const catalog = parseHeroArt(
+      {
+        "../art/heroes/01001a-spider-man/hero.jpg": "/a",
+        "../art/heroes/51001a-black-panther-shuri/hero.webp": "/c",
+      },
+      {},
+      { "../art/heroes/01001a-spider-man/hero.jpg": "/a-tile" },
+    );
+    expect(catalog.heroes.get("01001a")?.[0]).toMatchObject({ url: "/a", tileUrl: "/a-tile" });
+    const plain = catalog.heroes.get("51001a")?.[0];
+    expect(plain?.url).toBe("/c");
+    expect(plain).not.toHaveProperty("tileUrl");
+  });
+});
