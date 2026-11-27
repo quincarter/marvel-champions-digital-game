@@ -52,6 +52,7 @@ export class McPictureCard extends LitElement {
     selected: { type: Boolean, reflect: true },
     activateKey: { type: String, attribute: "activate-key" },
     inspectKey: { type: String, attribute: "inspect-key" },
+    label: { type: String },
     failedSrc: { state: true },
   };
 
@@ -65,6 +66,8 @@ export class McPictureCard extends LitElement {
   declare selected: boolean;
   declare activateKey: string;
   declare inspectKey: string;
+  /** The press control's accessible name; with none, the model's title, detail and chip. */
+  declare label: string;
   /** The URL that failed to load, so the initial stands in for it. */
   declare failedSrc: string;
 
@@ -80,6 +83,7 @@ export class McPictureCard extends LitElement {
     this.selected = false;
     this.activateKey = "";
     this.inspectKey = "";
+    this.label = "";
     this.failedSrc = "";
   }
 
@@ -96,6 +100,21 @@ export class McPictureCard extends LitElement {
 
   override updated(): void {
     fitTextWithin(this.renderRoot);
+  }
+
+  #activate(): void {
+    this.dispatchEvent(
+      new CustomEvent("mc-activate", { detail: { key: this.activateKey }, bubbles: true, composed: true }),
+    );
+  }
+
+  #nameOf(): string {
+    const m = this.model;
+    return m
+      ? [m.title, m.detail, m.tag ?? "", ...(m.stamps ?? []).map((stamp) => stamp.label), m.chip]
+          .filter((part) => part.length > 0)
+          .join(", ")
+      : "";
   }
 
   override render() {
@@ -172,17 +191,17 @@ export class McPictureCard extends LitElement {
       <div class="frame"></div>
       ${
         this.activateKey
-          ? html`<div
+          ? html`<button
+              type="button"
               class="tap"
+              aria-label=${this.label || this.#nameOf() || nothing}
+              aria-pressed=${this.selected || m?.selected === true ? "true" : "false"}
+              @click=${(event: MouseEvent) => {
+                // Enter or Space on the focused button (a pointer press goes through `tapped`).
+                if (event.detail === 0) this.#activate();
+              }}
               ${tapped(
-                () =>
-                  this.dispatchEvent(
-                    new CustomEvent("mc-activate", {
-                      detail: { key: this.activateKey },
-                      bubbles: true,
-                      composed: true,
-                    }),
-                  ),
+                () => this.#activate(),
                 this.inspectKey
                   ? () =>
                       this.dispatchEvent(
@@ -194,7 +213,7 @@ export class McPictureCard extends LitElement {
                       )
                   : undefined,
               )}
-            ></div>`
+            ></button>`
           : nothing
       }
     `;

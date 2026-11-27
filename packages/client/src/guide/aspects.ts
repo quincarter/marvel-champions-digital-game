@@ -113,24 +113,28 @@ const POOL: AspectGuide = {
     "asks for one.",
   pickItWhen: [
     "You want a deck with bigger swings and a sense of humor, and can live with a few risks.",
-    "You accept the cost: a player who chooses 'Pool adds the Dreadpool set to the encounter deck. 'Pool cards in another aspect's deck don't.",
+    "Choosing 'Pool puts Crisis of Infinite Deadpools in the encounter deck, which brings in the Dreadpool set. 'Pool cards in another aspect's deck don't.",
   ],
   signatureCardCodes: [cardId("44013"), cardId("44017"), cardId("44029")],
   preconId: starterDeckId("deadpool-pool"),
-  tipLine: "Pick it for wild, risky cards. It adds extra Dreadpool enemy cards to the villain's deck.",
+  tipLine:
+    "Pick it for wild, risky cards. Choosing 'Pool shuffles Crisis of Infinite Deadpools into the encounter deck; when it is revealed, the rest of the Dreadpool set joins the encounter deck.",
 };
 
+// Basic: RRG 1.8 "Basic Card" p.10 and Appendix I p.49 (no aspect; any deck may include them, none is required).
 const BASIC: AspectGuide = {
   aspect: "basic",
   name: "Basic",
-  tagline: "Neutral cards any deck can use",
+  tagline: "Cards with no aspect, open to any deck",
   whatItsFor:
     "Basic cards carry no aspect: [[resource|resource]] cards, allies and staples any hero can run alongside " +
-    "whichever aspect they've picked. Every deck has them, always available.",
-  pickItWhen: ["Always — Basic cards sit in every deck alongside your chosen aspect, not instead of it."],
+    "whichever aspect they've picked. Any deck may include them; none is required.",
+  pickItWhen: [
+    "Whenever a card fits: Basic cards go in alongside your chosen aspect, never instead of it, and none is required.",
+  ],
   signatureCardCodes: [],
   preconId: null,
-  tipLine: "Every deck runs these alongside its aspect.",
+  tipLine: "Any deck may add these alongside its aspect cards; none are required.",
 };
 
 /**

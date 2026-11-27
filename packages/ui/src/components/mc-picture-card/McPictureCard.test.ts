@@ -89,3 +89,31 @@ describe("mc-picture-card", () => {
     expect(card.shadowRoot!.querySelector(".art")!.getAttribute("style")).toContain("bottom:60px");
   });
 });
+
+describe("mc-picture-card press control", () => {
+  it("is a real button named by the card's words, pressed when selected, and keyboard-activatable", async () => {
+    const card = document.createElement("mc-picture-card");
+    card.model = { ...model, selected: true };
+    card.setAttribute("activate-key", "entry:spider");
+    document.body.append(card);
+    await card.updateComplete;
+    const button = card.shadowRoot!.querySelector("button.tap") as HTMLButtonElement;
+    expect(button.tagName).toBe("BUTTON");
+    expect(button.getAttribute("aria-label")).toBe("Spider-Man, Win 3 games, LOCKED");
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    const keys: string[] = [];
+    card.addEventListener("mc-activate", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
+    button.click(); // detail 0: what Enter or Space on a focused button sends
+    expect(keys).toEqual(["entry:spider"]);
+  });
+
+  it("takes an explicit label over the derived name", async () => {
+    const card = document.createElement("mc-picture-card");
+    card.model = model;
+    card.label = "Open Spider-Man";
+    card.setAttribute("activate-key", "k");
+    document.body.append(card);
+    await card.updateComplete;
+    expect(card.shadowRoot!.querySelector("button.tap")!.getAttribute("aria-label")).toBe("Open Spider-Man");
+  });
+});

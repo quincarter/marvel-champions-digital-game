@@ -192,10 +192,21 @@ export const McPictureCardStyles = css`
   .tap {
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
     cursor: pointer;
     pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     user-select: none;
+  }
+  .tap:focus-visible {
+    outline: 3px solid var(--mc-line-red);
+    outline-offset: -6px;
   }
 `;
