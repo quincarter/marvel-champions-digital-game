@@ -830,7 +830,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     buttons: readonly { readonly id: string; readonly label: string; readonly onClick: () => void }[],
   ): readonly string[] {
     const gap = 8;
-    const width = Math.min(RANDOM_BUTTON_WIDTH, Math.floor((area.width - gap * (buttons.length - 1)) / buttons.length));
+    // As wide as the longest word needs (a Spanish "Escenario aleatorio" is wider than the English), up to what the row has.
+    const wanted = Math.max(
+      RANDOM_BUTTON_WIDTH,
+      ...buttons.map((button) => Math.ceil(b.measure(button.label, typeRole.label).width) + 32),
+    );
+    const width = Math.min(wanted, Math.floor((area.width - gap * (buttons.length - 1)) / buttons.length));
     let x =
       this.#drill.packId === null
         ? area.x

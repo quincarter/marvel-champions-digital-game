@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { hook, openApp } from "./wave6-helpers-b.js";
 
 /**
@@ -128,6 +128,42 @@ test.describe("Take your seats panels", () => {
       async () => ((await hook<string | null>(page, "__mcSeatsDebug", "drilledPack")) === null ? true : null),
       "all packs",
       15_000,
+    );
+    expect(errors).toEqual([]);
+  });
+
+  test("the first press on a hero tile after a search, and on Play, is never lost", async ({ page }, info) => {
+    test.setTimeout(120_000);
+    test.skip(info.project.name === "phone", "mouse presses");
+    const errors = trackPageErrors(page);
+    await openApp(page, "screen=seats&unlock=all", { landing: "Seats" });
+    await waitFor(async () => ((await pictures(page)).length > 0 ? true : null), "the hero tiles", 30_000);
+    const field = page.locator('#mc-ui [data-scene="Seats"] mc-sheet').first().locator("mc-search-field input");
+    await field.click();
+    await field.fill("Maria Hill");
+    await settle(page);
+    type Stop = { key: string; x: number; y: number; width: number; height: number };
+    const stopOf = async (prefix: string): Promise<Stop> =>
+      (await hook<Stop[]>(page, "__mcSeatsDebug", "stops"))!.find((s) => s.key.startsWith(prefix))!;
+    // One real click, no repeat: the tile seats its hero, or opens its deck list when the hero has several decks.
+    const tile = await stopOf("hero:");
+    await page.mouse.click(tile.x + tile.width / 2, tile.y + tile.height / 2);
+    await waitFor(
+      async () => ((await seats(page)).length > 0 || (await activeScenes(page)).includes("HeroDecks") ? true : null),
+      "the first press on the tile did something",
+      5000,
+    );
+    // Play: seat someone, then one real click on Play goes on to Table setup.
+    if ((await activeScenes(page)).includes("HeroDecks")) await page.keyboard.press("Escape");
+    if ((await seats(page)).length === 0) await pressHookStop(page, "__mcSeatsDebug", "hero-random");
+    await waitFor(async () => ((await stopOf("play")) ? true : null), "Play", 10_000);
+    await settle(page);
+    const play = await stopOf("play");
+    await page.mouse.click(play.x + play.width / 2, play.y + play.height / 2);
+    await waitFor(
+      async () => ((await activeScenes(page)).includes("Setup") ? true : null),
+      "the first press on Play went on",
+      5000,
     );
     expect(errors).toEqual([]);
   });
