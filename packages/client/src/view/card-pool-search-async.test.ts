@@ -254,7 +254,7 @@ describe("what the Spanish search matches", () => {
 
   it("says so at the field: the Spanish placeholders name the Spanish names and the English traits and text", () => {
     expect(es["decks.poolSearch"]).toBe("Nombre (ES/EN), rasgos y texto (EN)");
-    expect(es["deckBuilder.searchPlaceholder"]).toMatch(/^Nombre \(ES\/EN\), rasgos \(EN\)/);
+    expect(es["deckBuilder.searchPlaceholder"]).toBe("Nombre ES/EN, rasgos EN, o:2 t:ally");
   });
 });
 

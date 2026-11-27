@@ -1732,7 +1732,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "deckBuilder.saveChanges": "Guardar cambios",
   "deckBuilder.saveDeck": "Guardar mazo",
   "deckBuilder.saved": "Guardado ✓",
-  "deckBuilder.searchPlaceholder": "Nombre (ES/EN), rasgos (EN), ej.: o:2 t:ally",
+  "deckBuilder.searchPlaceholder": "Nombre ES/EN, rasgos EN, o:2 t:ally",
   "deckBuilder.clearSearch": "Borrar",
   "searchHelp.how": "Cómo funciona",
   "searchHelp.looks":
