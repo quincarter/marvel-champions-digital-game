@@ -83,16 +83,28 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#panel = new PopupSheet(this, (key) => {
-      // A key of another notice (a press begun on the one just dismissed) answers nothing.
-      const current = this.#notices[0];
-      const button = current ? noticeButtonOf(key, this.#idOf(current)) : null;
-      if (button === "ok") this.#dismiss();
-      else if (button === "never") {
-        if (current?.action) this.#runAction();
-        else this.#optOut();
-      }
-    });
+    this.#panel = new PopupSheet(
+      this,
+      (key) => {
+        // A key of another notice (a press begun on the one just dismissed) answers nothing.
+        const current = this.#notices[0];
+        const button = current ? noticeButtonOf(key, this.#idOf(current)) : null;
+        if (button === "ok") this.#dismiss();
+        else if (button === "never") {
+          if (current?.action) this.#runAction();
+          else this.#optOut();
+        }
+      },
+      undefined,
+      {
+        // A swipe takes the notice away as Esc does; with more waiting, the next one is drawn in its place.
+        onDismiss: () => {
+          const more = this.#notices.length > 1;
+          this.#dismiss();
+          if (more) this.#panel.springBack();
+        },
+      },
+    );
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     // A (or Enter) presses the focused OK, Start presses it from anywhere, B / Esc dismisses. A pad button still down
     // when it opens fires nothing here: Phaser builds a held Button as pressed.
@@ -150,15 +162,21 @@ export class OptionNoticeOverlay extends Phaser.Scene {
   /** The notice's own action (it is dismissed first, so the screen under it is the one the action leaves). */
   #runAction(): void {
     const action = this.#notices[0]?.action;
-    this.#dismiss();
-    action?.run();
+    this.#dismiss(() => action?.run());
   }
 
   /** The next notice, or close when this was the last. */
-  #dismiss(): void {
+  #dismiss(after?: () => void): void {
     this.#notices = this.#notices.slice(1);
-    if (this.#notices.length === 0) this.scene.stop();
-    else this.#draw();
+    if (this.#notices.length === 0) {
+      this.#panel.close(() => {
+        this.scene.stop();
+        after?.();
+      });
+      return;
+    }
+    this.#draw();
+    after?.();
   }
 
   #draw(): void {

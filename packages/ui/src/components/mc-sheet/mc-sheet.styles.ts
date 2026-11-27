@@ -8,6 +8,10 @@ export const McSheetStyles = css`
     width: 100%;
     height: 100%;
   }
+  /* A pop-up slides its box (every part after its scrim) by --mc-popup-slide, set by the client as it enters, leaves or is dragged. */
+  :host([popup]) > :not(:first-child) {
+    transform: translateY(var(--mc-popup-slide, 0px));
+  }
   .part {
     position: absolute;
     box-sizing: border-box;

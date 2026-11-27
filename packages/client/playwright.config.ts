@@ -99,6 +99,7 @@ export default defineConfig({
         "settings-lit-panel.spec.ts",
         "pause-lit-panel.spec.ts",
         "popups-lit-panel.spec.ts",
+        "popup-swipe-dismiss.spec.ts",
         "credits-lit-panel.spec.ts",
         "rules-howto-lit-panel.spec.ts",
         "mod-store-play.spec.ts",

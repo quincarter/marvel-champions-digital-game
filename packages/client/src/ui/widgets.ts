@@ -1445,6 +1445,11 @@ export class McTextInput {
     if (node.placeholder !== STEAM_KEYBOARD_HINT) node.placeholder = placeholder;
   }
 
+  /** Shifts the field `dy` below its rect (a pop-up's box sliding in or out carries its field with it); 0 is home. */
+  slide(dy: number): void {
+    this.#input.setPosition(this.#rect.x, this.#rect.y + dy);
+  }
+
   layout(rect: Rect): void {
     this.#rect = rect;
     this.#input.setPosition(rect.x, rect.y);

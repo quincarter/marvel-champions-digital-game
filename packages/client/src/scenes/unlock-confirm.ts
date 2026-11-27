@@ -53,10 +53,15 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
     if (from) from.input.enabled = false;
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#panel = new PopupSheet(this, (key) => {
-      if (key === "ok") this.#answer(true);
-      else if (key === "cancel") this.#answer(false);
-    });
+    this.#panel = new PopupSheet(
+      this,
+      (key) => {
+        if (key === "ok") this.#answer(true);
+        else if (key === "cancel") this.#answer(false);
+      },
+      undefined,
+      { onDismiss: () => this.#answer(false) },
+    );
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, { ring: domFocusRing, onCancel: () => this.#answer(false) });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -72,8 +77,10 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
     // Re-checked at the moment of paying: never spend points the player doesn't have.
     const paid = confirmed && unlocks().canAfford(target);
     if (paid) setUnlockPrefs(unlockByHand(unlocks(), target));
-    this.scene.stop();
-    if (paid) onUnlocked?.();
+    this.#panel.close(() => {
+      this.scene.stop();
+      if (paid) onUnlocked?.();
+    });
   }
 
   #draw(): void {

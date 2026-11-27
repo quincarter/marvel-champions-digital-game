@@ -53,10 +53,15 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     if (from) from.input.enabled = false;
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#panel = new PopupSheet(this, (key) => {
-      if (key === "ok") this.#answer(true);
-      else if (key === "cancel") this.#answer(false);
-    });
+    this.#panel = new PopupSheet(
+      this,
+      (key) => {
+        if (key === "ok") this.#answer(true);
+        else if (key === "cancel") this.#answer(false);
+      },
+      undefined,
+      { onDismiss: () => this.#answer(false) },
+    );
     // Start is "forward" and ends the turn. Not `primary`: that would let A with nothing focused skip this confirm.
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, {
@@ -76,9 +81,11 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
 
   #answer(confirmed: boolean): void {
     const { onConfirm, onCancel } = this.#data;
-    this.scene.stop();
-    if (confirmed) onConfirm();
-    else onCancel?.();
+    this.#panel.close(() => {
+      this.scene.stop();
+      if (confirmed) onConfirm();
+      else onCancel?.();
+    });
   }
 
   #draw(): void {

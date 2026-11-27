@@ -54,10 +54,15 @@ export class OnlineNameOverlay extends Phaser.Scene {
   }
 
   create(): void {
-    this.#panel = new PopupSheet(this, (key) => {
-      if (key === "cancel") this.#cancel();
-      else if (key === "continue") this.#continue();
-    });
+    this.#panel = new PopupSheet(
+      this,
+      (key) => {
+        if (key === "cancel") this.#cancel();
+        else if (key === "continue") this.#continue();
+      },
+      undefined,
+      { onDismiss: () => this.#cancel(), onSlide: (dy) => this.#input?.slide(dy) },
+    );
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
@@ -82,8 +87,10 @@ export class OnlineNameOverlay extends Phaser.Scene {
     if (this.#done) return;
     this.#done = true;
     const data = this.#data;
-    this.scene.stop();
-    data?.onCancel?.();
+    this.#panel.close(() => {
+      this.scene.stop();
+      data?.onCancel?.();
+    });
   }
 
   #continue(): void {
@@ -97,8 +104,10 @@ export class OnlineNameOverlay extends Phaser.Scene {
     this.#done = true;
     const kept = setOnlineName(name);
     const data = this.#data;
-    this.scene.stop();
-    data?.onDone(kept);
+    this.#panel.close(() => {
+      this.scene.stop();
+      data?.onDone(kept);
+    });
   }
 
   #draw(): void {

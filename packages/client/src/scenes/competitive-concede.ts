@@ -30,7 +30,9 @@ export class CompetitiveConcedeOverlay extends Phaser.Scene {
   }
 
   create(): void {
-    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.());
+    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.(), undefined, {
+      onDismiss: () => this.#close(),
+    });
     this.#route = new FocusRoute(this, { ring: domFocusRing, onCancel: () => this.#close(), primary: () => "cancel" });
     const redraw = (): void => this.#draw();
     this.scale.on("resize", redraw, this);
@@ -41,7 +43,7 @@ export class CompetitiveConcedeOverlay extends Phaser.Scene {
   }
 
   #close(): void {
-    this.scene.stop();
+    this.#panel.close(() => this.scene.stop());
   }
 
   #choices(): readonly ConcedeChoice[] {
@@ -52,9 +54,11 @@ export class CompetitiveConcedeOverlay extends Phaser.Scene {
   async #send(choice: ConcedeChoice): Promise<void> {
     const ok = await appSession().store.dispatch(choice.command);
     if (ok) {
-      this.#close();
       // The pause sheet underneath goes too: the game is over (the team) or this seat is out (alone).
-      if (this.scene.isActive(SCENES.pause)) this.scene.stop(SCENES.pause);
+      this.#panel.close(() => {
+        this.scene.stop();
+        if (this.scene.isActive(SCENES.pause)) this.scene.stop(SCENES.pause);
+      });
     }
   }
 

@@ -73,9 +73,14 @@ export class RejoinOverlay extends Phaser.Scene {
     const data = this.#data;
     if (!data) return;
     if (data.kind === "game") this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
-    this.#panel = new PopupSheet(this, (key) => {
-      if (key === "cancel") this.#cancel();
-    });
+    this.#panel = new PopupSheet(
+      this,
+      (key) => {
+        if (key === "cancel") this.#cancel();
+      },
+      undefined,
+      { onDismiss: () => this.#cancel() },
+    );
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, { ring: domFocusRing, onCancel: () => this.#cancel(), primary: () => "cancel" });
     const onResize = (): void => this.#draw();
@@ -131,8 +136,10 @@ export class RejoinOverlay extends Phaser.Scene {
     if (data.kind === "room") {
       leaveRoom();
       clearRoomAddress();
-      this.scene.stop();
-      data.onCancel();
+      this.#panel.close(() => {
+        this.scene.stop();
+        data.onCancel();
+      });
       return;
     }
     clearGameAddress();

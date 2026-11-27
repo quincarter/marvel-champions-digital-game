@@ -6,31 +6,93 @@
  *
  * The scene keeps its navigation, focus route (stops at the same rects, ring `domFocusRing`), its Phaser press shield
  * and any `McTextInput`, which it leaves a hole for (`mount`'s `holes`).
+ *
+ * Every pop-up enters and leaves the way Pause does (`ui/transitions.ts`: `overlayEnterMs` / `overlayExitMs`, Quad
+ * ease out / in), centrally here: the scrim fades with the panel and the box slides up from the bottom edge, and back
+ * down on the way out (`close`, which the scene calls instead of stopping at once). Under reduced motion it just
+ * appears and goes. On a touch layout a pop-up with a back-out path draws a grab handle on its box's top edge; a
+ * downward drag from the handle moves the box and, past a quarter of its height or in a flick, answers as Cancel does.
+ * A sheet that follows an anchor of its own (`follow`) keeps its own motion and gets none of this.
  */
 import "@mc/ui";
-import type { McSheet } from "@mc/ui";
+import { cancelPressesWithin, type McSheet } from "@mc/ui";
 import type Phaser from "phaser";
-import { surface } from "../tokens.js";
+import { appSession } from "../session.js";
+import { motion, surface } from "../tokens.js";
 import { isDesktopType } from "../ui/desktop-type.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import { ActivationGate } from "./activation-gate.js";
 import { DomRegion, renderNow, type Followed } from "./dom-region.js";
-import { SheetBuilder } from "./sheet-builder.js";
-import type { Rect } from "../view/layout.js";
+import { HANDLE_TARGET_HEIGHT, SNAP_BACK_MS, SWIPE_SLOP, slideDistance, swipeOutcome } from "./popup-motion.js";
+import { SheetBuilder, sheetColor } from "./sheet-builder.js";
+
+/** The key of the grab handle's touch target; a tap on it does nothing. */
+const GRAB_KEY = "__grab";
+
+export interface PopupSheetOptions {
+  /**
+   * The pop-up's back-out path (the one Escape / B takes). Given, a touch layout draws the grab handle and a swipe
+   * down from it calls this; absent (a pop-up that must be answered), the box cannot be swiped away.
+   */
+  readonly onDismiss?: () => void;
+  /**
+   * Called with the box's slide (game px below its place, 0 at rest) each time it changes: a Phaser or DOM field the
+   * scene keeps over the panel (`McTextInput.slide`) moves with the box, and the hole it is seen through moves too.
+   */
+  readonly onSlide?: (dy: number) => void;
+}
+
+interface Drag {
+  readonly id: number;
+  readonly y0: number;
+  dragging: boolean;
+  prev: { y: number; t: number };
+  last: { y: number; t: number };
+}
 
 export class PopupSheet {
   readonly #scene: Phaser.Scene;
   readonly #onActivate: (key: string) => void;
   readonly #onHover: ((key: string, over: boolean) => void) | undefined;
+  readonly #onDismiss: (() => void) | undefined;
+  readonly #onSlide: ((dy: number) => void) | undefined;
   #region: DomRegion<McSheet> | null = null;
   #followed: Followed | null = null;
   /** One activation a frame, none once the scene stops or turns its input off (a second Send/Concede/Confirm tap). */
   readonly #gate: ActivationGate;
+  /** The box's slide (game px below its place) and the panel's fade, tweened; `DomRegion` reads `alpha` each frame. */
+  readonly #m = { y: 0, alpha: 1 };
+  readonly #anchor: Followed;
+  /** Whether this sheet runs the slide itself (it has no anchor of its own). */
+  #moving = false;
+  #leaving = false;
+  #travel = 0;
+  #boxHeight = 0;
+  #box: Rect | null = null;
+  #width = 0;
+  #drag: Drag | null = null;
 
   /** `onActivate` hears a button's key when it is tapped; `onHover`, a mouse moving onto or off a tracked tap area. */
-  constructor(scene: Phaser.Scene, onActivate: (key: string) => void, onHover?: (key: string, over: boolean) => void) {
+  constructor(
+    scene: Phaser.Scene,
+    onActivate: (key: string) => void,
+    onHover?: (key: string, over: boolean) => void,
+    options: PopupSheetOptions = {},
+  ) {
     this.#scene = scene;
     this.#onActivate = onActivate;
     this.#onHover = onHover;
+    this.#onDismiss = options.onDismiss;
+    this.#onSlide = options.onSlide;
+    const m = this.#m;
+    this.#anchor = {
+      x: 0,
+      y: 0,
+      get alpha() {
+        return m.alpha;
+      },
+      active: true,
+    };
     this.#gate = new ActivationGate(scene);
     scene.events.once("shutdown", () => {
       this.#gate.destroy();
@@ -42,6 +104,40 @@ export class PopupSheet {
   follow(anchor: Followed | null): void {
     this.#followed = anchor;
     this.#region?.follow(anchor);
+  }
+
+  /** True from the moment `close` is called: the pop-up is leaving and takes no answer. */
+  get leaving(): boolean {
+    return this.#leaving;
+  }
+
+  /**
+   * Plays the exit (the box slides back down, the scrim fades) with the scene's input off, then calls `done` (which
+   * stops the scene and runs whatever the answer was). Once only: a call while already leaving is ignored. Immediate
+   * under reduced motion, before the first draw and for a sheet with an anchor of its own.
+   */
+  close(done: () => void): void {
+    if (this.#leaving) return;
+    this.#leaving = true;
+    const scene = this.#scene;
+    scene.input.enabled = false;
+    scene.events.once("shutdown", () => {
+      scene.input.enabled = true;
+    });
+    if (!this.#moving || appSession().settings.reducedMotion) {
+      done();
+      return;
+    }
+    scene.tweens.killTweensOf(this.#m);
+    scene.tweens.add({
+      targets: this.#m,
+      y: this.#travel,
+      alpha: 0,
+      duration: motion.overlayExitMs,
+      ease: "Quad.easeIn",
+      onUpdate: () => this.#apply(),
+      onComplete: done,
+    });
   }
 
   /** The panel element once mounted (to reach a part, e.g. to scroll a region). */
@@ -63,11 +159,15 @@ export class PopupSheet {
 
   /** Hands the built parts to the panel (made on first use) and renders them now, so stops can be read this frame. */
   mount(builder: SheetBuilder, width: number, height: number, holes: readonly Rect[] = []): void {
+    this.#width = width;
+    this.#measure(builder, width, height);
     if (!this.#region) {
       const element = document.createElement("mc-sheet") as McSheet;
       element.addEventListener("mc-activate", (event) => {
         if (!this.#gate.take()) return;
-        this.#onActivate((event as CustomEvent<{ key: string }>).detail.key);
+        const { key } = (event as CustomEvent<{ key: string }>).detail;
+        if (key === GRAB_KEY) return;
+        this.#onActivate(key);
       });
       if (this.#onHover) {
         element.addEventListener("mc-hover", (event) => {
@@ -77,11 +177,162 @@ export class PopupSheet {
       }
       this.#region = new DomRegion(this.#scene, element, { x: 0, y: 0, width, height }, { overlay: true });
       if (this.#followed) this.#region.follow(this.#followed);
+      else this.#enter(element);
     }
     const region = this.#region;
+    this.#addHandle(builder, width, height);
     region.setRect({ x: 0, y: 0, width, height });
-    region.setHoles(holes);
+    // A field's hole travels with the box, or the box would be cut where the field is not.
+    region.setHoles(holes.length === 0 ? holes : () => holes.map((hole) => ({ ...hole, y: hole.y + this.#m.y })));
     region.element.nodes = builder.nodes;
     renderNow(region.element);
+    this.#onSlide?.(this.#m.y);
+    const grab = region.element.elementOf(GRAB_KEY);
+    if (grab) grab.style.touchAction = "none";
+  }
+
+  /** The box is the first part after the scrim: its top sets how far it slides, its height what a drag must pass. */
+  #measure(builder: SheetBuilder, width: number, height: number): void {
+    const part = builder.nodes[1];
+    const sized = part?.kind === "box" && part.rect.width < width;
+    this.#box = sized ? part.rect : null;
+    this.#travel = slideDistance(height, sized ? part.rect.y : null);
+    this.#boxHeight = sized ? part.rect.height : height * 0.3;
+  }
+
+  #apply(): void {
+    this.#region?.element.style.setProperty("--mc-popup-slide", `${this.#m.y}px`);
+    this.#onSlide?.(this.#m.y);
+  }
+
+  /** Starts the entrance (the box slides up from the bottom edge, the panel fades in) and listens for the handle. */
+  #enter(element: McSheet): void {
+    this.#moving = true;
+    element.setAttribute("popup", "");
+    this.#region?.follow(this.#anchor);
+    if (!appSession().settings.reducedMotion) {
+      this.#m.y = this.#travel;
+      this.#m.alpha = 0;
+      this.#apply();
+      this.#scene.tweens.add({
+        targets: this.#m,
+        y: 0,
+        alpha: 1,
+        duration: motion.overlayEnterMs,
+        ease: "Quad.easeOut",
+        onUpdate: () => this.#apply(),
+      });
+    }
+    element.addEventListener("pointerdown", (event) => this.#down(event));
+    element.addEventListener("pointermove", (event) => this.#move(event));
+    element.addEventListener("pointerup", (event) => this.#up(event));
+    element.addEventListener("pointercancel", () => this.#release(false));
+  }
+
+  /** The grab handle: a short bar on the box's top edge with a target at least 44px tall, on touch layouts only. */
+  #addHandle(builder: SheetBuilder, width: number, height: number): void {
+    const box = this.#box;
+    if (!this.#moving || !this.#onDismiss || !box || formFactorFor(width, height) === "desktop") return;
+    const cx = box.x + box.width / 2;
+    builder.svg(
+      { x: cx - 20, y: box.y + 6, width: 40, height: 6 },
+      [40, 6],
+      [
+        {
+          k: "rect",
+          x: 0.5,
+          y: 0.5,
+          w: 39,
+          h: 5,
+          rx: 2.5,
+          fill: sheetColor(surface.ink.hex, "fill"),
+          alpha: 0.5,
+          stroke: sheetColor(surface.paper.hex, "fill"),
+          sw: 1,
+        },
+      ],
+    );
+    const target = Math.min(box.width, 120);
+    builder.tap(GRAB_KEY, { x: cx - target / 2, y: box.y - 10, width: target, height: HANDLE_TARGET_HEIGHT });
+  }
+
+  #down(event: PointerEvent): void {
+    if (event.pointerType === "mouse" || this.#leaving || this.#drag || !this.#region) return;
+    const onHandle = event.composedPath().some((node) => (node as HTMLElement).dataset?.key === GRAB_KEY);
+    if (!onHandle) return;
+    const shown = this.#region.element.getBoundingClientRect().width;
+    this.#scale = this.#width > 0 && shown > 0 ? shown / this.#width : 1;
+    const now = event.timeStamp;
+    this.#drag = {
+      id: event.pointerId,
+      y0: event.clientY,
+      dragging: false,
+      prev: { y: event.clientY, t: now },
+      last: { y: event.clientY, t: now },
+    };
+    (event.target as Element).setPointerCapture?.(event.pointerId);
+  }
+  #scale = 1;
+
+  #move(event: PointerEvent): void {
+    const drag = this.#drag;
+    if (!drag || event.pointerId !== drag.id || this.#leaving) return;
+    const dy = (event.clientY - drag.y0) / this.#scale;
+    if (!drag.dragging) {
+      if (Math.abs(dy) < SWIPE_SLOP) return;
+      drag.dragging = true;
+      this.#scene.tweens.killTweensOf(this.#m);
+      // The finger is moving the box, not pressing: nothing under it may fire when it lifts (the tap rule).
+      const element = this.#region?.element;
+      if (element) {
+        element.cancelHolds();
+        cancelPressesWithin(element);
+      }
+    }
+    if (event.timeStamp - drag.last.t >= 50) drag.prev = drag.last;
+    drag.last = { y: event.clientY, t: event.timeStamp };
+    this.#m.y = Math.max(0, dy);
+    this.#apply();
+    event.preventDefault();
+  }
+
+  #up(event: PointerEvent): void {
+    if (this.#drag && event.pointerId === this.#drag.id) this.#release(true);
+  }
+
+  #release(lifted: boolean): void {
+    const drag = this.#drag;
+    this.#drag = null;
+    if (!drag?.dragging) return;
+    const dt = drag.last.t - drag.prev.t;
+    const velocity = dt > 0 ? (drag.last.y - drag.prev.y) / this.#scale / dt : 0;
+    const outcome = swipeOutcome({
+      dy: this.#m.y,
+      boxHeight: this.#boxHeight,
+      velocity,
+      canDismiss: lifted && this.#onDismiss !== undefined && !this.#leaving,
+    });
+    if (outcome === "dismiss") {
+      this.#onDismiss?.();
+      return;
+    }
+    this.springBack();
+  }
+
+  /** Puts the box back in its place (a drag that did not dismiss, or a notice that gave way to the next). */
+  springBack(): void {
+    if (appSession().settings.reducedMotion) {
+      this.#m.y = 0;
+      this.#apply();
+      return;
+    }
+    this.#scene.tweens.killTweensOf(this.#m);
+    this.#scene.tweens.add({
+      targets: this.#m,
+      y: 0,
+      duration: SNAP_BACK_MS,
+      ease: "Quad.easeOut",
+      onUpdate: () => this.#apply(),
+    });
   }
 }

@@ -50,10 +50,15 @@ export class RoomChatOverlay extends Phaser.Scene {
   }
 
   create(): void {
-    this.#panel = new PopupSheet(this, (key) => {
-      if (key === "close") this.#close();
-      else if (key === "send") this.#send();
-    });
+    this.#panel = new PopupSheet(
+      this,
+      (key) => {
+        if (key === "close") this.#close();
+        else if (key === "send") this.#send();
+      },
+      undefined,
+      { onDismiss: () => this.#close(), onSlide: (dy) => this.#input?.slide(dy) },
+    );
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
       blocked: () => this.#input?.focused ?? false,
@@ -82,7 +87,7 @@ export class RoomChatOverlay extends Phaser.Scene {
 
   #close(): void {
     markChatRead(this.#state.chat);
-    this.scene.stop();
+    this.#panel.close(() => this.scene.stop());
   }
 
   #send(): void {

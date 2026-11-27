@@ -36,14 +36,19 @@ export class RoomAskOverlay extends Phaser.Scene {
   }
 
   create(): void {
-    this.#panel = new PopupSheet(this, (key) => {
-      if (key === "cancel") this.scene.stop();
-      else if (key === "send") this.#send();
-    });
+    this.#panel = new PopupSheet(
+      this,
+      (key) => {
+        if (key === "cancel") this.#stop();
+        else if (key === "send") this.#send();
+      },
+      undefined,
+      { onDismiss: () => this.#stop(), onSlide: (dy) => this.#input?.slide(dy) },
+    );
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
       blocked: () => this.#input?.focused ?? false,
-      onCancel: () => this.scene.stop(),
+      onCancel: () => this.#stop(),
       primary: () => "send",
     });
     bindTextFieldEscape(this, () => this.#input);
@@ -60,7 +65,12 @@ export class RoomAskOverlay extends Phaser.Scene {
 
   #send(): void {
     askHost("adjust", (this.#input?.value ?? this.#value).trim().slice(0, MAX_ASK_NOTE));
-    this.scene.stop();
+    this.#stop();
+  }
+
+  /** Leaves with the pop-up's exit (`PopupSheet.close`). */
+  #stop(): void {
+    this.#panel.close(() => this.scene.stop());
   }
 
   #draw(): void {
@@ -111,7 +121,7 @@ export class RoomAskOverlay extends Phaser.Scene {
     this.#panel.mount(b, width, height, [fieldRect]);
     const stops = new Map<string, FocusStop>([
       ["field", { rect: fieldRect, activate: () => this.#input?.focus() }],
-      ["cancel", { rect: cancelRect, activate: () => this.scene.stop() }],
+      ["cancel", { rect: cancelRect, activate: () => this.#stop() }],
       ["send", { rect: sendRect, activate: () => this.#send() }],
     ]);
     this.#route?.set(["field", "cancel", "send"], stops);

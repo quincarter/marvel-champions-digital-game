@@ -41,11 +41,18 @@ export class RoomGiveOverlay extends Phaser.Scene {
     this.#data = data;
   }
 
+  /** Leaves with the pop-up's exit (`PopupSheet.close`). */
+  #stop(): void {
+    this.#panel.close(() => this.scene.stop());
+  }
+
   create(): void {
-    this.#panel = new PopupSheet(this, (key) => this.#answers.get(key)?.());
+    this.#panel = new PopupSheet(this, (key) => this.#answers.get(key)?.(), undefined, {
+      onDismiss: () => this.#stop(),
+    });
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
-      onCancel: () => this.scene.stop(),
+      onCancel: () => this.#stop(),
       primary: () => "cancel",
       onScroll: (_dx, dy) => {
         const list = this.#panel.element?.elementOf("give-list");
@@ -110,7 +117,7 @@ export class RoomGiveOverlay extends Phaser.Scene {
     for (const { person, key, rect } of recipients) {
       const give = (): void => {
         assignSeat(this.#data.seat, person.id);
-        this.scene.stop();
+        this.#stop();
       };
       this.#answers.set(key, give);
       order.push(key);
@@ -123,7 +130,7 @@ export class RoomGiveOverlay extends Phaser.Scene {
       });
     }
     const cancelRect = layout.cancel;
-    const cancel = (): void => void this.scene.stop();
+    const cancel = (): void => this.#stop();
     b.button({ key: "cancel", rect: cancelRect, label: t("give.cancel"), look: "secondary", type: buttonType });
     this.#answers.set("cancel", cancel);
     order.push("cancel");

@@ -73,7 +73,7 @@ export class RoomModePickerOverlay extends Phaser.Scene {
         const mode = ROOM_MODES.find((m) => key === `mode:${m}`);
         if (mode) this.#pick(mode);
         else if (key === "play") this.#play();
-        else if (key === "cancel") this.scene.stop();
+        else if (key === "cancel") this.#stop();
       },
       // The pointer over a box (a desktop) shows its info first; off it, back to the pick's.
       (key, over) => {
@@ -82,10 +82,11 @@ export class RoomModePickerOverlay extends Phaser.Scene {
         if (over) this.#setOver(mode);
         else if (this.#over === mode) this.#setOver(null);
       },
+      { onDismiss: () => this.#stop() },
     );
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
-      onCancel: () => this.scene.stop(),
+      onCancel: () => this.#stop(),
       primary: () => "play",
       onFocusChange: (key) => this.#setOver(ROOM_MODES.find((m) => key === `mode:${m}`) ?? null),
     });
@@ -95,7 +96,7 @@ export class RoomModePickerOverlay extends Phaser.Scene {
     // would otherwise send a change to a room that is gone.
     const off = this.#data.watch
       ? onRoomState((state) => {
-          if (state.role !== "host" || state.connection === "ended" || state.started) this.scene.stop();
+          if (state.role !== "host" || state.connection === "ended" || state.started) this.#stop();
         })
       : null;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -120,7 +121,12 @@ export class RoomModePickerOverlay extends Phaser.Scene {
 
   #play(): void {
     if (this.#picked !== this.#data.current) this.#data.onChoose(this.#picked);
-    this.scene.stop();
+    this.#stop();
+  }
+
+  /** Leaves with the pop-up's exit (`PopupSheet.close`). */
+  #stop(): void {
+    this.#panel.close(() => this.scene.stop());
   }
 
   #draw(): void {
@@ -141,7 +147,7 @@ export class RoomModePickerOverlay extends Phaser.Scene {
       order.push(key);
     }
     stops.set("play", { rect: l.confirm, activate: () => (same ? undefined : this.#play()) });
-    stops.set("cancel", { rect: l.cancel, activate: () => this.scene.stop() });
+    stops.set("cancel", { rect: l.cancel, activate: () => this.#stop() });
     order.push("play", "cancel");
     this.#route?.set(order, stops);
   }
