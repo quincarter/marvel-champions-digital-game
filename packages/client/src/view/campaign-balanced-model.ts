@@ -9,6 +9,7 @@
  */
 import type { PlayModes } from "@mc/content";
 import { GMW_BALANCED_TOGGLES, type GmwBalancedToggleId } from "@mc/cards";
+import { t } from "../i18n/translate.js";
 
 /** The one campaign with a Balanced version. */
 export const BALANCED_CAMPAIGN_ID = "gmw";
@@ -58,7 +59,7 @@ export const balancedStartOf = (
 
 /** The small marker a run wears where Expert is shown, or null for a run that is not Balanced. */
 export const balancedTagOf = (modes: PlayModes | undefined): string | null =>
-  modes?.campaign?.balanced === true ? "Balanced" : null;
+  modes?.campaign?.balanced === true ? t("campaign.balancedTag") : null;
 
 export interface BalancedToggleRow {
   readonly id: GmwBalancedToggleId;

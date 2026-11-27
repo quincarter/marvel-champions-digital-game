@@ -20,6 +20,7 @@ import {
 } from "../campaign/story.js";
 import type { CardNameOf } from "./campaign-log-model.js";
 import { resolvedWritesOf, unlistedFieldIds, type LogWriteGroup } from "./campaign-log-deltas.js";
+import { t } from "../i18n/translate.js";
 
 /**
  * Short, on-brand words for a log field, matching the design's own examples ("2 prototypes", "3 delay"). Exported
@@ -100,7 +101,7 @@ export function lostAtLineOf(
   nodeIds: readonly string[],
 ): string | null {
   const nodeId = lostAtNodeIdOf(record, nodeIds);
-  return nodeId === null ? null : `Campaign lost at issue #${nodeIds.indexOf(nodeId) + 1}`;
+  return nodeId === null ? null : t("campaign.lostAtLine", { number: nodeIds.indexOf(nodeId) + 1 });
 }
 
 /**

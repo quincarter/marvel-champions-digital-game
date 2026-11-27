@@ -18,6 +18,7 @@ import { campaignDefinitionOf } from "@mc/cards";
 import type { PlayModes } from "@mc/content";
 import { CAMPAIGN_LOG_SCHEMA, type CampaignDefinition, type CampaignStatus } from "@mc/engine";
 import { isAdjustedCampaign, type CampaignSummary } from "../engine/campaign-storage.js";
+import { t } from "../i18n/translate.js";
 
 export interface CampaignListRow {
   readonly id: string;
@@ -51,12 +52,16 @@ function positionLabelOf(summary: CampaignSummary, definition: CampaignDefinitio
 
 function incompatibleReasonOf(summary: CampaignSummary, definition: CampaignDefinition | undefined): string | null {
   if (summary.status !== "active") return null;
-  if (!definition) return `this build has no "${summary.box}" campaign content yet`;
+  if (!definition) return t("campaign.incompat.noContent", { box: summary.box });
   if (summary.schema !== CAMPAIGN_LOG_SCHEMA) {
-    return `this campaign was saved in an older log format (${summary.schema}; this build reads ${CAMPAIGN_LOG_SCHEMA})`;
+    return t("campaign.incompat.oldLog", { saved: summary.schema, current: CAMPAIGN_LOG_SCHEMA });
   }
   if (summary.definitionVersion !== definition.version) {
-    return `${summary.name}'s campaign content changed under this campaign (was version ${summary.definitionVersion}, this build has ${definition.version})`;
+    return t("campaign.incompat.changed", {
+      name: summary.name,
+      was: summary.definitionVersion,
+      now: definition.version,
+    });
   }
   return null;
 }

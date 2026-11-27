@@ -31,6 +31,7 @@ import { packRunDefinition } from "../campaign/pack-campaigns.js";
 import { SAGA_VOLUMES, storyFor, type SagaVolume } from "../campaign/story.js";
 import { lostAtNodeIdOf } from "./campaign-run-model.js";
 import type { PipState } from "../ui/campaign-chrome.js";
+import { t } from "../i18n/translate.js";
 
 export type SagaVolumeStatus = "live" | "done" | "fresh" | "sealed";
 
@@ -173,7 +174,7 @@ export function campaignSagaRows(
       status = "fresh";
     } else {
       status = "sealed";
-      if (unlocked && !hasDefinition) lockReason = "Not in this build yet";
+      if (unlocked && !hasDefinition) lockReason = t("saga.lock.notBuilt");
       else if (waveLock !== null) lockReason = waveLock;
     }
 
@@ -214,9 +215,9 @@ export function campaignSagaRows(
     const packNote =
       custom && runPack
         ? custom0?.installedVersion === undefined
-          ? "The pack is not installed: this run plays from the copy saved with it."
+          ? t("saga.packNote.missing")
           : custom0.installedVersion !== runPack.version
-            ? `This run plays pack version ${runPack.version}; version ${custom0.installedVersion} is installed.`
+            ? t("saga.packNote.version", { kept: runPack.version, installed: custom0.installedVersion })
             : null
         : null;
 

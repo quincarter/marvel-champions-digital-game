@@ -6,6 +6,8 @@
 import type { CardId } from "@mc/content";
 import type { CampaignDefinition, CampaignStatus } from "@mc/engine";
 import { storyFor, type CampaignStory } from "../campaign/story.js";
+import { blurbIn, campaignNameIn, issueTitleIn, issueWordIn, taglineIn, villainIn } from "../campaign/campaign-text.js";
+import { t } from "../i18n/translate.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import type { PipState } from "../ui/campaign-chrome.js";
 import { balancedTagOf } from "./campaign-balanced-model.js";
@@ -47,8 +49,6 @@ export interface CoverModel {
    * `market` is), else the plain "Campaign log · heroes & world" every box's Dossier always shows. */
   readonly dossierSubtitle: string;
 }
-
-const DEFAULT_DOSSIER_SUBTITLE = "Campaign log · heroes & world";
 
 export interface CoverMarketSeat {
   readonly heroName: string;
@@ -109,8 +109,8 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
       const index = linearNodes.findIndex((n) => n.id === nextNodeId);
       issueNumber = index >= 0 ? index + 1 : null;
       const issueStory = story?.issues.find((i) => i.nodeId === nextNodeId) ?? null;
-      nextIssueTitle = issueStory?.title ?? null;
-      nextIssueVillain = issueStory?.villain ?? null;
+      nextIssueTitle = issueStory ? issueTitleIn(input.campaignId, issueStory.nodeId, issueStory.title) : null;
+      nextIssueVillain = issueStory ? villainIn(issueStory.villain) : null;
     } else {
       finished = record.status;
       if (record.status === "won") pips = linearNodes.map(() => "done");
@@ -123,8 +123,8 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
       issueNumber = Math.min(issueNumberOfRecord(definition, record), total);
       const nodeId = currentNodeIdOf(record);
       const issueStory = nodeId ? (story?.issues.find((i) => i.nodeId === nodeId) ?? null) : null;
-      nextIssueTitle = issueStory?.title ?? null;
-      nextIssueVillain = issueStory?.villain ?? null;
+      nextIssueTitle = issueStory ? issueTitleIn(input.campaignId, issueStory.nodeId, issueStory.title) : null;
+      nextIssueVillain = issueStory ? villainIn(issueStory.villain) : null;
       pips = Array.from({ length: total }, (_, i): PipState =>
         i < settled ? "done" : i === settled ? "current" : "empty",
       );
@@ -143,16 +143,18 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
   return {
     campaignId: input.campaignId,
     boxCode: input.boxCode,
-    name: input.name,
-    blurb:
-      story?.blurb ??
-      (linearNodes
-        ? `${capitalize(ISSUE_WORDS[total] ?? String(total))} issues, played in order.`
+    name: campaignNameIn(input.campaignId, input.name),
+    blurb: story
+      ? blurbIn(input.campaignId, story.blurb)
+      : linearNodes
+        ? t("campaign.fallback.blurbLinear", { Words: capitalize(issueWordIn(total)) })
         : definition
           ? // A choice graph (Fear No Evil) deals its issues from the box rather than in a fixed order.
-            `${capitalize(ISSUE_WORDS[total] ?? String(total))} issues, dealt and played as the campaign unfolds.`
-          : ""),
-    tagline: story?.tagline ?? `A story in ${ISSUE_WORDS[total] ?? total} issues`,
+            t("campaign.fallback.blurbChoice", { Words: capitalize(issueWordIn(total)) })
+          : "",
+    tagline: story
+      ? taglineIn(input.campaignId, story.tagline)
+      : t("campaign.fallback.tagline", { words: issueWordIn(total) }),
     villainScenarioId: finalScenarioId,
     hasRun: record !== null,
     balancedTag: balancedTagOf(record?.modes),
@@ -180,17 +182,16 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
 }
 
 const capitalize = (word: string): string => word.slice(0, 1).toUpperCase() + word.slice(1);
-const ISSUE_WORDS: Readonly<Record<number, string>> = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six" };
 
 /** "Wallets · Bounty ladder" for a box whose definition has both panels' shapes, else the default sentence — every
  * word here is a panel the Dossier Overview actually shows (`campaign-dossier-model.ts`'s `dossierWallets`/
  * `campaignDossierBountyLadder`), never invented copy. */
 function dossierSubtitleOf(definition: CampaignDefinition | undefined): string {
-  if (!definition) return DEFAULT_DOSSIER_SUBTITLE;
+  if (!definition) return t("cover.dossier.default");
   const parts: string[] = [];
-  if (walletFieldsOf(definition)) parts.push("Wallets");
-  if (ladderFieldOf(definition)) parts.push("Bounty ladder");
-  return parts.length > 0 ? parts.join(" · ") : DEFAULT_DOSSIER_SUBTITLE;
+  if (walletFieldsOf(definition)) parts.push(t("cover.dossier.wallets"));
+  if (ladderFieldOf(definition)) parts.push(t("cover.dossier.ladder"));
+  return parts.length > 0 ? parts.join(" · ") : t("cover.dossier.default");
 }
 
 /** THE MARKET's per-seat wallet summary, or null for a box with no Market at all (`walletFieldsOf`). */
