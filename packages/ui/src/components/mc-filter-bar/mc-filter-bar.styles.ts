@@ -15,6 +15,17 @@ export const McFilterBarStyles = css`
     align-items: stretch;
     overflow: hidden;
   }
+  /* A rail: one row that scrolls sideways under a finger or a wheel, its scrollbar out of sight. */
+  .bar.rail {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .bar.rail::-webkit-scrollbar {
+    display: none;
+  }
   .chip {
     display: block;
     flex: 0 0 auto;

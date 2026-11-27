@@ -96,6 +96,13 @@ describe("mc-filter-bar", () => {
     expect(events).toEqual(["sheet", "sort:old"]);
   });
 
+  it("lays a rail as one row that scrolls sideways, and wraps otherwise", async () => {
+    const wrapped = await mount({ chips: [{ id: "a", label: "A", selected: false }] });
+    expect(wrapped.shadowRoot!.querySelector(".bar.rail")).toBeNull();
+    const rail = await mount({ chips: [{ id: "a", label: "A", selected: false }], rail: true });
+    expect(rail.shadowRoot!.querySelector(".bar.rail")).not.toBeNull();
+  });
+
   it("leaves out the sort and the sheet button when there are none", async () => {
     const bar = await mount({ chips: [] });
     expect(bar.shadowRoot!.querySelector("select")).toBeNull();

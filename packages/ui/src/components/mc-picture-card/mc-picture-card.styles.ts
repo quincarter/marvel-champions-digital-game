@@ -71,6 +71,13 @@ export const McPictureCardStyles = css`
     text-overflow: ellipsis;
     color: var(--mc-text-ink);
   }
+  .title.display {
+    font-family: var(--mc-font-display);
+    font-weight: 400;
+    font-size: 24px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
   .detail {
     margin-top: 7px;
     font-size: var(--mc-small-10);
@@ -80,6 +87,14 @@ export const McPictureCardStyles = css`
     text-overflow: ellipsis;
     color: var(--mc-text-ink);
     opacity: 0.75;
+  }
+  /* A two-line detail wraps and clips at two lines instead of one cut line. */
+  .detail.two {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
   }
   .detail.alert {
     color: var(--mc-text-red);
@@ -108,7 +123,7 @@ export const McPictureCardStyles = css`
   .frame {
     position: absolute;
     inset: 0;
-    box-shadow: inset 0 0 0 var(--mc-card-border, 2px) var(--mc-line-ink);
+    box-shadow: inset 0 0 0 var(--mc-card-border, 2px) var(--mc-card-frame, var(--mc-line-ink));
     pointer-events: none;
   }
   .tap {

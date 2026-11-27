@@ -39,4 +39,6 @@ export interface FilterBarModel {
   readonly rowHeight?: number;
   /** The space between chips and rows in px (8). */
   readonly gap?: number;
+  /** One row that scrolls sideways instead of wrapping (a phone's chip strip). */
+  readonly rail?: boolean;
 }

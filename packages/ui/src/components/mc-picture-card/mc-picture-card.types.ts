@@ -6,13 +6,17 @@ export interface McPictureCardModel {
   readonly focusY: number;
   /** A gray, faded ghost of the picture on its ground (a locked card). */
   readonly dim: boolean;
-  /** The chip word ("READ ▸", "LOCKED"), already translated. */
+  /** The chip word ("READ ▸", "LOCKED"), already translated; empty draws no chip. */
   readonly chip: string;
   /** `action`: a red chip (what a tap does); `locked`: an outlined ink chip. */
   readonly chipTone: "action" | "locked";
   readonly title: string;
+  /** The title in the display face (a villain’s name) rather than the bold body face. */
+  readonly titleDisplay?: boolean;
   /** The caption second line. */
   readonly detail: string;
+  /** How many lines the detail may take (1; 2 for a sentence). */
+  readonly detailLines?: 1 | 2;
   /** `alert` prints the detail in red (what opens a locked card). */
   readonly detailTone: "meta" | "alert";
   /** The big faint letter shown when there is no picture, or it fails to load. */

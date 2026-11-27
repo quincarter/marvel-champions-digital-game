@@ -735,6 +735,7 @@ export class McSheet extends LitElement {
           .rows=${node.rows ?? 0}
           .rowHeight=${node.rowHeight ?? 0}
           .gap=${node.gap ?? 8}
+          ?rail=${node.rail ?? false}
           @mc-activate=${(event: CustomEvent<{ key: string }>) => {
             event.stopPropagation();
             this.#activate(event.detail.key);

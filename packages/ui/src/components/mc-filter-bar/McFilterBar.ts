@@ -21,6 +21,7 @@ import { McFilterBarStyles } from "./mc-filter-bar.styles.js";
  * @attr rows - The most rows shown; 0 wraps without a limit.
  * @attr row-height - A row height in px; 0 lets a chip be as tall as its own minimum.
  * @attr gap - The space between chips and rows in px (8).
+ * @attr rail - One row that scrolls sideways instead of wrapping (a phone's chip strip).
  * @fires mc-activate - A tap on a chip: `detail.key` is `prefix + id`, `detail.id` the chip id.
  * @fires mc-sort - `detail.value`: another sort was chosen.
  * @fires mc-filter-sheet - The filter sheet button was tapped.
@@ -36,6 +37,7 @@ export class McFilterBar extends LitElement {
     rows: { type: Number },
     rowHeight: { type: Number, attribute: "row-height" },
     gap: { type: Number },
+    rail: { type: Boolean, reflect: true },
   };
 
   declare chips: readonly FilterChip[];
@@ -45,6 +47,7 @@ export class McFilterBar extends LitElement {
   declare rows: number;
   declare rowHeight: number;
   declare gap: number;
+  declare rail: boolean;
 
   constructor() {
     super();
@@ -55,6 +58,7 @@ export class McFilterBar extends LitElement {
     this.rows = 0;
     this.rowHeight = 0;
     this.gap = 8;
+    this.rail = false;
   }
 
   /** The element drawn for a key (a chip), for a screen focus stops. */
@@ -70,7 +74,7 @@ export class McFilterBar extends LitElement {
     const { rowHeight, gap, rows, sort } = this;
     const limit = rows > 0 && rowHeight > 0 ? `;max-height:${rows * rowHeight + (rows - 1) * gap}px` : "";
     const cell = rowHeight > 0 ? `height:${rowHeight}px` : "min-height:44px";
-    return html`<div class="bar" role="group" style=${`gap:${gap}px${limit}`}>
+    return html`<div class=${this.rail ? "bar rail" : "bar"} role="group" style=${`gap:${gap}px${limit}`}>
       ${this.chips.map(
         (chip) =>
           html`<mc-filter-chip

@@ -617,6 +617,7 @@ export class SheetBuilder {
       readonly rows?: number;
       readonly rowHeight?: number;
       readonly gap?: number;
+      readonly rail?: boolean;
     } = {},
   ): void {
     this.nodes.push({ kind: "filterBar", key, rect: this.#rect(rect), chips, ...options });

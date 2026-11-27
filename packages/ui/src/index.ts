@@ -41,6 +41,7 @@ export { McBarChart } from "./components/mc-bar-chart/mc-bar-chart.js";
 export { McStatTiles } from "./components/mc-stat-tiles/mc-stat-tiles.js";
 export { McLineList } from "./components/mc-line-list/mc-line-list.js";
 export { McDeckGrid } from "./components/mc-deck-grid/mc-deck-grid.js";
+export { McShelfRoster } from "./components/mc-shelf-roster/mc-shelf-roster.js";
 export { McDeckDetails } from "./components/mc-deck-details/mc-deck-details.js";
 export { fitTextWithin } from "./shared/fit-text.js";
 export { lineOf, sizeCss } from "./shared/text-line.js";
@@ -132,6 +133,11 @@ export type { BarChartBar } from "./components/mc-bar-chart/mc-bar-chart.types.j
 export type { StatTile } from "./components/mc-stat-tiles/mc-stat-tiles.types.js";
 export type { LineListEntry, LineListGroup } from "./components/mc-line-list/mc-line-list.types.js";
 export type { DeckGridItem, DeckGridModel, DeckGridPick } from "./components/mc-deck-grid/mc-deck-grid.types.js";
+export type {
+  ShelfRosterItem,
+  ShelfRosterModel,
+  ShelfRosterShelf,
+} from "./components/mc-shelf-roster/mc-shelf-roster.types.js";
 export type { DeckDetailsAction, DeckDetailsModel } from "./components/mc-deck-details/mc-deck-details.types.js";
 export type { MenuButton, MenuButtonGlyph, MenuButtonIcon } from "./components/mc-menu-button/mc-menu-button.types.js";
 export type { MenuGridModel } from "./components/mc-menu-grid/mc-menu-grid.types.js";
