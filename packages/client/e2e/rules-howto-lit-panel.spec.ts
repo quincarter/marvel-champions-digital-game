@@ -38,7 +38,8 @@ test("How to play is a Lit panel: the keyboard walks its rows, Enter on Rules & 
   await openApp(page, "screen=howtoplay&unlock=all", { landing: "HowToPlay" });
   await waitForText(page, "THE BASICS", { sceneKey: "HowToPlay" });
   expect(await findText(page, "ASPECTS", "HowToPlay"), "the section labels are in the panel").not.toHaveLength(0);
-  expect(await findText(page, "Continue learning", "HowToPlay")).not.toHaveLength(0);
+  // The closing band sits below the fold of a list this long: in the panel, not necessarily inside its box.
+  await expect(page.locator(panel("HowToPlay")).getByText("Continue learning")).toHaveCount(1);
   await expect(page.locator(`${panel("HowToPlay")} [data-key="list"]`)).toHaveCount(1);
 
   // The first arrow press takes the first stop, as it did in Phaser (Back ×, then the lessons).
@@ -72,17 +73,21 @@ test("How to play is a Lit panel: the keyboard walks its rows, Enter on Rules & 
 
 test("The Rules reference is a Lit panel: tabs by keyboard, the search filters the glossary, Escape leaves", async ({
   page,
-}) => {
+}, info) => {
   test.setTimeout(120_000);
   const errors = trackPageErrors(page);
   await openApp(page, "screen=rules&unlock=all", { landing: "RulesOverlay" });
   await waitForText(page, "Glossary", { sceneKey: "RulesOverlay" });
   await waitForText(page, "Villain phase", { sceneKey: "RulesOverlay" });
   await waitForText(page, "Card list", { sceneKey: "RulesOverlay" });
-  expect(await findText(page, "Filtered to what's on your table", "RulesOverlay")).not.toHaveLength(0);
+  // The caption beside the scope buttons draws only where there is room (not on a phone, `scenes/rules.ts`).
+  await expect(page.locator(panel("RulesOverlay")).getByText("Filtered to what's on your table")).toHaveCount(
+    info.project.name === "phone" ? 0 : 1,
+  );
 
-  // The keyboard reaches a tab (Back, the scope toggle, then the tabs) and Enter opens it.
-  await walkTo(page, "RulesOverlay", "tab:glossary", ["ArrowDown"]);
+  // The keyboard reaches a tab (Tab walks the route: Back, the scope toggle, then the tabs; on a phone the arrows
+  // would step through the list under the tabs) and Enter opens it.
+  await walkTo(page, "RulesOverlay", "tab:glossary", ["Tab"]);
   await walkTo(page, "RulesOverlay", "tab:villainPhase", ["ArrowRight"]);
   expect((await focusOf(page, "RulesOverlay")).ringShown).toBe(true);
   await pressKey(page, "Enter");
@@ -123,21 +128,23 @@ test("The Rules reference is a Lit panel: tabs by keyboard, the search filters t
   expect(errors).toEqual([]);
 });
 
-test("How to play and the Rules reference read in Spanish", async ({ page }) => {
+test("How to play and the Rules reference read in Spanish", async ({ page }, info) => {
   await page.addInitScript(() => localStorage.setItem("mc-settings", '{"cardLanguage":"es"}'));
   await openApp(page, "screen=howtoplay&unlock=all", { landing: "HowToPlay" });
   await waitForText(page, "Aprende a jugar", { sceneKey: "HowToPlay" });
   await waitForText(page, "Lo básico", { sceneKey: "HowToPlay" });
   await waitForText(page, "Aspectos", { sceneKey: "HowToPlay" });
-  await waitForText(page, "Reglas y glosario", { sceneKey: "HowToPlay" });
-  await waitForText(page, "Seguir aprendiendo", { sceneKey: "HowToPlay" });
+  await expect(page.locator(panel("HowToPlay")).getByText("Reglas y glosario")).toHaveCount(1);
+  await expect(page.locator(panel("HowToPlay")).getByText("Seguir aprendiendo")).toHaveCount(1);
 
   await openApp(page, "screen=rules&unlock=all", { landing: "RulesOverlay" });
   await waitForText(page, "Referencia de reglas", { sceneKey: "RulesOverlay" });
   await waitForText(page, "Glosario", { sceneKey: "RulesOverlay" });
   await waitForText(page, "Fase del villano", { sceneKey: "RulesOverlay" });
   await waitForText(page, "Lista de cartas", { sceneKey: "RulesOverlay" });
-  await waitForText(page, "Filtrado a lo que hay en tu mesa", { sceneKey: "RulesOverlay" });
+  await expect(page.locator(panel("RulesOverlay")).getByText("Filtrado a lo que hay en tu mesa")).toHaveCount(
+    info.project.name === "phone" ? 0 : 1,
+  );
 });
 
 /** A finger drag from `from` to `to`, lifted at `to` (real touch events, as the villain review handle spec's). */
@@ -254,7 +261,12 @@ test("a card hold armed in the Rules reference raises no Inspect once another mo
 }, info) => {
   test.skip(info.project.name === "phone", "a mouse");
   test.setTimeout(120_000);
-  await openApp(page, "screen=rules&unlock=all", { landing: "RulesOverlay" });
+  // Opened from How to play, like the hover test above: no game is under it, so every entry shows its card pictures.
+  await openApp(page, "screen=howtoplay&unlock=all", { landing: "HowToPlay" });
+  await waitForText(page, "THE BASICS", { sceneKey: "HowToPlay" });
+  await walkTo(page, "HowToPlay", "reference");
+  await pressKey(page, "Enter");
+  await waitFor(async () => ((await activeScenes(page)).includes("RulesOverlay") ? true : null), "Rules opens", 10_000);
   await waitForText(page, "Glossary", { sceneKey: "RulesOverlay" });
   const thumb = page.locator(`${panel("RulesOverlay")} [data-key*=":card:"]`).first();
   await expect(thumb).toHaveCount(1);
@@ -265,11 +277,12 @@ test("a card hold armed in the Rules reference raises no Inspect once another mo
   await page.mouse.move(at.x, at.y);
   await page.mouse.down();
   await page.evaluate(() => {
+    // A scene drawn above the Rules reference (later in the draw order; Pause is registered before it, so it is under it).
     const game = (globalThis as unknown as { __mcGame: { scene: { run(key: string): void } } }).__mcGame;
-    game.scene.run("PauseOverlay");
+    game.scene.run("SettingsOverlay");
   });
   await waitFor(
-    async () => ((await activeScenes(page)).includes("PauseOverlay") ? true : null),
+    async () => ((await activeScenes(page)).includes("SettingsOverlay") ? true : null),
     "a modal opens",
     10_000,
   );
