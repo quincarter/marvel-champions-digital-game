@@ -325,6 +325,8 @@ export class ControlsOverlay extends Phaser.Scene {
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     // Nothing drawn: the entrance and exit tween this, and the panel rises and fades with it (`DomRegion.follow`).
     const anchor = this.add.graphics();
+    // Before the first mount: the sheet then has this anchor as its one motion owner (no built-in slide on top).
+    this.#panel.follow(anchor);
     const b = this.#panel.begin(width, height);
     const { panel, header, viewport, content } = layout;
     this.#viewport = viewport;
@@ -464,7 +466,6 @@ export class ControlsOverlay extends Phaser.Scene {
     this.#bindSlider();
     this.#route?.set(order, stops);
     this.#motion.enter(this, { scrim: [], panels: [anchor] });
-    this.#panel.follow(anchor);
   }
 
   /** "● Xbox controller connected · <pad>" (heal-green dot) or "No controller connected" (hollow). */

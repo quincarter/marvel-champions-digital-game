@@ -196,6 +196,8 @@ export class UnlocksOverlay extends Phaser.Scene {
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     // Nothing drawn: the entrance and exit tween this, and the panel rises and fades with it (`DomRegion.follow`).
     const anchor = this.add.graphics();
+    // Before the first mount: the sheet then has this anchor as its one motion owner (no built-in slide on top).
+    this.#panel.follow(anchor);
     const b = this.#panel.begin(width, height);
     b.box(panel, { fill: surface.ink.hex, stroke: surface.paper.hex, strokeWidth: 4 });
     b.box(
@@ -345,7 +347,6 @@ export class UnlocksOverlay extends Phaser.Scene {
 
   #enter(anchor: Phaser.GameObjects.Graphics): void {
     this.#motion.enter(this, { scrim: [], panels: [anchor] });
-    this.#panel.follow(anchor);
   }
 
   /** "How it works": every section of the guide, top to bottom, in one scrolling region. */

@@ -105,9 +105,21 @@ export class PopupSheet {
     });
   }
 
-  /** Rises and fades with an invisible Phaser anchor the scene's `OverlayMotion` tweens (as `scenes/pause.ts` does). */
+  /**
+   * Rises and fades with an invisible Phaser anchor the scene's `OverlayMotion` tweens (as `scenes/pause.ts` does).
+   * Call it before the first `mount`: an anchored sheet has that one motion owner and never starts the built-in
+   * slide. Taken after a mount, it stops a built-in entrance already running and hands the box to the anchor.
+   */
   follow(anchor: Followed | null): void {
     this.#followed = anchor;
+    if (anchor && this.#moving) {
+      this.#scene.tweens.killTweensOf(this.#m);
+      this.#moving = false;
+      this.#m.y = 0;
+      this.#m.alpha = 1;
+      this.#region?.element.removeAttribute("popup");
+      this.#apply();
+    }
     this.#region?.follow(anchor);
   }
 
@@ -309,7 +321,7 @@ export class PopupSheet {
   }
 
   #down(event: PointerEvent): void {
-    if (event.pointerType === "mouse" || this.#leaving || this.#drag || !this.#region) return;
+    if (event.pointerType === "mouse" || !this.#moving || this.#leaving || this.#drag || !this.#region) return;
     const onHandle = event.composedPath().some((node) => (node as HTMLElement).dataset?.key === GRAB_KEY);
     if (!onHandle) return;
     const shown = this.#region.element.getBoundingClientRect().width;

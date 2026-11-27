@@ -356,6 +356,8 @@ export class SaveDataOverlay extends Phaser.Scene {
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     // Nothing drawn: the entrance and exit tween this, and the panel rises and fades with it (`DomRegion.follow`).
     const anchor = this.add.graphics();
+    // Before the first mount: the sheet then has this anchor as its one motion owner (no built-in slide on top).
+    this.#panel.follow(anchor);
     const b = this.#panel.begin(width, height);
     this.#b = b;
     b.box(panel, { fill: surface.ink.hex, stroke: surface.paper.hex, strokeWidth: 4 });
@@ -436,7 +438,6 @@ export class SaveDataOverlay extends Phaser.Scene {
     this.#panel.mount(b, width, height, holes);
     this.#route?.set(order, stops);
     this.#motion.enter(this, { scrim: [], panels: [anchor] });
-    this.#panel.follow(anchor);
   }
 
   /** A key's press. */
