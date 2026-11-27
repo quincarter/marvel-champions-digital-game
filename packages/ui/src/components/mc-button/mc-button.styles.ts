@@ -66,6 +66,18 @@ export const McButtonStyles = css`
     letter-spacing: 0;
   }
 
+  /* A label that wraps onto a second line (a built game's name on the Continue row). */
+  :host([wrap]) .label {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+    text-overflow: clip;
+  }
+  /* Room kept clear at the left edge (an icon beside the label): the label centres in what is left. */
+  .label {
+    margin-left: var(--mc-label-inset, 0px);
+  }
+
   :host([kind="secondary"][selected]) {
     --fill: var(--mc-fill-ink);
     --ink: var(--mc-text-paper);

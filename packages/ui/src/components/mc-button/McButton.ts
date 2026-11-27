@@ -31,6 +31,7 @@ export class McButton extends LitElement {
     framed: { type: Boolean, reflect: true },
     display: { type: Boolean, reflect: true },
     plain: { type: Boolean, reflect: true },
+    wrap: { type: Boolean, reflect: true },
     still: { type: Boolean, reflect: true },
     reason: { type: String },
   };
@@ -42,6 +43,8 @@ export class McButton extends LitElement {
   declare framed: boolean;
   declare display: boolean;
   declare plain: boolean;
+  /** A label that wraps onto a second line (a built game's name), shrinking a step before it would need a third. */
+  declare wrap: boolean;
   /** No label slide (reduced motion). */
   declare still: boolean;
   declare reason: string;
@@ -57,6 +60,7 @@ export class McButton extends LitElement {
     this.framed = false;
     this.display = false;
     this.plain = false;
+    this.wrap = false;
     this.still = false;
     this.reason = "";
   }
@@ -103,6 +107,14 @@ export class McButton extends LitElement {
     const floor = parseFloat(style.getPropertyValue("--mc-small-8")) || 8;
     const room = this.clientWidth - 16;
     let size = parseFloat(style.fontSize);
+    if (this.wrap) {
+      // Two lines at most: a step smaller until the label's height fits the button.
+      while (label.scrollHeight > this.clientHeight - 4 && size > floor) {
+        size = Math.max(floor, size - 0.5);
+        label.style.fontSize = `${size}px`;
+      }
+      return;
+    }
     // An ellipsis-clipped label reports its full width as scrollWidth, so the loop measures the overflow itself.
     while (label.scrollWidth > room && size > floor) {
       size = Math.max(floor, size - 0.5);
