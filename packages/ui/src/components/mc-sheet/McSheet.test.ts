@@ -592,4 +592,39 @@ describe("scrollBox", () => {
     expect(scrollBox({ rect: r, height: 400 })).toEqual({ ...r, width: 300 + SCROLL_GUTTER });
     expect(scrollBox({ rect: r, height: 100 })).toBe(r);
   });
+
+  it("centers a cover crop on its focal point once the picture's size is known, and keeps it inside the picture", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "image",
+        key: "hero",
+        rect: rect(0, 0, 100, 100),
+        src: "/h.png",
+        cover: { x: 0.5, y: 0.6, centered: true },
+      },
+      {
+        kind: "button",
+        key: "go",
+        rect: rect(0, 0, 10, 10),
+        label: "Go",
+        look: "secondary",
+        disabled: "No",
+        pressable: true,
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const img = sheet.elementOf("hero")!.querySelector("img")!;
+    // Not loaded yet: the point is a share of the overflow.
+    expect(img.style.objectPosition).toBe("50% 60%");
+    // A 200 x 400 picture in a 100 x 100 box scales by 0.5: the crop is 200 x 200 of it. Centered on 0.6 (240) it starts at 140 of 200 spare.
+    Object.defineProperty(img, "naturalWidth", { value: 200 });
+    Object.defineProperty(img, "naturalHeight", { value: 400 });
+    img.dispatchEvent(new Event("load"));
+    await sheet.updateComplete;
+    expect(sheet.elementOf("hero")!.querySelector("img")!.style.objectPosition).toBe("50% 70%");
+    expect(sheet.elementOf("go")!.hasAttribute("pressable")).toBe(true);
+    sheet.remove();
+  });
 });

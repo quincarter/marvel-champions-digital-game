@@ -4,6 +4,7 @@
  * their seat, searched with the shared fuzzy match (`view/deck-search.ts`). Plain data: nothing here judges a deck; the
  * engine's own verdict rides on each `DeckOption` and the host's engine judges it again at Start.
  */
+import { artLanguageNow } from "../art/art-source.js";
 import { aspectName } from "./aspect-stamp.js";
 import type { DeckOption } from "./deck-list-model.js";
 import { queryScoreOf } from "./deck-search.js";
@@ -43,7 +44,7 @@ function rowOf(option: DeckOption, current: CurrentDeck | null): PickerRow {
     name: option.deck.name,
     cardId: option.deck.identityCardId as string,
     heroName,
-    aspects: option.deck.aspects.map((a) => aspectName(a as string)).join(" + "),
+    aspects: option.deck.aspects.map((a) => aspectName(a as string, artLanguageNow())).join(" + "),
     cards: cardsOf(option),
     seatable: option.seatable,
     checking: option.checking === true,

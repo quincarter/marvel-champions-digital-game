@@ -8,7 +8,7 @@ import "../mc-aspect-chip/mc-aspect-chip.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
-import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
+import type { SheetImage, SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
 
 /**
@@ -61,6 +61,8 @@ export class McSheet extends LitElement {
   readonly #failed = new Set<string>();
   /** Keys already asked to resolve again; cleared when one of their pictures loads. */
   readonly #retried = new Set<string>();
+  /** The natural size of each picture that has loaded, for a cover crop centered on a focal point. */
+  readonly #sizes = new Map<string, { readonly width: number; readonly height: number }>();
 
   constructor() {
     super();
@@ -154,6 +156,24 @@ export class McSheet extends LitElement {
 
   override render() {
     return html`${repeat(this.nodes, keyOf, (node) => this.#node(node))}`;
+  }
+
+  /**
+   * A cover picture's `object-position`. A plain focal point is a share of the overflow. A centered one puts the crop's
+   * middle on the point and keeps it inside the picture (the client's cover crop), which needs the picture's size: until
+   * it has loaded the point is used as a share.
+   */
+  #objectPosition(node: SheetImage): string {
+    const cover = node.cover!;
+    const size = node.src ? this.#sizes.get(node.src) : undefined;
+    if (!cover.centered || !size) return `${cover.x * 100}% ${cover.y * 100}%`;
+    const scale = Math.max(node.rect.width / size.width, node.rect.height / size.height);
+    const share = (length: number, box: number, point: number): number => {
+      const crop = Math.min(length, box / scale);
+      const room = length - crop;
+      return room <= 0 ? 50 : (Math.max(0, Math.min(room, point * length - crop / 2)) / room) * 100;
+    };
+    return `${share(size.width, node.rect.width, cover.x)}% ${share(size.height, node.rect.height, cover.y)}%`;
   }
 
   /** `text` with its marked ranges in `mark` elements, written without whitespace between the parts. */
@@ -395,6 +415,7 @@ export class McSheet extends LitElement {
           ?plain=${node.plain ?? false}
           ?still=${node.still ?? false}
           ?disabled=${node.disabled !== undefined}
+          ?pressable=${node.pressable ?? false}
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
           aria-keyshortcuts=${node.keyshortcuts ?? nothing}
           @mc-press=${() => this.#activate(node.key)}
@@ -443,10 +464,15 @@ export class McSheet extends LitElement {
                   alt=""
                   loading="lazy"
                   decoding="async"
-                  style=${node.cover ? `object-fit:cover;object-position:${node.cover.x * 100}% ${node.cover.y * 100}%` : nothing}
+                  style=${node.cover ? `object-fit:cover;object-position:${this.#objectPosition(node)}` : nothing}
                   draggable="false"
-                  @load=${() => {
+                  @load=${(event: Event) => {
                     if (node.retry !== undefined) this.#retried.delete(node.retry);
+                    const img = event.target as HTMLImageElement;
+                    if (node.cover?.centered && node.src && !this.#sizes.has(node.src) && img.naturalWidth > 0) {
+                      this.#sizes.set(node.src, { width: img.naturalWidth, height: img.naturalHeight });
+                      this.requestUpdate();
+                    }
                   }}
                   @error=${() => {
                     this.#failed.add(node.src!);

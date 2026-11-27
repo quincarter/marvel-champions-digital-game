@@ -81,6 +81,11 @@ export interface SheetButton {
   readonly look: McButtonKind;
   readonly selected?: boolean;
   readonly disabled?: string | true;
+  /**
+   * With `disabled`: dimmed as unavailable, but a tap still raises `mc-activate`, so the scene can say why it does
+   * nothing (a touch has no hover to show the reason).
+   */
+  readonly pressable?: boolean;
   readonly framed?: boolean;
   /** A Bangers label. */
   readonly display?: boolean;
@@ -164,8 +169,13 @@ export interface SheetImage {
    * loaded yet). A failed load then raises `mc-image-error` once for this key, so the owner can hand a fresh URL.
    */
   readonly retry?: string;
-  /** Fills the box, cropped (never stretched) around this focal point, 0 to 1 each way, instead of fitting whole. */
-  readonly cover?: { readonly x: number; readonly y: number };
+  /**
+   * Fills the box, cropped (never stretched) around this focal point, 0 to 1 each way, instead of fitting whole. With
+   * `centered`, the crop is centered on the point and kept inside the picture (the client's own cover crop, as a hero's
+   * `focus.json` means it); otherwise the point is a CSS `object-position`, which puts that share of the overflow
+   * before the box.
+   */
+  readonly cover?: { readonly x: number; readonly y: number; readonly centered?: boolean };
 }
 
 /** Ink dots thickening toward the foot of a box, the way the comic pages shade a panel (a game mode box's art). */

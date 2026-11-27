@@ -238,6 +238,8 @@ export class SheetBuilder {
     readonly look: "primary" | "secondary" | "quiet" | "onInk" | "rail";
     readonly selected?: boolean;
     readonly disabled?: string | true;
+    /** With `disabled`: dimmed, but a tap still presses (the scene says why it does nothing). */
+    readonly pressable?: boolean;
     readonly framed?: boolean;
     readonly type?: TypeSpec;
     /** The label slides right by this many px to make room for a glyph beside it. */
@@ -260,6 +262,7 @@ export class SheetBuilder {
       look: options.look,
       ...(options.selected ? { selected: true } : {}),
       ...(options.disabled !== undefined ? { disabled: options.disabled } : {}),
+      ...(options.pressable ? { pressable: true } : {}),
       ...(options.framed ? { framed: true } : {}),
       ...(type?.family === font.display ? { display: true } : {}),
       ...(type && !type.uppercase && type.family !== font.display ? { plain: true } : {}),
@@ -373,8 +376,8 @@ export class SheetBuilder {
       readonly key?: string;
       /** The pack picture key the URL came from: a failed load asks the scene once to resolve it again (`mc-image-error`). */
       readonly retry?: string;
-      /** Fills the box, cropped around this focal point (0 to 1 each way), instead of fitting the whole picture. */
-      readonly cover?: { readonly x: number; readonly y: number };
+      /** Fills the box, cropped around this focal point (0 to 1 each way), instead of fitting the whole picture; `centered`: the crop is centered on it (a hero's `focus.json`). */
+      readonly cover?: { readonly x: number; readonly y: number; readonly centered?: boolean };
     },
   ): void {
     this.nodes.push({
