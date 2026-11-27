@@ -616,6 +616,11 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "unlock.castJoin": " y ",
   "unlock.noteScenario": "Esto solo abre {name}, no el resto de {wave}.",
   "title.modStore": "Tienda de mods",
+  "modStore.beta.heading": "Beta",
+  "modStore.beta.body":
+    "La Tienda de mods es nueva. Todos los paquetes son creados por aficionados y muchos necesitaron reglas nuevas en el juego para funcionar, así que espera algún fallo: una carta que se resuelve de forma rara, una imagen que falta. Si algo no va bien, abre Sobre los mods e infórmalo.",
+  "modStore.beta.phoneBody": "Nueva y hecha por aficionados: espera algún fallo. ¿Has visto uno? Toca ! e infórmalo.",
+  "modStore.about": "Sobre los mods",
   "modStore.tab.all": "Todo",
   "modStore.tab.heroes": "Héroes",
   "modStore.tab.scenarios": "Escenarios",

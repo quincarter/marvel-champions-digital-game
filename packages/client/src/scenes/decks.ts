@@ -2720,7 +2720,7 @@ export class DecksScene extends Phaser.Scene {
     y += 16;
     // A short screen (a phone's Stats tab) cannot fit all of it above the pinned footer: the chart gives up height
     // first, then the tiles get shorter, and "Recently changed" (the least needed) is left out last.
-    const tileCount = compositionTilesOf(stats).length;
+    const tileCount = compositionTilesOf(stats, artLanguageNow()).length;
     const tileRows = Math.ceil(tileCount / 3);
     const footerTop = rect.y + rect.height - hit.primary - 16 - 13 - 8;
     const belowChart = (tileHeight: number): number =>
@@ -2740,7 +2740,7 @@ export class DecksScene extends Phaser.Scene {
 
     small(t("decks.stats.composition").toUpperCase(), y);
     y += 16;
-    y = this.#drawStatTiles(b, left, y, column, compositionTilesOf(stats), tileHeight) + 12;
+    y = this.#drawStatTiles(b, left, y, column, compositionTilesOf(stats, artLanguageNow()), tileHeight) + 12;
 
     // Check/Edit/Delete: real, needed actions D14 itself doesn't draw: a row of small buttons, so the footer below still
     // ends in exactly Duplicate + the red Play button.
