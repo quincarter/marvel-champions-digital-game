@@ -140,7 +140,13 @@ test("Extras reads in Spanish", async ({ page }) => {
   await openApp(page, "screen=extras&unlock=all", { landing: "Extras" });
   await waitForText(page, "ABIERTOS", { sceneKey: "Extras" });
   await expect(page.locator(panel("Extras")).getByText("Créditos")).toHaveCount(1);
-  await expect(page.locator(panel("Extras")).getByText("Historias").first()).toHaveCount(1);
+  // A phone rail prints the short names ("Hist."), a wider screen the whole ones.
+  await expect(
+    page
+      .locator(panel("Extras"))
+      .getByText(/Historias|Hist\./)
+      .first(),
+  ).toHaveCount(1);
   await openApp(page, "screen=extras&tab=heroes", { landing: "Extras" });
   await waitForText(page, "BLOQUEADO", { sceneKey: "Extras" });
   await expect(page.locator(panel("Extras")).getByText("Termina una partida como").first()).toHaveCount(1);
