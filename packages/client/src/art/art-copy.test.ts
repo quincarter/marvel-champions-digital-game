@@ -20,13 +20,13 @@ async function sidewaysJpeg(name: string): Promise<string> {
 
 describe("art copies of a sideways picture", () => {
   test("a roster copy keeps the upright picture's shape", async () => {
-    const bytes = await copyOf("roster", await sidewaysJpeg("roster.jpg"));
+    const bytes = await copyOf("roster", await sidewaysJpeg("roster.jpg"), join(dir, "cache"));
     const meta = await sharp(bytes!).metadata();
     // Upright 2000x4000 shrinks to a 2x tile's width (600): 600x1200, not the stored axes' 1760x880.
     expect({ width: meta.width, height: meta.height }).toEqual({ width: 600, height: 1200 });
   });
   test("a display copy keeps the upright picture's shape", async () => {
-    const bytes = await copyOf("display", await sidewaysJpeg("display.jpg"));
+    const bytes = await copyOf("display", await sidewaysJpeg("display.jpg"), join(dir, "cache"));
     const meta = await sharp(bytes!).metadata();
     // Upright 2000x4000: its short edge (2000) is already under the 2160 cap, so it is not resized.
     expect({ width: meta.width, height: meta.height }).toEqual({ width: 2000, height: 4000 });

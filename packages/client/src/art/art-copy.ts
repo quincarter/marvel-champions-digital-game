@@ -49,7 +49,7 @@ function loadSharp(): Promise<Sharp | null> {
 }
 
 /** The copy's bytes (cached on disk), or null without `sharp`. Throws when sharp cannot read the file. */
-export async function copyOf(kind: CopyKind, file: string): Promise<Buffer | null> {
+export async function copyOf(kind: CopyKind, file: string, cacheDir: string = CACHE): Promise<Buffer | null> {
   const sharp = await loadSharp();
   if (!sharp) return null;
   const stat = statSync(file);
@@ -77,7 +77,7 @@ export async function copyOf(kind: CopyKind, file: string): Promise<Buffer | nul
       ].join("|"),
     )
     .digest("hex");
-  const cached = join(CACHE, `${name}.webp`);
+  const cached = join(cacheDir, `${name}.webp`);
   if (existsSync(cached)) return readFileSync(cached);
   // `.rotate()` applies the EXIF orientation first, so the size above (the upright picture's) is what it is resized to.
   const bytes = await sharp(file)
@@ -85,9 +85,14 @@ export async function copyOf(kind: CopyKind, file: string): Promise<Buffer | nul
     .resize({ width: size.width, height: size.height, fit: "fill" })
     .webp({ quality: QUALITY[kind] })
     .toBuffer();
-  mkdirSync(CACHE, { recursive: true });
-  const temp = `${cached}.${process.pid}.tmp`;
-  writeFileSync(temp, bytes);
-  renameSync(temp, cached);
+  // The copy is still the answer when the cache cannot be written (a read-only or full disk).
+  try {
+    mkdirSync(cacheDir, { recursive: true });
+    const temp = `${cached}.${process.pid}.tmp`;
+    writeFileSync(temp, bytes);
+    renameSync(temp, cached);
+  } catch {
+    // Not cached; it is made again next time.
+  }
   return bytes;
 }

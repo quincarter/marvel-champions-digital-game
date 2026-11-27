@@ -55,9 +55,12 @@ export class McBarChart extends LitElement {
     this.height = 84;
   }
 
+  override updated(): void {
+    this.style.height = `${this.height}px`;
+  }
+
   override render() {
     const max = Math.max(1, ...this.bars.map((bar) => bar.count));
-    this.style.height = `${this.height}px`;
     return html`${this.bars.map(
       (bar) =>
         html`<div class="column">

@@ -1,4 +1,5 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
+import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import type { FilterChip, FilterSort } from "../../shared/filter.types.js";
 import "../mc-button/mc-button.js";
@@ -57,9 +58,52 @@ export class McFilterBar extends LitElement {
     this.gap = 8;
   }
 
-  /** The element drawn for a key (a chip), for a screen focus stops. */
+  /** The element drawn for a key (a chip), for a screen focus stops. A chip the row limit cut off is not there to focus. */
   elementOf(key: string): HTMLElement | null {
-    return this.renderRoot.querySelector(`[data-key="${CSS.escape(key)}"]`);
+    const found = this.renderRoot.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+    return found && !found.hasAttribute("clipped") ? found : null;
+  }
+
+  /** Marks the chips that fall past the last allowed row: hidden from the eye and the focus ring both. */
+  #resize: ResizeObserver | null = null;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    // The bar's width changes which chips fall past the last row.
+    if (typeof ResizeObserver !== "undefined") {
+      this.#resize = new ResizeObserver(() => this.#markClipped());
+      this.#resize.observe(this);
+    }
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#resize?.disconnect();
+    this.#resize = null;
+  }
+
+  override async updated(): Promise<void> {
+    this.#markClipped();
+    // The chips lay themselves out after they render: look again once they have.
+    await Promise.all(
+      [...this.renderRoot.querySelectorAll<HTMLElement & { updateComplete?: Promise<unknown> }>(".chip")].map(
+        (c) => c.updateComplete,
+      ),
+    );
+    this.#markClipped();
+  }
+
+  #markClipped(): void {
+    const bar = this.renderRoot.querySelector<HTMLElement>(".bar");
+    if (!bar) return;
+    const limited = this.rows > 0 && this.rowHeight > 0;
+    const bottom = bar.getBoundingClientRect().top + bar.clientHeight;
+    for (const chip of bar.querySelectorAll<HTMLElement>(".chip")) {
+      const cut = limited && chip.getBoundingClientRect().bottom > bottom + 0.5;
+      chip.toggleAttribute("clipped", cut);
+      if (cut) chip.style.visibility = "hidden";
+      else if (chip.style.visibility) chip.style.visibility = "";
+    }
   }
 
   #emit(name: string, detail: object = {}): void {
@@ -71,7 +115,9 @@ export class McFilterBar extends LitElement {
     const limit = rows > 0 && rowHeight > 0 ? `;max-height:${rows * rowHeight + (rows - 1) * gap}px` : "";
     const cell = rowHeight > 0 ? `height:${rowHeight}px` : "min-height:44px";
     return html`<div class="bar" role="group" style=${`gap:${gap}px${limit}`}>
-      ${this.chips.map(
+      ${repeat(
+        this.chips,
+        (chip) => chip.id,
         (chip) =>
           html`<mc-filter-chip
             class="chip"

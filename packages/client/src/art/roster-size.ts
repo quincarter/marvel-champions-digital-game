@@ -7,7 +7,7 @@
  * how an import id is read.
  */
 
-/** The largest tile the rosters draw, in CSS px (`#cardMetrics` in `scenes/scenario-select.ts` and `scenes/seats.ts`). */
+/** The largest tile the rosters draw, in CSS px (`#cardMetrics` in `scenario-select.ts` and `seats.ts`). */
 export const ROSTER_TILE = { width: 300, height: 440 } as const;
 /** Pixel density a roster copy covers: a tile on a 2x screen is sharp, a 3x phone's is slightly soft. */
 export const ROSTER_DENSITY = 2;
@@ -52,7 +52,10 @@ export function copySizeFor(
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
-/** True for a path under `art/` that the `kind` copy is made for: the hero and villain pictures the tiles draw, or a title picture. */
+/**
+ * True for a path under `art/` that the `kind` copy is made for: the hero and villain pictures the tiles draw, or a
+ * title picture.
+ */
 export function hasCopy(kind: CopyKind, pathUnderArt: string): boolean {
   const parts = pathUnderArt.split("/");
   const file = parts[parts.length - 1] ?? "";

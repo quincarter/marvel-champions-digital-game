@@ -102,3 +102,27 @@ describe("mc-filter-bar", () => {
     expect(bar.shadowRoot!.querySelector(".sheet")).toBeNull();
   });
 });
+
+describe("mc-filter-bar chips past the row limit", () => {
+  it("keeps chips keyed by id, and a chip cut off by the row limit is not offered to a focus ring", async () => {
+    const bar = document.createElement("mc-filter-bar");
+    bar.chips = [
+      { id: "a", label: "A", selected: false },
+      { id: "b", label: "B", selected: false },
+    ];
+    bar.rows = 1;
+    bar.rowHeight = 40;
+    document.body.append(bar);
+    await bar.updateComplete;
+    const first = bar.shadowRoot!.querySelector("mc-filter-chip")!;
+    // Reordered: the same element follows its chip.
+    bar.chips = [...bar.chips].reverse();
+    await bar.updateComplete;
+    expect(bar.shadowRoot!.querySelector('[data-key="chip:a"]')).toBe(first);
+    // Marked as cut, it is gone for the ring (layout is not computed here, so it is marked by hand).
+    first.setAttribute("clipped", "");
+    expect(bar.elementOf("chip:a")).toBeNull();
+    expect(bar.elementOf("chip:b")).not.toBeNull();
+    bar.remove();
+  });
+});

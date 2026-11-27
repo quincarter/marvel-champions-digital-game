@@ -66,9 +66,13 @@ function itemOf(row: PickerRow, mode: "grid" | "list", selected: string | null, 
       heavy: row.id === selected || row.current,
       stripe: aspectStampsOf(aspects).map((stamp) => hex6(stamp.fill)),
       lines: [
-        line(tileTitleOf(row.name), 14, 19, { weight: 800 }),
-        line(who, 12, 16, { opacity: 0.85 }),
-        line(status.text ?? "", 12, 16, { opacity: status.bold ? 1 : 0.85, weight: status.bold ? 700 : 400 }),
+        line(tileTitleOf(row.name), 14, 19, { weight: 800, floor: 10 }),
+        line(who, 12, 16, { opacity: 0.85, floor: 10 }),
+        line(status.text ?? "", 12, 16, {
+          opacity: status.bold ? 1 : 0.85,
+          weight: status.bold ? 700 : 400,
+          floor: 10,
+        }),
       ],
     };
   }
@@ -81,10 +85,10 @@ function itemOf(row: PickerRow, mode: "grid" | "list", selected: string | null, 
     heavy,
     stripe: [],
     lines: [
-      line(tileTitleOf(row.name), 15, 21, { weight: 800 }),
-      line(detail, 12, 17, { opacity: 0.85 }),
+      line(tileTitleOf(row.name), 15, 21, { weight: 800, floor: 10 }),
+      line(detail, 12, 17, { opacity: 0.85, floor: 10 }),
       ...(status.text
-        ? [line(status.text, 12, 17, { opacity: status.bold ? 1 : 0.85, weight: status.bold ? 700 : 400 })]
+        ? [line(status.text, 12, 17, { opacity: status.bold ? 1 : 0.85, weight: status.bold ? 700 : 400, floor: 10 })]
         : []),
     ],
     pick: {
