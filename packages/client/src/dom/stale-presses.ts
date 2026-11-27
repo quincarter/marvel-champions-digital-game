@@ -11,3 +11,7 @@ export function staleKeys(before: ReadonlyMap<string, string>, after: ReadonlyMa
   }
   return stale;
 }
+
+/** What a button means right now: its command and target, then how it looks (a look-alike for another target differs). */
+export const commandMeaning = (target: string, look: string, label: string, enabled: boolean): string =>
+  `${target}#${look}|${label}|${enabled}`;

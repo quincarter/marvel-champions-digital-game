@@ -483,6 +483,17 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       return;
     }
     if (this.#preview) {
+      // Dev e2e hook: hold the answer, as a slow send would, so the veil's input gate can be checked.
+      const hold = (globalThis as { __mcPickHold?: Promise<void> }).__mcPickHold;
+      if (hold) {
+        this.#picking = true;
+        const held = ++this.#pickGen;
+        this.#showBusy();
+        await hold;
+        if (!this.#alive || held !== this.#pickGen) return;
+        this.#picking = false;
+        this.#hideBusy();
+      }
       const calls = ((globalThis as { __mcRoomCalls?: string[] }).__mcRoomCalls ??= []);
       calls.push(`${this.#preset ? "presetDeck" : "chooseDeck"}(${this.#seat},${row.id})`);
       this.#back();

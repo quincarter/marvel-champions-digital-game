@@ -12,7 +12,7 @@
 import Phaser from "phaser";
 import "@mc/ui";
 import { cancelPressesWithin, type McSheet, type SheetNode } from "@mc/ui";
-import { staleKeys } from "../dom/stale-presses.js";
+import { commandMeaning, staleKeys } from "../dom/stale-presses.js";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { SheetBuilder, sheetColor, type Measured } from "../dom/sheet-builder.js";
@@ -471,6 +471,17 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#openModePicker(this.#state.competitive ? "competitive" : this.#state.epic ? "epic" : "standard", (mode) =>
         ((globalThis as { __mcRoomCalls?: string[] }).__mcRoomCalls ??= []).push(`chooseMode(${mode})`),
       );
+    }
+    if (this.#preview && import.meta.env.DEV) {
+      // Dev e2e hook: a live room update (a seat's holder changes) while a press is armed, with nothing sent.
+      (window as unknown as { __mcLobbyPatchSeat?: unknown }).__mcLobbyPatchSeat = (
+        id: string,
+        patch: object,
+      ): void => {
+        const seats = this.#state.seats.map((seat) => (seat.id === id ? { ...seat, ...patch } : seat));
+        this.#state = { ...this.#state, seats };
+        this.#draw();
+      };
     }
     if (!this.#preview) {
       this.#off = onRoomState((state) => this.#onState(state));
@@ -943,6 +954,8 @@ export class RoomLobbyScene extends Phaser.Scene {
     readonly noStop?: boolean;
     readonly labelShift?: number;
     readonly aria?: string;
+    /** The command and its target ("remove|p2"): a press armed for one is dropped when it becomes another. */
+    readonly meaning?: string;
   }): void {
     const enabled = options.enabled ?? true;
     const run = enabled
@@ -954,7 +967,7 @@ export class RoomLobbyScene extends Phaser.Scene {
           }
         };
     this.#press(options.key, run);
-    this.#meanings.set(options.key, `${options.look}|${options.label}|${enabled}`);
+    this.#meanings.set(options.key, commandMeaning(options.meaning ?? "", options.look, options.label, enabled));
     this.#b.button({
       key: options.key,
       rect: options.rect,
@@ -1801,6 +1814,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       const rect: Rect = { x: x + w - pad - buttonWidth, y: y + 10, width: buttonWidth, height: hit.target };
       this.#button({
         key: `seat:${row.id}`,
+        meaning: `${action.kind}|${action.participant ?? ""}`,
         look:
           action.kind === "leave" || action.kind === "withdraw" || action.kind === "remove" ? "secondary" : "primary",
         label: t(action.labelKey),
@@ -1825,6 +1839,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       };
       this.#button({
         key: `play:${row.id}`,
+        meaning: `${play.kind}|${row.holderName ?? ""}`,
         look: "primary",
         label: t(play.labelKey),
         type: { ...typeRole.label, size: 12 },
@@ -1955,6 +1970,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       const rect: Rect = { x: x + pad, y: cy, width: w - pad * 2, height: hit.target };
       this.#button({
         key: `deck:${row.id}`,
+        meaning: `${button.kind}|${row.deck?.cardId ?? ""}`,
         look: button.kind === "choose" && !row.deck ? "primary" : "secondary",
         label: t(button.labelKey),
         type: { ...typeRole.label, size: 13 },
