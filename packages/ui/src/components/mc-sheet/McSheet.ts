@@ -12,7 +12,7 @@ import "../mc-tab-rail/mc-tab-rail.js";
 import "../mc-picture-tile/mc-picture-tile.js";
 import "../mc-search-field/mc-search-field.js";
 import "../mc-filter-bar/mc-filter-bar.js";
-import "../mc-list-row/mc-list-row.js";
+import "../mc-media-row/mc-media-row.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
@@ -91,29 +91,8 @@ export class McSheet extends LitElement {
     return null;
   }
 
-  /** Puts the caret in a search field by its key. */
-  focusField(key: string): void {
-    (this.elementOf(key) as { focusField?: () => void } | null)?.focusField?.();
-  }
-
-  /** Whether the caret is in a search field. */
-  fieldFocused(key: string): boolean {
-    return (this.elementOf(key) as { focused?: boolean } | null)?.focused === true;
-  }
-
-  /** Takes the caret out of a search field. */
-  blurField(key: string): void {
-    (this.elementOf(key) as { blurField?: () => void } | null)?.blurField?.();
-  }
-
   #activate(key: string): void {
     this.dispatchEvent(new CustomEvent("mc-activate", { detail: { key }, bubbles: true, composed: true }));
-  }
-
-  /** A field part's event, said again by the sheet with the part's key. */
-  #relay(event: CustomEvent<Record<string, unknown>>, key: string, name: string): void {
-    event.stopPropagation();
-    this.dispatchEvent(new CustomEvent(name, { detail: { ...event.detail, key }, bubbles: true, composed: true }));
   }
 
   #hover(key: string, over: boolean, event: PointerEvent): void {
@@ -634,7 +613,7 @@ export class McSheet extends LitElement {
           }}
         ></mc-picture-tile>`;
       }
-      case "searchField":
+      case "search":
         return html`<mc-search-field
           class="part"
           data-key=${node.key}
@@ -642,9 +621,9 @@ export class McSheet extends LitElement {
           .value=${node.value}
           .placeholder=${node.placeholder}
           .clearLabel=${node.clearLabel}
-          @mc-search=${(event: CustomEvent<{ value: string }>) => this.#relay(event, node.key, "mc-search")}
-          @mc-search-submit=${(event: CustomEvent<{ value: string }>) => this.#relay(event, node.key, "mc-search-submit")}
-          @mc-field-focus=${(event: CustomEvent<{ focused: boolean }>) => this.#relay(event, node.key, "mc-field-focus")}
+          .focusPlaceholder=${node.focusPlaceholder ?? ""}
+          .debounce=${node.debounce ?? 200}
+          .size=${node.size ?? 16}
         ></mc-search-field>`;
       case "filterBar":
         return html`<mc-filter-bar
@@ -660,9 +639,9 @@ export class McSheet extends LitElement {
             this.#activate(event.detail.key);
           }}
         ></mc-filter-bar>`;
-      case "listRow": {
+      case "mediaRow": {
         const src = node.src !== null && !this.#failed.has(node.src) ? node.src : "";
-        return html`<mc-list-row
+        return html`<mc-media-row
           class="part"
           data-key=${node.key}
           style=${px(node.rect)}
@@ -692,7 +671,7 @@ export class McSheet extends LitElement {
             this.requestUpdate();
           }}
           ${tapped(() => this.#activate(node.key))}
-        ></mc-list-row>`;
+        ></mc-media-row>`;
       }
       case "scroll":
         return html`<div class="part scroller" data-key=${node.key} style=${px(scrollBox(node))}>

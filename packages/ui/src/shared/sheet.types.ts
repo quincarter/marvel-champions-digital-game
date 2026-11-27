@@ -323,14 +323,17 @@ export interface SheetPictureTile {
   readonly key?: string;
 }
 
-/** A search box (`mc-search-field`, a real input): raises `mc-search` (debounced), `mc-search-submit` and `mc-field-focus` with its key. */
-export interface SheetSearchField {
-  readonly kind: "searchField";
+/** A search field (`mc-search-field`) filling `rect`: raises `mc-search` (debounced) and `mc-search-focus`; `key` finds it. */
+export interface SheetSearch {
+  readonly kind: "search";
   readonly key: string;
   readonly rect: SheetRect;
   readonly value: string;
   readonly placeholder: string;
   readonly clearLabel: string;
+  readonly focusPlaceholder?: string;
+  readonly debounce?: number;
+  readonly size?: number;
 }
 
 /** A wrapping row of filter chips (`mc-filter-bar`): a tap raises `mc-activate` with `prefix + id`. */
@@ -344,9 +347,9 @@ export interface SheetFilterBar {
   readonly rowHeight?: number;
 }
 
-/** A framed row (`mc-list-row`): a picture, a title, meta lines and a state badge. A tap raises `mc-activate`. */
-export interface SheetListRow {
-  readonly kind: "listRow";
+/** A framed row (`mc-media-row`): a picture, a title, meta lines and a state badge. A tap raises `mc-activate`. */
+export interface SheetMediaRow {
+  readonly kind: "mediaRow";
   readonly key: string;
   readonly rect: SheetRect;
   readonly heading: string;
@@ -388,7 +391,7 @@ export type SheetNode =
   | SheetSectionHeader
   | SheetTabRail
   | SheetPictureTile
-  | SheetSearchField
+  | SheetSearch
   | SheetFilterBar
-  | SheetListRow
+  | SheetMediaRow
   | SheetScroll;

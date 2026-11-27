@@ -1,56 +1,54 @@
 import { css } from "lit";
 
-/** The client's text field: a paper ground, a 2.5px ink frame, square corners, the mono face; a clear button at its end. */
+/**
+ * A boxed field in the secondary skin (paper fill, 2.5px ink outline), the typed word in the body role. The size is 16px
+ * on a phone so a mobile browser never zooms the page on focus. A focused field shows the heavier ring (Hero Red) and
+ * never relies on color alone: its outline thickens.
+ */
 export const McSearchFieldStyles = css`
   :host {
-    display: block;
+    display: flex;
+    align-items: center;
+    background: var(--mc-fill-paper);
+    outline: 2.5px solid var(--mc-line-ink);
+    outline-offset: -1.25px;
   }
-  .field {
-    position: relative;
-    width: 100%;
-    height: 100%;
+  :host(:focus-within) {
+    outline: 4px solid var(--mc-line-red);
+    outline-offset: -2px;
   }
   input {
     all: unset;
     box-sizing: border-box;
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
     height: 100%;
-    padding: 0 40px 0 10px;
-    background: var(--mc-fill-paper);
+    padding: 0 10px;
+    font-family: var(--mc-font-body);
+    font-size: var(--mc-search-size, 16px);
     color: var(--mc-text-ink);
-    outline: 2.5px solid var(--mc-line-ink);
-    outline-offset: -1.25px;
-    font-family: var(--mc-font-mono);
-    font-size: 13px;
-    cursor: text;
+    -webkit-appearance: none;
   }
   input::placeholder {
     color: var(--mc-text-ink);
-    opacity: 0.5;
+    opacity: 0.55;
   }
-  input:focus-visible,
-  input:focus {
-    outline-width: 3.5px;
+  input::-webkit-search-cancel-button {
+    display: none;
   }
   .clear {
     all: unset;
-    position: absolute;
-    top: 0;
-    right: 0;
+    box-sizing: border-box;
+    flex: none;
     width: 36px;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-family: var(--mc-font-body);
     font-weight: 800;
-    font-size: 18px;
+    font-size: 16px;
     color: var(--mc-text-ink);
-    opacity: 0.7;
     -webkit-tap-highlight-color: transparent;
-  }
-  .clear:hover {
-    opacity: 1;
   }
 `;

@@ -25,10 +25,11 @@ export {
   measureGlyphText,
   parseArt,
 } from "./components/mc-glyph/mc-glyph.js";
-export { McSearchField, SEARCH_DEBOUNCE_MS } from "./components/mc-search-field/mc-search-field.js";
+export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
+export type { McSearchDetail, McSearchFocusDetail } from "./components/mc-search-field/mc-search-field.types.js";
 export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
 export { McFilterBar } from "./components/mc-filter-bar/mc-filter-bar.js";
-export { McListRow } from "./components/mc-list-row/mc-list-row.js";
+export { McMediaRow } from "./components/mc-media-row/mc-media-row.js";
 export type { FilterChip } from "./shared/filter-bar.types.js";
 export { McSectionHeader } from "./components/mc-section-header/mc-section-header.js";
 export { McTabRail } from "./components/mc-tab-rail/mc-tab-rail.js";
@@ -60,9 +61,9 @@ export type {
   SheetQr,
   SheetRect,
   SheetFilterBar,
-  SheetListRow,
+  SheetMediaRow,
   SheetPictureTile,
-  SheetSearchField,
+  SheetSearch,
   SheetScroll,
   SheetSectionHeader,
   SheetTabRail,

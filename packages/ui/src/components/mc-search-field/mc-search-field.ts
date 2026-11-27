@@ -8,4 +8,4 @@ declare global {
   }
 }
 
-export { McSearchField, SEARCH_DEBOUNCE_MS } from "./McSearchField.js";
+export { McSearchField };

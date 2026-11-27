@@ -1,7 +1,7 @@
 import { css } from "lit";
 
 /** The pack tile's look: a parchment ground, a 2px ink frame, a 5:7 picture at the left, then the text column. */
-export const McListRowStyles = css`
+export const McMediaRowStyles = css`
   :host {
     display: block;
     cursor: pointer;

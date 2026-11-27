@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import "./mc-filter-bar.js";
-import "../mc-list-row/mc-list-row.js";
+import "../mc-media-row/mc-media-row.js";
 
 function tap(element: Element): void {
   const at = { bubbles: true, composed: true, clientX: 5, clientY: 5, pointerId: 1, button: 0 };
@@ -30,9 +30,9 @@ describe("mc-filter-bar", () => {
   });
 });
 
-describe("mc-list-row", () => {
+describe("mc-media-row", () => {
   it("shows its words, a letter while it has no picture, and a solid badge for a call to action", async () => {
-    const row = document.createElement("mc-list-row");
+    const row = document.createElement("mc-media-row");
     Object.assign(row, {
       heading: "Hero Pack",
       meta: "Hero · by Ann",

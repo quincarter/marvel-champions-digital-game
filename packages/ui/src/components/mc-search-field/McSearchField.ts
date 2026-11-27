@@ -1,30 +1,35 @@
-import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
+import { html, LitElement, nothing, type PropertyDeclarations, type PropertyValues } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { tapped } from "../../shared/tapped.js";
+import type { McSearchDetail, McSearchFocusDetail } from "./mc-search-field.types.js";
 import { McSearchFieldStyles } from "./mc-search-field.styles.js";
-
-/** How long typing rests before `mc-search` is raised. */
-export const SEARCH_DEBOUNCE_MS = 120;
 
 /**
  * # Search field
- * A real text `<input>` with a clear button: what a search box in a panel is. The client matches (fuzzy, accent-free,
- * `view/deck-search.ts`); this only reports what was typed.
+ * A real `<input>` in the panel for a screen search (a rulebook, a deck list, the deck builder): a placeholder, a clear
+ * button, and one debounced `mc-search` event with the text. The matching stays in the client (accent-free, fuzzy:
+ * `view/deck-search.ts`); this only says what was typed.
  *
- * - Typing raises `mc-search` once typing rests (120ms), never in the middle of an IME composition (it is raised when the
- *   composition ends). Enter raises `mc-search-submit` at once.
- * - Escape clears a field that has text (raising `mc-search` now); on an empty one it leaves the field.
- * - The clear button (a tap, like every press) empties the field and keeps the caret in it.
- * - `focusField()` puts the caret in (a focus stop's press); `focused` says whether it is there. `mc-field-focus` fires
- *   with `detail.focused` as the caret comes and goes, so a screen's pad and key route can stand aside while typing.
+ * - **Typing** raises `mc-search` after `debounce` ms of quiet. Nothing fires mid-IME-composition; the composed text
+ *   fires when the composition ends.
+ * - **Enter** raises `mc-search` at once and leaves the field (the mobile keyboard closes). **Escape** leaves the field,
+ *   keeps the text, and stops there, so the same key does not also back out of the screen. The clear button
+ *   (a tap, never a swipe lift) empties it, raises `mc-search` at once and keeps the caret.
+ * - **Focus** is the screen route own: a pad or keyboard stop calls `focusInput()` (A / Enter on the stop; on touch the
+ *   caret in the field opens the on-screen keyboard) and `blurInput()` (B takes the caret out). `mc-search-focus` says
+ *   when the caret moves so the route can stand aside while someone types.
+ * - **Controlled by the client without fighting the typist:** the `value` property is adopted only when it differs from
+ *   what the field already holds, so a redraw with the stale query never resets text or the caret.
  *
  * @element mc-search-field
- * @attr value - What the field holds. Setting it from outside (a Clear) shows at once and raises nothing.
- * @attr placeholder - Already translated.
- * @attr clearLabel - The clear button's name for assistive tech, already translated.
- * @fires mc-search - `detail.value`: the text, debounced.
- * @fires mc-search-submit - `detail.value`: Enter was pressed.
- * @fires mc-field-focus - `detail.focused`.
+ * @attr value - The text.
+ * @attr placeholder - What it says while empty, already translated.
+ * @attr focus-placeholder - What it says while empty and focused (a Steam pad: "Steam + X opens the keyboard"); optional.
+ * @attr clear-label - The clear button accessible name, already translated.
+ * @attr debounce - The typing pause in ms (200).
+ * @attr size - The typed text px size (16: a phone browser zooms in on anything smaller).
+ * @fires mc-search - `McSearchDetail`.
+ * @fires mc-search-focus - `McSearchFocusDetail`.
  */
 export class McSearchField extends LitElement {
   static override styles = [ThemeStyles, McSearchFieldStyles];
@@ -32,129 +37,136 @@ export class McSearchField extends LitElement {
   static override properties: PropertyDeclarations = {
     value: { type: String },
     placeholder: { type: String },
+    focusPlaceholder: { type: String, attribute: "focus-placeholder" },
     clearLabel: { type: String, attribute: "clear-label" },
+    debounce: { type: Number },
+    size: { type: Number },
+    focused: { state: true },
   };
 
   declare value: string;
   declare placeholder: string;
+  declare focusPlaceholder: string;
   declare clearLabel: string;
-  #timer: ReturnType<typeof setTimeout> | null = null;
+  declare debounce: number;
+  declare size: number;
+  declare focused: boolean;
+  /** What the field holds now (the typist own, ahead of the `value` property). */
+  #text = "";
+  #timer: ReturnType<typeof setTimeout> | undefined;
   #composing = false;
 
   constructor() {
     super();
     this.value = "";
     this.placeholder = "";
+    this.focusPlaceholder = "";
     this.clearLabel = "";
+    this.debounce = 200;
+    this.size = 16;
+    this.focused = false;
   }
 
-  get #input(): HTMLInputElement | null {
+  /** True while the caret is in the field. */
+  get isFocused(): boolean {
+    return this.focused;
+  }
+
+  /** Puts the caret in the field (a pad or keyboard user pressed A / Enter on its stop). */
+  focusInput(): void {
+    this.#input()?.focus();
+  }
+
+  /** Takes the caret out of the field. */
+  blurInput(): void {
+    this.#input()?.blur();
+  }
+
+  #input(): HTMLInputElement | null {
     return this.renderRoot.querySelector("input");
   }
 
-  /** Puts the caret in the field. */
-  focusField(): void {
-    this.#input?.focus();
-  }
-
-  /** Takes the caret out. */
-  blurField(): void {
-    this.#input?.blur();
-  }
-
-  /** Whether the caret is in the field. */
-  get focused(): boolean {
-    return this.shadowRoot?.activeElement === this.#input && this.#input !== null;
-  }
-
-  override updated(): void {
-    const input = this.#input;
-    // A value set from outside shows; what the player is typing is never overwritten by an older echo of it.
-    if (input && input.value !== this.value && !this.#composing) input.value = this.value;
+  protected override willUpdate(changed: PropertyValues): void {
+    if (changed.has("value") && this.value !== this.#text) this.#text = this.value;
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    if (this.#timer !== null) clearTimeout(this.#timer);
-    this.#timer = null;
+    clearTimeout(this.#timer);
   }
 
-  #emit(name: "mc-search" | "mc-search-submit", value: string): void {
-    this.dispatchEvent(new CustomEvent(name, { detail: { value }, bubbles: true, composed: true }));
+  #emit(immediate: boolean): void {
+    clearTimeout(this.#timer);
+    const detail: McSearchDetail = { value: this.#text, immediate };
+    this.dispatchEvent(new CustomEvent("mc-search", { detail, bubbles: true, composed: true }));
   }
 
-  #typed(): void {
-    const input = this.#input;
-    if (!input || this.#composing) return;
-    this.value = input.value;
-    if (this.#timer !== null) clearTimeout(this.#timer);
-    this.#timer = setTimeout(() => {
-      this.#timer = null;
-      this.#emit("mc-search", this.value);
-    }, SEARCH_DEBOUNCE_MS);
-  }
+  #onInput = (event: Event): void => {
+    this.#text = (event.target as HTMLInputElement).value;
+    this.requestUpdate();
+    if (this.#composing) return;
+    clearTimeout(this.#timer);
+    this.#timer = setTimeout(() => this.#emit(false), this.debounce);
+  };
 
-  #clear(): void {
-    const input = this.#input;
-    if (this.#timer !== null) clearTimeout(this.#timer);
-    this.#timer = null;
-    this.value = "";
-    if (input) input.value = "";
-    this.#emit("mc-search", "");
-    input?.focus();
-  }
-
-  #key(event: KeyboardEvent): void {
+  #onKey = (event: KeyboardEvent): void => {
     if (event.isComposing) return;
-    if (event.key === "Enter") {
-      if (this.#timer !== null) clearTimeout(this.#timer);
-      this.#timer = null;
-      this.#emit("mc-search-submit", this.#input?.value ?? "");
-    } else if (event.key === "Escape") {
-      event.stopPropagation();
-      if ((this.#input?.value ?? "") !== "") this.#clear();
-      else this.#input?.blur();
-    }
+    if (event.key !== "Enter" && event.key !== "Escape") return;
+    // Stops here: the same key must not also press whatever the screen route has focused or back out of the screen.
+    event.stopPropagation();
+    if (event.key === "Enter") this.#emit(true);
+    this.blurInput();
+  };
+
+  #setFocus(focused: boolean): void {
+    if (this.focused === focused) return;
+    this.focused = focused;
+    const detail: McSearchFocusDetail = { focused };
+    this.dispatchEvent(new CustomEvent("mc-search-focus", { detail, bubbles: true, composed: true }));
   }
 
-  #focusChange(focused: boolean): void {
-    this.dispatchEvent(new CustomEvent("mc-field-focus", { detail: { focused }, bubbles: true, composed: true }));
-  }
+  #clear = (): void => {
+    this.#text = "";
+    this.requestUpdate();
+    this.#emit(true);
+    this.focusInput();
+  };
 
   override render() {
-    return html`<div class="field">
+    const hint = this.focused && this.#text === "" && this.focusPlaceholder ? this.focusPlaceholder : this.placeholder;
+    this.style.setProperty("--mc-search-size", `${this.size}px`);
+    return html`
       <input
         type="text"
+        inputmode="search"
         enterkeyhint="search"
         autocomplete="off"
         autocapitalize="off"
+        autocorrect="off"
         spellcheck="false"
-        .value=${this.value}
-        placeholder=${this.placeholder}
         aria-label=${this.placeholder}
-        @input=${() => this.#typed()}
-        @compositionstart=${() => (this.#composing = true)}
-        @compositionend=${() => {
-          this.#composing = false;
-          this.#typed();
+        placeholder=${hint}
+        .value=${this.#text}
+        @input=${this.#onInput}
+        @keydown=${this.#onKey}
+        @compositionstart=${() => {
+          this.#composing = true;
         }}
-        @keydown=${(event: KeyboardEvent) => this.#key(event)}
-        @focus=${() => this.#focusChange(true)}
-        @blur=${() => this.#focusChange(false)}
+        @compositionend=${(event: Event) => {
+          this.#composing = false;
+          this.#text = (event.target as HTMLInputElement).value;
+          this.#emit(false);
+        }}
+        @focus=${() => this.#setFocus(true)}
+        @blur=${() => this.#setFocus(false)}
       />
       ${
-        this.value !== ""
-          ? html`<button
-              class="clear"
-              type="button"
-              tabindex="-1"
-              aria-label=${this.clearLabel || nothing}
-              ${tapped(() => this.#clear())}
-            >
-              ×
+        this.#text === ""
+          ? nothing
+          : html`<button type="button" class="clear" tabindex="-1" aria-label=${this.clearLabel} ${tapped(this.#clear)}>
+              ✕
             </button>`
-          : nothing
       }
-    </div>`;
+    `;
   }
 }

@@ -1,7 +1,7 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import "../mc-picture-tile/mc-picture-tile.js";
-import { McListRowStyles } from "./mc-list-row.styles.js";
+import { McMediaRowStyles } from "./mc-media-row.styles.js";
 
 /**
  * # List row
@@ -10,7 +10,7 @@ import { McListRowStyles } from "./mc-list-row.styles.js";
  * are "a picture, what it is, and where it stands". The row takes the press (a tap) when `pressable`; the picture is
  * decorative. Everything it says is passed in, already translated.
  *
- * @element mc-list-row
+ * @element mc-media-row
  * @attr heading - The title (shrinks to fit its line).
  * @attr meta - The line under it.
  * @attr summary - Up to two lines.
@@ -21,8 +21,8 @@ import { McListRowStyles } from "./mc-list-row.styles.js";
  * @attr letter - What the picture box says in big faint type while it has no picture (the pack's initial).
  * @attr focus-y - Where the subject sits down the picture, 0 to 1.
  */
-export class McListRow extends LitElement {
-  static override styles = [ThemeStyles, McListRowStyles];
+export class McMediaRow extends LitElement {
+  static override styles = [ThemeStyles, McMediaRowStyles];
 
   static override properties: PropertyDeclarations = {
     heading: { type: String },

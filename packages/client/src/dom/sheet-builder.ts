@@ -457,13 +457,28 @@ export class SheetBuilder {
     });
   }
 
-  /** A search box (`mc-search-field`, a real input) at `rect`; its events (`mc-search`, `mc-search-submit`, `mc-field-focus`) carry `key`. */
-  searchField(
-    key: string,
+  /** A search field (`mc-search-field`) filling `rect`; listen for `mc-search` (debounced text) and `mc-search-focus`. */
+  search(
     rect: Rect,
-    options: { readonly value: string; readonly placeholder: string; readonly clearLabel: string },
+    options: {
+      readonly key: string;
+      readonly value: string;
+      readonly placeholder: string;
+      readonly clearLabel: string;
+      readonly focusPlaceholder?: string;
+      readonly debounce?: number;
+    },
   ): void {
-    this.nodes.push({ kind: "searchField", key, rect: this.#rect(rect), ...options });
+    this.nodes.push({
+      kind: "search",
+      key: options.key,
+      rect: this.#rect(rect),
+      value: options.value,
+      placeholder: options.placeholder,
+      clearLabel: options.clearLabel,
+      ...(options.focusPlaceholder ? { focusPlaceholder: options.focusPlaceholder } : {}),
+      ...(options.debounce !== undefined ? { debounce: options.debounce } : {}),
+    });
   }
 
   /** A wrapping row of filter chips (`mc-filter-bar`) at `rect`: a tap raises `mc-activate` with `prefix + id`. */
@@ -476,8 +491,8 @@ export class SheetBuilder {
     this.nodes.push({ kind: "filterBar", key, rect: this.#rect(rect), chips, ...options });
   }
 
-  /** A framed row (`mc-list-row`): a picture, a title, meta lines and a state badge; a tap raises `mc-activate`. */
-  listRow(
+  /** A framed row (`mc-media-row`): a picture, a title, meta lines and a state badge; a tap raises `mc-activate`. */
+  mediaRow(
     key: string,
     rect: Rect,
     row: {
@@ -494,7 +509,7 @@ export class SheetBuilder {
       readonly fit?: "cover" | "contain";
     },
   ): void {
-    this.nodes.push({ kind: "listRow", key, rect: this.#rect(rect), ...row });
+    this.nodes.push({ kind: "mediaRow", key, rect: this.#rect(rect), ...row });
   }
 
   /** A QR code (`uqr`'s rows of dark modules) filling `rect`, a light ground under the modules. */
