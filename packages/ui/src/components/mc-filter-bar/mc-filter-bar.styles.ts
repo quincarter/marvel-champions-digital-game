@@ -15,6 +15,25 @@ export const McFilterBarStyles = css`
     align-items: stretch;
     overflow: hidden;
   }
+  :host([sideways]) .bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  :host([sideways]) .bar::-webkit-scrollbar {
+    display: none;
+  }
+  .split {
+    display: flex;
+    flex: 0 0 auto;
+    max-width: 100%;
+  }
+  .split .info {
+    flex: 0 0 auto;
+  }
   .chip {
     display: block;
     flex: 0 0 auto;

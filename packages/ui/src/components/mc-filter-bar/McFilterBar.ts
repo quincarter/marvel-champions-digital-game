@@ -21,10 +21,15 @@ import { McFilterBarStyles } from "./mc-filter-bar.styles.js";
  * @attr rows - The most rows shown; 0 wraps without a limit.
  * @attr row-height - A row height in px; 0 lets a chip be as tall as its own minimum.
  * @attr gap - The space between chips and rows in px (8).
+ * @attr sideways - One row that scrolls sideways instead of wrapping (a phone's chip rail).
  * @fires mc-activate - A tap on a chip: `detail.key` is `prefix + id`, `detail.id` the chip id.
+ * @fires mc-info - A tap on a chip's info segment (`FilterChip.info`): `detail.key` is `prefix + id`, `detail.id` the chip id.
  * @fires mc-sort - `detail.value`: another sort was chosen.
  * @fires mc-filter-sheet - The filter sheet button was tapped.
  */
+/** A split chip's info segment: a full touch target. */
+const INFO_WIDTH = 44;
+
 export class McFilterBar extends LitElement {
   static override styles = [ThemeStyles, McFilterBarStyles];
 
@@ -36,6 +41,7 @@ export class McFilterBar extends LitElement {
     rows: { type: Number },
     rowHeight: { type: Number, attribute: "row-height" },
     gap: { type: Number },
+    sideways: { type: Boolean, reflect: true },
   };
 
   declare chips: readonly FilterChip[];
@@ -45,6 +51,7 @@ export class McFilterBar extends LitElement {
   declare rows: number;
   declare rowHeight: number;
   declare gap: number;
+  declare sideways: boolean;
 
   constructor() {
     super();
@@ -55,6 +62,12 @@ export class McFilterBar extends LitElement {
     this.rows = 0;
     this.rowHeight = 0;
     this.gap = 8;
+    this.sideways = false;
+  }
+
+  /** The element that scrolls sideways (a `sideways` bar), for a focus stop that must bring a chip into view. */
+  get scroller(): HTMLElement | null {
+    return this.renderRoot.querySelector(".bar");
   }
 
   /** The element drawn for a key (a chip), for a screen focus stops. */
@@ -71,25 +84,44 @@ export class McFilterBar extends LitElement {
     const limit = rows > 0 && rowHeight > 0 ? `;max-height:${rows * rowHeight + (rows - 1) * gap}px` : "";
     const cell = rowHeight > 0 ? `height:${rowHeight}px` : "min-height:44px";
     return html`<div class="bar" role="group" style=${`gap:${gap}px${limit}`}>
-      ${this.chips.map(
-        (chip) =>
-          html`<mc-filter-chip
-            class="chip"
-            data-key=${this.prefix + chip.id}
-            style=${`${chip.width !== undefined ? `width:${chip.width}px;` : ""}${cell}`}
-            .label=${chip.label}
-            .count=${chip.count}
-            .value=${this.prefix + chip.id}
-            .mark=${chip.mark ?? true}
-            ?selected=${chip.selected}
-            ?disabled=${chip.disabled !== undefined && chip.disabled !== false}
-            .reason=${typeof chip.disabled === "string" ? chip.disabled : ""}
-            @mc-activate=${(event: Event) => {
+      ${this.chips.map((chip) => {
+        const key = this.prefix + chip.id;
+        const main = html`<mc-filter-chip
+          class="chip"
+          data-key=${key}
+          style=${`${chip.width !== undefined ? `width:${chip.width}px;` : ""}${cell}`}
+          .label=${chip.label}
+          .count=${chip.count}
+          .value=${key}
+          .mark=${chip.mark ?? true}
+          .tint=${chip.tint}
+          ?selected=${chip.selected}
+          ?disabled=${chip.disabled !== undefined && chip.disabled !== false}
+          .reason=${typeof chip.disabled === "string" ? chip.disabled : ""}
+          @mc-activate=${(event: Event) => {
+            event.stopPropagation();
+            this.#emit("mc-activate", { key, id: chip.id });
+          }}
+        ></mc-filter-chip>`;
+        const info = chip.info;
+        if (!info) return main;
+        // A split chip: the filter and, beside it, the "i" button of its own (a tap on it opens the tip, never filters).
+        return html`<span class="split"
+          >${main}<mc-button
+            class="info"
+            data-key=${`${key}:info`}
+            style=${`${cell};width:${INFO_WIDTH}px${chip.tint ? `;--mc-tint-fill:color-mix(in srgb, ${chip.tint.fill} 78%, black);--mc-tint-ink:${chip.tint.ink}` : ""}`}
+            kind="secondary"
+            label="i"
+            aria-label=${info.label}
+            ?selected=${info.open}
+            @mc-press=${(event: Event) => {
               event.stopPropagation();
-              this.#emit("mc-activate", { key: this.prefix + chip.id, id: chip.id });
+              this.#emit("mc-info", { key, id: chip.id });
             }}
-          ></mc-filter-chip>`,
-      )}
+          ></mc-button
+        ></span>`;
+      })}
       ${
         this.sheetLabel
           ? html`<mc-button
