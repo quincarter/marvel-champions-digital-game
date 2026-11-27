@@ -53,6 +53,8 @@ export interface SheetGlyphButton {
   readonly ground?: McGlyphGround;
   /** Which shortcuts the glyph shows right now (null: none), when that changes with the screen's state. */
   readonly idsNow?: (set: GlyphSet) => readonly ShortcutId[] | null;
+  /** Glyphs that are no shortcut of their own (a trigger): read on every apply, like `idsNow`. */
+  readonly specs?: (set: GlyphSet, snapshot: InputHintsSnapshot) => readonly GlyphSpec[] | null;
 }
 
 interface Registered {
@@ -134,6 +136,7 @@ export class SheetGlyphs {
   #specsOf(entry: SheetGlyphButton, snapshot: InputHintsSnapshot): readonly GlyphSpec[] | null {
     const set = glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource);
     if (set === null) return null;
+    if (entry.specs) return entry.specs(set, snapshot);
     const ids = entry.idsNow ? entry.idsNow(set) : entry.ids;
     return ids ? specsFor(ids, snapshot) : null;
   }
