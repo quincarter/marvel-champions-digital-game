@@ -1,0 +1,3 @@
+kind: Fixed
+body: Releases no longer rewrite the card-data SCHEMA_VERSION to the release number; it stays 1.0.0 and changes only on a breaking card-data shape change
+time: 2026-11-27T10:23:55.7222708-05:00
