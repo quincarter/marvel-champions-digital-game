@@ -34,3 +34,10 @@ describe("the pick-one screens' words in Spanish", () => {
     expect((es as Record<string, string | undefined>)[key]).toBe(text);
   });
 });
+
+describe("the search placeholders in Spanish", () => {
+  it("name their things in lowercase, as a sentence does", () => {
+    expect(es["scenario.search"]).toBe("buscar escenarios, villanos, packs…");
+    expect(es["seats.search"]).toBe("buscar héroes, aspectos, mazos…");
+  });
+});

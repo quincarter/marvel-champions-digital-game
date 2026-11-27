@@ -23,11 +23,6 @@ export interface SheetTopBarOptions {
   readonly title: string;
   /** The small uppercase label at the right edge ("12 OF 64 OPEN"). */
   readonly right?: string;
-  /**
-   * A long title on a phone: smaller and lower, clear of the dark mode tab that hangs from the top edge (20px, centered:
-   * `view/theme-button.ts`), which a 22px title centered in the 52px bar would run under.
-   */
-  readonly titleBelowTab?: boolean;
 }
 
 export interface SheetTopBar {
@@ -72,9 +67,7 @@ export function sheetTopBar(b: SheetBuilder, glyphs: SheetGlyphs, options: Sheet
       letterSpacing: 1.1,
     });
   }
-  // A phone's title may sit under the theme toggle's tab (Take your seats), smaller.
-  const below = options.titleBelowTab === true && frame.phone;
-  const titleSize = below ? 16 : frame.phone ? 22 : 28;
+  const titleSize = frame.phone ? 22 : 28;
   const title = options.title.toUpperCase();
   const room = frame.width - pad - rightWidth - x;
   const titleWidth = Math.min(room, b.measure(title, bangers(titleSize), { letterSpacing: 1 }).width);
@@ -82,15 +75,15 @@ export function sheetTopBar(b: SheetBuilder, glyphs: SheetGlyphs, options: Sheet
     width: frame.width,
     textLeft: x,
     textRight: x + titleWidth,
-    textTop: (below ? 40 : height / 2) - titleSize / 2,
+    textTop: height / 2 - titleSize / 2,
     textHeight: titleSize,
     barHeight: height,
   });
-  b.text(x, below ? 40 : height / 2 + drop, title, bangers(titleSize), {
+  b.text(x, height / 2 + drop, title, bangers(titleSize), {
     color: surface.paper.hex,
     origin: [0, 0.5],
     letterSpacing: 1,
-    fitWidth: below || maxRight === null ? room : Math.max(40, Math.min(room, maxRight - x)),
+    fitWidth: maxRight === null ? room : Math.max(40, Math.min(room, maxRight - x)),
   });
   return { height, backRect };
 }

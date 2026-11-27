@@ -78,6 +78,7 @@ import { aspectStampOf, aspectStampsOf, titleWithoutAspects } from "../view/aspe
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { packCompactChipsToRows, type ChipInfoToggle } from "../view/chip-layout.js";
+import { sheetThemeFor } from "../ui/campaign-chrome.js";
 import { formatCount } from "../view/number-format.js";
 import {
   isCommunityDeckId,
@@ -1041,7 +1042,10 @@ export class SeatsScene extends Phaser.Scene {
       ...(entry.idsNow ? { idsNow: entry.idsNow } : {}),
     });
     const node = b.nodes[before];
-    const wordX = node?.kind === "glyph" && node.openness > 0 ? entry.x + glyphWidthOf(node) + 6 : entry.x;
+    // A word with no glyph beside it says nothing (a mouse or touch has no key to name): it shows with its glyph only.
+    // The sheet redraws when the glyph appears (a key or pad is used), so the word follows it.
+    if (node?.kind !== "glyph" || node.openness <= 0) return;
+    const wordX = entry.x + glyphWidthOf(node) + 6;
     b.text(wordX, entry.y, entry.word, typeRole.label, {
       color: surface.ink.hex,
       alpha: ink.label,
@@ -1141,11 +1145,21 @@ export class SeatsScene extends Phaser.Scene {
       origin: [1, 0.5],
       fitWidth: layout.step.width,
     });
-    // Narrow: the dark mode tab hangs from the top centre, so the title sits low in the bar, clear of it.
-    b.text(titleX, layout.wide ? barHeight / 2 : barHeight * 0.78, title, typeRole.pageTitle, {
+    // The dark mode tab hangs from the top centre: the shared rule drops the title under it or ends it before it.
+    const titleHeight = typeRole.pageTitle.size ?? 28;
+    const { drop, maxRight } = sheetThemeFor(this, {
+      width,
+      textLeft: titleX,
+      textRight: titleX + Math.min(titleWidth, stepRight - stepWidth - titleX - 12),
+      textTop: barHeight / 2 - titleHeight / 2,
+      textHeight: titleHeight,
+      barHeight,
+    });
+    const titleRoom = stepRight - stepWidth - titleX - 12;
+    b.text(titleX, barHeight / 2 + drop, title, typeRole.pageTitle, {
       color: surface.paper.hex,
       origin: [0, 0.5],
-      fitWidth: stepRight - stepWidth - titleX - 12,
+      fitWidth: maxRight === null ? titleRoom : Math.max(40, Math.min(titleRoom, maxRight - titleX)),
     });
 
     // The four selectable seat cards (the active-seat model, docs/phase4-screen-gaps.md §3 W2b's own bug fix).

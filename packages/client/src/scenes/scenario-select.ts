@@ -592,7 +592,6 @@ export class ScenarioSelectScene extends Phaser.Scene {
       backLabel: t("scenario.back"),
       title: t("scenario.title"),
       right: t("scenario.step"),
-      titleBelowTab: true,
     });
     if (bar.backRect) {
       this.#addAction("back", () => this.#back());
