@@ -32,6 +32,9 @@ export function ringStyle(rect: Rect, color: number = selectionRing.color.hex): 
   };
 }
 
+/** A pop-up's slide and fade (`dom/popup-sheet.ts`), which its focus ring moves and fades with. */
+export const ringMotion = new WeakMap<Phaser.Scene, { readonly y: number; readonly alpha: number }>();
+
 const STATE_EVENTS = ["postupdate", "sleep", "pause", "wake", "resume"] as const;
 
 class DomFocusRing implements FocusRing {
@@ -72,7 +75,9 @@ class DomFocusRing implements FocusRing {
   #sync(): void {
     const { shown, opacity } = sceneLayerState(this.#scene, this.#passes);
     this.#element.style.display = this.#wanted && shown ? "block" : "none";
-    this.#element.style.opacity = String(opacity);
+    const moving = ringMotion.get(this.#scene);
+    this.#element.style.opacity = String(opacity * (moving?.alpha ?? 1));
+    this.#element.style.transform = moving && moving.y !== 0 ? `translateY(${moving.y}px)` : "";
     // Over its own scene's panel and under the panel of a scene drawn above (`panelZIndex`).
     const scenes = this.#scene.game.scene.scenes.map((other) => ({ key: other.sys.settings.key }));
     this.#element.style.zIndex = String(ringZIndex(scenes, this.#scene.sys.settings.key));

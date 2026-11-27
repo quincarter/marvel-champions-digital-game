@@ -82,7 +82,12 @@ export class RejoinOverlay extends Phaser.Scene {
       { onDismiss: () => this.#cancel() },
     );
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
-    this.#route = new FocusRoute(this, { ring: domFocusRing, onCancel: () => this.#cancel(), primary: () => "cancel" });
+    this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
+      blocked: () => this.#panel.leaving,
+      onCancel: () => this.#cancel(),
+      primary: () => "cancel",
+    });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -137,7 +142,6 @@ export class RejoinOverlay extends Phaser.Scene {
       leaveRoom();
       clearRoomAddress();
       this.#panel.close(() => {
-        this.scene.stop();
         data.onCancel();
       });
       return;

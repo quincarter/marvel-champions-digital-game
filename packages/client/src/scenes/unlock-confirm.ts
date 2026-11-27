@@ -63,7 +63,11 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
       { onDismiss: () => this.#answer(false) },
     );
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
-    this.#route = new FocusRoute(this, { ring: domFocusRing, onCancel: () => this.#answer(false) });
+    this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
+      blocked: () => this.#panel.leaving,
+      onCancel: () => this.#answer(false),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#glyphs.dispose();
       this.scale.off("resize", onResize, this);
@@ -78,7 +82,6 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
     const paid = confirmed && unlocks().canAfford(target);
     if (paid) setUnlockPrefs(unlockByHand(unlocks(), target));
     this.#panel.close(() => {
-      this.scene.stop();
       if (paid) onUnlocked?.();
     });
   }

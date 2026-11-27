@@ -85,6 +85,7 @@ export class RoomModePickerOverlay extends Phaser.Scene {
       { onDismiss: () => this.#stop() },
     );
     this.#route = new FocusRoute(this, {
+      blocked: () => this.#panel.leaving,
       ring: domFocusRing,
       onCancel: () => this.#stop(),
       primary: () => "play",
@@ -126,7 +127,7 @@ export class RoomModePickerOverlay extends Phaser.Scene {
 
   /** Leaves with the pop-up's exit (`PopupSheet.close`). */
   #stop(): void {
-    this.#panel.close(() => this.scene.stop());
+    this.#panel.close();
   }
 
   #draw(): void {

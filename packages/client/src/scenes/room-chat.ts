@@ -61,7 +61,7 @@ export class RoomChatOverlay extends Phaser.Scene {
     );
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
-      blocked: () => this.#input?.focused ?? false,
+      blocked: () => this.#panel.leaving || (this.#input?.focused ?? false),
       onCancel: () => this.#close(),
       primary: () => "send",
     });
@@ -87,7 +87,7 @@ export class RoomChatOverlay extends Phaser.Scene {
 
   #close(): void {
     markChatRead(this.#state.chat);
-    this.#panel.close(() => this.scene.stop());
+    this.#panel.close();
   }
 
   #send(): void {

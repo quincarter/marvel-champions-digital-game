@@ -49,7 +49,7 @@ import {
 } from "../view/online-model.js";
 import { joinTargetFromInput, tidyJoinInput } from "../view/room-join-input.js";
 import type { RoomProblem } from "../live/room-state.js";
-import type { OptionNoticeData } from "./option-notice.js";
+import type { OptionNoticeData, OptionNoticeOverlay } from "./option-notice.js";
 import { problemWords, wordsText } from "../view/room-lobby-model.js";
 import { cssOf } from "../ui/theme.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
@@ -198,7 +198,11 @@ export class OnlineScene extends Phaser.Scene {
     };
     const loader = sceneLoader();
     const start = (): void => {
-      if (this.#alive) this.scene.launch(SCENES.optionNotice, data);
+      if (!this.#alive) return;
+      // One already up (or playing its exit) takes these as it takes Board's: a launch would restart it.
+      if (this.scene.isActive(SCENES.optionNotice))
+        (this.scene.get(SCENES.optionNotice) as OptionNoticeOverlay).queueNotices(data.notices);
+      else this.scene.launch(SCENES.optionNotice, data);
     };
     if (loader) void loader.load(SCENES.optionNotice).then(start);
     else start();

@@ -47,7 +47,7 @@ export class RoomAskOverlay extends Phaser.Scene {
     );
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
-      blocked: () => this.#input?.focused ?? false,
+      blocked: () => this.#panel.leaving || (this.#input?.focused ?? false),
       onCancel: () => this.#stop(),
       primary: () => "send",
     });
@@ -70,7 +70,7 @@ export class RoomAskOverlay extends Phaser.Scene {
 
   /** Leaves with the pop-up's exit (`PopupSheet.close`). */
   #stop(): void {
-    this.#panel.close(() => this.scene.stop());
+    this.#panel.close();
   }
 
   #draw(): void {

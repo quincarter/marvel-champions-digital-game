@@ -21,6 +21,7 @@ import { appSession } from "../session.js";
 import { motion, surface } from "../tokens.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
+import { ringMotion } from "./dom-ring.js";
 import { ActivationGate } from "./activation-gate.js";
 import { DomRegion, renderNow, type Followed } from "./dom-region.js";
 import { HANDLE_TARGET_HEIGHT, SNAP_BACK_MS, SWIPE_SLOP, slideDistance, swipeOutcome } from "./popup-motion.js";
@@ -28,6 +29,9 @@ import { SheetBuilder, sheetColor } from "./sheet-builder.js";
 
 /** The key of the grab handle's touch target; a tap on it does nothing. */
 const GRAB_KEY = "__grab";
+
+/** The keys of pop-up scenes playing their exit. */
+const LEAVING = new Set<string>();
 
 export interface PopupSheetOptions {
   /**
@@ -85,6 +89,7 @@ export class PopupSheet {
     this.#onDismiss = options.onDismiss;
     this.#onSlide = options.onSlide;
     const m = this.#m;
+    ringMotion.set(scene, m);
     this.#anchor = {
       x: 0,
       y: 0,
@@ -111,21 +116,33 @@ export class PopupSheet {
     return this.#leaving;
   }
 
+  /** Whether the scene with this key is playing a pop-up's exit (it is still active, but takes no answer). */
+  static isLeaving(key: string): boolean {
+    return LEAVING.has(key);
+  }
+
   /**
-   * Plays the exit (the box slides back down, the scrim fades) with the scene's input off, then calls `done` (which
-   * stops the scene and runs whatever the answer was). Once only: a call while already leaving is ignored. Immediate
-   * under reduced motion, before the first draw and for a sheet with an anchor of its own.
+   * Plays the exit (the box slides back down, the scrim fades) with the scene's input, keyboard and pad off, then
+   * stops the scene and calls `after` (what the answer did). Once only: a call while already leaving is ignored.
+   * Immediate under reduced motion, before the first draw and for a sheet with an anchor of its own. If the scene is
+   * stopped or restarted from outside mid-exit, `after` still runs, once, at that shutdown.
    */
-  close(done: () => void): void {
+  close(after?: () => void): void {
     if (this.#leaving) return;
     this.#leaving = true;
+    this.#after = after ?? null;
     const scene = this.#scene;
-    scene.input.enabled = false;
+    const key = scene.sys.settings.key;
+    LEAVING.add(key);
+    this.#setTakingInput(false);
     scene.events.once("shutdown", () => {
+      LEAVING.delete(key);
       scene.input.enabled = true;
+      if (scene.input.keyboard) scene.input.keyboard.enabled = true;
+      this.#finish(false);
     });
     if (!this.#moving || appSession().settings.reducedMotion) {
-      done();
+      this.#finish(true);
       return;
     }
     scene.tweens.killTweensOf(this.#m);
@@ -136,8 +153,38 @@ export class PopupSheet {
       duration: motion.overlayExitMs,
       ease: "Quad.easeIn",
       onUpdate: () => this.#apply(),
-      onComplete: done,
+      onComplete: () => this.#finish(true),
     });
+  }
+
+  #after: (() => void) | null = null;
+
+  /** Runs the pending answer once; `stop` also stops the scene (the exit finished, rather than the scene going). */
+  #finish(stop: boolean): void {
+    const after = this.#after;
+    this.#after = null;
+    if (stop && this.#leaving) this.#scene.scene.stop();
+    after?.();
+  }
+
+  #setTakingInput(on: boolean): void {
+    this.#scene.input.enabled = on;
+    if (this.#scene.input.keyboard) this.#scene.input.keyboard.enabled = on;
+  }
+
+  /**
+   * Takes back an exit still playing (a notice arrived for a pop-up that was closing): the box slides back in and the
+   * scene takes input again. Returns the pending `after` for the caller to run, or null when it is not leaving.
+   */
+  cancelExit(): (() => void) | null {
+    if (!this.#leaving) return null;
+    const pending = this.#after ?? (() => {});
+    this.#after = null;
+    this.#leaving = false;
+    LEAVING.delete(this.#scene.sys.settings.key);
+    this.#setTakingInput(true);
+    this.springBack();
+    return pending;
   }
 
   /** The panel element once mounted (to reach a part, e.g. to scroll a region). */
@@ -164,9 +211,8 @@ export class PopupSheet {
     if (!this.#region) {
       const element = document.createElement("mc-sheet") as McSheet;
       element.addEventListener("mc-activate", (event) => {
-        if (!this.#gate.take()) return;
         const { key } = (event as CustomEvent<{ key: string }>).detail;
-        if (key === GRAB_KEY) return;
+        if (key === GRAB_KEY || !this.#gate.take()) return;
         this.#onActivate(key);
       });
       if (this.#onHover) {
@@ -282,6 +328,8 @@ export class PopupSheet {
       if (Math.abs(dy) < SWIPE_SLOP) return;
       drag.dragging = true;
       this.#scene.tweens.killTweensOf(this.#m);
+      this.#m.alpha = 1;
+      this.#apply();
       // The finger is moving the box, not pressing: nothing under it may fire when it lifts (the tap rule).
       const element = this.#region?.element;
       if (element) {
@@ -330,6 +378,7 @@ export class PopupSheet {
     this.#scene.tweens.add({
       targets: this.#m,
       y: 0,
+      alpha: 1,
       duration: SNAP_BACK_MS,
       ease: "Quad.easeOut",
       onUpdate: () => this.#apply(),

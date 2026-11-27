@@ -7,6 +7,18 @@
 import Phaser from "phaser";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { PopupSheet } from "../dom/popup-sheet.js";
+
+/**
+ * True when the confirm is playing its exit: the ask is run again once it has stopped, instead of being refused as
+ * "already up" (a second ask in the 120 ms of an answer).
+ */
+function afterExit(scene: Phaser.Scene, ask: () => void): boolean {
+  if (!scene.scene.isActive(SCENES.endTurnConfirm) || !PopupSheet.isLeaving(SCENES.endTurnConfirm)) return false;
+  scene.scene
+    .get(SCENES.endTurnConfirm)
+    .events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.time.delayedCall(0, ask));
+  return true;
+}
 import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { glyphsFitFormFactor } from "../view/glyph-placement.js";
 import { formFactorFor } from "../view/layout.js";
@@ -65,6 +77,7 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     // Start is "forward" and ends the turn. Not `primary`: that would let A with nothing focused skip this confirm.
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, {
+      blocked: () => this.#panel.leaving,
       ring: domFocusRing,
       // End turn's glyph is A while it has the ring and Start otherwise: the ring moved, so read it again.
       onFocusChange: () => this.#glyphs.refresh(),
@@ -82,7 +95,6 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
   #answer(confirmed: boolean): void {
     const { onConfirm, onCancel } = this.#data;
     this.#panel.close(() => {
-      this.scene.stop();
       if (confirmed) onConfirm();
       else onCancel?.();
     });
@@ -178,6 +190,7 @@ export function askToAdjustGame(
   onConfirm: () => void,
   onCancel: () => void,
 ): void {
+  if (afterExit(scene, () => askToAdjustGame(scene, sentence, confirmLabel, onConfirm, onCancel))) return;
   if (scene.scene.isActive(SCENES.endTurnConfirm)) {
     onCancel();
     return;
@@ -206,6 +219,7 @@ export function askToConfirm(
   confirmLabel: string,
   onConfirm: () => void,
 ): void {
+  if (afterExit(scene, () => askToConfirm(scene, title, sentence, confirmLabel, onConfirm))) return;
   if (scene.scene.isActive(SCENES.endTurnConfirm)) return;
   scene.scene.launch(SCENES.endTurnConfirm, {
     sentence,
@@ -219,6 +233,7 @@ export function askToConfirm(
 
 /** Asks "End your turn?" over `scene`, and calls `onConfirm` only if the player says End turn. */
 export function askToEndTurn(scene: Phaser.Scene, sentence: string, onConfirm: () => void, title?: string): void {
+  if (afterExit(scene, () => askToEndTurn(scene, sentence, onConfirm, title))) return;
   if (scene.scene.isActive(SCENES.endTurnConfirm)) return;
   scene.scene.launch(SCENES.endTurnConfirm, {
     sentence,

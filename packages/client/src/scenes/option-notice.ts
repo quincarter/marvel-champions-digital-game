@@ -110,6 +110,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     // when it opens fires nothing here: Phaser builds a held Button as pressed.
     // X (G / H on the keyboard) presses "Don't show again" on a notice that offers it.
     this.#route = new FocusRoute(this, {
+      blocked: () => this.#panel.leaving,
       ring: domFocusRing,
       // OK's and "Don't show again"'s glyphs depend on which has the ring: the ring moved, so read them again.
       onFocusChange: () => this.#glyphs.refresh(),
@@ -144,8 +145,10 @@ export class OptionNoticeOverlay extends Phaser.Scene {
 
   /** More notices, from a later command while this one is still up: shown after the ones waiting. */
   queueNotices(notices: readonly OptionNotice[]): void {
+    const pending = this.#panel.cancelExit();
     this.#notices = [...this.#notices, ...notices];
     this.#draw();
+    pending?.();
   }
 
   /**
@@ -169,10 +172,9 @@ export class OptionNoticeOverlay extends Phaser.Scene {
   #dismiss(after?: () => void): void {
     this.#notices = this.#notices.slice(1);
     if (this.#notices.length === 0) {
-      this.#panel.close(() => {
-        this.scene.stop();
-        after?.();
-      });
+      // A notice that arrives while this plays its exit takes it back (`queueNotices`), so the exit's end only
+      // runs the answer.
+      this.#panel.close(() => after?.());
       return;
     }
     this.#draw();

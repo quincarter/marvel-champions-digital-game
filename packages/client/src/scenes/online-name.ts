@@ -66,7 +66,7 @@ export class OnlineNameOverlay extends Phaser.Scene {
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
-      blocked: () => this.#input?.focused ?? false,
+      blocked: () => this.#panel.leaving || (this.#input?.focused ?? false),
       onCancel: () => this.#cancel(),
       primary: () => "continue",
     });
@@ -88,7 +88,6 @@ export class OnlineNameOverlay extends Phaser.Scene {
     this.#done = true;
     const data = this.#data;
     this.#panel.close(() => {
-      this.scene.stop();
       data?.onCancel?.();
     });
   }
@@ -105,7 +104,6 @@ export class OnlineNameOverlay extends Phaser.Scene {
     const kept = setOnlineName(name);
     const data = this.#data;
     this.#panel.close(() => {
-      this.scene.stop();
       data?.onDone(kept);
     });
   }
