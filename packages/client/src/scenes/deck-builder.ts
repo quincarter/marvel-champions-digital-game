@@ -1117,7 +1117,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#region = new DomRegion(this, element, area);
       // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas; the popover itself
       // is drawn in the canvas, so it is left out of the panel to be seen through it.
-      this.#region.forwardMouseMoves();
+      this.#region.forwardMouseMoves(() => this.#hover?.suppress());
       // Only while the pointer rests on a card: a press that follows a quick move onto a control must not land in the
       // hole of a popover that is still closing.
       this.#region.setHoles(() => {

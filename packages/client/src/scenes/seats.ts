@@ -78,6 +78,7 @@ import { aspectStampOf, aspectStampsOf, titleWithoutAspects } from "../view/aspe
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { packCompactChipsToRows, type ChipInfoToggle } from "../view/chip-layout.js";
+import { formatCount } from "../view/number-format.js";
 import {
   isCommunityDeckId,
   testedDeckLockOf,
@@ -388,6 +389,8 @@ export class SeatsScene extends Phaser.Scene {
   readonly #shelfOfKey = new Map<string, string>();
   /** Whether the last compose folded the chips, so Y knows whether it opens or folds them. */
   #chipsFolded = false;
+  /** The rows the chip bar really wrapped to (the browser lays them out), by screen size: the estimate only starts the layout. */
+  readonly #chipRowsSeen = new Map<string, number>();
   /** The filters and the list as two areas of the route, for Y and B (`view/focus-areas.ts`). */
   readonly #areaJump = new AreaJump();
   #areas: FocusAreas = { filters: [], entry: null, list: [] };
@@ -840,7 +843,11 @@ export class SeatsScene extends Phaser.Scene {
     this.#insights = insights;
     const recCollapsed = recommendedStartsCollapsed(this.#recCollapsed, formFactorFor(width, height) === "phone");
     const unresolved = unresolvedConflictsOf(this.#draft, deckOptions);
-    const chipRows = folded ? 0 : packCompactChipsToRows(chipDefs, rosterColumnWidthFor(width, height)).length;
+    const chipRowsKey = `${width}x${height}:${chipDefs.length}`;
+    const chipRows = folded
+      ? 0
+      : (this.#chipRowsSeen.get(chipRowsKey) ??
+        packCompactChipsToRows(chipDefs, rosterColumnWidthFor(width, height)).length);
     const layout = seatsLayout({
       width,
       height,
@@ -884,6 +891,7 @@ export class SeatsScene extends Phaser.Scene {
     const roster = this.#mountRoster(composed, recCollapsed);
     this.#mountInsights();
     this.#mountTip(composed);
+    if (!folded && !layout.chipsScroll) this.#checkChipRows(chipRowsKey, chipRows, chipDefs);
 
     // Where focus starts on arrival: the topmost hero tile on screen (a recommended pick when that shelf leads).
     this.#firstTileKey =
@@ -928,6 +936,24 @@ export class SeatsScene extends Phaser.Scene {
     this.#updateRosterHint();
     this.#hover?.onDraw();
     this.#installDebugHook();
+  }
+
+  /** Once the chip bar is drawn, counts the rows it wrapped to; when they differ from what the layout reserved, lays out again with the real count. */
+  #checkChipRows(key: string, reserved: number, chipDefs: readonly HeroChipDef[]): void {
+    requestAnimationFrame(() => {
+      if (!this.#alive || this.#chipRowsSeen.get(key) !== undefined) return;
+      const element = this.#chromeRegion?.element as unknown as
+        | { elementOf(key: string): HTMLElement | null }
+        | undefined;
+      const tops = new Set<number>();
+      for (const chip of chipDefs) {
+        const found = element?.elementOf(`${CHIP_PREFIX}${chip.id}`);
+        if (found) tops.add(Math.round(found.getBoundingClientRect().top));
+      }
+      if (tops.size === 0) return;
+      this.#chipRowsSeen.set(key, tops.size);
+      if (tops.size !== reserved) this.#rebuild();
+    });
   }
 
   /** Dev e2e hook (never referenced by product code): every control's current rect, by focus key. */
@@ -1902,7 +1928,7 @@ export class SeatsScene extends Phaser.Scene {
           recommended && rec?.caption
             ? rec.caption
             : several
-              ? t("seats.decksSummary", { count: decks.length, sources: sourceWordsOf(decks) })
+              ? t("seats.decksSummary", { count: formatCount(decks.length), sources: sourceWordsOf(decks) })
               : `${sourceText} · ${option.identityName ?? t("seats.unknownIdentity")}`,
         // Locked: the free way (the villain to beat) and the paid one (tap it to spend points), side by side.
         warning: seatedElsewhere

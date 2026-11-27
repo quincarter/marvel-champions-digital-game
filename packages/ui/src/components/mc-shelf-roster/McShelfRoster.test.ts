@@ -127,11 +127,17 @@ describe("mc-shelf-roster", () => {
     vi.stubGlobal(
       "IntersectionObserver",
       class {
-        constructor(callback: (entries: { target: Element; isIntersecting: boolean }[]) => void) {
-          report = callback;
+        // The header observer (it has thresholds) is not the picture one.
+        #heads: boolean;
+        constructor(
+          callback: (entries: { target: Element; isIntersecting: boolean }[]) => void,
+          options?: { threshold?: unknown },
+        ) {
+          this.#heads = options?.threshold !== undefined;
+          if (!this.#heads) report = callback;
         }
         observe(target: Element): void {
-          observed.push(target);
+          if (!this.#heads) observed.push(target);
         }
         unobserve(): void {}
         disconnect(): void {}
@@ -223,14 +229,18 @@ describe("mc-shelf-roster picture watching", () => {
   it("watches only the tiles on the page: filtering and folding cycles do not pile up observed tiles", async () => {
     const observed = new Set<Element>();
     class FakeObserver {
+      readonly #heads: boolean;
+      constructor(_callback: unknown, options?: { threshold?: unknown }) {
+        this.#heads = options?.threshold !== undefined;
+      }
       observe(target: Element): void {
-        observed.add(target);
+        if (!this.#heads) observed.add(target);
       }
       unobserve(target: Element): void {
-        observed.delete(target);
+        if (!this.#heads) observed.delete(target);
       }
       disconnect(): void {
-        observed.clear();
+        if (!this.#heads) observed.clear();
       }
     }
     vi.stubGlobal("IntersectionObserver", FakeObserver);

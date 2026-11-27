@@ -105,6 +105,10 @@ const styles = css`
     -webkit-tap-highlight-color: transparent;
     user-select: none;
   }
+  .head[data-clipped] .chevrons,
+  .head[data-clipped] .all {
+    visibility: hidden;
+  }
   .chevrons {
     display: none;
     flex: none;
@@ -204,6 +208,9 @@ export class McShelfRoster extends LitElement {
   /** The tiles the observer is watching: dropped when a tile leaves the page, so filtering and folding never pile them up. */
   readonly #watched = new Set<Element>();
   #observer: IntersectionObserver | null = null;
+  /** Watches the headers: one cut by the box's edge hides its buttons, so a sliver of them never peeks in. */
+  #headObserver: IntersectionObserver | null = null;
+  readonly #heads = new Set<Element>();
   /** Without an `IntersectionObserver` every tile loads at once. */
   readonly #windowed = typeof IntersectionObserver !== "undefined";
 
@@ -229,6 +236,9 @@ export class McShelfRoster extends LitElement {
     this.#observer = null;
     // Reconnected, the tiles are watched afresh by a new observer.
     this.#watched.clear();
+    this.#headObserver?.disconnect();
+    this.#headObserver = null;
+    this.#heads.clear();
   }
 
   protected override updated(): void {
@@ -250,6 +260,25 @@ export class McShelfRoster extends LitElement {
       },
       { root, rootMargin: NEAR },
     );
+    this.#headObserver ??= new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const clipped = entry.intersectionRatio < 0.99;
+          (entry.target as HTMLElement).toggleAttribute("data-clipped", clipped);
+        }
+      },
+      { root, threshold: [0.99, 1] },
+    );
+    for (const head of this.#heads) {
+      if (head.isConnected && this.renderRoot.contains(head)) continue;
+      this.#headObserver.unobserve(head);
+      this.#heads.delete(head);
+    }
+    for (const head of this.renderRoot.querySelectorAll(".head")) {
+      if (this.#heads.has(head)) continue;
+      this.#heads.add(head);
+      this.#headObserver.observe(head);
+    }
     // A tile that has left the page (filtered away, its shelf folded) is no longer watched.
     for (const card of this.#watched) {
       if (card.isConnected && this.renderRoot.contains(card)) continue;

@@ -86,7 +86,8 @@ export function pluralFrom(
   const form = new Intl.PluralRules(lang).select(count) === "one" ? "one" : "other";
   const englishForm = new Intl.PluralRules("en").select(count) === "one" ? "one" : "other";
   const text = catalog[`${base}_${form}`] ?? catalog[`${base}_other`] ?? en[`${base}_${englishForm}`];
-  return fill(text, { ...params, count });
+  // The count in the language's own grouping ("1,065"), as `formatCount` has it.
+  return fill(text, { ...params, count: new Intl.NumberFormat(lang === "en" ? "en-US" : lang).format(count) });
 }
 
 /** The `{name}` placeholders a message uses, sorted (the catalog test checks a translation keeps English's). */
