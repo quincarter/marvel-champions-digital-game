@@ -135,6 +135,12 @@ export class PopupSheet {
     const key = scene.sys.settings.key;
     LEAVING.add(key);
     this.#setTakingInput(false);
+    // A press or slider drag already down on the leaving panel must change nothing more while it slides away.
+    const element = this.#region?.element;
+    if (element) {
+      element.cancelHolds();
+      cancelPressesWithin(element);
+    }
     scene.events.once("shutdown", () => {
       LEAVING.delete(key);
       scene.input.enabled = true;

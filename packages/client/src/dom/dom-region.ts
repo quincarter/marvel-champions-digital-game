@@ -274,8 +274,8 @@ export function forwardMouseMoves(
   return () => source.removeEventListener("pointermove", onMove);
 }
 
-/** The panel events that act on the game: stopped at the region while its scene isn't the one taking input. */
-export const GUARDED_EVENTS = ["mc-activate", "mc-inspect"] as const;
+/** The panel events that act on the game or the settings (a slider drag included): stopped at the region while its scene isn't the one taking input. */
+export const GUARDED_EVENTS = ["mc-activate", "mc-inspect", "mc-slide", "mc-step"] as const;
 
 /**
  * Whether a panel's guarded event may reach its scene: the scene takes presses (`sceneTakesPresses`) and its panel is
@@ -348,7 +348,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     this.#wrap.dataset.scene = scene.sys.settings.key;
     Object.assign(this.#wrap.style, { position: "absolute", pointerEvents: "auto", opacity: "0" });
     this.#wrap.append(element);
-    // Every panel's `mc-activate` and `mc-inspect` (a card hold's timer fires it) is stopped here, before its scene
+    // Every panel's `mc-activate`, `mc-inspect`, `mc-slide` and `mc-step` (a card hold's timer fires it) is stopped here, before its scene
     // hears it, while the scene isn't taking presses (stopped, paused, input off for an exit) or its panel is covered
     // by another modal: `pointer-events` follows the scene only at `postupdate`, so a tap in that gap would otherwise
     // still act.

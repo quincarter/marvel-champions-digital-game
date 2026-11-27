@@ -85,9 +85,18 @@ export class McSheet extends LitElement {
     this.dispatchEvent(new CustomEvent("mc-inspect", { detail: { key }, bubbles: true, composed: true }));
   }
 
-  /** Cancels every press-and-hold still armed (the panel was covered or hidden: nothing may be inspected from it). */
+  /**
+   * Cancels every press-and-hold still armed (the panel was covered or hidden: nothing may be inspected from it) and
+   * every slider gesture under a captured pointer, so a covered or closing panel's slider changes nothing more.
+   */
   cancelHolds(): void {
     for (const area of this.renderRoot.querySelectorAll<HTMLElement>(".tap")) cancelHold(area);
+    this.cancelSlides();
+  }
+
+  /** Ends every slider press still down: its later moves and release raise no `mc-slide`. */
+  cancelSlides(): void {
+    this.#slides.clear();
   }
 
   override connectedCallback(): void {
@@ -286,6 +295,7 @@ export class McSheet extends LitElement {
         @pointermove=${move}
         @pointerup=${up}
         @pointercancel=${cancel}
+        @lostpointercapture=${cancel}
       >
         <div
           class="slider-bar"

@@ -490,6 +490,38 @@ describe("mc-sheet drawings, QR codes and sliders", () => {
     return { sheet, slides, track };
   };
 
+  it("stops a dragged slider changing anything once the panel cancels its holds", async () => {
+    const { sheet, slides, track } = await sliderSheet();
+    const at = (clientX: number) => ({
+      bubbles: true,
+      composed: true,
+      clientX,
+      clientY: 5,
+      pointerId: 1,
+      button: 0,
+      buttons: 1,
+      pointerType: "mouse",
+    });
+    track.dispatchEvent(new PointerEvent("pointerdown", at(20)));
+    track.dispatchEvent(new PointerEvent("pointermove", at(60)));
+    expect(slides).toHaveLength(1);
+    sheet.cancelHolds();
+    track.dispatchEvent(new PointerEvent("pointermove", at(90)));
+    track.dispatchEvent(new PointerEvent("pointerup", at(90)));
+    expect(slides).toHaveLength(1);
+    sheet.remove();
+  });
+
+  it("ends a slider press when the pointer capture is lost", async () => {
+    const { sheet, slides, track } = await sliderSheet();
+    const at = { bubbles: true, composed: true, clientX: 60, clientY: 5, pointerId: 1, button: 0, buttons: 1 };
+    track.dispatchEvent(new PointerEvent("pointerdown", at));
+    track.dispatchEvent(new PointerEvent("lostpointercapture", at));
+    track.dispatchEvent(new PointerEvent("pointerup", at));
+    expect(slides).toEqual([]);
+    sheet.remove();
+  });
+
   it("keeps the value when the knob at the minimum end is tapped on its outer half", async () => {
     const { sheet, slides, track } = await sliderSheet();
     const at = { bubbles: true, composed: true, clientX: 3, clientY: 5, pointerId: 1, button: 0 };
