@@ -7,6 +7,8 @@
  * - Facedown / face up: boca abajo / boca arriba ("poner boca arriba", never "voltear" for an encounter card).
  * - Threat: Amenaza. Main scheme: plan principal. Minion: esbirro. Wild resource: recurso Universal.
  * - Aspects: Agresividad, Justicia, Liderazgo, Protección. Each player: cada jugador.
+ * Cards: Plan secundario de jugador (the official Spanish inserts' name for a player side scheme), Cartas básicas.
+ * Hand: the guide says robar hasta el tamaño de su mano (lines 1204, 1967).
  * Where the guide has no term (Undo, Skirmish) the word is the plain Spanish one: Deshacer, Escaramuza.
  * `terminology-es.test.ts` pins these and fails on the words the guide never uses (frustrar, complot, secuaz, comodín).
  */
@@ -1422,13 +1424,13 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "cardType.upgrade": "Mejora",
   "cardType.support": "Apoyo",
   "cardType.resource": "Recurso",
-  "cardType.sideScheme": "Plan secundario",
+  "cardType.sideScheme": "Plan secundario de jugador",
   "deckTypes.resource": "Recursos",
   "deckTypes.ally": "Aliados",
   "deckTypes.event": "Eventos",
   "deckTypes.upgrade": "Mejoras",
   "deckTypes.support": "Apoyos",
-  "deckTypes.scheme": "Planes",
+  "deckTypes.scheme": "Planes secundarios de jugador",
   "deckSort.label": "Orden: {by}",
   "deckSort.aspect": "Aspecto",
   "deckSort.type": "Tipo",
@@ -1573,7 +1575,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "deckList.noCost": "Sin coste",
   "deckList.cost": "Coste {cost}",
   "deckList.more": "+ {count} más",
-  "deckList.basicCards": "Básicas",
+  "deckList.basicCards": "Cartas básicas",
   "deckList.separateDeck": "Mazo de {name}",
   "deckList.setup": "Preparación",
   "deckFaces.alterEgo": "Alter ego",
@@ -1704,7 +1706,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "deckBuilder.type.upgrade": "Mejora",
   "deckBuilder.type.support": "Apoyo",
   "deckBuilder.type.resource": "Recurso",
-  "deckBuilder.type.scheme": "Plan secundario",
+  "deckBuilder.type.scheme": "Plan secundario de jugador",
   "deckBuilder.icon.physical": "Físico",
   "deckBuilder.icon.mental": "Mental",
   "deckBuilder.icon.energy": "Energía",
@@ -1730,7 +1732,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "deckBuilder.saveChanges": "Guardar cambios",
   "deckBuilder.saveDeck": "Guardar mazo",
   "deckBuilder.saved": "Guardado ✓",
-  "deckBuilder.searchPlaceholder": "Nombre (ES/EN), rasgos (EN), o:2 t:ally",
+  "deckBuilder.searchPlaceholder": "Nombre (ES/EN), rasgos (EN), ej.: o:2 t:ally",
   "deckBuilder.clearSearch": "Borrar",
   "searchHelp.how": "Cómo funciona",
   "searchHelp.looks":
@@ -2279,7 +2281,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "howToWin.hero.title": "Caes derrotado",
   "howToWin.hero.body": "La Vida de {hero} llega a 0.",
   "howToWin.everyRound": "CADA RONDA",
-  "howToWin.step.act": "ACTÚAS Y ROBAS",
+  "howToWin.step.act": "ACTÚAS Y ROBAS HASTA TU TAMAÑO DE MANO",
   "howToWin.step.villain": "EL VILLANO ACTÚA",
   "howToWin.tellMore": "Cuéntame más",
   "howToWin.start": "Empezar la lucha ▸",

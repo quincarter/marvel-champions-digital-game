@@ -1282,6 +1282,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A card the deck already holds stays listed even if its rules now refuse it (so its "-" can remove it); campaign
     // mode keeps its own marks for that (`#campaignModel`), and its granted lines are never browsable.
     const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
+    // The text's words are still being ranked: nothing is listed, never the previous text's matches.
+    if (this.#poolSearch?.pending) return [];
     const ranking = this.#poolSearch?.ranking ?? null;
     const listed = browsablePool(
       this.#pool(),
@@ -3085,7 +3087,11 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#text(
         listRect.x + 10,
         listRect.y + 10,
-        searched ? t("deckBuilder.noMatchSearch", { text: searched }) : t("deckBuilder.noMatch"),
+        this.#poolSearch?.pending
+          ? t("pause.searching")
+          : searched
+            ? t("deckBuilder.noMatchSearch", { text: searched })
+            : t("deckBuilder.noMatch"),
         typeRole.body,
         surface.ink.hex,
         ink.meta,

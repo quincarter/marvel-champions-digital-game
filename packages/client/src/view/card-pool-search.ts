@@ -89,6 +89,8 @@ export class CardPoolSearch {
   #destroyed = false;
   /** Bumped by every request: an answer or a name load that finishes for an older one is dropped. */
   #generation = 0;
+  /** The generation whose answer has landed: the free words are pending until it is the current one. */
+  #answered = -1;
   /** Languages whose names did not load: the search runs without them (English only) rather than asking forever. */
   readonly #namesGaveUp = new Set<CardLanguage>();
   /** The name load in flight, shared by every request made while it runs. */
@@ -104,9 +106,18 @@ export class CardPoolSearch {
     return this.#text;
   }
 
-  /** Card id to score for the free words, or null while there are none (then every card the clauses leave is shown). */
+  /** Card id to score for the free words, or null while there are none (then every card the clauses leave is shown) or while they are pending. */
   get ranking(): ReadonlyMap<string, number> | null {
-    return freeTextOf(this.#text) === "" ? null : this.#ranking;
+    return this.pending ? null : freeTextOf(this.#text) === "" ? null : this.#ranking;
+  }
+
+  /**
+   * The text has free words whose answer has not come yet (the names are loading or the worker is ranking): there is no
+   * ranking to show for them, and an older text's ranking is never offered in its place. A screen shows no matches (and
+   * not "no cards match") until it ends.
+   */
+  get pending(): boolean {
+    return freeTextOf(this.#text) !== "" && this.#answered !== this.#generation;
   }
 
   /** The pool filter with the text's `field:value` terms as clauses. */
@@ -129,10 +140,11 @@ export class CardPoolSearch {
       this.#host.onChange();
       return;
     }
+    // The previous text's ranking is not this text's: it is dropped now, and the words are pending until the worker answers.
+    this.#ranking = null;
     const lang = this.#host.language();
     if (!cardNamesReady(lang) && !this.#namesGaveUp.has(lang)) {
-      // The new terms filter now; the words are ranked once the names are in (a ranking of the old words is stale).
-      this.#ranking = null;
+      // The new terms filter now; the words are ranked once the names are in.
       this.#host.onChange();
       this.#awaitNames(lang);
       return;
@@ -142,6 +154,7 @@ export class CardPoolSearch {
       if (this.#destroyed || !this.#host.alive() || generation !== this.#generation || lang !== this.#host.language())
         return;
       this.#ranking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#answered = generation;
       this.#host.onChange();
     });
     // The terms of the text filter while the worker ranks.
@@ -179,6 +192,7 @@ export class CardPoolSearch {
   reset(): void {
     this.#client.cancel();
     this.#generation++;
+    this.#answered = -1;
     this.#ranking = null;
     this.#text = "";
     this.#version = null;

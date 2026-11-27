@@ -29,6 +29,12 @@ const TERMS: readonly (readonly [key: keyof typeof es, expected: string, source:
   ["room.undo.own", "Cada jugador", "guide line 66 (Cada jugador)"],
   ["room.table.skirmish", "Escaramuza", "reviewer table: Skirmish"],
   ["trophies.family.hosting", "Espectadores y anfitriones", "review of #1051"],
+  // A player-deck side scheme is its own card type: the official Spanish inserts name it in full, apart from the encounter side scheme (Plan secundario, guide line 679).
+  ["cardType.sideScheme", "Plan secundario de jugador", "official Spanish Masacre insert, p. 2"],
+  ["deckBuilder.type.scheme", "Plan secundario de jugador", "official Spanish Masacre insert, p. 2"],
+  ["deckTypes.scheme", "Planes secundarios de jugador", "plural of the above"],
+  ["comp.area.sideSchemes", "{count} planes secundarios", "guide line 679 (Cartas de Plan secundario)"],
+  ["deckList.basicCards", "Cartas básicas", "guide line 2216 (cartas Básicas)"],
 ];
 
 /** The words the guide never uses for these terms: the literal or invented ones the reviews found. */
@@ -66,6 +72,21 @@ describe("the Spanish terms follow the official guide", () => {
       ]),
     ];
     expect(strings.filter(([, text]) => BANNED.test(text)).map(([where]) => where)).toEqual([]);
+  });
+
+  it("the How to win strip says the player draws up to the hand size, as the guide does (lines 1204, 1967)", () => {
+    expect(es["howToWin.step.act"]).toMatch(/ROBAS HASTA TU TAMAÑO DE MANO/);
+    expect(es["howToWin.step.villain"]).toBe("EL VILLANO ACTÚA");
+  });
+
+  it("writes the encounter deck as the guide does: mazo de Encuentros, capital E, plural (line 111)", () => {
+    const texts = [
+      ...Object.values(es),
+      ...Object.values(GLOSSARY_ES).flatMap((entry) => [entry.name, entry.definition, entry.note ?? ""]),
+    ];
+    const found = texts.flatMap((text) => text?.match(/mazo de encuentros?/gi) ?? []);
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.filter((phrase) => !/^[Mm]azo de Encuentros$/.test(phrase))).toEqual([]);
   });
 
   it("leaves nothing of the app text in English: every key the English has, the Spanish has", async () => {

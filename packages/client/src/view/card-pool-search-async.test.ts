@@ -257,3 +257,44 @@ describe("what the Spanish search matches", () => {
     expect(es["deckBuilder.searchPlaceholder"]).toMatch(/^Nombre \(ES\/EN\), rasgos \(EN\)/);
   });
 });
+
+describe("a new text while the names are already loaded", () => {
+  it("shows no ranking and says pending until the worker answers, then only the newest answer", () => {
+    const { client, asked } = fakeClient();
+    const { host: h, changes } = host();
+    const s = new CardPoolSearch(h, client);
+    s.request("alpha");
+    expect(s.pending).toBe(true);
+    asked[0]!.answer(ranked("a-card"));
+    expect(s.pending).toBe(false);
+    expect(s.ranking?.has("a-card")).toBe(true);
+    // B is asked: A's matches are not B's. Consumers filter the new clauses at once, with nothing ranked and pending set.
+    const before = changes.length;
+    s.request("beta t:ally");
+    expect(changes.length).toBeGreaterThan(before);
+    expect(s.pending).toBe(true);
+    expect(s.ranking).toBeNull();
+    expect(s.filterFor({}).clauses?.length).toBe(1);
+    // A late answer for A changes nothing; B's answer ends the pending state.
+    asked[0]!.answer(ranked("a-late"));
+    expect(s.pending).toBe(true);
+    expect(s.ranking).toBeNull();
+    asked[1]!.answer(ranked("b-card"));
+    expect(s.pending).toBe(false);
+    expect(s.ranking?.has("b-card")).toBe(true);
+    expect(s.ranking?.has("a-card")).toBe(false);
+  });
+
+  it("is not pending without free words (only terms), and a cleared text drops the ranking", () => {
+    const { client, asked } = fakeClient();
+    const { host: h } = host();
+    const s = new CardPoolSearch(h, client);
+    s.request("t:ally");
+    expect(s.pending).toBe(false);
+    s.request("gamma");
+    asked[0]!.answer(ranked("g"));
+    s.request("");
+    expect(s.pending).toBe(false);
+    expect(s.ranking).toBeNull();
+  });
+});

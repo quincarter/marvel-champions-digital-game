@@ -2120,7 +2120,11 @@ export class DecksScene extends Phaser.Scene {
       const searched = this.#poolSearchText.trim();
       b.emptyState(
         { x: left, y, width: column },
-        searched ? t("decks.poolNoMatchSearch", { text: searched }) : t("decks.poolNoMatch"),
+        this.#poolSearch.pending
+          ? t("pause.searching")
+          : searched
+            ? t("decks.poolNoMatchSearch", { text: searched })
+            : t("decks.poolNoMatch"),
       );
       return [];
     }
@@ -2418,6 +2422,8 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #poolCards(deck: Deck, identity: HeroIdentityCard, deckListOnly = false): readonly AnyCard[] {
+    // The text's words are still being ranked: nothing is listed, never the previous text's matches.
+    if (this.#poolSearch.pending) return [];
     const filter: PoolFilter = this.#poolAspectFilter ? { aspect: this.#poolAspectFilter } : {};
     const browsable = browsablePool(currentPool(), identity, deck.aspects, this.#poolSearch.filterFor(filter));
     const inDeck = new Set(deck.cards.map((entry) => entry.cardId as string));
