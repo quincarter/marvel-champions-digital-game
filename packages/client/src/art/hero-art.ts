@@ -30,6 +30,7 @@ export interface HeroArtCatalog {
 export function parseHeroArt(
   files: Readonly<Record<string, string>>,
   focusFiles: Readonly<Record<string, unknown>> = {},
+  tileFiles: Readonly<Record<string, string>> = {},
 ): HeroArtCatalog {
   const heroes = new Map<string, Picture[]>();
   const unrecognized: string[] = [];
@@ -53,7 +54,12 @@ export function parseHeroArt(
     const identityId = parts[1]!.split("-")[0]!;
     const entry = heroes.get(identityId) ?? [];
     const focus = focusOf.get(identityId);
-    entry.push({ key: `scene-art:${underArt}`, url: files[fullPath]!, ...(focus ? { focus } : {}) });
+    entry.push({
+      key: `scene-art:${underArt}`,
+      url: files[fullPath]!,
+      ...(tileFiles[fullPath] ? { tileUrl: tileFiles[fullPath] } : {}),
+      ...(focus ? { focus } : {}),
+    });
     heroes.set(identityId, entry);
   }
   return { heroes, unrecognized };
@@ -97,10 +103,17 @@ const files = import.meta.glob("../../../../art/heroes/*/*.{png,jpg,jpeg,webp,av
   import: "default",
 }) as Record<string, string>;
 
+// The roster-size copies (`vite-roster-art.ts`), for the tiles of Take your seats.
+const tileFiles = import.meta.glob("../../../../art/heroes/*/hero*.{png,jpg,jpeg,webp,avif}", {
+  eager: true,
+  query: "?roster",
+  import: "default",
+}) as Record<string, string>;
+
 const focusFiles = import.meta.glob("../../../../art/heroes/*/focus.json", {
   eager: true,
   import: "default",
 }) as Record<string, unknown>;
 
 /** Everything in `art/heroes/`. */
-export const HERO_ART: HeroArtCatalog = parseHeroArt(files, focusFiles);
+export const HERO_ART: HeroArtCatalog = parseHeroArt(files, focusFiles, tileFiles);
