@@ -8,20 +8,31 @@
  *
  * A promo card's file has one more control: use this art in place of the normal card, or stop using it. The choice is
  * saved in `Settings.promoArt`.
+ *
+ * **One Lit panel over the canvas** (`mc-sheet`, `dom/sheet-builder.ts`, as `scenes/rules.ts` is) at the rects the
+ * Phaser screen drew: the ink header with its title and ✕, the picture (a lazy `<img>`, fitted whole), ◂ ▸, the caption
+ * and the text column. The scene keeps the press shield, the entrance and exit motion, the focus route (its ring drawn
+ * in the DOM) and the arrow keys.
  */
 import Phaser from "phaser";
-import { containScale, ensurePictureLoaded } from "../art/pictures.js";
+import "@mc/ui";
+import type { McSheet } from "@mc/ui";
 import { accent, ink, surface, typeRole } from "../tokens.js";
-import { artNote, bangers } from "../ui/campaign-chrome.js";
+import { bangers } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { textStyle } from "../ui/theme.js";
-import { McButton, fitText } from "../ui/widgets.js";
+import { isDesktopType } from "../ui/desktop-type.js";
+import { addPressShield } from "../ui/press-shield.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import type { Rect } from "../view/layout.js";
 import { EXTRAS_ENTRIES, unlockHint, type ExtrasEntry } from "../progression/extras.js";
 import { applyEarnedItems, extras } from "../progression/progression.js";
 import { withPromoToggled } from "../art/promo-art.js";
 import { appSession } from "../session.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder } from "../dom/sheet-builder.js";
+import { t } from "../i18n/translate.js";
+import { onLanguageChange } from "../language-change.js";
 import { PROMO_CHANGED } from "./extras.js";
 import { bindExtraInput } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -38,11 +49,14 @@ const SIDE_BY_SIDE_MIN = 820;
 export class ExtrasViewerScene extends Phaser.Scene {
   #entry: ExtrasEntry | null = null;
   #slide = 0;
-  #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
   /** Between `create` and shutdown. Not `sys.isActive()`, which is still false while `create` itself draws. */
   #alive = false;
+  /** The screen, one Lit panel over the canvas; made on the first draw and kept. */
+  #region: DomRegion<McSheet> | null = null;
+  /** What each key in the panel does when tapped, this draw. */
+  #actions = new Map<string, () => void>();
 
   constructor() {
     super(SCENES.extrasViewer);
@@ -55,10 +69,16 @@ export class ExtrasViewerScene extends Phaser.Scene {
         .find((entry) => entry.id === data.entryId) ?? null;
     this.#slide = 0;
     this.#alive = true;
+    this.#region = null;
     this.#motion = new OverlayMotion();
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#route = new FocusRoute(this, { onCancel: () => this.#close(), onTab: (direction) => this.#step(direction) });
+    const offLanguage = onLanguageChange(() => this.#draw());
+    this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
+      onCancel: () => this.#close(),
+      onTab: (direction) => this.#step(direction),
+    });
     const onArrow = (event: KeyboardEvent): void => {
       if (event.key === "ArrowRight") this.#step(1);
       else if (event.key === "ArrowLeft") this.#step(-1);
@@ -78,9 +98,10 @@ export class ExtrasViewerScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       this.scale.off("resize", onResize, this);
+      offLanguage();
       this.input.keyboard?.off("keydown", onArrow);
-      for (const button of this.#buttons) button.destroy();
-      this.#buttons = [];
+      // The panel goes with the scene (`DomRegion`); the next open makes a new one.
+      this.#region = null;
     });
     this.#draw();
   }
@@ -102,42 +123,38 @@ export class ExtrasViewerScene extends Phaser.Scene {
 
   #draw(): void {
     if (this.#motion.leaving || !this.#alive) return;
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
     destroyChildren(this);
+    this.#actions = new Map();
 
     const entry = this.#entry;
     const { width, height } = this.scale.gameSize;
     // Swallows every tap on no control of this overlay's own, so nothing reaches the Extras shelf underneath.
-    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
+    addPressShield(this, { x: 0, y: 0, width, height });
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.92).fillRect(0, 0, width, height);
     const panelsFrom = this.children.list.length;
-    this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
+    // Nothing drawn: the entrance and exit tween this, and the panel rises and fades with it (`DomRegion.follow`).
+    const anchor = this.add.graphics();
     if (!entry) {
       this.#close();
       return;
     }
+    const b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+    b.box({ x: 0, y: 0, width, height }, { fill: surface.ink.hex });
 
     const stops = new Map<string, FocusStop>();
     const pad = width < 600 ? 12 : 24;
     const closeRect: Rect = { x: width - pad - 40, y: (HEADER - 40) / 2, width: 40, height: 40 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: "✕",
-        type: typeRole.rowTitle,
-        rect: closeRect,
-        onClick: () => this.#close(),
-      }),
-    );
+    b.button({ key: "close", rect: closeRect, label: "✕", look: "onInk", type: typeRole.rowTitle });
+    this.#actions.set("close", () => this.#close());
     stops.set("close", { rect: closeRect, activate: () => this.#close() });
-    const title = this.add
-      .text(pad, HEADER / 2, entry.title.toUpperCase(), textStyle(bangers(width < 600 ? 24 : 32), surface.paper.hex))
-      .setOrigin(0, 0.5)
-      .setLetterSpacing(1);
-    fitText(title, closeRect.x - pad * 2, width < 600 ? 24 : 32);
-    this.add.rectangle(0, HEADER - 2, width, 2, accent.heroRed.hex).setOrigin(0, 0);
+    b.text(pad, HEADER / 2, entry.title.toUpperCase(), bangers(width < 600 ? 24 : 32), {
+      color: surface.paper.hex,
+      origin: [0, 0.5],
+      letterSpacing: 1,
+      fitWidth: closeRect.x - pad * 2,
+    });
+    b.box({ x: 0, y: HEADER - 2, width, height: 2 }, { fill: accent.heroRed.hex });
 
     const content = entry.content;
     const lines = content.kind === "gallery" ? content.lines : [];
@@ -159,48 +176,33 @@ export class ExtrasViewerScene extends Phaser.Scene {
     const frame: Rect = { ...pictureArea, height: Math.max(40, pictureArea.height - captionHeight) };
 
     if (slide) {
-      const key = ensurePictureLoaded(this, slide.picture, () => this.#draw());
-      if (key) {
-        const source = this.textures.get(key).getSourceImage() as { width: number; height: number };
-        const scale = containScale(source, frame);
-        this.add
-          .image(frame.x + frame.width / 2, frame.y + frame.height / 2, key)
-          .setScale(scale)
-          .setOrigin(0.5);
-      }
+      // The picture fitted whole into the frame, loaded as it comes near.
+      b.image(frame, { src: slide.picture.url, key: "slide" });
       const caption = slides.length > 1 ? `${slide.caption} · ${this.#slide + 1} / ${slides.length}` : slide.caption;
-      this.add
-        .text(
-          frame.x + frame.width / 2,
-          frame.y + frame.height + 8,
-          caption,
-          textStyle(typeRole.label, surface.paper.hex, ink.secondary),
-        )
-        .setOrigin(0.5, 0);
+      b.text(frame.x + frame.width / 2, frame.y + frame.height + 8, caption, typeRole.label, {
+        color: surface.paper.hex,
+        alpha: ink.secondary,
+        origin: [0.5, 0],
+      });
     } else {
-      artNote(this, frame, "No artwork for this one yet.", true);
+      b.text(frame.x + frame.width / 2, frame.y + frame.height / 2, t("extras.viewer.noArt"), typeRole.body, {
+        size: 13,
+        color: surface.paper.hex,
+        alpha: ink.secondary,
+        origin: [0.5, 0.5],
+        align: "center",
+        wrapWidth: Math.max(80, frame.width - 24),
+      });
     }
 
     if (slides.length > 1) {
       const arrow = 44;
       const prevRect: Rect = { x: frame.x, y: frame.y + frame.height / 2 - arrow / 2, width: arrow, height: arrow };
       const nextRect: Rect = { ...prevRect, x: frame.x + frame.width - arrow };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "onInk",
-          label: "◂",
-          type: typeRole.rowTitle,
-          rect: prevRect,
-          onClick: () => this.#step(-1),
-        }),
-        new McButton(this, {
-          kind: "onInk",
-          label: "▸",
-          type: typeRole.rowTitle,
-          rect: nextRect,
-          onClick: () => this.#step(1),
-        }),
-      );
+      b.button({ key: "prev", rect: prevRect, label: "◂", look: "onInk", type: typeRole.rowTitle });
+      b.button({ key: "next", rect: nextRect, label: "▸", look: "onInk", type: typeRole.rowTitle });
+      this.#actions.set("prev", () => this.#step(-1));
+      this.#actions.set("next", () => this.#step(1));
       stops.set("prev", { rect: prevRect, activate: () => this.#step(-1) });
       stops.set("next", { rect: nextRect, activate: () => this.#step(1) });
     }
@@ -211,30 +213,33 @@ export class ExtrasViewerScene extends Phaser.Scene {
         : { x: body.x, y: body.y + body.height - textHeight, width: body.width, height: textHeight };
       let y = textRect.y;
       if (entry.subtitle) {
-        const subtitle = this.add
-          .text(textRect.x, y, entry.subtitle, textStyle(typeRole.label, surface.paper.hex, ink.secondary))
-          .setWordWrapWidth(textRect.width);
+        const subtitle = b.text(textRect.x, y, entry.subtitle, typeRole.label, {
+          color: surface.paper.hex,
+          alpha: ink.secondary,
+          wrapWidth: textRect.width,
+        });
         y += subtitle.height + 10;
       }
       for (const line of lines) {
         if (y > textRect.y + textRect.height - 16) break;
         const quote = line.startsWith('"') || line.startsWith("“");
-        const text = this.add
-          .text(textRect.x, y, line, {
-            ...textStyle(typeRole.body, surface.paper.hex, quote ? 0.75 : 0.95),
-            fontStyle: quote ? "italic" : "normal",
-          })
-          .setFontSize(sideBySide ? 14 : 12)
-          .setWordWrapWidth(textRect.width)
-          .setLineSpacing(3);
+        const text = b.text(textRect.x, y, line, typeRole.body, {
+          size: sideBySide ? 14 : 12,
+          color: surface.paper.hex,
+          alpha: quote ? 0.75 : 0.95,
+          italic: quote,
+          wrapWidth: textRect.width,
+          lineSpacing: 3,
+        });
         y += text.height + 10;
       }
-      if (promoSetId) y = this.#drawPromoControl(promoSetId, textRect, y, stops);
+      if (promoSetId) y = this.#drawPromoControl(b, promoSetId, textRect, y, stops);
       if (note && y < textRect.y + textRect.height - 16) {
-        this.add
-          .text(textRect.x, y, note, textStyle(typeRole.body, accent.heroRed.hex))
-          .setFontSize(12)
-          .setWordWrapWidth(textRect.width);
+        b.text(textRect.x, y, note, typeRole.body, {
+          size: 12,
+          color: accent.heroRed.hex,
+          wrapWidth: textRect.width,
+        });
       }
     }
 
@@ -242,11 +247,29 @@ export class ExtrasViewerScene extends Phaser.Scene {
       [...(slides.length > 1 ? ["prev", "next"] : []), ...(promoSetId ? ["promo"] : []), "close"],
       stops,
     );
+    this.#mount(width, height, b);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+    this.#region?.follow(anchor);
+  }
+
+  /** Hands the built parts to the panel (made once) and renders them now. */
+  #mount(width: number, height: number, builder: SheetBuilder): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      element.addEventListener("mc-activate", (event) => {
+        // Closing already (its exit is playing): a second tap must not act.
+        if (this.#motion.leaving) return;
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#region = new DomRegion(this, element, { x: 0, y: 0, width, height });
+    }
+    this.#region.setRect({ x: 0, y: 0, width, height });
+    this.#region.element.nodes = builder.nodes;
+    renderNow(this.#region.element);
   }
 
   /** The use-this-art button, at `y` in the text column. Returns the y below it. */
-  #drawPromoControl(setId: string, column: Rect, y: number, stops: Map<string, FocusStop>): number {
+  #drawPromoControl(b: SheetBuilder, setId: string, column: Rect, y: number, stops: Map<string, FocusStop>): number {
     const { promoArt, promoArtOn } = appSession().settings;
     const toggle = (): void => {
       appSession().settings = { ...appSession().settings, promoArt: withPromoToggled(promoArt, setId) };
@@ -255,27 +278,22 @@ export class ExtrasViewerScene extends Phaser.Scene {
       this.#draw();
     };
     const rect: Rect = { x: column.x, y, width: Math.min(column.width, 260), height: 44 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: promoArt.includes(setId) ? "In use ✓ · Stop using" : "Use this art",
-        type: typeRole.rowTitle,
-        rect,
-        onClick: toggle,
-      }),
-    );
+    b.button({
+      key: "promo",
+      rect,
+      label: promoArt.includes(setId) ? t("extras.viewer.promoStop") : t("extras.viewer.promoUse"),
+      look: "onInk",
+      type: typeRole.rowTitle,
+    });
+    this.#actions.set("promo", toggle);
     stops.set("promo", { rect, activate: toggle });
     if (promoArtOn) return y + rect.height + 10;
-    const off = this.add
-      .text(
-        column.x,
-        y + rect.height + 8,
-        "Promo card art is off in Settings ▸ More ▸ Earned items.",
-        textStyle(typeRole.body, accent.heroRed.hex),
-      )
-      .setFontSize(12)
-      .setWordWrapWidth(column.width);
-    return off.y + off.height + 10;
+    const off = b.text(column.x, y + rect.height + 8, t("extras.viewer.promoOff"), typeRole.body, {
+      size: 12,
+      color: accent.heroRed.hex,
+      wrapWidth: column.width,
+    });
+    return y + rect.height + 8 + off.height + 10;
   }
 
   /** "1 more picture to earn: Beat Rhino", or null when the whole file is open. */
@@ -284,6 +302,9 @@ export class ExtrasViewerScene extends Phaser.Scene {
     const locked = entry.content.slides.filter((slide) => !extras().isOpen(slide.unlock));
     if (locked.length === 0) return null;
     const hints = [...new Set(locked.map((slide) => unlockHint(slide.unlock)))].join(" · ");
-    return `${locked.length} more ${locked.length === 1 ? "picture" : "pictures"} to earn: ${hints}`;
+    return t(locked.length === 1 ? "extras.viewer.moreOne" : "extras.viewer.moreMany", {
+      count: locked.length,
+      hints,
+    });
   }
 }

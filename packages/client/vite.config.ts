@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { bundleMode, cardArtPlugin, cardLanguageOf, carriedLanguagesOf, servedLanguages } from "./vite-card-art.js";
+import { artCopyPlugin } from "./vite-roster-art.js";
 import { marvelcdbImportPlugin } from "./vite-marvelcdb-import.js";
 import { releaseHistoryPlugin } from "./vite-release-history.js";
 import { RULES_ROOTS, rulesFingerprintOf } from "./src/rules-fingerprint.js";
@@ -57,7 +58,7 @@ export default defineConfig(({ command }) => ({
       ).join(","),
     ),
   },
-  plugins: [cardArtPlugin(), marvelcdbImportPlugin(), releaseHistoryPlugin()],
+  plugins: [artCopyPlugin(), cardArtPlugin(), marvelcdbImportPlugin(), releaseHistoryPlugin()],
   worker: { format: "es" },
   optimizeDeps: {
     // Scenes load by dynamic import, so on a cold cache the dev server finds these only when a screen first opens,

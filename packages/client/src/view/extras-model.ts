@@ -3,6 +3,7 @@
  * grid the tiles sit in. What is open, and why, is `progression/extras.ts`'s; this module only words and places it.
  */
 import type { Picture } from "../art/pictures.js";
+import { t } from "../i18n/translate.js";
 import {
   EXTRAS_ENTRIES,
   EXTRAS_TABS,
@@ -37,16 +38,16 @@ export interface ExtrasTileView {
 export function extrasTabsOf(extras: Extras): readonly ExtrasTabView[] {
   return EXTRAS_TABS.map((tab) => {
     const { open, total } = extras.countOf(EXTRAS_ENTRIES[tab.id]);
-    return { id: tab.id, label: `${tab.label} ${open}/${total}`, name: tab.short };
+    return { id: tab.id, label: `${t(`extras.tab.${tab.id}`)} ${open}/${total}`, name: t(`extras.tabShort.${tab.id}`) };
   });
 }
 
 const actionOf = (entry: ExtrasEntry): string =>
   entry.content.kind === "issue" || entry.content.kind === "book" || entry.content.kind === "comic"
-    ? "READ"
+    ? t("extras.action.read")
     : entry.content.kind === "track"
-      ? "PLAY"
-      : "VIEW";
+      ? t("extras.action.play")
+      : t("extras.action.view");
 
 export function extrasTilesOf(
   extras: Extras,
@@ -63,7 +64,7 @@ export function extrasTilesOf(
       open,
       hint: open ? null : unlockHint(entry.unlock, extras.winsToward(entry.unlock)),
       thumb: entry.thumb,
-      action: promoSetId && promosInUse.includes(promoSetId) ? "IN USE" : actionOf(entry),
+      action: promoSetId && promosInUse.includes(promoSetId) ? t("extras.action.inUse") : actionOf(entry),
       entry,
     };
   });
@@ -78,7 +79,7 @@ export function extrasSummaryOf(extras: Extras): string {
     open += count.open;
     total += count.total;
   }
-  return `${open} of ${total} open`;
+  return t("extras.summary", { open, total });
 }
 
 export interface ExtrasGrid {

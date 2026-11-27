@@ -9,6 +9,7 @@
  * Spider-Man's own printed HP — so this screen can never drift from what the tutorial game actually plays out.
  */
 import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
+import { message, type MessageKey } from "../i18n/translate.js";
 import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
 import type { HeroIdentityCard, MainSchemeCard, VillainCard } from "@mc/content";
 
@@ -64,10 +65,13 @@ export function howToWinContent(): HowToWinContent {
   };
 }
 
-/** The "EVERY ROUND" strip's three beats, in order (§5.1: "you act → villain acts → draw up", reordered from the
- * tiles to stay rules-accurate — RRG has the hero draw back up to hand size at the end of their own turn, before
- * the villain phase, not after it). */
-export const EVERY_ROUND_STEPS: readonly string[] = ["YOU ACT & DRAW UP", "VILLAIN ACTS"];
+/** The "EVERY ROUND" strip's beats, in order, as app-text keys (§5.1: "you act → villain acts → draw up", reordered
+ * from the tiles to stay rules-accurate — RRG has the hero draw back up to hand size at the end of their own turn,
+ * before the villain phase, not after it). */
+export const EVERY_ROUND_STEP_KEYS: readonly MessageKey[] = ["howToWin.step.act", "howToWin.step.villain"];
+
+/** The same beats in English (the catalog's own words). */
+export const EVERY_ROUND_STEPS: readonly string[] = EVERY_ROUND_STEP_KEYS.map((key) => message(key, "en"));
 
 export interface HowToWinLayout {
   readonly formFactor: FormFactor;
