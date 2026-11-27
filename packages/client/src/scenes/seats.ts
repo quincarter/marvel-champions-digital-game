@@ -1115,7 +1115,8 @@ export class SeatsScene extends Phaser.Scene {
       origin: [1, 0.5],
       fitWidth: layout.step.width,
     });
-    b.text(titleX, barHeight / 2, title, typeRole.pageTitle, {
+    // Narrow: the dark mode tab hangs from the top centre, so the title sits low in the bar, clear of it.
+    b.text(titleX, layout.wide ? barHeight / 2 : barHeight * 0.74, title, typeRole.pageTitle, {
       color: surface.paper.hex,
       origin: [0, 0.5],
       fitWidth: stepRight - stepWidth - titleX - 12,
