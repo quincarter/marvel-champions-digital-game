@@ -22,6 +22,10 @@ import { formFactorFor, type FormFactor, type Rect } from "../view/layout.js";
 import { cssOf, fontFamilyOf, textStyle } from "./theme.js";
 import type { GlyphHints } from "./glyph-hints.js";
 import { McButton, fitText } from "./widgets.js";
+import { reportSlots } from "./report-slot.js";
+import { musicSlots } from "./music-slot.js";
+import { setThemeSlot } from "./theme-slot.js";
+import { topBarThemePlan } from "../view/theme-button.js";
 
 /** Heights the canvases draw at: 60px chrome on desktop/tablet ("60px chrome to match Screens - Desktop"), 52 on phone. */
 export const CAMPAIGN_TOP_BAR = { wide: 60, phone: 52 } as const;
@@ -124,6 +128,36 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
     options.hints?.button(back, ["cancel"], "ink");
     x += backRect.width + 14;
   }
+  // Everything from here on is the words of the bar: the toggle may ask them to drop under it (topBarThemePlan).
+  const wordsFrom = scene.children.list.length;
+  const wordsLeft = x;
+  const clearOfToggle = (wordsRight: number, textHeight: number): TopBar => {
+    const key = scene.sys.settings.key;
+    // A screen with the chrome cluster (Report, music, language) carries the toggle beside it, not in the middle.
+    if (reportSlots().has(key) || musicSlots().has(key)) return { height, back, backRect };
+    const plan = topBarThemePlan({
+      width: frame.width,
+      barHeight: height,
+      textLeft: wordsLeft,
+      textRight: wordsRight,
+      textHeight,
+    });
+    setThemeSlot(key, plan.slot);
+    if (!scene.data.get("mc-topbar-theme")) {
+      scene.data.set("mc-topbar-theme", true);
+      scene.events.once("shutdown", () => {
+        setThemeSlot(key, null);
+        scene.data.set("mc-topbar-theme", false);
+      });
+    }
+    if (plan.drop > 0) {
+      for (const object of scene.children.list.slice(wordsFrom)) {
+        const placed = object as unknown as { y?: number };
+        if (typeof placed.y === "number") placed.y += plan.drop;
+      }
+    }
+    return { height, back, backRect };
+  };
   if (options.chip) {
     const chip = scene.add
       .text(0, height / 2, options.chip.toUpperCase(), textStyle(bangers(frame.phone ? 17 : 20), surface.paper.hex))
@@ -153,7 +187,7 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
     .setLetterSpacing(1);
   if (!options.badge) {
     fitText(title, frame.width - pad - rightWidth - x, frame.phone ? 22 : 28);
-    return { height, back, backRect };
+    return clearOfToggle(x + title.displayWidth, title.displayHeight);
   }
   const badgeText = scene.add
     .text(0, height / 2, options.badge.toUpperCase(), textStyle(typeRole.label, surface.ink.hex))
@@ -167,11 +201,11 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
   if (badgeX + badgeWidth > frame.width / 2 - 30) {
     badgeText.destroy();
     fitText(title, frame.width - pad - rightWidth - x, frame.phone ? 22 : 28);
-    return { height, back, backRect };
+    return clearOfToggle(x + title.displayWidth, title.displayHeight);
   }
   scene.add.rectangle(badgeX, height / 2, badgeWidth, 22, signal.caution.hex).setOrigin(0, 0.5);
   badgeText.setX(badgeX + 8).setDepth(1);
-  return { height, back, backRect };
+  return clearOfToggle(badgeX + badgeWidth, Math.max(title.displayHeight, 22));
 }
 
 /** The ink action bar across the bottom; returns its rect so the caller places the CTA inside it. */
