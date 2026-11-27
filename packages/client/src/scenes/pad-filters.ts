@@ -15,7 +15,11 @@ export class PadFilters {
   #lastBehind: boolean | null = null;
 
   /** `onChange`: pad mode began or ended, so the scene redraws with or without the chips. */
-  constructor(scene: Phaser.Scene, onChange: () => void) {
+  constructor(
+    scene: Phaser.Scene,
+    onChange: () => void,
+    private readonly breakpoint?: number,
+  ) {
     let lastPad = this.padMode;
     const off = onInputDeviceChange(() => {
       const now = this.padMode;
@@ -34,7 +38,7 @@ export class PadFilters {
 
   /** Whether the chips are behind the Filters button at this game width. Crossing the breakpoint shuts them again. */
   behindButton(gameWidth: number): boolean {
-    const behind = filtersBehindButton(gameWidth, this.padMode);
+    const behind = filtersBehindButton(gameWidth, this.padMode, this.breakpoint);
     if (behind !== this.#lastBehind) {
       this.#lastBehind = behind;
       this.#opened = false;

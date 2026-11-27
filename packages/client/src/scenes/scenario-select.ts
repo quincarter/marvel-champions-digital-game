@@ -81,7 +81,7 @@ import type { Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { PadFilters } from "./pad-filters.js";
-import { filtersLabel } from "../view/filters-layout.js";
+import { filtersLabel, SCENARIO_FILTERS_BREAKPOINT } from "../view/filters-layout.js";
 import {
   foldShelves,
   loadShelfFolds,
@@ -230,7 +230,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.#drill = ALL_PACKS;
     this.#stagesOpen = false;
     this.#glyphs = new SheetGlyphs(this, () => this.#compose());
-    this.#padFilters = new PadFilters(this, () => this.#compose());
+    this.#padFilters = new PadFilters(this, () => this.#compose(), SCENARIO_FILTERS_BREAKPOINT);
     this.#padFilters.reset();
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();

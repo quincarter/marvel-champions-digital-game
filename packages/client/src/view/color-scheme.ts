@@ -48,7 +48,11 @@ const DARK: Readonly<Record<ColorChannel, ReadonlyMap<number, number>>> = {
     [0x14110c, 0xd8cfbd],
   ]),
   line: new Map([[INK, 0xd8cfbd]]),
-  text: new Map([[INK, 0xf0e9db]]),
+  // Red words (a seat label, "See all") on the dark grounds: #c8102e is 1.0-1.4:1 there, this is 5.1:1 or better (WCAG AA).
+  text: new Map([
+    [INK, 0xf0e9db],
+    [0xc8102e, 0xffadb8],
+  ]),
 };
 
 const LIGHT: Readonly<Record<ColorChannel, ReadonlyMap<number, number>>> = {

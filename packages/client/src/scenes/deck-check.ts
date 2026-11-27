@@ -723,8 +723,8 @@ export class DeckCheckScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------------------------------------------------
-  // Narrow's Curve tab (P04): the "RESOURCE CURVE" card, three sample tiles (Resources/Allies/Events), then a short
-  // few-card preview. The full list lives on Cards.
+  // Narrow's Curve tab (P04): the "RESOURCE CURVE" card, three sample tiles (Resources/Allies/Events), then the deck's
+  // lines that fit under them (the rest are "+ N more"; the full list lives on Cards).
   // ------------------------------------------------------------------------------------------------------------
   #drawCurveTab(
     b: SheetBuilder,
@@ -764,7 +764,11 @@ export class DeckCheckScene extends Phaser.Scene {
     ];
     b.statTiles({ x: rect.x, y, width: rect.width, height: 46 }, [tiles]);
     y += 46 + 12;
-    for (const entry of groups.flatMap((g) => g.entries).slice(0, 3)) {
+    // As many lines as the tab has room for (at least three), the rest named by a "+ N more" that points at Cards.
+    const all = groups.flatMap((g) => g.entries);
+    const room = Math.floor((rect.y + rect.height - y) / 32);
+    const fit = Math.max(3, all.length > room ? room - 1 : room);
+    for (const entry of all.slice(0, fit)) {
       const row: Rect = { x: rect.x, y, width: rect.width, height: 26 };
       b.box(row, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2 });
       b.box(
@@ -790,6 +794,12 @@ export class DeckCheckScene extends Phaser.Scene {
         origin: [1, 0.5],
       });
       y += 32;
+    }
+    if (all.length > fit) {
+      b.text(rect.x, y + 4, t("deckList.more", { count: all.length - fit }), typeRole.label, {
+        color: surface.ink.hex,
+        alpha: ink.label,
+      });
     }
   }
 

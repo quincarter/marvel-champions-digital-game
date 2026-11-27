@@ -37,8 +37,31 @@ describe("schemeColor", () => {
 
   test("hues and ink on a hue never change", () => {
     for (const hex of [accent.heroRed.hex, signal.caution.hex, signal.cost.hex, surface.inkOnHue.hex]) {
-      for (const channel of ["fill", "line", "text"] as const) expect(schemeColor(hex, channel, "dark")).toBe(hex);
+      for (const channel of ["fill", "line", "text"] as const) {
+        if (hex === accent.heroRed.hex && channel === "text") continue;
+        expect(schemeColor(hex, channel, "dark")).toBe(hex);
+      }
     }
+  });
+
+  test("red words lighten on the dark grounds to WCAG AA (4.5:1) against each of them", () => {
+    const luminance = (hex: number): number => {
+      const [r, g, b] = [16, 8, 0].map((shift) => {
+        const v = ((hex >> shift) & 0xff) / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const ratio = (a: number, b: number): number => {
+      const [hi, lo] = [Math.max(luminance(a), luminance(b)), Math.min(luminance(a), luminance(b))];
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const red = schemeColor(accent.heroRed.hex, "text", "dark");
+    expect(red).not.toBe(accent.heroRed.hex);
+    for (const ground of [surface.paper.hex, surface.parchment.hex, surface.card.hex])
+      expect(ratio(red, schemeColor(ground, "fill", "dark"))).toBeGreaterThanOrEqual(4.5);
+    // The light scheme keeps the printed red, and a live recolor reverses the swap.
+    expect(schemeColor(red, "text", "light", "dark")).toBe(accent.heroRed.hex);
   });
 
   test("a bar's marks stay readable on their ground in dark mode", () => {
