@@ -423,6 +423,22 @@ export class SheetBuilder {
     });
   }
 
+  /** A text field (`mc-search-field`) at `rect`: `mc-search` and `mc-submit` carry its key. */
+  search(options: {
+    readonly key: string;
+    readonly rect: Rect;
+    readonly value: string;
+    readonly placeholder: string;
+    readonly clearLabel?: string;
+    readonly maxLength?: number;
+    readonly debounce?: number;
+    readonly keepFocus?: boolean;
+    readonly clearable?: boolean;
+  }): void {
+    const { rect, ...rest } = options;
+    this.nodes.push({ kind: "search", ...rest, rect: this.#rect(rect) });
+  }
+
   /** A stepped slider (`mc-slide`, `mc-step`): its track, knob at `share` (0 to 1) and the value as `label`. */
   slider(options: {
     readonly key: string;

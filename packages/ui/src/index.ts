@@ -25,6 +25,20 @@ export {
   measureGlyphText,
   parseArt,
 } from "./components/mc-glyph/mc-glyph.js";
+export { McPicture } from "./components/mc-picture/mc-picture.js";
+export { McSectionHeader } from "./components/mc-section-header/mc-section-header.js";
+export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
+export { McFooterBar } from "./components/mc-footer-bar/mc-footer-bar.js";
+export { McBarChart } from "./components/mc-bar-chart/mc-bar-chart.js";
+export { McStatTiles } from "./components/mc-stat-tiles/mc-stat-tiles.js";
+export { McLineList } from "./components/mc-line-list/mc-line-list.js";
+export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
+export { McListRow } from "./components/mc-list-row/mc-list-row.js";
+export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
+export { McDeckGrid } from "./components/mc-deck-grid/mc-deck-grid.js";
+export { McDeckDetails } from "./components/mc-deck-details/mc-deck-details.js";
+export { fitTextWithin } from "./shared/fit-text.js";
+export { lineOf, sizeCss } from "./shared/text-line.js";
 export { McGameLog } from "./components/mc-game-log/mc-game-log.js";
 export type { McButtonKind } from "./shared/button.types.js";
 export type {
@@ -51,6 +65,7 @@ export type {
   SheetQr,
   SheetRect,
   SheetScroll,
+  SheetSearch,
   SheetSlider,
   SheetSvg,
   SheetTap,
@@ -77,3 +92,11 @@ export type {
   BodyRow,
   SettingsBodyModel,
 } from "./components/mc-settings-body/mc-settings-body.types.js";
+export type { PictureSource } from "./shared/picture.types.js";
+export type { TextLine } from "./shared/text-line.types.js";
+export type { BarChartBar } from "./components/mc-bar-chart/mc-bar-chart.types.js";
+export type { StatTile } from "./components/mc-stat-tiles/mc-stat-tiles.types.js";
+export type { LineListEntry, LineListGroup } from "./components/mc-line-list/mc-line-list.types.js";
+export type { SearchFieldEvent } from "./components/mc-search-field/mc-search-field.types.js";
+export type { DeckGridItem, DeckGridModel, DeckGridPick } from "./components/mc-deck-grid/mc-deck-grid.types.js";
+export type { DeckDetailsAction, DeckDetailsModel } from "./components/mc-deck-details/mc-deck-details.types.js";

@@ -178,6 +178,25 @@ export interface SheetImage {
   readonly cover?: { readonly x: number; readonly y: number; readonly centered?: boolean };
 }
 
+/**
+ * A text field (`mc-search-field`): a real input in the panel. It raises `mc-search` (`detail.key`, `detail.text`: the
+ * text, once the typing paused) and `mc-submit` (Enter). The element is `elementOf(key)`, for the caret.
+ */
+export interface SheetSearch {
+  readonly kind: "search";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly value: string;
+  readonly placeholder: string;
+  readonly clearLabel?: string;
+  readonly maxLength?: number;
+  /** Debounce in ms (0: every change). */
+  readonly debounce?: number;
+  /** Enter keeps the caret in (a field that submits). */
+  readonly keepFocus?: boolean;
+  readonly clearable?: boolean;
+}
+
 /** Ink dots thickening toward the foot of a box, the way the comic pages shade a panel (a game mode box's art). */
 export interface SheetHalftone {
   readonly kind: "halftone";
@@ -316,4 +335,5 @@ export type SheetNode =
   | SheetQr
   | SheetSvg
   | SheetSlider
+  | SheetSearch
   | SheetScroll;

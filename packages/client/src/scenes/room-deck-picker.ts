@@ -7,29 +7,29 @@
  * The picker only chooses: whether a deck may be seated is the engine's verdict on each `DeckOption`, and the host's
  * engine judges the deck again at Start.
  *
- * Everything under the top bar is Lit panels over the canvas (`dom/dom-region.ts`): the controls and the grid or list of
- * decks are one `mc-sheet`, the details panel (a slide-out on a wide screen, a full sheet on a phone) another that
- * slides in over it, and the "Sending your deck" veil a third above both. The scene keeps the top bar, the search and
- * link fields (Phaser DOM text inputs, left uncovered by a hole), the focus route (ring drawn in the panel layer) and
- * the card hover popover. The lists scroll in the panel and every control in them is a tap: a swipe that ends over Pick
- * fires nothing (issue #227).
+ * Everything under the top bar is Lit panels over the canvas (`dom/dom-region.ts`), each its own region: the controls
+ * (a sheet with the search and link fields, real inputs, the view toggle and the makers), the decks (`mc-deck-grid`),
+ * the open deck's details (`mc-deck-details`, a slide-out on a wide screen and a full sheet on a phone, sliding in over
+ * the others) and the "Sending your deck" veil above all. The scene keeps the top bar, the focus route (ring drawn in the
+ * panel layer) and the card hover popover. The decks scroll in their panel and every control in them is a tap: a swipe
+ * that ends over Pick fires nothing (issue #227).
  */
 import Phaser from "phaser";
-import type { McSheet } from "@mc/ui";
-import type { CoreAspect, Deck } from "@mc/content";
+import "@mc/ui";
+import type { McDeckDetails, McDeckGrid, McSearchField, McSheet } from "@mc/ui";
+import type { Deck } from "@mc/content";
 import { PackLeases, refreshPackArt } from "../art/pack-art.js";
-import { currentCardsById, currentDeps, currentPool, POOL_VERSION } from "../content/pool.js";
+import { currentDeps, currentPool, POOL_VERSION } from "../content/pool.js";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
-import { heroPictureOf } from "../dom/hero-picture.js";
-import { buildDetailsSheet, DETAILS_BODY, type DetailsSheet } from "../dom/room-deck-details-sheet.js";
+import { deckDetailsModelOf, deckGridModelOf } from "../dom/room-deck-panels.js";
 import { SheetBuilder } from "../dom/sheet-builder.js";
-import { t, tPlural } from "../i18n/translate.js";
+import { t } from "../i18n/translate.js";
 import { onArtChange, onLanguageChange } from "../language-change.js";
 import { importedDeckNote, importMarvelCdbDeck } from "../platform/marvelcdb-import.js";
 import { chooseDeck, onRoomState, presetDeck, roomState, warmDeckWorker, type RoomState } from "../platform/room.js";
 import { appSession, deckStorage } from "../session.js";
-import { border, hit, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { hit, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import { isDesktopType } from "../ui/desktop-type.js";
@@ -37,8 +37,7 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { cssOf } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { McTextInput, type McButton } from "../ui/widgets.js";
-import { aspectStampsOf } from "../view/aspect-stamp.js";
+import type { McButton } from "../ui/widgets.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { deckUsesCustomCards } from "../view/custom-content.js";
 import { type ImportEnv } from "../view/deck-import-model.js";
@@ -56,13 +55,9 @@ import { deckDetailsOf, type DeckDetails } from "../view/room-deck-details-model
 import {
   detailsPanelRect,
   detailsPresentationOf,
-  gridContentHeight,
   panelOffsetAt,
   pickerControlsLayout,
-  pickerGridLayout,
   readPickerView,
-  tileRect,
-  tileTitleOf,
   writePickerView,
   type DetailsPresentation,
   type PickerControlsLayout,
@@ -77,14 +72,13 @@ import { SCENES } from "./keys.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 
 const PAPER = surface.paper.hex;
-const INK = surface.ink.hex;
-const PARCHMENT = surface.parchment.hex;
 /** How long a note about what the room refused stays above the list. */
 const NOTE_MS = 6000;
 /** A page of the list, as a share of its height (PageUp / PageDown, the shoulder buttons). */
 const PAGE = 0.85;
-/** The key of the list's scrolling region in the sheet. */
-const LIST = "list";
+/** The search field's and the link field's keys in the controls sheet. */
+const SEARCH = "search";
+const IMPORT_FIELD = "import-field";
 
 export interface RoomDeckPickerData {
   /** The seat the deck goes to. */
@@ -109,21 +103,9 @@ interface PickerLayout {
   readonly formFactor: ReturnType<typeof campaignFrame>["formFactor"];
   readonly barHeight: number;
   readonly backRect: Rect | null;
-  readonly seatName: string;
 }
 
-const LIST_ROW_HEIGHT = 76;
-const ROW_PAD = 10;
-const ROW_ART = 56;
-const ROW_BUTTON_WIDTH = 92;
-
-const rowArtRect = (rect: Rect): Rect => ({ x: rect.x + ROW_PAD, y: rect.y + 10, width: ROW_ART, height: ROW_ART });
-const rowButtonRect = (rect: Rect): Rect => ({
-  x: rect.x + rect.width - ROW_PAD - ROW_BUTTON_WIDTH,
-  y: rect.y + (rect.height - hit.target) / 2,
-  width: ROW_BUTTON_WIDTH,
-  height: hit.target,
-});
+type AnyRegion = DomRegion<McSheet> | DomRegion<McDeckGrid> | DomRegion<McDeckDetails>;
 
 export class RoomDeckPickerScene extends Phaser.Scene {
   #seat = "";
@@ -132,36 +114,33 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   #state: RoomState = roomState();
   #options: readonly DeckOption[] | null = null;
   #query = "";
-  #input: McTextInput | null = null;
   /** Import from MarvelCDB: whether its link row is open, what is typed in it, and a fetch is under way. */
   #importOpen = false;
   #importText = "";
   readonly #importFlight = new ImportFlight();
   /** Bumped on every import and every visit: an answer for an older one is dropped. */
   #importGen = 0;
-  #importInput: McTextInput | null = null;
-  /** The two text fields' boxes now (null while a field is not on screen), for the holes they are seen through. */
-  #fieldRect: Rect | null = null;
-  #importRect: Rect | null = null;
   /** The top bar's Back button. */
   #buttons: McButton[] = [];
   #layout: PickerLayout | null = null;
-  /** The controls and the list or grid: one Lit panel over the canvas, made once a visit so the list's scroll stays. */
+  /** The controls: one Lit sheet over the canvas, made once a visit. */
   #region: DomRegion<McSheet> | null = null;
-  /** The details panel, its own panel above the first; made on opening and dropped on closing. */
-  #panelRegion: DomRegion<McSheet> | null = null;
-  /** The "Sending your deck" veil, above both, while a deck is on its way. */
+  /** The decks, a panel of their own over the controls' ground. */
+  #gridRegion: DomRegion<McDeckGrid> | null = null;
+  /** The details panel, above the others; made on opening and dropped on closing. */
+  #panelRegion: DomRegion<McDeckDetails> | null = null;
+  /** The "Sending your deck" veil, above all, while a deck is on its way. */
   #veil: DomRegion<McSheet> | null = null;
   /** The pack pictures' blob URLs the panels show, held while their lazy images may still load them. */
   readonly #leases = new PackLeases();
   /** What each key in the panels does when tapped, this compose. */
   #actions = new Map<string, () => void>();
-  /** The list's own box on screen, and the hero pictures in it by hover slot (`y` from the list's top). */
+  /** The decks panel's scrolling box and the details body, on screen (what a hover popover is clipped to). */
   #listView: Rect = { x: 0, y: 0, width: 0, height: 0 };
-  #listFaces = new Map<string, { readonly cardId: string; readonly rect: Rect }>();
+  #panelBody: Rect = { x: 0, y: 0, width: 0, height: 0 };
   /** The list reads from its top on the next compose (a new search or view). */
   #listFromTop = false;
-  /** Whether the details are a full sheet, so the list under them is not shown. */
+  /** Whether the details are a full sheet, so the controls and decks under them are not shown. */
   #sheetOpen = false;
   #hover: HoverPreview | null = null;
   #route: FocusRoute | null = null;
@@ -172,7 +151,6 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   #leaving = false;
   #decks: readonly Deck[] = [];
   readonly #checker = new DeckSearchClient();
-  #searchTimer: Phaser.Time.TimerEvent | null = null;
   #picking = false;
   /** Bumped on every visit and every pick: an answer that arrives for an older one is ignored. */
   #pickGen = 0;
@@ -184,8 +162,6 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   #selected: string | null = null;
   #focusDeckId: string | null = null;
   #panelDetails: { readonly id: string; readonly details: DeckDetails } | null = null;
-  /** The details sheet as last built: its card faces and body, for the hover popover. */
-  #panelSheet: DetailsSheet | null = null;
   /** Which deck the details panel last showed, so a new one reads from its top. */
   #panelShown: string | null = null;
   /** 0 just opened, 1 settled: how far the panel has come in (`panelOffsetAt`). */
@@ -194,6 +170,8 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   /** What the details region follows while it slides in. */
   readonly #anchor: { x: number; y: number; alpha: number; active: boolean } = { x: 0, y: 0, alpha: 1, active: true };
   #panelDraw: { readonly rect: Rect; readonly presentation: DetailsPresentation } | null = null;
+  /** The sheets whose text fields this scene already listens to. */
+  readonly #bound = new WeakSet<HTMLElement>();
 
   constructor() {
     super(SCENES.roomDeckPicker);
@@ -217,18 +195,16 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#selected = null;
     this.#focusDeckId = data.focusDeckId ?? null;
     this.#panelDetails = null;
-    this.#panelSheet = null;
     this.#panelShown = null;
     this.#panelDraw = null;
     this.#progress = 1;
     this.#slide = null;
     this.#region = null;
+    this.#gridRegion = null;
     this.#panelRegion = null;
     this.#veil = null;
     this.#listFromTop = false;
     this.#sheetOpen = false;
-    this.#fieldRect = null;
-    this.#importRect = null;
     this.#layout = null;
   }
 
@@ -238,17 +214,19 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     if (!this.#preview) warmDeckWorker();
     this.cameras.main.setBackgroundColor(cssOf(PAPER));
     this.#hints = new GlyphHints(this);
-    bindTextFieldEscape(this, () => this.#input);
-    bindTextFieldEscape(this, () => this.#importInput);
+    // A pad leaves a field it put the caret in (before the route, as the other screens do).
+    bindTextFieldEscape(this, () => this.#field(SEARCH));
+    bindTextFieldEscape(this, () => this.#field(IMPORT_FIELD));
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
-      blocked: () => (this.#input?.focused ?? false) || (this.#importInput?.focused ?? false) || this.#picking,
+      blocked: () =>
+        (this.#field(SEARCH)?.focused ?? false) || (this.#field(IMPORT_FIELD)?.focused ?? false) || this.#picking,
       onCancel: () => {
         if (!this.#picking) this.#backOrClose();
       },
       primary: () => null,
       // The right stick, PageUp / PageDown and Home / End scroll what the focus is on: the details body from its own
-      // buttons (or whenever the details are the whole screen), the list otherwise.
+      // buttons (or whenever the details are the whole screen), the decks otherwise.
       onScroll: (_dx, dy) => this.#scroller()?.scrollBy({ top: dy }),
       onPage: (direction) => {
         const scroller = this.#scroller();
@@ -292,12 +270,9 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       this.#buttons = [];
       // The panels go with the scene (`DomRegion`); the next visit makes new ones.
       this.#region = null;
+      this.#gridRegion = null;
       this.#panelRegion = null;
       this.#veil = null;
-      this.#input?.destroy();
-      this.#input = null;
-      this.#importInput?.destroy();
-      this.#importInput = null;
     });
     if (!this.#preview) {
       this.#off = onRoomState((state) => {
@@ -315,13 +290,24 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     void this.#reloadDecks(wanted);
   }
 
-  /** The element that scrolls under the focus: the details body or the list. */
+  /** A text field of the controls sheet (the search or the link), for its caret. */
+  #field(key: string): McSearchField | null {
+    return (this.#region?.element.elementOf(key) as McSearchField | null) ?? null;
+  }
+
+  /** Puts the caret in a field once it has rendered its input. */
+  #focusField(key: string): void {
+    const field = this.#field(key);
+    if (field) void field.updateComplete.then(() => field.focusInput());
+  }
+
+  /** The element that scrolls under the focus: the details body or the decks. */
   #scroller(): HTMLElement | null {
     const focused = this.#route?.focused ?? null;
     if (this.#panelRegion && (this.#sheetOpen || focused?.startsWith("panel:"))) {
-      return this.#panelRegion.element.elementOf(DETAILS_BODY);
+      return this.#panelRegion.element.scroller;
     }
-    return this.#region?.element.elementOf(LIST) ?? null;
+    return this.#gridRegion?.element.scroller ?? null;
   }
 
   /** Reads the device's decks again and, when `focus` is among them, opens its details. */
@@ -459,26 +445,25 @@ export class RoomDeckPickerScene extends Phaser.Scene {
 
   /**
    * Every hero picture in view and every card line of the open details, with its place, for the hover popover (read on
-   * each pointer move). Worked out from the layout rects noted at compose time plus each panel's scroll: no element is
-   * measured, so a long list costs a few subtractions.
+   * each pointer move): the panels name what they show and the scene reads where each is, clipped to the box that scrolls.
    */
   #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
     const found = new Map<string, HoverCardIdRect>();
-    const view = this.#listView;
-    if (!this.#sheetOpen) {
-      const scrolled = this.#region?.element.elementOf(LIST)?.scrollTop ?? 0;
-      for (const [slot, face] of this.#listFaces) {
-        const shown = clipHoverRect({ ...face.rect, y: view.y + face.rect.y - scrolled }, view);
-        if (shown) found.set(slot, { ...shown, cardId: face.cardId, through: true });
-      }
-    }
-    const panel = this.#panelSheet;
-    if (panel && this.#panelRegion && this.#progress >= 1) {
-      const scrolled = this.#panelRegion.element.elementOf(DETAILS_BODY)?.scrollTop ?? 0;
-      panel.faces.forEach(({ cardId, rect }, index) => {
-        const shown = clipHoverRect({ ...rect, y: panel.body.y + rect.y - scrolled }, panel.body);
-        if (shown) found.set(hoverSlotOf(cardId, `panel${index}`), { ...shown, cardId, through: true });
+    const add = (
+      region: AnyRegion | null,
+      faces: readonly { readonly cardId: string; readonly element: HTMLElement }[],
+      view: Rect,
+      where: string,
+    ): void => {
+      if (!region) return;
+      faces.forEach(({ cardId, element }, index) => {
+        const shown = clipHoverRect(region.rectOf(element), view);
+        if (shown) found.set(hoverSlotOf(cardId, `${where}${index}`), { ...shown, cardId, through: true });
       });
+    };
+    if (!this.#sheetOpen) add(this.#gridRegion, this.#gridRegion?.element.hoverFaces() ?? [], this.#listView, "deck");
+    if (this.#progress >= 1) {
+      add(this.#panelRegion, this.#panelRegion?.element.hoverFaces() ?? [], this.#panelBody, "panel");
     }
     return found;
   }
@@ -566,14 +551,13 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   }
 
   /** A panel part's box on screen now, scroll and slide included; null when it is not drawn. */
-  #liveRect(region: DomRegion<McSheet> | null, key: string): Rect | null {
-    const found = region?.element.elementOf(key);
+  #liveRect(region: AnyRegion | null, key: string): Rect | null {
+    const found = (region?.element as { elementOf(key: string): HTMLElement | null } | undefined)?.elementOf(key);
     return found && region ? region.rectOf(found) : null;
   }
 
-  /** A panel (one `mc-sheet` in a region) for this scene: presses reach `#actions`, a stale pack picture asks again. */
-  #makeRegion(rect: Rect, holes: () => readonly Rect[]): DomRegion<McSheet> {
-    const element = document.createElement("mc-sheet") as McSheet;
+  /** Wires a panel's region: presses reach `#actions`, a stale pack picture asks again, the mouse reaches the hover popover. */
+  #wire<E extends McSheet | McDeckGrid | McDeckDetails>(element: E, rect: Rect): DomRegion<E> {
     element.addEventListener("mc-activate", (event) => {
       // Leaving already: a second tap must not act.
       if (this.#leaving) return;
@@ -584,10 +568,14 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       const { key, src } = (event as CustomEvent<{ key: string; src: string | null }>).detail;
       refreshPackArt(key, src ?? undefined);
     });
-    const region = new DomRegion(this, element, rect);
-    // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas.
+    const region = new DomRegion<E>(this, element, rect);
+    // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas; the popover itself is
+    // drawn in the canvas, so its box is left out of the panel.
     region.forwardMouseMoves();
-    region.setHoles(holes);
+    region.setHoles(() => {
+      const popover = this.#hover?.shownRect;
+      return popover ? [popover] : [];
+    });
     return region;
   }
 
@@ -596,13 +584,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     if (!this.#alive) return;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    const kept = [
-      ...(this.#input ? this.#input.gameObjects : []),
-      ...(this.#importInput ? this.#importInput.gameObjects : []),
-    ];
-    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
-    for (const node of kept) this.children.add(node);
     this.#hints.reset();
 
     const frame = campaignFrame(this);
@@ -620,23 +602,14 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       reserveRight: phone ? 80 : 0,
     });
     if (bar.back) this.#buttons.push(bar.back);
-    this.#layout = {
-      width,
-      height,
-      phone,
-      gutter,
-      formFactor,
-      barHeight: bar.height,
-      backRect: bar.backRect,
-      seatName,
-    };
+    this.#layout = { width, height, phone, gutter, formFactor, barHeight: bar.height, backRect: bar.backRect };
     this.#compose();
   }
 
   /**
-   * Builds the panels from the current state and hands them over: the controls and the list or grid, the open details
-   * and the veil, and the focus stops that walk them. Nothing in the canvas is touched, so a search, a verdict from the
-   * deck worker or a note going away rebuilds only what the player sees change.
+   * Builds the panels from the current state and hands them over, and the focus stops that walk them. Nothing in the
+   * canvas is touched, so a search, a verdict from the deck worker or a note going away rebuilds only what the player
+   * sees change.
    */
   #compose(): void {
     const layout = this.#layout;
@@ -644,7 +617,6 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     const { width, height, phone, gutter, formFactor, barHeight } = layout;
     this.#actions = new Map();
     this.#leases.begin();
-    this.#listFaces = new Map();
     resetHoverCards(this);
     this.#stops = new Map();
     this.#order = [];
@@ -665,7 +637,6 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#sheetOpen = sheet;
     const right = panelRect !== null && presentation === "slide" ? panelRect.x - 12 : width - gutter;
 
-    // The search field and the view toggle, then the grid or list.
     const toggleWidth = phone ? 58 : 70;
     const controls = pickerControlsLayout({
       left: gutter,
@@ -676,11 +647,11 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       buttonHeight: hit.target,
       importOpen: this.#importOpen,
     });
-    this.#placeSearchField(controls.search, sheet);
-    this.#placeImportField(controls, sheet);
 
-    if (sheet) this.#region?.setHidden(true);
-    else this.#mountMain(area, controls, current, right, layout);
+    if (sheet) {
+      this.#region?.setHidden(true);
+      this.#gridRegion?.setHidden(true);
+    } else this.#mountMain(area, controls, current, right, layout);
 
     if (panelRect && open) this.#mountDetails(panelRect, presentation, open);
     else this.#dropDetails();
@@ -699,68 +670,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     }
   }
 
-  /** The search field (a Phaser DOM input, seen through a hole in the panel): made once, laid out each compose. */
-  #placeSearchField(rect: Rect, sheet: boolean): void {
-    this.#fieldRect = rect;
-    if (!this.#input) {
-      this.#input = new McTextInput(this, {
-        rect,
-        value: this.#query,
-        type: typeRole.body,
-        placeholder: t("room.picker.search"),
-        maxLength: 80,
-        // Debounced, and only the list is rebuilt: a key per redraw made typing lag on a phone.
-        onChange: (value) => {
-          this.#query = value;
-          this.#searchTimer?.remove();
-          this.#searchTimer = this.time.delayedCall(140, () => {
-            this.#searchTimer = null;
-            this.#listFromTop = true;
-            this.#compose();
-          });
-        },
-      });
-      this.children.bringToTop(this.#input.gameObject);
-    } else {
-      this.#input.layout(rect);
-      this.#input.setPlaceholder(t("room.picker.search"));
-    }
-    this.#input.setVisible(!sheet);
-  }
-
-  /** The import's link field while its row is open (made and dropped with the row). */
-  #placeImportField(controls: PickerControlsLayout, sheet: boolean): void {
-    const field = controls.importField;
-    if (!field) {
-      this.#importInput?.destroy();
-      this.#importInput = null;
-      this.#importRect = null;
-      return;
-    }
-    this.#importRect = field;
-    if (this.#importInput) {
-      this.#importInput.layout(field);
-      for (const node of this.#importInput.gameObjects) this.children.bringToTop(node);
-    } else {
-      this.#importInput = new McTextInput(this, {
-        rect: field,
-        value: this.#importText,
-        type: typeRole.body,
-        placeholder: t("room.picker.importPlaceholder"),
-        maxLength: 200,
-        onChange: (value) => {
-          this.#importText = value;
-        },
-      });
-      (this.#importInput.gameObject as unknown as { node: HTMLElement }).node.addEventListener("keydown", (event) => {
-        // After this key press finishes: a redraw inside the field's own keydown left its DOM box on screen.
-        if (event.key === "Enter") setTimeout(() => void this.#import(), 0);
-      });
-    }
-    this.#importInput.setVisible(!sheet);
-  }
-
-  /** The controls panel: ground, search room, view toggle, makers, the note and the list frame with its decks. */
+  /** The controls sheet (ground, search, view toggle, makers, link row, note) and, over it, the decks panel. */
   #mountMain(
     area: Rect,
     controls: PickerControlsLayout,
@@ -772,7 +682,16 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     const b = new SheetBuilder(this.game, { x: area.x, y: area.y }, isDesktopType);
     b.box(area, { fill: PAPER });
 
-    this.#addStop("search", controls.search, () => this.#input?.focus());
+    // The fields keep what is typed in them across a rebuild (the search's debounce lags behind the keys).
+    b.search({
+      key: SEARCH,
+      rect: controls.search,
+      value: this.#field(SEARCH)?.value ?? this.#query,
+      placeholder: t("room.picker.search"),
+      clearLabel: t("deckPicker.searchClear"),
+      maxLength: 80,
+    });
+    this.#addStop(SEARCH, controls.search, () => this.#focusField(SEARCH));
     const labelType = { ...typeRole.label, size: 12 };
     (["grid", "list"] as const).forEach((mode, i) => {
       const rect = controls.toggles[i]!;
@@ -795,10 +714,9 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     if (note) {
       // Two or three lines on a phone, not one cut line: the words are what the player needs.
       const wrapWidth = right - gutter - 12;
-      const noteType = typeRole.rowTitle;
-      const size = b.measure(note, noteType, { size: 13, wrapWidth, maxLines: 3 });
+      const size = b.measure(note, typeRole.rowTitle, { size: 13, wrapWidth, maxLines: 3 });
       b.box({ x: gutter, y: top, width: right - gutter, height: size.height + 6 }, { fill: signal.caution.hex });
-      b.text(gutter + 6, top + 3, note, noteType, {
+      b.text(gutter + 6, top + 3, note, typeRole.rowTitle, {
         size: 13,
         color: surface.inkOnHue.hex,
         wrapWidth,
@@ -806,44 +724,76 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       });
       top += size.height + 6 + 8;
     }
+    const region = (this.#region ??= this.#wire(document.createElement("mc-sheet") as McSheet, area));
+    this.#bindFields(region.element);
+    region.setRect(area);
+    region.setHidden(false);
+    region.element.nodes = b.nodes;
+    renderNow(region.element);
+
+    // The decks, on their own panel over the ground.
     const listRect: Rect = { x: gutter, y: top, width: right - gutter, height: Math.max(0, height - top - gutter) };
-    b.box(listRect, { fill: PARCHMENT });
-    b.box(
-      { x: listRect.x + 1, y: listRect.y + 1, width: listRect.width - 2, height: listRect.height - 2 },
-      { stroke: INK, strokeWidth: 2 },
-    );
-    const inner: Rect = {
+    this.#listView = {
       x: listRect.x + 10,
       y: listRect.y + 8,
       width: listRect.width - 20,
       height: listRect.height - 16,
     };
-    // The decks scroll here; the scrollbar's room comes out of the right edge.
-    const view: Rect = { x: inner.x, y: inner.y, width: inner.width - 12, height: inner.height };
-    this.#listView = inner;
-    const plan = this.#planList(b, view, current, formFactor);
-    b.scroll(LIST, view, Math.max(inner.height, plan.height), plan.draw);
-
-    const region = (this.#region ??= this.#makeRegion(area, () => this.#mainHoles()));
-    region.setRect(area);
-    region.setHidden(false);
-    region.element.nodes = b.nodes;
-    renderNow(region.element);
+    const rows = this.#options === null ? [] : pickerRows(this.#options, this.#query, current);
+    const model = deckGridModelOf({
+      rows,
+      loading: this.#options === null,
+      none: this.#options?.length === 0,
+      mode: this.#view,
+      selected: this.#selected,
+      contentWidth: listRect.width - 32,
+      formFactor,
+      leases: this.#leases,
+    });
+    const grid = (this.#gridRegion ??= this.#wire(document.createElement("mc-deck-grid") as McDeckGrid, listRect));
+    grid.setRect(listRect);
+    grid.setHidden(false);
+    grid.element.model = model;
+    renderNow(grid.element);
+    for (const row of rows) {
+      const open = (): void => this.#select(row);
+      const pick = (): void => void this.#pick(row);
+      this.#actions.set(`open:${row.id}`, open);
+      this.#actions.set(`pick:${row.id}`, pick);
+      const stop = (key: string, activate: () => void): void =>
+        this.#addStop(key, () => this.#liveRect(grid, key) ?? listRect, activate, {
+          ensureVisible: () => grid.element.elementOf(key)?.scrollIntoView({ block: "nearest" }),
+          view: () => this.#listView,
+        });
+      stop(`deck:${row.id}`, open);
+      if (this.#view === "list") stop(`pick:${row.id}`, pick);
+    }
     if (this.#listFromTop) {
-      const scroller = region.element.elementOf(LIST);
+      const scroller = grid.element.scroller;
       if (scroller) scroller.scrollTop = 0;
       this.#listFromTop = false;
     }
   }
 
-  /** What the controls panel leaves uncovered: the two Phaser text fields while they show, and the hover popover. */
-  #mainHoles(): readonly Rect[] {
-    const holes: Rect[] = [];
-    if (this.#input?.shown && this.#fieldRect) holes.push(this.#fieldRect);
-    if (this.#importInput?.shown && this.#importRect) holes.push(this.#importRect);
-    const popover = this.#hover?.shownRect;
-    if (popover) holes.push(popover);
-    return holes;
+  /** Listens to the controls sheet's two text fields (once: the sheet outlives a rebuild). */
+  #bindFields(element: McSheet): void {
+    if (this.#bound.has(element)) return;
+    this.#bound.add(element);
+    element.addEventListener("mc-search", (event) => {
+      const { key, text } = (event as CustomEvent<{ key: string; text: string }>).detail;
+      if (key === SEARCH) {
+        this.#query = text;
+        this.#listFromTop = true;
+        this.#compose();
+      } else if (key === IMPORT_FIELD) this.#importText = text;
+    });
+    element.addEventListener("mc-submit", (event) => {
+      const { key, text } = (event as CustomEvent<{ key: string; text: string }>).detail;
+      if (key === IMPORT_FIELD) {
+        this.#importText = text;
+        void this.#import();
+      }
+    });
   }
 
   /** Build a deck and Import from MarvelCDB, always offered, and the import's link row while it is open. */
@@ -852,7 +802,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     const toggle = (): void => {
       this.#importOpen = !this.#importOpen;
       this.#compose();
-      if (this.#importOpen) this.#importInput?.focus();
+      if (this.#importOpen) this.#focusField(IMPORT_FIELD);
     };
     b.button({ key: "build", rect: controls.build, label: t("room.picker.build"), look: "secondary", type });
     b.button({
@@ -870,7 +820,17 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     const field = controls.importField;
     const go = controls.importGo;
     if (!field || !go) return;
-    this.#addStop("import-field", field, () => this.#importInput?.focus());
+    b.search({
+      key: IMPORT_FIELD,
+      rect: field,
+      value: this.#field(IMPORT_FIELD)?.value ?? this.#importText,
+      placeholder: t("room.picker.importPlaceholder"),
+      clearLabel: t("deckPicker.searchClear"),
+      maxLength: 200,
+      debounce: 0,
+      keepFocus: true,
+    });
+    this.#addStop(IMPORT_FIELD, field, () => this.#focusField(IMPORT_FIELD));
     const doImport = (): void => void this.#import();
     const busy = this.#importFlight.busy;
     b.button({
@@ -942,55 +902,50 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     if (!this.#alive || gen !== this.#importGen) return;
     this.#importOpen = false;
     this.#importText = "";
-    this.#importInput?.setValue("");
     this.#say(importedDeckNote(result.deck.name, result.warnings));
     await this.#reloadDecks(result.deck.id as string);
   }
 
-  /** The details panel's own region, above the controls: built from the deck's details and slid in while it opens. */
+  /** The details panel's own region, above the others: built from the deck's details and slid in while it opens. */
   #mountDetails(rect: Rect, presentation: DetailsPresentation, row: PickerRow): void {
     if (this.#panelDetails?.id !== row.id) {
       this.#panelDetails = { id: row.id, details: deckDetailsOf(row, currentPool()) };
     }
-    const details = this.#panelDetails.details;
-    const built = buildDetailsSheet({
-      game: this.game,
-      desktop: isDesktopType,
-      rect,
-      details,
-      leases: this.#leases,
-    });
-    this.#panelSheet = built;
     this.#panelDraw = { rect, presentation };
     this.#actions.set("panel:use", () => void this.#pick(row));
     this.#actions.set("panel:edit", () => this.#edit(row));
     this.#actions.set("panel:close", () => this.#closeDetails());
     const fresh = !this.#panelRegion;
-    const region = (this.#panelRegion ??= this.#makeRegion(rect, () => {
-      const popover = this.#hover?.shownRect;
-      return popover ? [popover] : [];
-    }));
+    const region = (this.#panelRegion ??= this.#wire(document.createElement("mc-deck-details") as McDeckDetails, rect));
     // Drawn once at its resting place and moved as one (the region follows the anchor): a slide that rebuilt the panel
     // each frame was the cost, not the picture.
     if (fresh) region.follow(this.#anchor);
     this.#placePanel();
     region.setRect(rect);
-    region.element.nodes = built.nodes;
+    region.setHidden(false);
+    // The body's column: the panel less its padding and the scrollbar's room.
+    region.element.model = deckDetailsModelOf(this.#panelDetails.details, rect.width - 28 - 12, this.#leases);
     renderNow(region.element);
+    this.#panelBody = {
+      x: rect.x + 14,
+      y: rect.y + 14,
+      width: rect.width - 28,
+      height: Math.max(0, rect.height - 153),
+    };
     if (this.#panelShown !== row.id) {
-      const scroller = region.element.elementOf(DETAILS_BODY);
+      const scroller = region.element.scroller;
       if (scroller) scroller.scrollTop = 0;
       this.#panelShown = row.id;
     }
-    for (const stop of built.stops) {
-      this.#addStop(stop.key, () => this.#liveRect(region, stop.key) ?? stop.rect, this.#actions.get(stop.key)!);
+    for (const key of ["panel:use", "panel:edit", "panel:close"]) {
+      if (key === "panel:edit" && !this.#panelDetails.details.edit) continue;
+      this.#addStop(key, () => this.#liveRect(region, key) ?? rect, this.#actions.get(key)!);
     }
   }
 
   #dropDetails(): void {
     this.#panelRegion?.destroy();
     this.#panelRegion = null;
-    this.#panelSheet = null;
     this.#panelDraw = null;
     this.#panelShown = null;
   }
@@ -1004,181 +959,5 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       deck: row.option.deck,
       returnTo: { key: SCENES.roomDeckPicker, data: this.#returnData(row.id) },
     } satisfies DeckBuilderSceneData);
-  }
-
-  /**
-   * What the list or grid scrolls: its parts (built in the region's own content space, `y` from 0 and `x` the
-   * screen's) and their height, read before the region is made. The stops of every deck are registered here too: each
-   * frames its element in the panel, so it follows the scroll.
-   */
-  #planList(
-    b: SheetBuilder,
-    view: Rect,
-    current: { readonly hero: string; readonly name: string } | null,
-    formFactor: PickerLayout["formFactor"],
-  ): { readonly height: number; readonly draw: (b: SheetBuilder) => void } {
-    const x = view.x;
-    const options = this.#options;
-    if (options === null) {
-      const text = t("room.state.connecting");
-      const wait = b.measure(text, typeRole.body, { size: 14 });
-      return {
-        height: wait.height + 8,
-        draw: (inner) => void inner.text(x, 2, text, typeRole.body, { size: 14, color: INK, alpha: 0.7 }),
-      };
-    }
-    const rows = pickerRows(options, this.#query, current);
-    if (rows.length === 0) {
-      const text = options.length === 0 ? t("room.picker.noDecks") : t("room.picker.empty");
-      const none = b.measure(text, typeRole.body, { size: 14, wrapWidth: view.width });
-      return {
-        height: none.height + 8,
-        draw: (inner) =>
-          void inner.text(x, 2, text, typeRole.body, { size: 14, color: INK, alpha: 0.85, wrapWidth: view.width }),
-      };
-    }
-    const inView = (key: string): Pick<FocusStop, "ensureVisible" | "view"> => ({
-      ensureVisible: () => this.#region?.element.elementOf(key)?.scrollIntoView({ block: "nearest" }),
-      view: () => this.#liveRect(this.#region, LIST) ?? view,
-    });
-    const frame =
-      (id: string): (() => Rect) =>
-      () =>
-        this.#liveRect(this.#region, `frame:${id}`) ?? view;
-    if (this.#view === "grid") {
-      const layout = pickerGridLayout(view.width, formFactor);
-      for (const row of rows) {
-        this.#addStop(`deck:${row.id}`, frame(row.id), () => this.#select(row), inView(`frame:${row.id}`));
-        this.#actions.set(`open:${row.id}`, () => this.#select(row));
-      }
-      return {
-        height: gridContentHeight(layout, rows.length) + 8,
-        draw: (inner) => {
-          rows.forEach((row, i) => {
-            const rect = tileRect(layout, x, 2, i);
-            this.#drawTile(inner, rect, layout.artHeight, row, i);
-          });
-        },
-      };
-    }
-    for (const row of rows) {
-      this.#addStop(`deck:${row.id}`, frame(row.id), () => this.#select(row), inView(`frame:${row.id}`));
-      this.#addStop(
-        `pick:${row.id}`,
-        () => this.#liveRect(this.#region, `pick:${row.id}`) ?? view,
-        () => void this.#pick(row),
-        inView(`pick:${row.id}`),
-      );
-      this.#actions.set(`open:${row.id}`, () => this.#select(row));
-      this.#actions.set(`pick:${row.id}`, () => void this.#pick(row));
-    }
-    return {
-      height: 2 + rows.length * (LIST_ROW_HEIGHT + 8) - 8 + 4 + 8,
-      draw: (inner) => {
-        rows.forEach((row, i) => {
-          const rect: Rect = { x, y: 2 + i * (LIST_ROW_HEIGHT + 8), width: view.width, height: LIST_ROW_HEIGHT };
-          this.#drawRow(inner, rect, row, i);
-        });
-      },
-    };
-  }
-
-  /** The words under a deck's name: why it cannot be picked, that it is in the seat, or how many cards it has. Words, never a colour. */
-  #statusOf(row: PickerRow, plain: string | null): { readonly text: string | null; readonly bold: boolean } {
-    if (row.checking) return { text: t("room.picker.checking"), bold: false };
-    if (!row.seatable) return { text: t("room.picker.notReady", { reason: row.blockedReason ?? "" }), bold: true };
-    if (row.current) return { text: t("room.picker.current"), bold: true };
-    return { text: plain, bold: false };
-  }
-
-  /** A hero's picture in `rect`, framed in ink, noted for the hover popover. Where no picture is known the box is plain. */
-  #heroArt(b: SheetBuilder, rect: Rect, row: PickerRow, index: number): void {
-    const picture = heroPictureOf(currentCardsById().get(row.cardId), this.#leases);
-    b.image(rect, {
-      src: picture.src,
-      fill: signal.spent.hex,
-      cover: picture.cover,
-      ...(picture.retry !== undefined ? { retry: picture.retry } : {}),
-    });
-    b.box(rect, { stroke: INK, strokeWidth: border.detail });
-    this.#listFaces.set(hoverSlotOf(row.cardId, `deck${index}`), { cardId: row.cardId, rect });
-  }
-
-  /** One grid tile: the hero's picture with a stripe of its aspect colors under it, the deck's words and its frame. */
-  #drawTile(b: SheetBuilder, rect: Rect, artHeight: number, row: PickerRow, index: number): void {
-    const selected = row.id === this.#selected;
-    b.box(rect, { fill: PAPER, key: `frame:${row.id}` });
-    const artRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: artHeight };
-    this.#heroArt(b, artRect, row, index);
-    // The aspect colors as a stripe under the picture; the aspect's name is in the words below, never the color alone.
-    const aspects = row.option.deck.aspects.filter((a): a is CoreAspect =>
-      ["aggression", "justice", "leadership", "protection", "basic", "pool"].includes(a as string),
-    );
-    const stamps = aspectStampsOf(aspects);
-    stamps.forEach((stamp, s) => {
-      const sw = artRect.width / stamps.length;
-      b.box({ x: artRect.x + s * sw, y: artRect.y + artRect.height - 7, width: sw, height: 7 }, { fill: stamp.fill });
-    });
-    const tx = rect.x + 8;
-    const tw = rect.width - 16;
-    let ty = rect.y + artHeight + 6;
-    b.text(tx, ty, tileTitleOf(row.name), typeRole.rowTitle, { size: 14, color: INK, fitWidth: tw });
-    ty += 19;
-    const who = [row.heroName, row.aspects].filter((p) => p !== "").join(" · ");
-    b.text(tx, ty, who, typeRole.body, { size: 12, color: INK, alpha: 0.85, fitWidth: tw });
-    ty += 16;
-    const status = this.#statusOf(row, tPlural("room.deck.cards", row.cards));
-    b.text(tx, ty, status.text ?? "", status.bold ? { ...typeRole.body, weight: 700 } : typeRole.body, {
-      size: 12,
-      color: INK,
-      alpha: status.bold ? 1 : 0.85,
-      fitWidth: tw,
-    });
-    b.box(
-      { x: rect.x + 1, y: rect.y + 1, width: rect.width - 2, height: rect.height - 2 },
-      { stroke: INK, strokeWidth: selected || row.current ? 5 : 2 },
-    );
-    b.tap(`open:${row.id}`, rect);
-  }
-
-  /** One list row: picture, words, a Pick button; the row (not the button) opens the details. */
-  #drawRow(b: SheetBuilder, rect: Rect, row: PickerRow, index: number): void {
-    b.box(rect, { fill: PAPER, key: `frame:${row.id}` });
-    b.box(
-      { x: rect.x + 1, y: rect.y + 1, width: rect.width - 2, height: rect.height - 2 },
-      { stroke: INK, strokeWidth: row.current || row.id === this.#selected ? 5 : 2 },
-    );
-    const artRect = rowArtRect(rect);
-    this.#heroArt(b, artRect, row, index);
-    const buttonRect = rowButtonRect(rect);
-    const tx = artRect.x + artRect.width + 10;
-    const textWidth = buttonRect.x - 8 - tx;
-    let ty = rect.y + 8;
-    b.text(tx, ty, tileTitleOf(row.name), typeRole.rowTitle, { size: 15, color: INK, fitWidth: textWidth });
-    ty += 21;
-    const detail = [row.heroName, row.aspects, tPlural("room.deck.cards", row.cards)]
-      .filter((p) => p !== "")
-      .join(" · ");
-    b.text(tx, ty, detail, typeRole.body, { size: 12, color: INK, alpha: 0.85, fitWidth: textWidth });
-    ty += 17;
-    const status = this.#statusOf(row, null);
-    if (status.text) {
-      b.text(tx, ty, status.text, status.bold ? { ...typeRole.body, weight: 700 } : typeRole.body, {
-        size: 12,
-        color: INK,
-        alpha: status.bold ? 1 : 0.85,
-        fitWidth: textWidth,
-      });
-    }
-    b.tap(`open:${row.id}`, { x: rect.x, y: rect.y, width: buttonRect.x - 6 - rect.x, height: rect.height });
-    // Not usable: dimmed, but a press still says why (a touch has no hover to show it).
-    b.button({
-      key: `pick:${row.id}`,
-      rect: buttonRect,
-      label: t("room.picker.choose"),
-      look: row.seatable ? "primary" : "secondary",
-      type: { ...typeRole.label, size: 13 },
-      ...(row.seatable ? {} : { disabled: row.blockedReason ?? (true as const), pressable: true }),
-    });
   }
 }

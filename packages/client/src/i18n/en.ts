@@ -946,6 +946,7 @@ export const en = {
   "room.picker.statsHeading": "Deck stats",
   "room.picker.cardsHeading": "Cards",
   "deckPicker.averageCost": "Average cost {avg}",
+  "deckPicker.searchClear": "Clear the search",
   "room.picker.details": "Deck details",
   "room.picker.gone": "That seat is no longer yours.",
   "room.picker.refused": "The room did not take that deck.",

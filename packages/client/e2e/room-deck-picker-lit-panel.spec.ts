@@ -14,11 +14,13 @@ import { openApp } from "./wave6-helpers-b.js";
 const SCENE = "RoomDeckPicker";
 const OPEN = "screen=room-deck-picker&as=guest";
 
-const sheets = (page: Page) => page.locator(`#mc-ui [data-scene="${SCENE}"] mc-sheet`);
-/** The controls and decks panel (made first). */
-const main = (page: Page) => sheets(page).first();
-/** The details panel: the sheet that has the "Use this deck" button. */
-const details = (page: Page) => sheets(page).filter({ has: page.locator('[data-key="panel:use"]') });
+const region = (page: Page, tag: string) => page.locator(`#mc-ui [data-scene="${SCENE}"] ${tag}`);
+/** The controls: search, views, makers (made first). */
+const main = (page: Page) => region(page, "mc-sheet").first();
+/** The decks (tiles or rows). */
+const grid = (page: Page) => region(page, "mc-deck-grid");
+/** The details panel. */
+const details = (page: Page) => region(page, "mc-deck-details");
 
 type FocusStates = Record<string, () => { focus: string | null; ringShown: boolean }>;
 const focusOf = (page: Page): Promise<{ focus: string | null; ringShown: boolean }> =>
@@ -44,23 +46,23 @@ test("the deck picker is a panel: a grid of decks, List switches the view, a dec
   test.setTimeout(120_000);
   const errors = trackPageErrors(page);
   await openApp(page, OPEN, { landing: SCENE });
-  const tiles = main(page).locator('[data-key^="frame:"]');
+  const tiles = grid(page).locator('[data-key^="deck:"]');
   await waitFor(async () => ((await tiles.count()) > 5 ? true : null), "the grid lists the device's decks", 30_000);
   await expect(main(page).locator('[data-key="build"]')).toBeVisible();
   await expect(main(page).locator('[data-key="import"]')).toBeVisible();
-  await expect(main(page)).toContainText("Spider-Man");
+  await expect(grid(page)).toContainText("Spider-Man");
   // Each tile says its deck's words, never a colour alone.
-  await expect(main(page)).toContainText("40 cards");
+  await expect(grid(page)).toContainText("40 cards");
 
   // List: one row a deck with its own Pick button, and the choice is remembered.
   await main(page).locator('[data-key="view:list"]').click();
-  await expect(main(page).locator('[data-key^="pick:"]').first()).toBeVisible();
+  await expect(grid(page).locator('[data-key^="pick:"]').first()).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("mc-room-deck-view"))).toBe("list");
   await main(page).locator('[data-key="view:grid"]').click();
-  await expect(main(page).locator('[data-key^="pick:"]')).toHaveCount(0);
+  await expect(grid(page).locator('[data-key^="pick:"]')).toHaveCount(0);
 
   // A deck opens its details: the hero's words, the stats and the footer.
-  await main(page).locator('[data-key^="open:"]').first().click();
+  await grid(page).locator('[data-key^="deck:"]').first().click();
   const panel = details(page);
   await expect(panel).toBeVisible();
   await expect(panel).toContainText("Deck stats");
@@ -71,7 +73,7 @@ test("the deck picker is a panel: a grid of decks, List switches the view, a dec
   await expect(details(page)).toHaveCount(0);
 
   // Open again; once the deck is judged, Use this deck chooses it.
-  await main(page).locator('[data-key^="open:"]').first().click();
+  await grid(page).locator('[data-key^="deck:"]').first().click();
   const use = details(page).locator('[data-key="panel:use"]');
   await expect(use).not.toHaveAttribute("disabled", "", { timeout: 30_000 });
   await use.click();
@@ -87,7 +89,7 @@ test("the keyboard walks the picker with the DOM ring, Enter opens a deck, Escap
   const errors = trackPageErrors(page);
   await openApp(page, OPEN, { landing: SCENE });
   await waitFor(
-    async () => ((await main(page).locator('[data-key^="frame:"]').count()) > 5 ? true : null),
+    async () => ((await grid(page).locator('[data-key^="deck:"]').count()) > 5 ? true : null),
     "the decks",
     30_000,
   );
@@ -112,7 +114,7 @@ test("the keyboard walks the picker with the DOM ring, Enter opens a deck, Escap
     "focus on Use this deck",
     10_000,
   );
-  await walkTo(page, (key) => key === "panel:close", "ArrowDown");
+  await walkTo(page, (key) => key === "panel:close");
 
   // Escape closes the details first; the picker stays up. The next one leaves for the lobby.
   await pressKey(page, "Escape");
@@ -124,7 +126,7 @@ test("the keyboard walks the picker with the DOM ring, Enter opens a deck, Escap
     "back in the lobby",
     15_000,
   );
-  await expect(sheets(page)).toHaveCount(0);
+  await expect(region(page, "mc-sheet")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -132,14 +134,14 @@ test("the search narrows the decks, and says so when none match", async ({ page 
   test.setTimeout(120_000);
   const errors = trackPageErrors(page);
   await openApp(page, OPEN, { landing: SCENE });
-  const tiles = main(page).locator('[data-key^="frame:"]');
+  const tiles = grid(page).locator('[data-key^="deck:"]');
   await waitFor(async () => ((await tiles.count()) > 5 ? true : null), "the decks", 30_000);
   const search = page.locator('input[placeholder^="Search your decks"]');
   await search.fill("wasp");
   await waitFor(async () => ((await tiles.count()) === 1 ? true : null), "only the Wasp deck is left", 10_000);
-  await expect(main(page)).toContainText("Wasp");
+  await expect(grid(page)).toContainText("Wasp");
   await search.fill("zzzz-no-such-deck");
-  await expect(main(page)).toContainText("No deck matches that.");
+  await expect(grid(page)).toContainText("No deck matches that.");
   await expect(tiles).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -150,7 +152,7 @@ test("on a desktop, a hero picture shows the card hover popover, and so does a c
   test.skip(info.project.name === "phone", "a mouse");
   test.setTimeout(120_000);
   await openApp(page, OPEN, { landing: SCENE });
-  const tile = main(page).locator('[data-key^="open:"]').first();
+  const tile = grid(page).locator('[data-key^="deck:"]').first();
   await expect(tile).toBeVisible({ timeout: 30_000 });
   const hoverKey = (): Promise<string | null> =>
     page.evaluate(
@@ -179,8 +181,8 @@ test("the picker and its details read in Spanish", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("mc-settings", '{"cardLanguage":"es"}'));
   await openApp(page, OPEN, { landing: SCENE });
   await waitForText(page, "Crear un mazo", { sceneKey: SCENE });
-  await expect(main(page)).toContainText("40 cartas");
-  await main(page).locator('[data-key^="open:"]').first().click();
+  await expect(grid(page)).toContainText("40 cartas");
+  await grid(page).locator('[data-key^="deck:"]').first().click();
   await expect(details(page)).toContainText("Estadísticas del mazo");
   await expect(details(page)).toContainText("Coste medio");
   await expect(details(page)).toContainText("Usar este mazo");

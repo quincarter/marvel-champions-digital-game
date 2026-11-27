@@ -7,6 +7,7 @@ import { cancelHold } from "../../shared/tap.js";
 import "../mc-aspect-chip/mc-aspect-chip.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
+import "../mc-search-field/mc-search-field.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { SheetImage, SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
@@ -46,6 +47,8 @@ const px = (rect: SheetRect): string =>
  * @fires mc-inspect - `detail.key`: a tap area with `inspect` was held or right-clicked.
  * @fires mc-image-error - `detail.key` (the image's `retry`), `detail.src`: a picture with `retry` failed to load, once per key until one loads.
  * @fires mc-hover - `detail.key`, `detail.over`: a mouse moved onto or off a tap area with `track`.
+ * @fires mc-search - `detail.key`, `detail.text`: a search field's text changed (debounced).
+ * @fires mc-submit - `detail.key`, `detail.text`: Enter in a search field.
  * @fires mc-slide - `detail.key`, `detail.share` (0 to 1 along the track), `detail.commit`: a slider track was tapped or dragged.
  * @fires mc-step - `detail.key`, `detail.direction` (-1 or 1): a slider's minus or plus was tapped.
  */
@@ -81,6 +84,14 @@ export class McSheet extends LitElement {
   #hover(key: string, over: boolean, event: PointerEvent): void {
     if (event.pointerType !== "mouse") return;
     this.dispatchEvent(new CustomEvent("mc-hover", { detail: { key, over }, bubbles: true, composed: true }));
+  }
+
+  /** A field's own event, handed on with the key of the field. */
+  #searched(event: CustomEvent<{ text: string }>, name: string, key: string): void {
+    event.stopPropagation();
+    this.dispatchEvent(
+      new CustomEvent(name, { detail: { key, text: event.detail.text }, bubbles: true, composed: true }),
+    );
   }
 
   #inspect(key: string): void {
@@ -564,6 +575,21 @@ export class McSheet extends LitElement {
           }`;
       case "slider":
         return this.#slider(node);
+      case "search":
+        return html`<mc-search-field
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .value=${node.value}
+          .placeholder=${node.placeholder}
+          .clearLabel=${node.clearLabel ?? ""}
+          .maxLength=${node.maxLength ?? 80}
+          .debounce=${node.debounce ?? 140}
+          ?keep-focus=${node.keepFocus ?? false}
+          .clearable=${node.clearable ?? true}
+          @mc-search=${(event: CustomEvent<{ text: string }>) => this.#searched(event, "mc-search", node.key)}
+          @mc-submit=${(event: CustomEvent<{ text: string }>) => this.#searched(event, "mc-submit", node.key)}
+        ></mc-search-field>`;
       case "scroll":
         return html`<div class="part scroller" data-key=${node.key} style=${px(scrollBox(node))}>
           <div class="content" style=${`height:${node.height}px`}>
