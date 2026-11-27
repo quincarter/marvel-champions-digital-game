@@ -15,15 +15,15 @@ export const McFilterBarStyles = css`
     align-items: stretch;
     overflow: hidden;
   }
-  :host([sideways]) .bar {
+  /* A rail: one row that scrolls sideways under a finger or a wheel, its scrollbar out of sight. */
+  .bar.rail {
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
-    scrollbar-width: none;
     overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
-  :host([sideways]) .bar::-webkit-scrollbar {
+  .bar.rail::-webkit-scrollbar {
     display: none;
   }
   .split {

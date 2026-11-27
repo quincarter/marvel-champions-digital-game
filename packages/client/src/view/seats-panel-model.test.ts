@@ -27,7 +27,8 @@ describe("heroCardModelOf", () => {
     expect(model.detail).toBe("Precon · Peter Parker");
     expect(model.detailTone).toBe("meta");
     expect(model.stamps).toEqual([{ label: "Justice", fill: "#f4c20d", ink: "#14110d" }]);
-    expect(model.displayTitle).toBe(22);
+    expect(model.titleDisplay).toBe(true);
+    expect(model.titleSize).toBe(22);
     expect(model.detailLines).toBe(2);
     expect(model.captionHeight).toBe(HERO_CAPTION_HEIGHT);
     expect(model.chip).toBe("");

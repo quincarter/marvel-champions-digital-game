@@ -1,4 +1,4 @@
-import { McShelfRoster, SHELF_CHEVRON, SHELF_HEADER_GAP } from "./McShelfRoster.js";
+import { McShelfRoster } from "./McShelfRoster.js";
 
 if (!customElements.get("mc-shelf-roster")) customElements.define("mc-shelf-roster", McShelfRoster);
 
@@ -8,4 +8,4 @@ declare global {
   }
 }
 
-export { McShelfRoster, SHELF_CHEVRON, SHELF_HEADER_GAP };
+export { McShelfRoster };

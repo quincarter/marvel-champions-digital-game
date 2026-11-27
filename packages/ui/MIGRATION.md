@@ -196,3 +196,22 @@ hover) now lives in client modules both pool screens share:
   filter's `field:value` terms (`pool-query.ts`: `o:2`, `t:event`, `f:justice`, `kw:guard`) plus the fuzzy worker for the
   free words.
 - `dom/tint-button.ts` (`drawTintButton`): an aspect-colored chip as sheet parts.
+
+## scenario select (`feature/lit-panels-phase5-scenario`)
+
+Additions only; nothing is renamed.
+
+| Added                                                                            | Is                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mc-shelf-roster` (`ShelfRosterModel`, `ShelfRosterShelf`, `ShelfRosterItem`)    | Pack shelves: a header (cover, title and rule, count, fold chevron, "See all", row chevrons) over a sideways row of `mc-picture-card`s, scrolling down inside; `mode: "grid"` wraps one shelf's tiles. A tile's picture loads once it is near |
+| `mc-picture-card` `selected`, `inspect-key`; model `titleDisplay`, `detailLines` | The chosen card (4px red frame), a hold or right-click raising `mc-inspect`, a display-face title, a two-line detail; an empty `chip` draws none                                                                                              |
+| `mc-filter-bar` `rail`, `FilterBarModel.rail`, `b.filterBar(..., { rail })`      | One row that scrolls sideways instead of wrapping (a phone's chip strip)                                                                                                                                                                      |
+
+## seats (`feature/lit-panels-phase5-seats`)
+
+One shelf roster for both pick-one screens: Scenario select's `mc-shelf-roster` is the component, and Take your seats uses it
+through these optional additions (no rename): `ShelfRosterItem.key` (the tile's own key where an id repeats, as a deck in
+both the Recommended shelf and its pack), `ShelfRosterItem.dim`, `ShelfRosterModel.hint` (LT / RT glyphs at the focused row's
+chevrons) and `ShelfRosterShelf.collapsed` is just `open: false`. `mc-picture-card` also takes model `stamps`, `tag`,
+`plate`, `selected`, `titleSize` and the `caution` detail tone. `mc-filter-chip` / `mc-filter-bar` take chip `tint` and an `info`
+segment (raising `mc-info`); the sideways row is `rail`.

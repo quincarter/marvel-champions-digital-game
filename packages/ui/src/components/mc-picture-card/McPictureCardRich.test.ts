@@ -70,7 +70,8 @@ describe("mc-picture-card hero tile parts", () => {
       plate: "Team-up with Ms. Marvel",
       selected: true,
       detailLines: 2,
-      displayTitle: 22,
+      titleDisplay: true,
+      titleSize: 22,
     };
     document.body.append(card);
     await card.updateComplete;
@@ -81,7 +82,7 @@ describe("mc-picture-card hero tile parts", () => {
     expect(root.querySelector(".plate")!.textContent).toBe("Team-up with Ms. Marvel");
     expect(root.querySelector(".title.display")!.getAttribute("style")).toContain("22px");
     expect(root.querySelector(".detail.caution.two")).toBeTruthy();
-    expect(card.style.getPropertyValue("--mc-card-line")).toBe("var(--mc-line-red)");
+    expect(card.style.getPropertyValue("--mc-card-frame")).toBe("var(--mc-line-red)");
     expect(card.style.getPropertyValue("--mc-card-border")).toBe("4px");
     card.remove();
   });

@@ -2,44 +2,48 @@ import type { GlyphSpec } from "../../shared/glyph.types.js";
 import type { PictureSource } from "../../shared/picture.types.js";
 import type { McPictureCardModel } from "../mc-picture-card/mc-picture-card.types.js";
 
-/** One card on a shelf (a hero, a scenario): what it says, the picture it shows, and the key a press reports. */
-export interface ShelfRosterCard {
-  /** What `mc-activate` / `mc-inspect` report when the card is tapped / held, and the card's `data-key` (`elementOf`). */
-  readonly key: string;
-  /** The identity card the hover popover shows from the picture (`hoverFaces`). */
-  readonly cardId: string;
-  readonly model: McPictureCardModel;
-  /** The picture as one value (a hero's picture, cropped around a centered subject); overrides the model picture. */
-  readonly picture?: PictureSource;
-  /** Present but not available now (a hero already at the table, a locked one): the whole card dims. */
+/** One tile of a shelf: a picture over a caption (`mc-picture-card`), chosen or not. */
+export interface ShelfRosterItem {
+  readonly id: string;
+  /**
+   * What a press reports and the tile's `data-key` (`elementOf`); `entry:<id>` when absent. Set it where an id appears on
+   * more than one shelf (a hero in the Recommended shelf and in its pack).
+   */
+  readonly key?: string;
+  /** Present but not available now (a hero already at the table, a locked one): the whole tile dims. */
   readonly dim?: boolean;
+  /** The card a hover popover shows from the picture; empty for none. */
+  readonly cardId: string;
+  readonly picture: PictureSource;
+  /** The chip, title and detail printed on the tile. */
+  readonly card: McPictureCardModel;
+  /** The chosen tile: a heavy red frame (the chip says so in words too). */
+  readonly selected: boolean;
+  /** A hold or a right-click on the tile raises `mc-inspect`. */
+  readonly inspect: boolean;
 }
 
-/** The link at a shelf header's right end ("See all ▸"): a press reports `key`. */
-export interface ShelfRosterLink {
-  readonly label: string;
-  readonly key: string;
-}
-
-/** One shelf: a header and a row of cards that scrolls sideways. */
+/** One shelf: a header and a row of tiles that scrolls sideways. */
 export interface ShelfRosterShelf {
   readonly id: string;
-  /** What a press on the header reports (it folds the shelf, or opens it, as the screen decides). */
-  readonly key: string;
   readonly title: string;
-  /** "5 identities", already translated. */
+  /** What is on it, worded ("3 scenarios"). */
   readonly count: string;
-  /** A folding shelf says whether it is open (a ▾ or ▸ before the title: a shape, not a color). Absent for a plain header. */
-  readonly open?: boolean;
-  readonly link?: ShelfRosterLink;
-  /** Folded away: the header band only, no row. */
-  readonly collapsed?: boolean;
-  readonly cards: readonly ShelfRosterCard[];
+  /** A small picture ahead of the title (a pack's cover); null for none. */
+  readonly cover: PictureSource | null;
+  /**
+   * A folding shelf says whether it is unfolded (the header leads with a chevron, and a tap on it raises `fold:<id>`);
+   * undefined: it does not fold.
+   */
+  readonly open: boolean | undefined;
+  /** The "See all" link at the header's end (raises `all:<id>`); empty for none. */
+  readonly seeAll: string;
+  readonly items: readonly ShelfRosterItem[];
 }
 
 /**
- * The glyphs that say which trigger pages a row (LT / RT on a pad), drawn over the chevron gutters of one shelf, the one
- * focus is in, and only at an end that row can still go to. Absent specs draw nothing.
+ * The glyphs that say which trigger pages a row (LT / RT on a pad): drawn beside the chevrons of one shelf, the one focus is
+ * in. The chevrons show for it even where a pointer is not fine. Absent specs draw nothing.
  */
 export interface ShelfRosterHint {
   readonly shelfId: string;
@@ -51,32 +55,22 @@ export interface ShelfRosterHint {
   readonly still: boolean;
 }
 
-/** What a shelf roster shows. */
 export interface ShelfRosterModel {
-  /** `shelves`: a header and a sideways row per shelf. `grid`: the cards of the first shelf wrapped into rows, no header. */
+  /** `shelves`: each shelf with its header and a sideways row. `grid`: the first shelf's tiles wrapped as a grid, no header. */
   readonly mode: "shelves" | "grid";
   readonly shelves: readonly ShelfRosterShelf[];
-  /** A card's size in px. */
   readonly cardWidth: number;
   readonly cardHeight: number;
-  /** The space between cards (px). */
   readonly gap: number;
-  /** The space under a shelf (px). */
-  readonly shelfGap: number;
-  readonly headerHeight: number;
-  /** Words in place of the shelves (nothing matches), or null. */
-  readonly emptyText: string | null;
-  /** A press on this under the empty words (Clear), or none. */
-  readonly emptyAction?: { readonly label: string; readonly key: string };
-  /** The chevrons' names for assistive tech. */
+  /** The width the shelves take, px; the scrollbar's gutter comes out of the frame beside it. */
+  readonly contentWidth: number;
+  /** The row chevrons' words for a screen reader ("Scroll left" / "Scroll right"). */
   readonly previousLabel: string;
   readonly nextLabel: string;
+  /** Words in place of the shelves (nothing matches), or null. */
+  readonly emptyText: string | null;
+  /** The button under the words that undoes the filter ("Clear"); empty for none. It raises `mc-activate` with `clear`. */
+  readonly clearLabel: string;
   /** The row-paging glyphs (a pad is in use), or none. */
   readonly hint?: ShelfRosterHint | null;
-}
-
-/** Where a roster is scrolled: down the column, and along each shelf's row (by shelf id). */
-export interface ShelfRosterScroll {
-  readonly top: number;
-  readonly lefts: Readonly<Record<string, number>>;
 }

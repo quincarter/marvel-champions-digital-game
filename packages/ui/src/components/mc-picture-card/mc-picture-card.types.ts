@@ -20,9 +20,13 @@ export interface McPictureCardModel {
   /** `action`: a red chip (what a tap does); `locked`: an outlined ink chip. */
   readonly chipTone: "action" | "locked";
   readonly title: string;
+  /** The title in the display face (a villain’s name) rather than the bold body face. */
+  readonly titleDisplay?: boolean;
   /** The caption second line. */
   readonly detail: string;
-  /** `alert` prints the detail in red (what opens a locked card); `caution` in the caution color, full strength. */
+  /** How many lines the detail may take (1; 2 for a sentence). */
+  readonly detailLines?: 1 | 2;
+  /** `alert` prints the detail in red (what opens a locked card); `caution` in the ink at full strength and bold. */
   readonly detailTone: "meta" | "alert" | "caution";
   /** The big faint letter shown when there is no picture, or it fails to load. */
   readonly initial: string;
@@ -36,8 +40,6 @@ export interface McPictureCardModel {
   readonly plate?: string;
   /** The chosen card: the heavy red frame (and a red shape that is not color alone: the tag says what it is). */
   readonly selected?: boolean;
-  /** How many lines the detail may wrap to (1). */
-  readonly detailLines?: 1 | 2;
-  /** The title in the display face, at this size in px (a Bangers hero name); absent, the body face at 13px. */
-  readonly displayTitle?: number;
+  /** With `titleDisplay`: the display face's size in px (the style's own when absent). */
+  readonly titleSize?: number;
 }

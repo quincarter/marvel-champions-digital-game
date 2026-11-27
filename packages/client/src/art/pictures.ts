@@ -30,7 +30,7 @@ export interface Picture {
   /** Stable Phaser texture key, derived from the file's path under `art/`. */
   readonly key: string;
   readonly url: string;
-  /** A roster-size copy of `url` (`roster-size.ts`), for a small tile; absent where the picture has none. */
+  /** A roster-size WebP copy of the picture (`vite-roster-art.ts`), for a tile; absent where there is none, and then `url` stands in. */
   readonly tileUrl?: string;
   /** The subject's place in the picture (a hero's `focus.json`, `art/hero-art.ts`); absent crops around the center. */
   readonly focus?: PictureFocus;

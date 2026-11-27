@@ -79,6 +79,8 @@ export interface ScenarioSelectLayoutInput {
   readonly filtersButton?: boolean;
   /** Narrow only, with `filtersButton`: the chip rail is open under the button's row. Shut, it takes no room. */
   readonly chipsShown?: boolean;
+  /** The top bar's height when the screen draws its own (`campaignFrame`'s); the 64px comic header by default. */
+  readonly headerHeight?: number;
   /** A second, quieter action above the CTA (Civil War's "Customize this scenario"): `secondary` gets a row. */
   readonly secondaryAction?: boolean;
 }
@@ -152,20 +154,21 @@ export function detailPanelWidthFor(width: number, height: number): number {
 
 export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): ScenarioSelectLayout {
   const { width, height } = input;
+  const header = input.headerHeight ?? HEADER_HEIGHT;
   const formFactor = formFactorFor(width, height);
   const wide = formFactor === "desktop" || formFactor === "tabletLandscape";
   const gutter = formFactor === "phone" ? 16 : GUTTER;
   const gap = gutter;
   const smallGap = 8;
 
-  const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
+  const headerBar: Rect = { x: 0, y: 0, width, height: header };
   const headerPad = 16;
   const backWidth = 90;
   const stepWidth = Math.min(140, Math.max(80, width * 0.3));
-  const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
+  const back: Rect = { x: headerPad, y: (header - hit.target) / 2, width: backWidth, height: hit.target };
   const step: Rect = {
     x: width - headerPad - stepWidth,
-    y: (HEADER_HEIGHT - hit.target) / 2,
+    y: (header - hit.target) / 2,
     width: stepWidth,
     height: hit.target,
   };
@@ -174,7 +177,7 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
   const detailWidth = wide ? DETAIL_WIDTH : width - gutter * 2;
   const shelvesWidth = wide ? width - gutter * 2 - gap - detailWidth : width - gutter * 2;
 
-  const bodyTop = HEADER_HEIGHT + gutter;
+  const bodyTop = header + gutter;
   const bodyBottom = height - gutter;
 
   const statStripRows: 1 | 2 = wide ? 1 : 2;

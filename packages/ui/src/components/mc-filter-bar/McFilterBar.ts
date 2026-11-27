@@ -21,7 +21,7 @@ import { McFilterBarStyles } from "./mc-filter-bar.styles.js";
  * @attr rows - The most rows shown; 0 wraps without a limit.
  * @attr row-height - A row height in px; 0 lets a chip be as tall as its own minimum.
  * @attr gap - The space between chips and rows in px (8).
- * @attr sideways - One row that scrolls sideways instead of wrapping (a phone's chip rail).
+ * @attr rail - One row that scrolls sideways instead of wrapping (a phone's chip strip).
  * @fires mc-activate - A tap on a chip: `detail.key` is `prefix + id`, `detail.id` the chip id.
  * @fires mc-info - A tap on a chip's info segment (`FilterChip.info`): `detail.key` is `prefix + id`, `detail.id` the chip id.
  * @fires mc-sort - `detail.value`: another sort was chosen.
@@ -41,7 +41,7 @@ export class McFilterBar extends LitElement {
     rows: { type: Number },
     rowHeight: { type: Number, attribute: "row-height" },
     gap: { type: Number },
-    sideways: { type: Boolean, reflect: true },
+    rail: { type: Boolean, reflect: true },
   };
 
   declare chips: readonly FilterChip[];
@@ -51,7 +51,7 @@ export class McFilterBar extends LitElement {
   declare rows: number;
   declare rowHeight: number;
   declare gap: number;
-  declare sideways: boolean;
+  declare rail: boolean;
 
   constructor() {
     super();
@@ -62,10 +62,10 @@ export class McFilterBar extends LitElement {
     this.rows = 0;
     this.rowHeight = 0;
     this.gap = 8;
-    this.sideways = false;
+    this.rail = false;
   }
 
-  /** The element that scrolls sideways (a `sideways` bar), for a focus stop that must bring a chip into view. */
+  /** The element that scrolls sideways (a `rail` bar), for a focus stop that must bring a chip into view. */
   get scroller(): HTMLElement | null {
     return this.renderRoot.querySelector(".bar");
   }
@@ -83,7 +83,7 @@ export class McFilterBar extends LitElement {
     const { rowHeight, gap, rows, sort } = this;
     const limit = rows > 0 && rowHeight > 0 ? `;max-height:${rows * rowHeight + (rows - 1) * gap}px` : "";
     const cell = rowHeight > 0 ? `height:${rowHeight}px` : "min-height:44px";
-    return html`<div class="bar" role="group" style=${`gap:${gap}px${limit}`}>
+    return html`<div class=${this.rail ? "bar rail" : "bar"} role="group" style=${`gap:${gap}px${limit}`}>
       ${this.chips.map((chip) => {
         const key = this.prefix + chip.id;
         const main = html`<mc-filter-chip

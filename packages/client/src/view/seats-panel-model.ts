@@ -59,7 +59,8 @@ export function heroCardModelOf(words: HeroCardWords, initial: string): McPictur
     ...(words.plate ? { plate: words.plate } : {}),
     selected: words.selected,
     detailLines: 2,
-    displayTitle: 22,
+    titleDisplay: true,
+    titleSize: 22,
   };
 }
 

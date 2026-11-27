@@ -1,53 +1,55 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import "./mc-shelf-roster.js";
-import type { McPictureCardModel } from "../mc-picture-card/mc-picture-card.types.js";
-import type { ShelfRosterCard, ShelfRosterModel, ShelfRosterShelf } from "./mc-shelf-roster.types.js";
+import type { ShelfRosterItem, ShelfRosterModel, ShelfRosterShelf } from "./mc-shelf-roster.types.js";
 
 afterEach(() => document.body.replaceChildren());
 
-const cardModel = (title: string): McPictureCardModel => ({
-  src: null,
-  focusY: 0.2,
-  dim: false,
-  chip: "",
-  chipTone: "action",
-  title,
-  detail: "Precon",
-  detailTone: "meta",
-  initial: title.slice(0, 1),
-});
-
-const card = (id: string): ShelfRosterCard => ({
-  key: `hero:${id}`,
-  cardId: `card-${id}`,
-  model: cardModel(id),
-  picture: { src: null, missing: "no picture" },
-});
-
-const shelf = (id: string, ids: readonly string[], over: Partial<ShelfRosterShelf> = {}): ShelfRosterShelf => ({
+const item = (id: string, over: Partial<ShelfRosterItem> = {}): ShelfRosterItem => ({
   id,
-  key: `hero-shelf:${id}`,
-  title: `Shelf ${id}`,
-  count: `${ids.length} heroes`,
-  cards: ids.map(card),
+  cardId: `card-${id}`,
+  picture: { src: null, missing: "no picture" },
+  card: {
+    src: null,
+    focusY: 0,
+    dim: false,
+    chip: "",
+    chipTone: "action",
+    title: `Villain ${id}`,
+    detail: "STAGES I-III",
+    detailTone: "meta",
+    initial: "V",
+  },
+  selected: false,
+  inspect: true,
+  ...over,
+});
+
+const shelf = (id: string, over: Partial<ShelfRosterShelf> = {}): ShelfRosterShelf => ({
+  id,
+  title: `Pack ${id}`,
+  count: "2 scenarios",
+  cover: null,
+  open: true,
+  seeAll: "See all",
+  items: [item(`${id}1`), item(`${id}2`)],
   ...over,
 });
 
 const model = (over: Partial<ShelfRosterModel> = {}): ShelfRosterModel => ({
   mode: "shelves",
-  shelves: [shelf("core", ["a", "b"]), shelf("wave1", ["c"], { open: false, collapsed: true })],
-  cardWidth: 200,
-  cardHeight: 300,
+  shelves: [shelf("core"), shelf("twc")],
+  cardWidth: 280,
+  cardHeight: 320,
   gap: 12,
-  shelfGap: 18,
-  headerHeight: 28,
+  contentWidth: 600,
+  previousLabel: "Scroll left",
+  nextLabel: "Scroll right",
   emptyText: null,
-  previousLabel: "Earlier heroes",
-  nextLabel: "Later heroes",
+  clearLabel: "",
   ...over,
 });
 
-async function roster(m: ShelfRosterModel): Promise<HTMLElementTagNameMap["mc-shelf-roster"]> {
+async function mount(m: ShelfRosterModel): Promise<HTMLElementTagNameMap["mc-shelf-roster"]> {
   const el = document.createElement("mc-shelf-roster");
   el.model = m;
   document.body.append(el);
@@ -55,102 +57,137 @@ async function roster(m: ShelfRosterModel): Promise<HTMLElementTagNameMap["mc-sh
   return el;
 }
 
+const press = (target: Element): void => {
+  const at = { bubbles: true, composed: true, clientX: 5, clientY: 5, pointerId: 1 };
+  target.dispatchEvent(new PointerEvent("pointerdown", at));
+  target.dispatchEvent(new PointerEvent("pointerup", at));
+};
+
 describe("mc-shelf-roster", () => {
-  it("draws a header and a row of cards a shelf, and only the header of a folded one", async () => {
-    const el = await roster(model());
-    expect(el.elementOf("hero-shelf:core")).toBeTruthy();
-    expect(el.elementOf("hero:a")).toBeTruthy();
-    expect(el.elementOf("hero:b")).toBeTruthy();
-    expect(el.elementOf("hero-shelf:wave1")).toBeTruthy();
-    expect(el.elementOf("hero:c")).toBeNull();
-    expect(el.rowOf("wave1")).toBeNull();
-    // The fold mark is a shape: a header that says whether it is open.
-    const folded = el.elementOf("hero-shelf:wave1")!.querySelector("mc-section-header")!;
-    expect(folded.open).toBe(false);
+  it("draws a header and a sideways row a shelf, a tile each, and names the pictures for a hover popover", async () => {
+    const el = await mount(model());
+    expect(el.shadowRoot!.querySelectorAll(".shelf")).toHaveLength(2);
+    expect(el.rowOf("core")).toBeTruthy();
+    expect(el.elementOf("entry:core1")?.tagName).toBe("MC-PICTURE-CARD");
+    expect(el.hoverFaces().map((face) => face.cardId)).toEqual(["card-core1", "card-core2", "card-twc1", "card-twc2"]);
   });
 
-  it("names every card picture for a hover popover, with its identity card", async () => {
-    const el = await roster(model({ shelves: [shelf("core", ["a", "b"], { cards: [card("a"), card("b")] })] }));
-    await Promise.all([...el.renderRoot.querySelectorAll("mc-picture-card")].map((c) => c.updateComplete));
-    expect(el.hoverFaces().map((face) => face.cardId)).toEqual(["card-a", "card-b"]);
+  it("lays a folded shelf as its header alone, with the fold, See all and no row", async () => {
+    const el = await mount(model({ shelves: [shelf("core", { open: false })] }));
+    expect(el.rowOf("core")).toBeNull();
+    expect(el.elementOf("fold:core")?.getAttribute("aria-expanded")).toBe("false");
+    expect(el.elementOf("all:core")?.textContent?.trim()).toBe("See all");
   });
 
-  it("raises mc-activate with a card's key, a header's and a link's, on a tap", async () => {
-    const el = await roster(
-      model({ shelves: [shelf("core", ["a"], { link: { label: "See all ▸", key: "see-all:core" } })] }),
+  it("lays a grid as the first shelf tiles with no header", async () => {
+    const el = await mount(model({ mode: "grid" }));
+    expect(el.shadowRoot!.querySelector(".head")).toBeNull();
+    expect(el.elementOf("entry:core2")).toBeTruthy();
+    expect(el.elementOf("entry:twc1")).toBeNull();
+  });
+
+  it("raises fold and all from the header, and a tile mc-activate", async () => {
+    const el = await mount(model());
+    const keys: string[] = [];
+    el.addEventListener("mc-activate", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
+    press(el.elementOf("fold:core")!);
+    press(el.elementOf("all:twc")!);
+    const tile = el.elementOf("entry:core1")!;
+    press(tile.shadowRoot!.querySelector(".tap")!);
+    expect(keys).toEqual(["fold:core", "all:twc", "entry:core1"]);
+  });
+
+  it("marks the chosen tile and gives only an inspectable one an inspect key", async () => {
+    const items = [item("a", { selected: true }), item("b", { inspect: false })];
+    const el = await mount(model({ shelves: [shelf("core", { items })] }));
+    expect(el.elementOf("entry:a")!.hasAttribute("selected")).toBe(true);
+    expect(el.elementOf("entry:a")!.getAttribute("inspect-key")).toBe("entry:a");
+    expect(el.elementOf("entry:b")!.getAttribute("inspect-key")).toBe("");
+  });
+
+  it("says its words with a Clear button in place of the shelves", async () => {
+    const el = await mount(model({ shelves: [], emptyText: "No scenario matches.", clearLabel: "Clear" }));
+    expect((el.shadowRoot!.querySelector("mc-empty-state") as { message: string }).message).toBe(
+      "No scenario matches.",
     );
-    const heard: string[] = [];
-    el.addEventListener("mc-activate", (event) => heard.push((event as CustomEvent<{ key: string }>).detail.key));
-    const tap = (element: HTMLElement): void => {
-      const init = { pointerId: 1, button: 0, clientX: 5, clientY: 5, bubbles: true, composed: true };
-      element.dispatchEvent(new PointerEvent("pointerdown", init));
-      element.dispatchEvent(new PointerEvent("pointerup", init));
-    };
-    tap(el.elementOf("hero:a")!);
-    tap(el.elementOf("hero-shelf:core")!);
-    tap(el.elementOf("see-all:core")!);
-    expect(heard).toEqual(["hero:a", "hero-shelf:core", "see-all:core"]);
+    expect(el.elementOf("clear")).toBeTruthy();
+    expect(el.elementOf("fold:core")).toBeNull();
   });
 
-  it("does not raise mc-activate for a press that moved past the tap slop (a swipe's lift)", async () => {
-    const el = await roster(model());
-    const heard: string[] = [];
-    el.addEventListener("mc-activate", (event) => heard.push((event as CustomEvent<{ key: string }>).detail.key));
-    const target = el.elementOf("hero:a")!;
-    target.dispatchEvent(
-      new PointerEvent("pointerdown", { pointerId: 1, button: 0, clientX: 5, clientY: 5, bubbles: true }),
+  it("says a row cannot page when it has nothing more to show", async () => {
+    const el = await mount(model());
+    expect(el.canPageShelf("core", -1)).toBe(false);
+    expect(el.pageShelf("core", 1)).toBeNull();
+    expect(el.readScroll()).toEqual({ top: 0, rows: {} });
+  });
+
+  it("loads a tile picture only once the tile has been near the box, and keeps it", async () => {
+    const observed: Element[] = [];
+    let report: (entries: { target: Element; isIntersecting: boolean }[]) => void = () => undefined;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: (entries: { target: Element; isIntersecting: boolean }[]) => void) {
+          report = callback;
+        }
+        observe(target: Element): void {
+          observed.push(target);
+        }
+        unobserve(): void {}
+        disconnect(): void {}
+      },
     );
-    target.dispatchEvent(
-      new PointerEvent("pointerup", { pointerId: 1, button: 0, clientX: 90, clientY: 5, bubbles: true }),
-    );
-    expect(heard).toEqual([]);
-  });
-
-  it("wraps the first shelf's cards with no header in grid mode", async () => {
-    const el = await roster(model({ mode: "grid", shelves: [shelf("core", ["a", "b", "c"])] }));
-    expect(el.renderRoot.querySelector(".grid")).toBeTruthy();
-    expect(el.elementOf("hero:c")).toBeTruthy();
-    expect(el.elementOf("hero-shelf:core")).toBeNull();
-  });
-
-  it("says why nothing is shown and offers its action", async () => {
-    const el = await roster(
-      model({ shelves: [], emptyText: "No hero matches.", emptyAction: { label: "Clear", key: "hero-clear" } }),
-    );
-    expect(el.renderRoot.querySelector("mc-empty-state")!.message).toBe("No hero matches.");
-    const heard: string[] = [];
-    el.addEventListener("mc-activate", (event) => heard.push((event as CustomEvent<{ key: string }>).detail.key));
-    el.elementOf("hero-clear")!.dispatchEvent(new CustomEvent("mc-press", { bubbles: true }));
-    expect(heard).toEqual(["hero-clear"]);
-  });
-
-  it("keeps and restores where it is scrolled", async () => {
-    const el = await roster(model());
-    el.scrollState = { top: 0, lefts: { core: 0 } };
-    expect(el.scrollState.top).toBe(0);
-    expect(el.scrollState.lefts).toEqual({});
-  });
-
-  it("has a chevron for each end of a row, named for assistive tech", async () => {
-    const el = await roster(model());
-    expect(el.elementOf("chev:core:prev")?.getAttribute("aria-label")).toBe("Earlier heroes");
-    expect(el.elementOf("chev:core:next")?.getAttribute("aria-label")).toBe("Later heroes");
+    try {
+      const withSource = (id: string) => item(id, { picture: { src: `/${id}.webp` } });
+      const el = await mount(model({ shelves: [shelf("core", { items: [withSource("a"), withSource("b")] })] }));
+      const srcOf = (id: string): string | null =>
+        (el.elementOf(`entry:${id}`) as unknown as { picture: { src: string | null } }).picture.src;
+      expect(observed).toHaveLength(2);
+      expect(srcOf("a")).toBeNull();
+      report([{ target: el.elementOf("entry:a")!, isIntersecting: true }]);
+      await el.updateComplete;
+      expect(srcOf("a")).toBe("/a.webp");
+      expect(srcOf("b")).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
-describe("mc-shelf-roster row-paging glyphs", () => {
-  it("draws a glyph over a chevron gutter only for the shelf the hint names, and only the ends it has specs for", async () => {
-    const spec = { kind: "pad" as const, label: "LT", shape: "pill" };
-    const el = await roster(
+describe("mc-shelf-roster keys, dimming and row-paging glyphs", () => {
+  it("reports a tile's own key where it has one (a hero on two shelves), and dims a tile that is not available", async () => {
+    const el = await mount(
       model({
-        shelves: [shelf("core", ["a"]), shelf("wave1", ["b"])],
-        hint: { shelfId: "core", previous: [spec], next: null, height: 18, still: true },
+        shelves: [
+          shelf("rec", { items: [item("a", { key: "hero-rec:a" })] }),
+          shelf("core", { items: [item("a", { key: "hero:a", dim: true })] }),
+        ],
       }),
     );
-    const root = el.renderRoot;
-    expect(root.querySelectorAll(".hint")).toHaveLength(1);
-    expect(root.querySelector(".shelf[data-shelf='core'] .hint.prev mc-glyph")).toBeTruthy();
-    expect(root.querySelector(".shelf[data-shelf='wave1'] .hint")).toBeNull();
-    expect(root.querySelector(".hint.next")).toBeNull();
+    expect(el.elementOf("hero-rec:a")).toBeTruthy();
+    expect(el.elementOf("hero:a")?.hasAttribute("data-dim")).toBe(true);
+    expect(el.elementOf("hero-rec:a")?.hasAttribute("data-dim")).toBe(false);
+    const heard: string[] = [];
+    el.addEventListener("mc-activate", (event) => heard.push((event as CustomEvent<{ key: string }>).detail.key));
+    el.elementOf("hero:a")!
+      .shadowRoot!.querySelector<HTMLElement>(".tap")!
+      .dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true, composed: true, clientX: 5, clientY: 5, pointerId: 1 }),
+      );
+    el.elementOf("hero:a")!
+      .shadowRoot!.querySelector<HTMLElement>(".tap")!
+      .dispatchEvent(
+        new PointerEvent("pointerup", { bubbles: true, composed: true, clientX: 5, clientY: 5, pointerId: 1 }),
+      );
+    expect(heard).toEqual(["hero:a"]);
+  });
+
+  it("draws a trigger glyph beside the chevrons of only the shelf the hint names", async () => {
+    const spec = { kind: "pad" as const, label: "LT", shape: "pill" };
+    const el = await mount(model({ hint: { shelfId: "core", previous: [spec], next: null, height: 18, still: true } }));
+    const hints = el.shadowRoot!.querySelectorAll(".hint");
+    expect(hints).toHaveLength(1);
+    expect(hints[0]!.closest(".shelf")!.querySelector("[data-row='core']")).toBeTruthy();
+    expect(el.shadowRoot!.querySelector(".chevrons.hinted")).toBeTruthy();
   });
 });

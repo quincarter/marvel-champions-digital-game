@@ -52,7 +52,7 @@ export function copySizeFor(
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
-/** True for a path under `art/` that the `kind` copy is made for: the hero and villain pictures the tiles draw, or a title picture. */
+/** True for a path under `art/` that the `kind` copy is made for: the hero and villain pictures the tiles draw, a pack cover, or a title picture. */
 export function hasCopy(kind: CopyKind, pathUnderArt: string): boolean {
   const parts = pathUnderArt.split("/");
   const file = parts[parts.length - 1] ?? "";
@@ -60,6 +60,8 @@ export function hasCopy(kind: CopyKind, pathUnderArt: string): boolean {
   if (kind === "display") return parts[0] === "title" && parts.length === 2;
   if (parts[0] === "heroes" && parts.length === 3) return stem === "hero" || stem.startsWith("hero-");
   if (parts[0] === "scenarios" && parts.length === 3) return stem === "villain" || /^villain-\d+$/.test(stem);
+  // A pack's cover is a shelf header's thumbnail: a tile-size copy is plenty.
+  if (parts[0] === "packs" && parts.length === 3) return stem === "cover" || /^cover-\d+$/.test(stem);
   return false;
 }
 

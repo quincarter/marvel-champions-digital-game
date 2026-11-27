@@ -44,7 +44,8 @@ export { McBarChart } from "./components/mc-bar-chart/mc-bar-chart.js";
 export { McStatTiles } from "./components/mc-stat-tiles/mc-stat-tiles.js";
 export { McLineList } from "./components/mc-line-list/mc-line-list.js";
 export { McDeckGrid } from "./components/mc-deck-grid/mc-deck-grid.js";
-export { McShelfRoster, SHELF_CHEVRON, SHELF_HEADER_GAP } from "./components/mc-shelf-roster/mc-shelf-roster.js";
+export { McCardSections } from "./components/mc-card-sections/mc-card-sections.js";
+export { McShelfRoster } from "./components/mc-shelf-roster/mc-shelf-roster.js";
 export { McDeckDetails } from "./components/mc-deck-details/mc-deck-details.js";
 export { fitTextWithin } from "./shared/fit-text.js";
 export { lineOf, sizeCss } from "./shared/text-line.js";
@@ -78,6 +79,9 @@ export type {
   SheetDots,
   SheetEmptyState,
   SheetFilterBar,
+  SheetStatTiles,
+  SheetBarChart,
+  SheetLineList,
   SheetGlyph,
   SheetHalftone,
   SheetImage,
@@ -107,14 +111,6 @@ export type { PictureFit, PictureFocus, PictureGround, PictureSource } from "./s
 export type { SectionHeaderLevel } from "./components/mc-section-header/mc-section-header.types.js";
 export type { PictureErrorDetail } from "./components/mc-picture-tile/mc-picture-tile.types.js";
 export type { McPictureCardModel, PictureCardStamp } from "./components/mc-picture-card/mc-picture-card.types.js";
-export type {
-  ShelfRosterCard,
-  ShelfRosterHint,
-  ShelfRosterLink,
-  ShelfRosterModel,
-  ShelfRosterScroll,
-  ShelfRosterShelf,
-} from "./components/mc-shelf-roster/mc-shelf-roster.types.js";
 export type { McListRowModel } from "./components/mc-list-row/mc-list-row.types.js";
 export type {
   McSearchDetail,
@@ -145,6 +141,18 @@ export type { BarChartBar } from "./components/mc-bar-chart/mc-bar-chart.types.j
 export type { StatTile } from "./components/mc-stat-tiles/mc-stat-tiles.types.js";
 export type { LineListEntry, LineListGroup } from "./components/mc-line-list/mc-line-list.types.js";
 export type { DeckGridItem, DeckGridModel, DeckGridPick } from "./components/mc-deck-grid/mc-deck-grid.types.js";
+export type {
+  CardCellModel,
+  CardFaceTileModel,
+  CardSection,
+  CardSectionsModel,
+} from "./components/mc-card-sections/mc-card-sections.types.js";
+export type {
+  ShelfRosterHint,
+  ShelfRosterItem,
+  ShelfRosterModel,
+  ShelfRosterShelf,
+} from "./components/mc-shelf-roster/mc-shelf-roster.types.js";
 export type { DeckDetailsAction, DeckDetailsModel } from "./components/mc-deck-details/mc-deck-details.types.js";
 export type { MenuButton, MenuButtonGlyph, MenuButtonIcon } from "./components/mc-menu-button/mc-menu-button.types.js";
 export type { MenuGridModel } from "./components/mc-menu-grid/mc-menu-grid.types.js";

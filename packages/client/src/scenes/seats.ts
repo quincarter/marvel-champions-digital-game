@@ -33,9 +33,8 @@ import type {
   McSearchField,
   McSheet,
   McShelfRoster,
-  ShelfRosterCard,
+  ShelfRosterItem,
   ShelfRosterHint,
-  ShelfRosterScroll,
   ShelfRosterShelf,
 } from "@mc/ui";
 import { layoutGlyph, measureGlyphText } from "@mc/ui/glyph";
@@ -230,6 +229,8 @@ const infoStopKey = (aspect: string): string => `hero-chip-info:${aspect}`;
 /** The stops that are the filters (search, the chips and their "i"), and the ones that are the list. */
 const FILTER_STOP = /^(hero-search-toggle|hero-search|filters-toggle|hero-chip:.*|hero-chip-info:.*)$/;
 const LIST_STOP = /^(rec-toggle|drill-back|hero-clear|hero:.*|hero-rec:.*|hero-shelf:.*)$/;
+/** The scrollbar's room beside the roster (`SCROLL_GUTTER` in `@mc/ui`). */
+const SCROLL_GUTTER = 8;
 /** The search field's key in the fixed parts' sheet. */
 const SEARCH = "hero-search";
 /** The chips' key and the prefix their presses carry. */
@@ -343,7 +344,7 @@ function goToDeckCheckOrTableSetup(scene: Phaser.Scene, draft: SetupDraft, deckO
 }
 
 /** Where the roster was scrolled when the screen was left, so a trip to Deck check and back returns to the same place. */
-let rememberedScroll: ShelfRosterScroll | null = null;
+let rememberedScroll: ReturnType<McShelfRoster["readScroll"]> | null = null;
 
 /** Everything one compose works out, kept so the fixed parts can be drawn again alone (the focus moved, a glyph changed). */
 interface Composed {
@@ -493,7 +494,7 @@ export class SeatsScene extends Phaser.Scene {
       artOff();
       languageOff();
       // Where the roster was scrolled, for the way back from Deck check; the panels go with the scene (`DomRegion`).
-      if (this.#rosterRegion) rememberedScroll = this.#rosterRegion.element.scrollState;
+      if (this.#rosterRegion) rememberedScroll = this.#rosterRegion.element.readScroll();
       this.#chromeRegion = null;
       this.#rosterRegion = null;
       this.#insightRegion = null;
@@ -1546,7 +1547,7 @@ export class SeatsScene extends Phaser.Scene {
       prefix: CHIP_PREFIX,
       rowHeight: hit.target,
       gap: CHIP_GAP,
-      ...(layout.chipsScroll ? { sideways: true } : {}),
+      ...(layout.chipsScroll ? { rail: true } : {}),
     });
     const scrollInto = (id: string) => (): void =>
       this.#chromeRegion?.element.elementOf(id)?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -1696,10 +1697,12 @@ export class SeatsScene extends Phaser.Scene {
       const items = shelf?.items ?? [];
       rosterShelves.push({
         id: shelf?.id ?? "pack",
-        key: "drill-pack",
         title: shelf?.title ?? "",
         count: "",
-        cards: items.map((option) => this.#heroCardOf(option, active, false, (card) => `hero:${card}`)),
+        cover: null,
+        open: undefined,
+        seeAll: "",
+        items: items.map((option) => this.#heroCardOf(option, active, false, (card) => `hero:${card}`)),
       });
       if (items.length === 0) emptyText = t("scenario.noMatches");
       cardIds = ["drill-back", ...items.map((o) => o.deck.id as string)];
@@ -1729,25 +1732,24 @@ export class SeatsScene extends Phaser.Scene {
       for (const shelf of shelves) {
         const rec = shelf.id === REC_SHELF_ID;
         const prefix = rec ? "hero-rec" : "hero";
-        const shelfKey = rec ? "rec-toggle" : `hero-shelf:${shelf.id}`;
         const folded = shelf.collapsed === true;
         rosterShelves.push({
           id: shelf.id,
-          key: shelfKey,
           title: shelf.title,
           count: rec
-            ? `${tPlural("seats.heroCount", shelf.items.length)}  ·  ${recCollapsed ? t("seats.show") : t("seats.hide")} ${recCollapsed ? "▸" : "▾"}`
+            ? `${tPlural("seats.heroCount", shelf.items.length)}  ·  ${recCollapsed ? t("seats.show") : t("seats.hide")}`
             : `${tPlural("seats.identityCount", shelf.items.length)}  ·`,
-          ...(rec ? {} : { open: !folded, link: { label: `${t("scenario.seeAll")} ▸`, key: `see-all:${shelf.id}` } }),
-          collapsed: folded,
-          cards: folded
+          cover: null,
+          open: !folded,
+          seeAll: rec ? "" : `${t("scenario.seeAll")} ▸`,
+          items: folded
             ? []
             : shelf.items.map((option) => this.#heroCardOf(option, active, rec, (id) => `${prefix}:${id}`)),
         });
-        // A pack shelf's header folds it; the "See all" end opens the pack as a full grid.
-        this.#actions.set(shelfKey, rec ? toggleRecommended : () => this.#toggleFold(shelf.id));
+        // A shelf's header folds it (the Recommended shelf too); the "See all" end opens a pack as a full grid.
+        this.#actions.set(`fold:${shelf.id}`, rec ? toggleRecommended : () => this.#toggleFold(shelf.id));
         if (!rec) {
-          this.#actions.set(`see-all:${shelf.id}`, () => {
+          this.#actions.set(`all:${shelf.id}`, () => {
             this.#drill = drillIntoPack(shelf.id);
             this.#rebuild();
           });
@@ -1762,17 +1764,16 @@ export class SeatsScene extends Phaser.Scene {
     }
 
     const empty = emptyText !== null || rosterShelves.length === 0;
-    if (empty) this.#actions.set("hero-clear", clearFilters);
+    if (empty) this.#actions.set("clear", clearFilters);
     const model = {
       mode: drilled ? ("grid" as const) : ("shelves" as const),
       shelves: rosterShelves,
       cardWidth: metrics.cardWidth,
       cardHeight: metrics.cardHeight,
       gap: metrics.cardGap,
-      shelfGap: metrics.shelfGap,
-      headerHeight: metrics.headerHeight,
+      contentWidth: Math.max(0, gridBox.width - SCROLL_GUTTER),
       emptyText: empty ? t("scenario.noMatches") : null,
-      ...(empty ? { emptyAction: { label: t("scenario.clear"), key: "hero-clear" } } : {}),
+      clearLabel: empty ? t("scenario.clear") : "",
       previousLabel: t("seats.shelfPrevious"),
       nextLabel: t("seats.shelfNext"),
       hint: this.#rosterHint(),
@@ -1784,31 +1785,32 @@ export class SeatsScene extends Phaser.Scene {
     renderNow(region.element);
     // Back from Deck check (or Table setup): the roster is where it was left.
     if (fresh && rememberedScroll) {
-      region.element.scrollState = rememberedScroll;
+      region.element.restoreScroll(rememberedScroll);
       rememberedScroll = null;
     }
     const element = region.element;
     if (empty) {
       this.#stops.set("hero-clear", {
-        rect: () => this.#liveRect(region, "hero-clear") ?? gridBox,
+        rect: () => this.#liveRect(region, "clear") ?? gridBox,
         activate: clearFilters,
       });
     }
-    if (this.#actions.has("rec-toggle")) {
+    if (this.#actions.has(`fold:${REC_SHELF_ID}`)) {
       this.#stops.set("rec-toggle", {
-        rect: () => this.#liveRect(region, "rec-toggle") ?? gridBox,
-        activate: this.#actions.get("rec-toggle")!,
-        ensureVisible: () => element.elementOf("rec-toggle")?.scrollIntoView({ block: "nearest" }),
+        rect: () => this.#liveRect(region, `fold:${REC_SHELF_ID}`) ?? gridBox,
+        activate: this.#actions.get(`fold:${REC_SHELF_ID}`)!,
+        ensureVisible: () => element.elementOf(`fold:${REC_SHELF_ID}`)?.scrollIntoView({ block: "nearest" }),
         view: () => this.#rosterView,
       });
     }
     if (!drilled) {
       for (const shelf of rosterShelves) {
         if (shelf.id === REC_SHELF_ID) continue;
-        this.#stops.set(shelf.key, {
-          rect: () => this.#liveRect(region, shelf.key) ?? gridBox,
+        const header = `fold:${shelf.id}`;
+        this.#stops.set(`hero-shelf:${shelf.id}`, {
+          rect: () => this.#liveRect(region, header) ?? gridBox,
           activate: () => this.#toggleFold(shelf.id),
-          ensureVisible: () => element.elementOf(shelf.key)?.scrollIntoView({ block: "nearest" }),
+          ensureVisible: () => element.elementOf(header)?.scrollIntoView({ block: "nearest" }),
           view: () => this.#rosterView,
         });
       }
@@ -1847,7 +1849,7 @@ export class SeatsScene extends Phaser.Scene {
     active: ReadonlyMap<string, ActiveSeatRosterEntry>,
     recommended: boolean,
     keyOf: (id: string) => string,
-  ): ShelfRosterCard {
+  ): ShelfRosterItem {
     const identityId = option.deck.identityCardId as string;
     const identity = currentCardsById().get(identityId);
     const entry = active.get(option.deck.id as string);
@@ -1919,9 +1921,12 @@ export class SeatsScene extends Phaser.Scene {
     );
     const shown = heroTilePictureOf(this.#heroPictureFor(identityId), identity, this.#leases);
     return {
+      id: option.deck.id as string,
       key: keyOf(option.deck.id as string),
       cardId: identityId,
-      model,
+      card: model,
+      selected: entry?.isActiveSeat ?? false,
+      inspect: true,
       picture: {
         src: shown.src,
         fill: sheetColor(surface.parchment.hex, "fill"),

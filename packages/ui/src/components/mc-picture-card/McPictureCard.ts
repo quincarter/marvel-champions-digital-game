@@ -31,8 +31,12 @@ import { McPictureCardStyles } from "./mc-picture-card.styles.js";
  * @attr art-height - The picture height in px; 0 (default) fills the card above the model caption strip.
  * @attr heavy - The heavier frame.
  * @attr paper - A paper ground instead of parchment.
+ * @attr selected - The chosen card: a 4px red frame (the screen also says so in words, in the chip).
  * @attr activate-key - The key `mc-activate` carries; with none the card takes no press of its own.
+ * @attr inspect-key - With an `activate-key`: a press-and-hold or a right-click raises `mc-inspect` with this key (the
+ *   release that ended a hold is not a tap).
  * @fires mc-activate - `detail.key`: the card was tapped.
+ * @fires mc-inspect - `detail.key`: the card was held or right-clicked.
  */
 export class McPictureCard extends LitElement {
   static override styles = [ThemeStyles, McPictureCardStyles];
@@ -45,7 +49,9 @@ export class McPictureCard extends LitElement {
     artHeight: { type: Number, attribute: "art-height" },
     heavy: { type: Boolean, reflect: true },
     paper: { type: Boolean, reflect: true },
+    selected: { type: Boolean, reflect: true },
     activateKey: { type: String, attribute: "activate-key" },
+    inspectKey: { type: String, attribute: "inspect-key" },
     failedSrc: { state: true },
   };
 
@@ -56,7 +62,9 @@ export class McPictureCard extends LitElement {
   declare artHeight: number;
   declare heavy: boolean;
   declare paper: boolean;
+  declare selected: boolean;
   declare activateKey: string;
+  declare inspectKey: string;
   /** The URL that failed to load, so the initial stands in for it. */
   declare failedSrc: string;
 
@@ -69,13 +77,21 @@ export class McPictureCard extends LitElement {
     this.artHeight = 0;
     this.heavy = false;
     this.paper = false;
+    this.selected = false;
     this.activateKey = "";
+    this.inspectKey = "";
     this.failedSrc = "";
   }
 
   /** The picture element: where a card hover popover is wanted. */
   get artElement(): HTMLElement | null {
     return this.renderRoot.querySelector("mc-picture-tile");
+  }
+
+  #detailClass(m: McPictureCardModel): string {
+    return ["detail", m.detailTone !== "meta" ? m.detailTone : "", m.detailLines === 2 ? "two" : ""]
+      .filter(Boolean)
+      .join(" ");
   }
 
   override updated(): void {
@@ -87,18 +103,14 @@ export class McPictureCard extends LitElement {
     if (!m && !this.picture) return nothing;
     const caption = m ? (m.captionHeight ?? 52) : 0;
     const art = this.artHeight > 0 ? `height:${this.artHeight}px` : `bottom:${caption}px`;
-    // The chosen card wears the heavy red frame; a heavy one (in use) the heavy ink frame.
-    this.style.setProperty("--mc-card-border", m?.selected ? "4px" : this.heavy ? "5px" : "2px");
-    this.style.setProperty("--mc-card-line", m?.selected ? "var(--mc-line-red)" : "var(--mc-line-ink)");
+    // The chosen card (the attribute or the model) wears the heavy red frame; a heavy one (in use) the heavy ink frame.
+    const chosen = this.selected || m?.selected === true;
+    this.style.setProperty("--mc-card-border", chosen ? "4px" : this.heavy ? "5px" : "2px");
+    this.style.setProperty("--mc-card-frame", chosen ? "var(--mc-line-red)" : "var(--mc-line-ink)");
     const picture: PictureSource | null =
       this.picture ?? (m && m.src ? { src: m.src, cover: { x: 0.5, y: m.focusY } } : null);
     const gone = !picture?.src || picture.src === this.failedSrc;
     const stamps = m?.stamps ?? [];
-    const detailClass = m
-      ? ["detail", m.detailTone !== "meta" ? m.detailTone : "", m.detailLines === 2 ? "two" : ""]
-          .filter(Boolean)
-          .join(" ")
-      : "detail";
     return html`
       <div class="art" style=${art}>
         ${
@@ -148,11 +160,11 @@ export class McPictureCard extends LitElement {
         m
           ? html`<div class="caption" style=${`height:${caption}px`}>
               <div
-                class=${m.displayTitle ? "title display" : "title"}
-                style=${m.displayTitle ? `font-size:${m.displayTitle}px` : ""}
+                class=${m.titleDisplay ? "title display" : "title"}
+                style=${m.titleDisplay && m.titleSize ? `font-size:${m.titleSize}px` : ""}
                 .textContent=${m.title}
               ></div>
-              <div class=${detailClass} .textContent=${m.detail}></div>
+              <div class=${this.#detailClass(m)} .textContent=${m.detail}></div>
             </div>`
           : nothing
       }
@@ -162,10 +174,25 @@ export class McPictureCard extends LitElement {
         this.activateKey
           ? html`<div
               class="tap"
-              ${tapped(() =>
-                this.dispatchEvent(
-                  new CustomEvent("mc-activate", { detail: { key: this.activateKey }, bubbles: true, composed: true }),
-                ),
+              ${tapped(
+                () =>
+                  this.dispatchEvent(
+                    new CustomEvent("mc-activate", {
+                      detail: { key: this.activateKey },
+                      bubbles: true,
+                      composed: true,
+                    }),
+                  ),
+                this.inspectKey
+                  ? () =>
+                      this.dispatchEvent(
+                        new CustomEvent("mc-inspect", {
+                          detail: { key: this.inspectKey },
+                          bubbles: true,
+                          composed: true,
+                        }),
+                      )
+                  : undefined,
               )}
             ></div>`
           : nothing

@@ -12,6 +12,9 @@
 import type {
   McMediaRowModel,
   GlyphSpec as UiGlyphSpec,
+  BarChartBar,
+  LineListGroup,
+  StatTile,
   FilterChip,
   FilterSort,
   McArticleModel,
@@ -623,11 +626,25 @@ export class SheetBuilder {
       readonly rows?: number;
       readonly rowHeight?: number;
       readonly gap?: number;
-      /** One row that scrolls sideways (a phone's chip rail). */
-      readonly sideways?: boolean;
+      readonly rail?: boolean;
     } = {},
   ): void {
     this.nodes.push({ kind: "filterBar", key, rect: this.#rect(rect), chips, ...options });
+  }
+
+  /** Boxed counts (`mc-stat-tiles`) in rows of equal-width cells. */
+  statTiles(rect: Rect, rows: readonly (readonly StatTile[])[]): void {
+    this.nodes.push({ kind: "statTiles", rect: this.#rect(rect), rows });
+  }
+
+  /** A bar chart (`mc-bar-chart`), `rect.height` tall with its labels. */
+  barChart(rect: Rect, bars: readonly BarChartBar[]): void {
+    this.nodes.push({ kind: "barChart", rect: this.#rect(rect), bars });
+  }
+
+  /** Titled groups of one-line entries (`mc-line-list`). */
+  lineList(rect: Rect, groups: readonly LineListGroup[], dark = false): void {
+    this.nodes.push({ kind: "lineList", rect: this.#rect(rect), groups, ...(dark ? { dark: true } : {}) });
   }
 
   /** A framed row (`mc-media-row`): a picture, a title, meta lines and a state badge; a tap raises `mc-activate`. */

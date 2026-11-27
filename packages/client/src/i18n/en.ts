@@ -508,6 +508,8 @@ export const en = {
   "scenario.seeAll": "SEE ALL",
   "scenario.randomBox": "Random box",
   "scenario.randomScenario": "Random scenario",
+  "scenario.rowPrevious": "Scroll this shelf left",
+  "scenario.rowNext": "Scroll this shelf right",
   "seats.randomHero": "Random",
   "seats.randomHeroNone": "No other hero fits the filters and the table right now.",
   "seats.randomHeroSearching": "Waiting for the search to finish.",

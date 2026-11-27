@@ -96,6 +96,13 @@ describe("mc-filter-bar", () => {
     expect(events).toEqual(["sheet", "sort:old"]);
   });
 
+  it("lays a rail as one row that scrolls sideways, and wraps otherwise", async () => {
+    const wrapped = await mount({ chips: [{ id: "a", label: "A", selected: false }] });
+    expect(wrapped.shadowRoot!.querySelector(".bar.rail")).toBeNull();
+    const rail = await mount({ chips: [{ id: "a", label: "A", selected: false }], rail: true });
+    expect(rail.shadowRoot!.querySelector(".bar.rail")).not.toBeNull();
+  });
+
   it("leaves out the sort and the sheet button when there are none", async () => {
     const bar = await mount({ chips: [] });
     expect(bar.shadowRoot!.querySelector("select")).toBeNull();
@@ -103,10 +110,10 @@ describe("mc-filter-bar", () => {
   });
 });
 
-describe("mc-filter-bar tint, info segment and sideways scroll", () => {
+describe("mc-filter-bar tint, info segment and rail scroll", () => {
   it("tints a chip, draws an info segment that raises mc-info and not mc-activate, and scrolls in one row", async () => {
     const bar = document.createElement("mc-filter-bar");
-    bar.sideways = true;
+    bar.rail = true;
     bar.prefix = "hero-chip:";
     bar.chips = [
       {
@@ -120,7 +127,7 @@ describe("mc-filter-bar tint, info segment and sideways scroll", () => {
     ];
     document.body.append(bar);
     await bar.updateComplete;
-    expect(bar.hasAttribute("sideways")).toBe(true);
+    expect(bar.hasAttribute("rail")).toBe(true);
     const chip = bar.elementOf("hero-chip:aspect:justice") as HTMLElement & { tint: unknown };
     expect(chip.tint).toEqual({ fill: "#f0c040", ink: "#111111" });
     const info = bar.elementOf("hero-chip:aspect:justice:info")!;

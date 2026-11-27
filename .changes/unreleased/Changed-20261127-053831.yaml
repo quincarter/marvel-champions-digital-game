@@ -1,0 +1,3 @@
+kind: Changed
+body: Deck check draws as Lit panels over the canvas, with the deck's cards as a natively scrolling card sections panel and the kit's stat tiles, bar chart and line list
+time: 2026-11-27T05:38:31.723506-05:00

@@ -6,6 +6,9 @@ const styles = css`
   :host {
     display: block;
   }
+  :host([dark]) {
+    color: var(--mc-text-paper);
+  }
   .group {
     padding-bottom: 4px;
   }
@@ -51,13 +54,19 @@ const styles = css`
 export class McLineList extends LitElement {
   static override styles = [ThemeStyles, styles];
 
-  static override properties: PropertyDeclarations = { groups: { attribute: false } };
+  static override properties: PropertyDeclarations = {
+    groups: { attribute: false },
+    dark: { type: Boolean, reflect: true },
+  };
 
   declare groups: readonly LineListGroup[];
+  /** Paper words, for a list on an ink panel. */
+  declare dark: boolean;
 
   constructor() {
     super();
     this.groups = [];
+    this.dark = false;
   }
 
   /** The entries that name a card, with their elements: where a hover popover is wanted. */
