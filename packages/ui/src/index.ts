@@ -11,6 +11,10 @@ export { McTabRail } from "./components/mc-tab-rail/mc-tab-rail.js";
 export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
 export { McListRow } from "./components/mc-list-row/mc-list-row.js";
 export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
+export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
+export { McArticle } from "./components/mc-article/mc-article.js";
+export type { McSearchDetail, McSearchFocusDetail } from "./components/mc-search-field/mc-search-field.types.js";
+export type { McArticleBlock, McArticleModel } from "./components/mc-article/mc-article.types.js";
 export type { McTabRailTab } from "./components/mc-tab-rail/mc-tab-rail.types.js";
 export type { McPictureTileModel } from "./components/mc-picture-tile/mc-picture-tile.types.js";
 export type { McListRowModel } from "./components/mc-list-row/mc-list-row.types.js";
@@ -52,7 +56,9 @@ export type {
   SheetDots,
   SheetGlyph,
   SheetHalftone,
+  SheetArticle,
   SheetEmptyState,
+  SheetSearch,
   SheetImage,
   SheetListRow,
   SheetPictureTile,

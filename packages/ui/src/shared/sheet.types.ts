@@ -1,3 +1,4 @@
+import type { McArticleModel } from "../components/mc-article/mc-article.types.js";
 import type { McListRowModel } from "../components/mc-list-row/mc-list-row.types.js";
 import type { McPictureTileModel } from "../components/mc-picture-tile/mc-picture-tile.types.js";
 import type { McTabRailTab } from "../components/mc-tab-rail/mc-tab-rail.types.js";
@@ -315,6 +316,29 @@ export interface SheetListRow {
   readonly model: McListRowModel;
 }
 
+/** A search field (`mc-search-field`) filling `rect`: raises `mc-search` (debounced) and `mc-search-focus`; `key` finds it. */
+export interface SheetSearch {
+  readonly kind: "search";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly value: string;
+  readonly placeholder: string;
+  readonly clearLabel: string;
+  readonly focusPlaceholder?: string;
+  readonly debounce?: number;
+  readonly size?: number;
+}
+
+/** Reading text that scrolls natively (`mc-article`) in `rect` (drawn a scrollbar gutter wider); `key` finds the scroller. */
+export interface SheetArticle {
+  readonly kind: "article";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly model: McArticleModel;
+  readonly pictureMax: number;
+  readonly pad: number;
+}
+
 /** The quiet line of an empty list (`mc-empty-state`) at `x`, `y`. */
 export interface SheetEmptyState {
   readonly kind: "emptyState";
@@ -351,4 +375,6 @@ export type SheetNode =
   | SheetPictureTile
   | SheetListRow
   | SheetEmptyState
+  | SheetSearch
+  | SheetArticle
   | SheetScroll;

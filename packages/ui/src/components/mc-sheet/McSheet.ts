@@ -11,6 +11,8 @@ import "../mc-tab-rail/mc-tab-rail.js";
 import "../mc-picture-tile/mc-picture-tile.js";
 import "../mc-list-row/mc-list-row.js";
 import "../mc-empty-state/mc-empty-state.js";
+import "../mc-search-field/mc-search-field.js";
+import "../mc-article/mc-article.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
@@ -427,6 +429,27 @@ export class McSheet extends LitElement {
           style=${px(node.rect)}
           .model=${node.model}
         ></mc-list-row>`;
+      case "search":
+        return html`<mc-search-field
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .value=${node.value}
+          .placeholder=${node.placeholder}
+          .clearLabel=${node.clearLabel}
+          .focusPlaceholder=${node.focusPlaceholder ?? ""}
+          .debounce=${node.debounce ?? 200}
+          .size=${node.size ?? 16}
+        ></mc-search-field>`;
+      case "article":
+        return html`<mc-article
+          class="part"
+          data-key=${node.key}
+          style=${px({ ...node.rect, width: node.rect.width + SCROLL_GUTTER })}
+          .model=${node.model}
+          .pictureMax=${node.pictureMax}
+          .pad=${node.pad}
+        ></mc-article>`;
       case "emptyState":
         return html`<mc-empty-state
           class="part"

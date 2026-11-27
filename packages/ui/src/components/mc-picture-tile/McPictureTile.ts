@@ -41,7 +41,9 @@ export class McPictureTile extends LitElement {
                 draggable="false"
                 style=${`object-position:50% ${m.focusY * 100}%`}
               />`
-            : html`<span class="initial" style=${`font-size:${Math.round(this.clientHeight * 0.3)}px`}>${m.initial}</span>`
+            : html`<span class="initial" style=${`font-size:${Math.round(this.clientHeight * 0.3)}px`}
+                >${m.initial}</span
+              >`
         }
         <span class=${m.chipTone === "locked" ? "chip locked" : "chip"}>${m.chip}</span>
       </div>

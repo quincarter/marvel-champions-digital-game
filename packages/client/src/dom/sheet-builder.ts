@@ -12,6 +12,7 @@
 import type {
   GlyphSpec as UiGlyphSpec,
   McGlyphGround,
+  McArticleModel,
   McListRowModel,
   McPictureTileModel,
   McTabRailTab,
@@ -484,6 +485,43 @@ export class SheetBuilder {
   /** A list row (`mc-list-row`) filling `rect`; decorative, put a `tap` over it. */
   listRow(rect: Rect, model: McListRowModel, key?: string): void {
     this.nodes.push({ kind: "listRow", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
+  }
+
+  /** A search field (`mc-search-field`) filling `rect`; listen for `mc-search` (debounced text) and `mc-search-focus`. */
+  search(
+    rect: Rect,
+    options: {
+      readonly key: string;
+      readonly value: string;
+      readonly placeholder: string;
+      readonly clearLabel: string;
+      readonly focusPlaceholder?: string;
+      readonly debounce?: number;
+    },
+  ): void {
+    this.nodes.push({
+      kind: "search",
+      key: options.key,
+      rect: this.#rect(rect),
+      value: options.value,
+      placeholder: options.placeholder,
+      clearLabel: options.clearLabel,
+      ...(options.focusPlaceholder ? { focusPlaceholder: options.focusPlaceholder } : {}),
+      ...(options.debounce !== undefined ? { debounce: options.debounce } : {}),
+    });
+  }
+
+  /** Reading text that scrolls natively (`mc-article`) in `rect`; `key` finds its scroller (`elementOf(key).scroller`). */
+  article(
+    rect: Rect,
+    options: {
+      readonly key: string;
+      readonly model: McArticleModel;
+      readonly pictureMax: number;
+      readonly pad: number;
+    },
+  ): void {
+    this.nodes.push({ ...options, kind: "article", rect: this.#rect(rect) });
   }
 
   /** The quiet empty-list line (`mc-empty-state`) at `x`, `y`. */
