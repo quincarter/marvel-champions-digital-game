@@ -201,8 +201,7 @@ import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from ".
 import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-builder-view.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
 import type { SearchDocument } from "../view/deck-search.js";
-import type { CardLanguage } from "../art/card-language.js";
-import { CardPoolSearch, poolSearchDocuments } from "../view/card-pool-search.js";
+import { CardPoolSearch, createPoolDocumentCache, poolSearchDocuments } from "../view/card-pool-search.js";
 import { localizedLabelOf } from "../view/card-text.js";
 import { onArtChange } from "../language-change.js";
 import { t, type MessageKey } from "../i18n/translate.js";
@@ -277,25 +276,21 @@ const poolKeyNow = (): string =>
         .join(",")}`
     : currentPoolKey();
 
+/** The documents the search worker ranks (every card), made again when a card changes or the names table arrives. */
+const poolDocumentCache = createPoolDocumentCache();
 const POOL_SEARCH_DOCUMENTS = (): { readonly docs: readonly SearchDocument[]; readonly version: string } => {
-  const now = poolNow();
   const lang = artLanguageNow();
-  if (poolSearchDocumentsCache?.pool !== now || poolSearchDocumentsCache.lang !== lang) {
-    const infos = packInfos();
-    poolSearchDocumentsCache = {
-      pool: now,
+  const infos = packInfos();
+  return {
+    docs: poolSearchDocuments(
+      poolNow(),
       lang,
-      docs: poolSearchDocuments(now, lang, (code) => infos.find((pack) => pack.code === code)?.name),
-    };
-  }
-  return { docs: poolSearchDocumentsCache.docs, version: `${poolKeyNow()}:${lang}` };
+      (code) => infos.find((pack) => pack.code === code)?.name,
+      poolDocumentCache,
+    ),
+    version: `${poolKeyNow()}:${lang}`,
+  };
 };
-/** Built on first search and kept: the documents the search worker ranks (every card). */
-let poolSearchDocumentsCache: {
-  readonly pool: readonly AnyCard[];
-  readonly lang: CardLanguage;
-  readonly docs: readonly SearchDocument[];
-} | null = null;
 /** Every villain's name in the pool (what the Worker keys its villains by), for Everyone's Against stepper. */
 let poolVillains: readonly string[] | null = null;
 const poolVillainNames = (): readonly string[] =>

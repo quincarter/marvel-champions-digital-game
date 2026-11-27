@@ -217,7 +217,7 @@ import { oneDecimal } from "../view/number-format.js";
 import { PictureLeases } from "../dom/picture-leases.js";
 import { heroPictureOf, type HeroPicture } from "../dom/hero-picture.js";
 import { drawTintButton } from "../dom/tint-button.js";
-import { CardPoolSearch, poolSearchDocuments } from "../view/card-pool-search.js";
+import { CardPoolSearch, createPoolDocumentCache, poolSearchDocuments } from "../view/card-pool-search.js";
 import { accent, border, hit, ink, minType, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf } from "../ui/theme.js";
 import { McButton, paintDotGrid, paintPanel, STAMP_CHIP_TYPE } from "../ui/widgets.js";
@@ -408,7 +408,7 @@ export class DecksScene extends Phaser.Scene {
   #poolMetrics = { rowHeight: 0, rowCount: 0, viewHeight: 0, window: "" };
   readonly #poolHooked = new WeakSet<HTMLElement>();
   /** `cardSearchDocumentOf` per card id: the rules text is built once, not per selected deck. */
-  readonly #poolDocs = new Map<string, SearchDocument>();
+  readonly #poolDocs = createPoolDocumentCache();
   /** The deck whose Delete was pressed once and awaits its confirming second press. */
   #deleteArmedId: string | null = null;
   #filter: RosterFilter = { text: "" };

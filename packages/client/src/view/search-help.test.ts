@@ -95,3 +95,19 @@ describe("the search cheat sheet in Spanish", () => {
     expect(text).not.toMatch(/frustraci/i);
   });
 });
+
+describe("the Spanish cheat sheet says what the search matches, in the guide's terms", () => {
+  const text = JSON.stringify(searchHelpRows("es"));
+  test("uses the official guide's words", () => {
+    expect(text).toContain("universal");
+    expect(text).toContain("Usos");
+    expect(text).toContain("intervención");
+    expect(text).toContain("Vengador");
+    expect(text).not.toMatch(/comod[ií]n|frustraci/i);
+  });
+  test("keeps its queries identical to English and says the terms stay English", () => {
+    const q = (rows: readonly { kind: string }[]) => rows.flatMap((r) => ("query" in r ? [String(r.query)] : []));
+    expect(q(searchHelpRows("es"))).toEqual(q(SEARCH_HELP_ROWS));
+    expect(text).toContain("inglés");
+  });
+});
