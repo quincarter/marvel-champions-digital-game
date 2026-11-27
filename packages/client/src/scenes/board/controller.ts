@@ -1289,9 +1289,9 @@ export class BoardController {
   /** "Play it": the free card the board was asking about. */
   async confirmPlay(): Promise<void> {
     if (this.#readOnly || this.#selection.kind !== "confirmingPlay") return;
-    const { action, controllerId } = this.#selection;
+    const { action, controllerId, command } = this.#selection;
     this.#selection = { kind: "idle" };
-    await this.#dispatch(withController(action.example, controllerId));
+    await this.#dispatch(command ?? withController(action.example, controllerId));
   }
 
   /** The card a free play is waiting on a yes for, or null when nothing is. */
@@ -1378,13 +1378,52 @@ export class BoardController {
     ) {
       return;
     }
+    const aimed = withController(
+      target !== null && game ? this.#freeAimed(game, entry, target, controllerId, aim.costChoices) : entry.example,
+      controllerId,
+    );
+    // The command goes with the question, so its yes sends the pick the player made, not `example` (#1050).
     if (confirmFree) {
-      this.#selection = { kind: "confirmingPlay", action: entry, controllerId };
+      this.#selection = { kind: "confirmingPlay", action: entry, controllerId, command: aimed };
       this.#host.redraw();
       return;
     }
-    const aimed = target !== null && game ? retarget(game, entry.example, target) : entry.example;
-    await this.#send(withController(aimed, controllerId));
+    await this.#send(aimed);
+  }
+
+  /**
+   * A play aimed at `target` that has nothing to pay there, built by the engine with an empty payment. `example` is
+   * the first variant `legalActions` found, with the payment that variant needed: Make the Call's example is the first
+   * ally in any discard pile with hand cards spent for it, so a 0-cost ally the player picked must not borrow it
+   * (#1050). Falls back to `example` re-aimed if the engine refuses the empty payment, as before.
+   */
+  #freeAimed(
+    game: GameState,
+    entry: LegalAction,
+    target: InstanceId,
+    controllerId: PlayerId | null,
+    costChoices: CostChoices | undefined,
+  ): Command {
+    const { perspectiveId } = appSession().store.state;
+    const fallback = retarget(game, entry.example, target);
+    if (perspectiveId === null || entry.action.kind !== "playCard" || entry.example.type !== "playCard")
+      return fallback;
+    const attempt = tryPayment(
+      game,
+      perspectiveId,
+      entry.action,
+      [],
+      {
+        target,
+        ...(controllerId ? { controllerId } : {}),
+        ...optionalSelection(withEntryPayers(entry, mergedCostSelection(entry))),
+        ...(costChoices ? { costChoices } : {}),
+        ...(entry.example.abilityId ? { abilityId: entry.example.abilityId } : {}),
+        ...paymentIntoOf({ into: intoOf(entry) ?? null }),
+      },
+      gameDeps(),
+    );
+    return attempt.ok ? attempt.command : fallback;
   }
 
   /** Every `useAbility` entry `legalActions` currently lists for one card, in order. */
