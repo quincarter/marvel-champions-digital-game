@@ -16,7 +16,10 @@ describe("mc-tab-rail", () => {
     ];
     document.body.append(rail);
     await rail.updateComplete;
+    expect(rail.getAttribute("role")).toBe("tablist");
     const cells = rail.shadowRoot!.querySelectorAll("mc-button");
+    expect(cells[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(cells[1]!.getAttribute("role")).toBe("tab");
     expect([...cells].map((c) => c.getAttribute("data-key"))).toEqual(["tab:seats", "tab:chat"]);
     expect(cells[0]!.hasAttribute("selected")).toBe(true);
     const badges = [...rail.shadowRoot!.querySelectorAll(".badge")].map((b) => b.textContent);

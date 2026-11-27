@@ -246,12 +246,15 @@ export class SheetBuilder {
     readonly still?: boolean;
     readonly keyshortcuts?: string;
     readonly alpha?: number;
+    /** The button's name for assistive tech when its label is a symbol ("+"). */
+    readonly aria?: string;
   }): void {
     const type = options.type;
     this.nodes.push({
       ...(options.labelShift ? { labelShift: options.labelShift } : {}),
       ...(options.still ? { still: true } : {}),
       ...(options.keyshortcuts ? { keyshortcuts: options.keyshortcuts } : {}),
+      ...(options.aria ? { aria: options.aria } : {}),
       ...(options.alpha !== undefined ? { opacity: options.alpha } : {}),
       kind: "button",
       key: options.key,
@@ -511,6 +514,14 @@ export class SheetBuilder {
   scrollFit(key: string, rect: Rect, build: (inner: SheetBuilder) => number): void {
     const inner = new SheetBuilder(this.#game, { x: rect.x, y: 0 }, this.#desktop);
     const used = build(inner);
+    if (import.meta.env?.DEV) {
+      // A picture or drawing with no key is matched by its place in the list: a part added before it makes it reload.
+      const loose = inner.nodes.filter(
+        (n) => (n.kind === "pictureTile" || n.kind === "image" || n.kind === "svg") && n.key === undefined,
+      );
+      if (loose.length > 0)
+        console.warn(`SheetBuilder: ${loose.length} keyless picture part(s) in scroll region "${key}"`);
+    }
     this.nodes.push({
       kind: "scroll",
       key,

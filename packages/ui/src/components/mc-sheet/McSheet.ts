@@ -400,6 +400,7 @@ export class McSheet extends LitElement {
           ?disabled=${node.disabled !== undefined}
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
           aria-keyshortcuts=${node.keyshortcuts ?? nothing}
+          aria-label=${node.aria ?? nothing}
           @mc-press=${() => this.#activate(node.key)}
         ></mc-button>`;
       case "chip":
@@ -575,6 +576,10 @@ export class McSheet extends LitElement {
           .focusX=${node.focus?.x ?? 0.5}
           .focusY=${node.focus?.y ?? 0.5}
           .frame=${node.frame ?? 2}
+          @mc-image-load=${(event: Event) => {
+            event.stopPropagation();
+            if (node.retry !== undefined) this.#retried.delete(node.retry);
+          }}
           @mc-image-error=${(event: CustomEvent<{ src: string }>) => {
             event.stopPropagation();
             this.#failed.add(event.detail.src);

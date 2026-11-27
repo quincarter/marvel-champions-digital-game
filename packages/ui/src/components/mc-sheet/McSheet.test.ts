@@ -147,6 +147,38 @@ describe("mc-sheet", () => {
     sheet.remove();
   });
 
+  it("re-arms a picture tile's retry once its picture loads", async () => {
+    const sheet = document.createElement("mc-sheet");
+    const tile = (src: string): SheetNode => ({
+      kind: "pictureTile",
+      key: "hero",
+      rect: rect(0, 0, 56, 56),
+      src,
+      retry: "art:pack:demo@1/h.webp",
+    });
+    sheet.nodes = [tile("blob:a")];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const asked: unknown[] = [];
+    sheet.addEventListener("mc-image-error", (event) => asked.push((event as CustomEvent).detail));
+    const inner = (): HTMLElement => sheet.elementOf("hero") as HTMLElement;
+    const img = (): HTMLImageElement => inner().shadowRoot!.querySelector("img")!;
+    img().dispatchEvent(new Event("error"));
+    await sheet.updateComplete;
+    expect(asked).toHaveLength(1);
+    // A fresh URL that loads clears the flag, so a later failure asks again.
+    sheet.nodes = [tile("blob:b")];
+    await sheet.updateComplete;
+    await (inner() as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    img().dispatchEvent(new Event("load"));
+    sheet.nodes = [tile("blob:c")];
+    await sheet.updateComplete;
+    await (inner() as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    img().dispatchEvent(new Event("error"));
+    expect(asked).toHaveLength(2);
+    sheet.remove();
+  });
+
   it("cancels a hold that is still armed, so a covered panel raises no mc-inspect", async () => {
     vi.useFakeTimers();
     try {

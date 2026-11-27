@@ -15,6 +15,7 @@ import { McPictureTileStyles } from "./mc-picture-tile.styles.js";
  * @attr focus-x - Where the subject sits across the picture, 0 to 1 (cover).
  * @attr focus-y - Where the subject sits down the picture, 0 to 1 (cover).
  * @attr frame - The ink frame's width in px (0 for none).
+ * @fires mc-image-load - The picture loaded.
  * @fires mc-image-error - The picture failed to load; `detail.src`.
  */
 export class McPictureTile extends LitElement {
@@ -69,6 +70,7 @@ export class McPictureTile extends LitElement {
                   ? `object-fit:cover;object-position:${this.focusX * 100}% ${this.focusY * 100}%`
                   : "object-fit:contain"
               }
+              @load=${() => this.dispatchEvent(new CustomEvent("mc-image-load", { bubbles: true, composed: true }))}
               @error=${() => {
                 this.failedSrc = this.src;
                 this.dispatchEvent(

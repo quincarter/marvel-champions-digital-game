@@ -54,7 +54,6 @@ test("the host's lobby is a panel: header, seats, settings, and a Start that wai
   await expect(lobby.locator('[data-key="footer-words"]')).toContainText("Set up the table first");
   await lobby.locator('mc-button[data-key="start"]').click({ force: true });
   expect(await calls(page)).toEqual([]);
-  // The header's Copy link is pressable, and the panel is gone with the screen.
   expect(errors).toEqual([]);
 });
 
@@ -111,7 +110,7 @@ test("a redraw keeps each list where the reader scrolled it, and a toggle sends 
   expect(errors).toEqual([]);
 });
 
-test("the chat sends a typed line from the Phaser field seen through the panel", async ({ page }, info) => {
+test("the chat sends a typed line from the Phaser field seen through the panel", async ({ page }) => {
   const errors = trackPageErrors(page);
   await openLobby(page, "as=guest&v=decks");
   // A phone and a portrait tablet have the Chat tab; a desktop has the Chat pill that opens the floating chat.
@@ -126,7 +125,6 @@ test("the chat sends a typed line from the Phaser field seen through the panel",
   await field.fill("and again");
   await field.press("Enter");
   await expect.poll(() => calls(page)).toContain("say(and again)");
-  void info;
   expect(errors).toEqual([]);
 });
 

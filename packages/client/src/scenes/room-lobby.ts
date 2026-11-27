@@ -5,9 +5,9 @@
  * Start once every seat is held; a guest follows the started game as a watcher with their seats marked.
  *
  * The room owns every fact on this screen (`platform/room.ts`, `RoomState`); this draws it (`view/room-lobby-model.ts`
- * words it) and sends the player's presses back. The seat list, the settings and the chat scroll inside masked regions
- * (`ui/scroll-region.ts`): every control in them passes the region's clip and drag, so a swipe that ends over a button
- * fires nothing (the "no tap on finger lift" rule, issue #227).
+ * words it) and sends the player's presses back. Everything under the top bar is one Lit panel over the canvas; the seat
+ * list, the settings and the chat are its native scroll regions, and every press is a tap, so a swipe that ends over a
+ * button fires nothing (the "no tap on finger lift" rule, issue #227).
  */
 import Phaser from "phaser";
 import "@mc/ui";
@@ -886,8 +886,6 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   // ---- Drawing ------------------------------------------------------------------------------------------------
-
-  // ---- Drawing ------------------------------------------------------------------------------------------------
   //
   // Everything under the top bar is one Lit panel (`mc-sheet`, `dom/dom-region.ts`) over the canvas, built at the rects the
   // lobby layout gives (`view/room-lobby-layout.ts`), so the geometry is the Phaser screen's. The top bar, the backdrop
@@ -940,6 +938,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     /** No focus stop (the button is not reachable by key). */
     readonly noStop?: boolean;
     readonly labelShift?: number;
+    readonly aria?: string;
   }): void {
     const enabled = options.enabled ?? true;
     const run = enabled
@@ -960,6 +959,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       ...(options.selected ? { selected: true } : {}),
       ...(enabled ? {} : { disabled: options.reason ?? (true as const) }),
       ...(options.labelShift ? { labelShift: options.labelShift } : {}),
+      ...(options.aria ? { aria: options.aria } : {}),
     });
     if (!enabled) this.#b.tap(options.key, options.rect);
     if (!options.noStop) this.#stop(options.key, options.rect, run);
@@ -1011,6 +1011,8 @@ export class RoomLobbyScene extends Phaser.Scene {
       readonly stroke?: number;
       readonly strokeWidth?: number;
       readonly inset?: number;
+      /** Names the box (its stroke `<key>:frame`), so it keeps its element when parts before it come and go. */
+      readonly key?: string;
     },
   ): (height: number) => void {
     const b = this.#b;
@@ -1018,13 +1020,13 @@ export class RoomLobbyScene extends Phaser.Scene {
     const at: { readonly index: number; readonly pad: number }[] = [];
     if (look.fill !== undefined) {
       at.push({ index: b.nodes.length, pad: 0 });
-      b.box({ x, y, width: w, height: 0 }, { fill: look.fill });
+      b.box({ x, y, width: w, height: 0 }, { fill: look.fill, ...(look.key ? { key: look.key } : {}) });
     }
     if (look.stroke !== undefined) {
       at.push({ index: b.nodes.length, pad: inset });
       b.box(
         { x: x + inset, y: y + inset, width: w - inset * 2, height: 0 },
-        { stroke: look.stroke, strokeWidth: look.strokeWidth ?? 2 },
+        { stroke: look.stroke, strokeWidth: look.strokeWidth ?? 2, ...(look.key ? { key: `${look.key}:frame` } : {}) },
       );
     }
     return (height) => {
@@ -1449,7 +1451,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       for (const row of rows) y += this.#drawSeatRow(row, x, y, w) + 10;
       y += 6;
       y = this.#heading(x, y, w, t("room.people"));
-      for (const person of participantRows(state)) {
+      for (const [personIndex, person] of participantRows(state).entries()) {
         const hasMore = person.seats.length > 0 || person.differentVersion;
         // The device is a line of words with a small icon (never the icon alone), when their client said what it runs on.
         const rowHeight = 38 + (person.device ? 18 : 0) + (hasMore ? 16 : 0);
@@ -1481,6 +1483,7 @@ export class RoomLobbyScene extends Phaser.Scene {
               { x: x + 10, y: lineY + 1, width: 14, height: 14 },
               PLATFORM_ICON_VIEWBOX,
               playPlatformSvgOps(mark, sheetColor(INK, "line"), 0.85),
+              `device:${personIndex}`,
             );
             tx += 20;
           }
@@ -1529,7 +1532,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       all.slice(start, start + cols).forEach((item, col) => {
         const rect: Rect = { x: x + col * (size + gap), y, width: size, height: size };
         // The picture fills its square (cropped toward the top, where a villain's face is), under an ink frame.
-        b.pictureTile(rect, { src: item.artUrl, focus: { x: 0.5, y: 0.12 } });
+        b.pictureTile(rect, { src: item.artUrl, focus: { x: 0.5, y: 0.12 }, key: `plan:${item.key}` });
         if (item.cardId) {
           this.#hoverFaces.push({
             cardId: item.cardId,
@@ -1584,6 +1587,7 @@ export class RoomLobbyScene extends Phaser.Scene {
         key: `seats:${button.id}`,
         look: "secondary",
         label: button.label,
+        aria: button.aria,
         type: { ...typeRole.label, size: 18 },
         rect,
         enabled: button.enabled,
@@ -1600,7 +1604,13 @@ export class RoomLobbyScene extends Phaser.Scene {
   #drawStartResult(result: StartResultView, x: number, y: number, w: number): number {
     const pad = 10;
     const b = this.#b;
-    const ground = this.#groundBox(x, y, w, { fill: PAPER, stroke: INK, strokeWidth: 3, inset: 1.5 });
+    const ground = this.#groundBox(x, y, w, {
+      fill: PAPER,
+      stroke: INK,
+      strokeWidth: 3,
+      inset: 1.5,
+      key: "start-result",
+    });
     let cy = y + 10;
     const head = this.#text(x + pad + 26, cy, wordsText(result.headline), 14, w - pad * 2 - 26, { bold: true });
     b.box({ x: x + pad, y: cy, width: 18, height: 18 }, { fill: INK });
@@ -1667,6 +1677,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       stroke: INK,
       strokeWidth: row.mine ? 4 : 2,
       inset: 1,
+      key: `seat-ground:${row.id}`,
     });
     const tx = x + pad + art + 10;
     const textWidth = w - (tx - x) - pad - (row.action ? buttonWidth + 8 : 0);
@@ -1739,6 +1750,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (deck) {
       const picture = this.#heroPicture(deck.cardId);
       b.pictureTile(artRect, {
+        key: `hero:${row.id}`,
         src: picture.src,
         focus: picture.cover,
         frame: border.detail,
@@ -2078,6 +2090,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       stroke: INK,
       strokeWidth: view.mine ? 4 : 2,
       inset: 1,
+      key: `team-ground:${view.team}`,
     });
     const side = t(view.nameKey);
     const title = this.#b.text(x + pad, y, view.mine ? t("comp.area.you", { side }) : side, typeRole.rowTitle, {
@@ -2261,6 +2274,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       stroke: INK,
       strokeWidth: view.mine ? 4 : 2,
       inset: 1,
+      key: `epic-ground:${view.id}`,
     });
     const name = this.#b.text(x + pad, y, view.name, typeRole.rowTitle, { size: 17, color: INK, fitWidth: inW });
     y += name.height + 4;
@@ -2569,6 +2583,7 @@ export class RoomLobbyScene extends Phaser.Scene {
           };
           const picture = villainPicture(id);
           b.pictureTile(slot, {
+            key: `modeThumb:${i}`,
             src: picture?.url ?? null,
             frame: 0,
             focus: { x: picture?.focus?.x ?? 0.5, y: picture?.focus?.y ?? 0.3 },

@@ -1,4 +1,4 @@
-import type { TabRailTab } from "../components/mc-tab-rail/mc-tab-rail.types.js";
+import type { TabRailTab } from "./tab-rail.types.js";
 import type { McButtonKind } from "./button.types.js";
 import type { GlyphSpec, McGlyphGround } from "./glyph.types.js";
 
@@ -97,6 +97,8 @@ export interface SheetButton {
   readonly keyshortcuts?: string;
   /** Faded but still pressable (a setting that has no effect while another is off). */
   readonly opacity?: number;
+  /** The button's name for assistive tech when its label is a symbol ("+"), already translated. */
+  readonly aria?: string;
 }
 
 /** An aspect chip (`mc-aspect-chip`) with its top left at `x`, `y`: decorative, the row it sits on takes the press. */

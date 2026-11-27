@@ -1,7 +1,7 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import "../mc-button/mc-button.js";
-import type { TabRailTab } from "./mc-tab-rail.types.js";
+import type { TabRailTab } from "../../shared/tab-rail.types.js";
 import { McTabRailStyles } from "./mc-tab-rail.styles.js";
 
 /**
@@ -34,6 +34,11 @@ export class McTabRail extends LitElement {
     this.size = 0;
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.setAttribute("role", "tablist");
+  }
+
   override render() {
     return html`${this.tabs.map(
       (tab) =>
@@ -41,6 +46,8 @@ export class McTabRail extends LitElement {
           <mc-button
             data-key=${this.prefix + tab.id}
             kind="rail"
+            role="tab"
+            aria-selected=${tab.selected ? "true" : "false"}
             style=${this.size ? `--mc-button-size:${this.size}px` : ""}
             .label=${tab.label}
             ?selected=${tab.selected ?? false}
