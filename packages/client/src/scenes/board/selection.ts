@@ -84,7 +84,13 @@ export type Selection =
    * mode the player can back out of — payment, a discard cost, a controller — and a free card had none, so a
    * stray tap on Spiritual Meditation played it, with no way back. Reported from play.
    */
-  | { readonly kind: "confirmingPlay"; readonly action: LegalAction; readonly controllerId: PlayerId | null }
+  | {
+      readonly kind: "confirmingPlay";
+      readonly action: LegalAction;
+      readonly controllerId: PlayerId | null;
+      /** What "Play it" sends: the play aimed at the pick made before the question (#1050); `action.example` without. */
+      readonly command?: Command;
+    }
   /**
    * Attack (or Thwart) was pressed while more than one character could make it — the hero and an ally, say — so
    * which one goes first is the player's call, not whichever `legalActions` listed first. Each attack is its own
