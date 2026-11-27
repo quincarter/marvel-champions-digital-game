@@ -170,3 +170,29 @@ Applied in the phase 3 merge; kept here so the same names are found if a later b
 | `mc-bar-chart`, `mc-stat-tiles`, `mc-line-list`, `mc-deck-grid`, `mc-deck-details`                        | added as they were (the grid and details now compose `mc-picture-card`, `mc-list-row`, `mc-picture-tile`, `mc-section-header`, `mc-empty-state`, `mc-action-bar`)                                             |
 | `shared/text-line.ts`, `text-line.types.ts`, `fit-text.ts`                                                | added as they were (`TextLine`, `lineOf`, `sizeCss`, `fitTextWithin`); `shared/crop.ts` holds the centered crop math both the tile and `mc-sheet` use                                                         |
 | `SheetButton.pressable`, `mc-button` `pressable`, `SheetImage.cover.centered`                             | added as they were                                                                                                                                                                                            |
+
+## decks (`feature/lit-panels-phase4-decks`)
+
+| Old                                                                                                                               | New                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mc-picture-row` `model: McPictureRowModel`                                                                                       | `mc-media-row` with `look="deck"`: flat properties, below                                                                                                     |
+| `McPictureRowModel { title, meta, picture {src, focus, width}, stamps, badge, footer, selected, alert, dim, group, groupHeight }` | `McMediaRowModel { look: "deck", heading, meta, src, focusX, focusY, fit: "cover", artWidth, stamps, badge, foot, selected, alert, dim, group, groupHeight }` |
+| `McPictureRowStamp`                                                                                                               | `McMediaRowStamp`                                                                                                                                             |
+| node `pictureRow`, `b.pictureRow(rect, model, key)`                                                                               | node `mediaRow`, `b.mediaRow(key, rect, model)`                                                                                                               |
+| `mc-text-field`, node `textField`, `mc-input`, `mc-field-focus`                                                                   | unchanged (decks-only; no kit counterpart)                                                                                                                    |
+
+`mc-media-row` in the deck look is decorative (the screen lays a `tap` over it), and its `meta`, `summary`, `foot` and
+`badge` are all optional now. The pack look is unchanged.
+
+## deck builder and the shared card pool (`feature/lit-panels-phase4-deck-builder`)
+
+No `@mc/ui` names changed. The builder pool (windowed grid and list rows, the quantity strip, tap and hold to inspect,
+hover) now lives in client modules both pool screens share:
+
+- `dom/card-pool-sheet.ts` (`drawCardPool(b, model)`, `poolWindowKey`, types in `card-pool-sheet.types.ts`): the pool as
+  sheet parts from a `CardPoolModel` and `CardPoolCard`s. Keys are unchanged (`open:<id>`, `minus:<id>`, `plus:<id>`,
+  `cell:<id>`, `row:<id>`, `list:pool`); the screen keeps the actions, stops and campaign rules.
+- `view/card-pool-search.ts` (`CardPoolSearch`, `withSearchClauses`, `freeTextOf`, `poolSearchDocuments`): the smart
+  filter's `field:value` terms (`pool-query.ts`: `o:2`, `t:event`, `f:justice`, `kw:guard`) plus the fuzzy worker for the
+  free words.
+- `dom/tint-button.ts` (`drawTintButton`): an aspect-colored chip as sheet parts.
