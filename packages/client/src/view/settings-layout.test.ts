@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { rectsOverlap, type Rect } from "./layout.js";
 import {
   GUIDE_LEVEL_ROW_HEIGHT,
+  SCROLL_GUTTER,
   settingsLayout,
   settingsLayoutRects,
   type SettingsSectionSpec,
@@ -206,4 +207,22 @@ describe("settingsLayout", () => {
     const layout = settingsLayout({ x: 0, y: 0, width: 1440, height: 2000 }, SECTIONS);
     expect(layout.bodyViewport.height).toBe(layout.content.totalHeight);
   });
+
+  test.each(SIZES)(
+    "every row, control and heading ends the scrollbar's gutter short of the body region at $name",
+    ({ width, height }) => {
+      const layout = settingsLayout({ x: 0, y: 0, width, height }, SECTIONS);
+      const region = layout.bodyViewport;
+      const rects = layout.content.sections.flatMap((section) => [
+        ...(section.heading ? [section.heading] : []),
+        ...section.items.flatMap((item) => [item.row, ...(item.control ? [item.control] : []), ...item.tiles]),
+      ]);
+      for (const rect of rects) {
+        expect(rect.x).toBeGreaterThanOrEqual(region.x);
+        expect(rect.x + rect.width).toBeLessThanOrEqual(region.x + region.width - SCROLL_GUTTER);
+      }
+      // The gutter comes out of the panel's 16px margin, so the region stays inside the panel.
+      expect(region.x + region.width).toBeLessThanOrEqual(layout.panel.x + layout.panel.width);
+    },
+  );
 });
