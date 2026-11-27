@@ -60,6 +60,8 @@ Elektra and Iron Fist are playable, with their precon decks, their obligation an
 - Settings ▸ Save data is now a Lit panel over the canvas, with its QR code drawn in the panel
 - Settings ▸ Controls is now a Lit panel over the canvas: the controller drawing is an inline SVG and the Hint size slider is a sheet part
 - Pop-ups slide up from the bottom and back down on the way out, and on a phone swipe down from their grab handle to dismiss them.
+- The room lobby (seats, settings, chat, Start) is a Lit panel over the canvas, same look, with native scrolling lists and the controller and keyboard stops kept
+- The room deck picker is a Lit panel over the canvas, with the deck details as a panel that slides in, and its stats and counts now read in Spanish
 
 ### Fixed
 
