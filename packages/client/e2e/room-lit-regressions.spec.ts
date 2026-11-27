@@ -77,7 +77,8 @@ test("the Epic rename field stays inside its cutout through the pop-up's slide",
     );
     await page.waitForTimeout(40);
   }
-  const seen = samples.filter((s) => s.field.length === 4 && s.holes.length > 0);
+  // A field still below the screen has no cutout to be in (the panel is clipped to the screen).
+  const seen = samples.filter((s) => s.field.length === 4 && s.field[1]! < 880 && s.holes.length > 0);
   expect(seen.length, "the field and a cutout were sampled").toBeGreaterThan(2);
   for (const s of seen) {
     const [fx, fy, fw, fh] = s.field as [number, number, number, number];
