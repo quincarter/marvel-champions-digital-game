@@ -47,7 +47,7 @@ test("the reader searches the book with a real input: typing filters, clear empt
   expect(await findText(page, "RETALIATE", "ExtrasReader")).not.toHaveLength(0);
 
   // Escape takes the caret out of the field and the screen stays; the text stays too.
-  await pressKey(page, "Escape");
+  await page.keyboard.press("Escape");
   await expect(search(page)).not.toBeFocused();
   await expect(search(page)).toHaveValue("retaliate");
   expect(await activeScenes(page)).toContain("ExtrasReader");
@@ -65,7 +65,7 @@ test("the reader searches the book with a real input: typing filters, clear empt
 
   // Escape with the caret out backs out of the reader to Extras' Rulebooks tab (a phone's contents pane is the first).
   await search(page).press("Escape");
-  await pressKey(page, "Escape");
+  await page.keyboard.press("Escape");
   await waitFor(async () => ((await activeScenes(page)).includes("Extras") ? true : null), "back on Extras", 15_000);
   expect(errors).toEqual([]);
 });
@@ -81,7 +81,7 @@ test("the keyboard reaches the search stop, Enter puts the caret in, and a secti
   expect(await page.locator("#mc-ui .mc-focus-ring").isVisible()).toBe(true);
   await pressKey(page, "Tab");
   expect((await focusOf(page, "ExtrasReader")).focus).toBe("search");
-  await pressKey(page, "Enter");
+  await page.keyboard.press("Enter");
   await expect(search(page)).toBeFocused();
   await page.keyboard.type("golden");
   await page.keyboard.press("Enter");
@@ -168,7 +168,7 @@ test("a side story keeps its comic in the canvas: NEXT turns the beat, CLOSE and
   await expect(page.locator(`${STORY} [data-key="back"]`)).toHaveCount(1);
   await page.locator(`${STORY} [data-key="back"]`).click();
   await waitFor(async () => ((await beat()) === 0 ? true : null), "BACK returns", 10_000);
-  await pressKey(page, "Escape");
+  await page.keyboard.press("Escape");
   await waitFor(async () => ((await activeScenes(page)).includes("Extras") ? true : null), "back on Extras", 15_000);
   expect(errors).toEqual([]);
 });

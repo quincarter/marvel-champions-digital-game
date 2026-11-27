@@ -30,6 +30,6 @@ export class McEmptyState extends LitElement {
 
   override render() {
     this.style.setProperty("--mc-empty-size", `${this.size}px`);
-    return html`${this.text}`;
+    return html`<span>${this.text}</span>`;
   }
 }
