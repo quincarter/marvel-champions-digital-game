@@ -14,6 +14,7 @@
  */
 import { CATALOG_CARD_COUNT, CATALOG_REPRINTS, printedCodesOfCard, type AnyCard } from "@mc/content";
 import { abilityRefsOf, type EngineDeps } from "@mc/engine";
+import { t } from "../i18n/translate.js";
 
 export interface CardPoolCoverage {
   /** Printed cards in the playable pool with every referenced ability scripted. */
@@ -52,5 +53,5 @@ const countFormat = new Intl.NumberFormat("en-US");
 /** "1,065 / 3,678 cards live" — the footer's own wording, so every caller says it the same way. */
 export function cardPoolCoverageText(coverage: CardPoolCoverage): string {
   const count = (n: number): string => countFormat.format(n);
-  return `${count(coverage.liveCards)} / ${count(coverage.totalCards)} cards live`;
+  return t("title.cardsLive", { live: count(coverage.liveCards), total: count(coverage.totalCards) });
 }

@@ -4,6 +4,7 @@
  * `progression/achievements.ts`'s; this only words it. Like the rest of progression it never touches a game.
  */
 import { rankProgressOf } from "../progression/achievements.js";
+import { t } from "../i18n/translate.js";
 
 export interface TitleRankBadge {
   /** "RANK 3" */
@@ -24,21 +25,27 @@ export interface TitleRankBadge {
 
 export function titleRankBadgeOf(lifetimePoints: number): TitleRankBadge {
   const progress = rankProgressOf(lifetimePoints);
-  const pointsLabel = `${lifetimePoints.toLocaleString("en-US")} pts`;
+  const grouped = (n: number): string => n.toLocaleString("en-US");
+  const pointsLabel = t("title.rankPoints", { points: grouped(lifetimePoints) });
   const nextLabel = progress.next
-    ? `${(progress.next.threshold - lifetimePoints).toLocaleString("en-US")} to ${progress.next.title}`
-    : "Top rank";
+    ? t("title.rankToNext", { points: grouped(progress.next.threshold - lifetimePoints), name: progress.next.title })
+    : t("title.rankTop");
   const shortNextLabel = progress.next
-    ? `${(progress.next.threshold - lifetimePoints).toLocaleString("en-US")} to rank ${progress.next.rank}`
-    : "Top rank";
+    ? t("title.rankToRank", { points: grouped(progress.next.threshold - lifetimePoints), n: progress.next.rank })
+    : t("title.rankTop");
   return {
-    rankLabel: `RANK ${progress.rank.rank}`,
+    rankLabel: t("title.rank", { n: progress.rank.rank }),
     title: progress.rank.title,
     pointsLabel,
     fraction: progress.fraction,
     nextLabel,
     shortNextLabel,
-    summary: `Rank ${progress.rank.rank} of 9, ${progress.rank.title}, ${pointsLabel}. ${nextLabel}. Opens the Trophy Room.`,
+    summary: t("title.rankSummary", {
+      n: progress.rank.rank,
+      name: progress.rank.title,
+      points: pointsLabel,
+      next: nextLabel,
+    }),
   };
 }
 

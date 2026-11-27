@@ -45,6 +45,15 @@ export { McDeckDetails } from "./components/mc-deck-details/mc-deck-details.js";
 export { fitTextWithin } from "./shared/fit-text.js";
 export { lineOf, sizeCss } from "./shared/text-line.js";
 export { McFilterBar } from "./components/mc-filter-bar/mc-filter-bar.js";
+export { McMenuButton } from "./components/mc-menu-button/mc-menu-button.js";
+export { McMenuGrid } from "./components/mc-menu-grid/mc-menu-grid.js";
+export { McRankBar } from "./components/mc-rank-bar/mc-rank-bar.js";
+export { McNewsBar } from "./components/mc-news-bar/mc-news-bar.js";
+export { McAlertBanner } from "./components/mc-alert-banner/mc-alert-banner.js";
+export { McPromoPanel } from "./components/mc-promo-panel/mc-promo-panel.js";
+export { McFooterBar } from "./components/mc-footer-bar/mc-footer-bar.js";
+export { McTitlePanel } from "./components/mc-title-panel/mc-title-panel.js";
+export { fitBlock, fitOneLine } from "./shared/fit.js";
 export type { McButtonKind } from "./shared/button.types.js";
 export type {
   GlyphKeySpec,
@@ -124,3 +133,11 @@ export type { StatTile } from "./components/mc-stat-tiles/mc-stat-tiles.types.js
 export type { LineListEntry, LineListGroup } from "./components/mc-line-list/mc-line-list.types.js";
 export type { DeckGridItem, DeckGridModel, DeckGridPick } from "./components/mc-deck-grid/mc-deck-grid.types.js";
 export type { DeckDetailsAction, DeckDetailsModel } from "./components/mc-deck-details/mc-deck-details.types.js";
+export type { MenuButton, MenuButtonGlyph, MenuButtonIcon } from "./components/mc-menu-button/mc-menu-button.types.js";
+export type { MenuGridModel } from "./components/mc-menu-grid/mc-menu-grid.types.js";
+export type { RankBarModel } from "./components/mc-rank-bar/mc-rank-bar.types.js";
+export type { NewsBarGlyph, NewsBarModel } from "./components/mc-news-bar/mc-news-bar.types.js";
+export type { AlertBannerModel } from "./components/mc-alert-banner/mc-alert-banner.types.js";
+export type { PromoPanelModel } from "./components/mc-promo-panel/mc-promo-panel.types.js";
+export type { FooterBarLink, FooterBarModel } from "./components/mc-footer-bar/mc-footer-bar.types.js";
+export type { Placed, TitlePanelModel } from "./components/mc-title-panel/mc-title-panel.types.js";
