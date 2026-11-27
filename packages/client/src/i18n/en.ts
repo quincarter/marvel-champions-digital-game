@@ -1261,6 +1261,8 @@ export const en = {
   "room.picker.missing_other": "{count} cards are not in this build.",
   "room.picker.statsHeading": "Deck stats",
   "room.picker.cardsHeading": "Cards",
+  "deckPicker.reason.notReady": "Not ready yet",
+  "deckPicker.reason.notLegal": "This deck is not legal.",
   "deckPicker.averageCost": "Average cost {avg}",
   "deckPicker.searchClear": "Clear the search",
   "room.picker.details": "Deck details",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CORE_CARDS, CORE_STARTER_DECKS, deckFromStarterDeck } from "@mc/content";
 import type { DeckOption } from "./deck-list-model.js";
-import { deckDetailsOf } from "./room-deck-details-model.js";
+import { averageCostText, deckDetailsOf } from "./room-deck-details-model.js";
 import { pickerRows } from "./room-deck-picker-model.js";
 
 const starter = CORE_STARTER_DECKS[0]!;
@@ -52,5 +52,12 @@ describe("deck details", () => {
     expect(details).toMatchObject({ seatable: false, blockedReason: "Needs 40 cards.", current: false });
     expect(details.missing).toBeGreaterThan(0);
     expect(details.groups).toEqual([]);
+  });
+});
+
+describe("average cost in Spanish", () => {
+  it("writes the decimal with a comma", () => {
+    expect(averageCostText(1.84, "es")).toBe("Coste medio 1,8");
+    expect(averageCostText(1.84, "en")).toBe("Average cost 1.8");
   });
 });

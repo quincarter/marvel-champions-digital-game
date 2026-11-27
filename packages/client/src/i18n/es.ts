@@ -1276,6 +1276,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.picker.missing_other": "{count} cartas no están en esta versión.",
   "room.picker.statsHeading": "Estadísticas del mazo",
   "room.picker.cardsHeading": "Cartas",
+  "deckPicker.reason.notReady": "Aún no está listo",
+  "deckPicker.reason.notLegal": "Este mazo no es válido.",
   "deckPicker.averageCost": "Coste medio {avg}",
   "deckPicker.searchClear": "Borrar la búsqueda",
   "room.picker.details": "Detalles del mazo",

@@ -6,6 +6,7 @@
  */
 import type { CardPool } from "@mc/engine";
 import { artLanguageNow } from "../art/art-source.js";
+import type { CardLanguage } from "../art/card-language.js";
 import { t } from "../i18n/translate.js";
 import {
   compositionTilesOf,
@@ -50,6 +51,12 @@ export interface DeckDetails {
   readonly edit: { readonly label: string; readonly copy: boolean } | null;
 }
 
+/** "Average cost 1.8" with the language's own decimal mark ("Coste medio 1,8"). */
+export function averageCostText(average: number, lang: CardLanguage): string {
+  const avg = new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(average);
+  return t("deckPicker.averageCost", { avg }, lang);
+}
+
 export function deckDetailsOf(row: PickerRow, pool: CardPool): DeckDetails {
   const deck = row.option.deck;
   const stats = deckStatsOf(deck, pool);
@@ -63,8 +70,7 @@ export function deckDetailsOf(row: PickerRow, pool: CardPool): DeckDetails {
     aspects: row.aspects,
     cardId: row.cardId,
     countText: deckCountText(stats, lang),
-    averageCostText:
-      stats.averageCost === null ? null : t("deckPicker.averageCost", { avg: stats.averageCost.toFixed(1) }, lang),
+    averageCostText: stats.averageCost === null ? null : averageCostText(stats.averageCost, lang),
     curve: costCurveBars(stats),
     tiles: compositionTilesOf(stats, lang),
     groups: deckListGroupsOf(deck, pool, undefined, true, lang),
