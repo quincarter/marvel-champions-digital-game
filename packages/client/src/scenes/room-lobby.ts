@@ -5,12 +5,24 @@
  * Start once every seat is held; a guest follows the started game as a watcher with their seats marked.
  *
  * The room owns every fact on this screen (`platform/room.ts`, `RoomState`); this draws it (`view/room-lobby-model.ts`
- * words it) and sends the player's presses back. The seat list, the settings and the chat scroll inside masked regions
- * (`ui/scroll-region.ts`): every control in them passes the region's clip and drag, so a swipe that ends over a button
- * fires nothing (the "no tap on finger lift" rule, issue #227).
+ * words it) and sends the player's presses back. Everything under the top bar is one Lit panel over the canvas; the seat
+ * list, the settings and the chat are its native scroll regions, and every press is a tap, so a swipe that ends over a
+ * button fires nothing (the "no tap on finger lift" rule, issue #227).
  */
 import Phaser from "phaser";
+import "@mc/ui";
+import type { McSheet, SheetNode } from "@mc/ui";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder, sheetColor, type Measured } from "../dom/sheet-builder.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import { currentCardsById, currentEncounterSets, currentScenarios } from "../content/pool.js";
+import { POOL_CARDS } from "../content/pool-cards.js";
+import { artFor } from "../art/art-source.js";
+import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
+import { PackLeases, refreshPackArt } from "../art/pack-art.js";
+import { onArtChange } from "../language-change.js";
+import { PLATFORM_ICON_VIEWBOX, playPlatformSvgOps } from "../view/play-platform-svg.js";
 import { t, tPlural } from "../i18n/translate.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import { withLoadedPacks } from "../packs/game-packs.js";
@@ -67,37 +79,31 @@ import type { TeamId } from "../live/room-state.js";
 import { enterSeatGame, playRoomGame } from "../platform/seat-play.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import { copyText } from "../ui/report-export.js";
-import { hit, surface, typeRole } from "../tokens.js";
+import { border, hit, minType, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { drawArtBackdrop } from "../ui/art-backdrop.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import { cssOf } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import type { RoomProblem } from "../live/room-state.js";
 import type { OnlineData } from "./online.js";
 import { keepClosedRoomGame } from "../platform/room-continue.js";
-import { McButton, McTabs, McTextInput, fitText } from "../ui/widgets.js";
+import { McButton, McTextInput } from "../ui/widgets.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
-import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
-import { drawPlayPlatformIcon } from "../ui/play-platform-icon.js";
 import { playPlatformMarkOf } from "../view/play-platform-mark.js";
 import type { ScenarioIntroData } from "./scenario-intro.js";
 import { scenarioIntroFor } from "../campaign/scenario-intros.js";
 import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
 import type { ModStoreSceneData } from "./mod-store.js";
-import { McScrollRegion } from "../ui/scroll-region.js";
-import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import { chatPopoutAvailable, openChatPopout } from "../platform/chat-popout.js";
 import { mintPopoutToken } from "../live/chat-popout-protocol.js";
 import { artLanguageNow } from "../art/art-source.js";
 import type { RoomGameBase } from "../live/room-start.js";
 import type { DeckRefusalCode } from "../live/room-state.js";
-import { cardFaces } from "../art/card-face-baker.js";
 import type { CardFace } from "../art/art-source.js";
-import { artThumbSpec } from "./roster-panel.js";
 import { planGrid, planPicturesCached, type PlanPicture } from "../view/room-table-plan.js";
 import type { Rect } from "../view/layout.js";
 import { hostSeesHandsOf, openHandsOf } from "../view/hand-privacy.js";
@@ -175,7 +181,7 @@ import type { EpicSheetData } from "./epic-sheet.js";
 import type { RoomDeckPickerData } from "./room-deck-picker.js";
 import type { RoomModePickerData } from "./room-mode-picker.js";
 import { ROOM_MODE_COPY, type RoomModeId } from "../view/room-mode-picker.js";
-import { drawPicture, villainPicture } from "../ui/campaign-chrome.js";
+import { villainPicture } from "../ui/campaign-chrome.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { introReplay } from "./replay-entry.js";
@@ -183,13 +189,6 @@ import { newGameDraft } from "./title.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { TableSetupData } from "./table-setup.js";
-
-/** The clip and drag guard a scrolling panel hands its controls (issue #227). */
-interface PanelGuard {
-  clip: () => Rect;
-  suppress: () => boolean;
-  stop: (key: string, rect: Rect, activate: () => void) => void;
-}
 
 /** Epic starts this device has already acted on (a table host starts its table once per start). */
 const epicStarted = new Set<string>();
@@ -258,6 +257,12 @@ export interface RoomLobbyData {
 
 type ScrollKey = "seats" | "settings" | "chat";
 
+/** The lobby's three lists, each a native scroll region of the panel (its element's key is `list:<key>`). */
+const LIST_KEYS: readonly ScrollKey[] = ["seats", "settings", "chat"];
+
+/** Where the face usually is in a hero picture: the upper third (the same focus a seat's picture is drawn with). */
+const FACE_FOCUS_Y = 0.22;
+
 interface Note {
   readonly text: string;
   readonly until: number;
@@ -276,35 +281,43 @@ export class RoomLobbyScene extends Phaser.Scene {
   #revealPicker = false;
   #reveal: Rect | null = null;
   #hover: HoverPreview | null = null;
+  /** The hero and plan pictures on screen: each card's box in the screen's coordinates as if its list were unscrolled. */
   #hoverFaces: {
     readonly cardId: string;
     readonly face?: CardFace;
     readonly rect: Rect;
-    readonly view: Rect;
     readonly scroll: ScrollKey;
   }[] = [];
-  /** The table plan's pictures waiting for their baked face (`#fillThumbs`), in the container they scroll with. */
-  #thumbs: { readonly rect: Rect; readonly url: string; parent: Phaser.GameObjects.Container | null; done: boolean }[] =
-    [];
   #tab: LobbyPanelId = "seats";
+  /** The top bar's Back button (the rest of the screen is the panel). */
   #buttons: McButton[] = [];
-  #regions: McScrollRegion[] = [];
-  #tabs: McTabs | null = null;
-  /**
-   * Each list's content height at its last draw. A region clamps its offset when it is built, before this draw has
-   * measured its content, so it starts from the last height: a redraw (a toggle pressed) keeps the reader's place.
-   */
-  readonly #contentHeights: Partial<Record<ScrollKey, number>> = {};
-  readonly #scrolls: Record<ScrollKey, VariableListScroll> = {
-    seats: new VariableListScroll(),
-    settings: new VariableListScroll(),
-    chat: new VariableListScroll(),
-  };
+  /** Everything under the top bar: one Lit panel over the canvas, made once a visit. */
+  #region: DomRegion<McSheet> | null = null;
+  /** The parts being built (the panel's top level, or a list's own while one is drawn). */
+  #b!: SheetBuilder;
+  /** The parts last handed to the panel. */
+  #nodes: readonly SheetNode[] = [];
+  #area: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  /** What a press on each key does, this draw. */
+  readonly #actions = new Map<string, () => void>();
+  /** The list being drawn, if any; its box, and where its top sits on the screen. */
+  #listKey: ScrollKey | null = null;
+  readonly #listViews: Partial<Record<ScrollKey, Rect>> = {};
+  readonly #listTops: Partial<Record<ScrollKey, number>> = {};
+  /** Which list each focus stop inside a list belongs to (the right stick scrolls that one). */
+  readonly #stopList = new Map<string, ScrollKey>();
+  /** What each list was scrolled to at the last draw, so a list another tab hid comes back where it was. */
+  readonly #scrolled: Partial<Record<ScrollKey, number>> = {};
+  readonly #leases = new PackLeases();
+  /** The tab ids drawn this pass (empty when every panel shows at once). */
+  #tabIds: readonly LobbyPanelId[] = [];
+  /** Where the chat field sits, seen through a hole in the panel while it shows. */
+  #fieldRect: Rect | null = null;
   #chatInput: McTextInput | null = null;
   /** How much of the screen's bottom the on-screen keyboard covers, in game pixels (0 when it is down). */
   #covered = 0;
   /** The host's activity line in the header while it animates, and its words without the dots. */
-  #activity: { readonly text: Phaser.GameObjects.Text; readonly words: string; dots: string } | null = null;
+  #activity: { readonly index: number; readonly words: string; dots: string } | null = null;
   #chatBound = false;
   #chatCount = 0;
   /** New chat arrived: the chat list scrolls to its newest line on the next draw. */
@@ -390,6 +403,10 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#alive = true;
     // A fresh chat field each run: its Enter key is bound again (a stale flag left a rerun's field without it).
     this.#chatBound = false;
+    // The panel went with the last visit's scene (`DomRegion`): this one makes its own, and its lists start at the top.
+    this.#region = null;
+    this.#scrolled.seats = this.#scrolled.settings = this.#scrolled.chat = 0;
+    this.#chatToEnd = true;
     this.cameras.main.setBackgroundColor(cssOf(PAPER));
     setSeatNote(null);
     if (this.#state.role === "none") {
@@ -398,9 +415,14 @@ export class RoomLobbyScene extends Phaser.Scene {
     }
     this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       blocked: () => this.#chatInput?.focused ?? false,
       onCancel: () => this.#leave(),
       primary: () => (this.#stops.has("start") ? "start" : null),
+      // LB / RB step through the tabs; the right stick and Page Up / Down scroll the list the focus is in.
+      onTab: (direction) => this.#stepTab(direction),
+      onScroll: (_dx, dy) => this.#scrollList(dy),
+      onPage: (direction) => this.#scrollList(direction * Math.max(80, this.#area.height * 0.6)),
     });
     bindTextFieldEscape(this, () => this.#chatInput);
     this.scale.on("resize", this.#draw, this);
@@ -416,12 +438,13 @@ export class RoomLobbyScene extends Phaser.Scene {
       cardIds: () => this.#hoverCardIds(),
       area: (pointer) => screenHoverArea(this, pointer),
     });
-    // A hero picture that was still loading arrives: draw again to show it.
-    this.events.on(SEAT_AVATAR_READY, this.#draw, this);
-    // A face baked off the main thread arrives: fill the table plan's pictures waiting for it.
-    const offBaked = cardFaces(this).onBaked(() => this.#fillThumbs());
+    // A pack's picture that resolves later (a hero's scan, once its pack has loaded) draws in place of the blank.
+    const offArt = onArtChange(() => {
+      if (this.#alive && this.sys.isActive()) this.#draw();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      offBaked();
+      offArt();
+      this.#leases.dispose();
       this.#alive = false;
       if (this.scene.isActive(SCENES.roomModePicker)) this.scene.stop(SCENES.roomModePicker);
       this.#off?.();
@@ -430,7 +453,6 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#offPopout = null;
       this.#hints.dispose();
       this.scale.off("resize", this.#draw, this);
-      this.events.off(SEAT_AVATAR_READY, this.#draw, this);
       this.#hover?.destroy();
       this.#hover = null;
       this.#clearWidgets();
@@ -459,8 +481,10 @@ export class RoomLobbyScene extends Phaser.Scene {
   /** The hero pictures on screen now, each clipped to the scrolled list it sits in. */
   #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
     const found = new Map<string, HoverCardIdRect>();
-    this.#hoverFaces.forEach(({ cardId, face, rect, view, scroll }, index) => {
-      const shown = clipHoverRect({ ...rect, y: rect.y - this.#scrolls[scroll].offsetPx }, view);
+    this.#hoverFaces.forEach(({ cardId, face, rect, scroll }, index) => {
+      const view = this.#listViews[scroll];
+      if (!view) return;
+      const shown = clipHoverRect({ ...rect, y: rect.y - (this.#scroller(scroll)?.scrollTop ?? 0) }, view);
       if (shown)
         found.set(hoverSlotOf(cardId, `seat${index}`), { ...shown, cardId, ...(face ? { face } : {}), through: true });
     });
@@ -504,8 +528,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (!activity) return;
     const dots = activityDots(time, appSession().settings.reducedMotion);
     if (dots === activity.dots) return;
-    activity.dots = dots;
-    activity.text.setText(activity.words + dots);
+    this.#setActivityDots(dots);
   }
 
   // ---- State --------------------------------------------------------------------------------------------------
@@ -863,20 +886,21 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   // ---- Drawing ------------------------------------------------------------------------------------------------
+  //
+  // Everything under the top bar is one Lit panel (`mc-sheet`, `dom/dom-region.ts`) over the canvas, built at the rects the
+  // lobby layout gives (`view/room-lobby-layout.ts`), so the geometry is the Phaser screen's. The top bar, the backdrop
+  // picture and the chat field stay in Phaser (the field is seen through a hole). The seat list, the settings and the
+  // chat scroll natively inside the panel's own scroll regions, and every press is a tap: a swipe that ends over a
+  // button fires nothing (the "no tap on finger lift" rule, issue #227).
 
   #clearWidgets(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    for (const region of this.#regions) region.destroy();
-    this.#regions = [];
-    this.#tabs?.destroy();
-    this.#tabs = null;
   }
 
-  #button(options: ConstructorParameters<typeof McButton>[1]): McButton {
-    const button = new McButton(this, options);
-    this.#buttons.push(button);
-    return button;
+  /** The text a press on `key` runs (what a tap on its part or its focus stop does). */
+  #press(key: string, run: () => void): void {
+    this.#actions.set(key, run);
   }
 
   #text(
@@ -885,15 +909,138 @@ export class RoomLobbyScene extends Phaser.Scene {
     text: string,
     size: number,
     width: number,
-    options: { bold?: boolean; alpha?: number; color?: number } = {},
-  ): Phaser.GameObjects.Text {
-    const style = textStyle(options.bold ? typeRole.rowTitle : typeRole.body, options.color ?? INK, options.alpha ?? 1);
-    return this.add.text(x, y, text, style).setFontSize(size).setWordWrapWidth(width, true);
+    options: { bold?: boolean; alpha?: number; color?: number; maxLines?: number } = {},
+  ): Measured {
+    return this.#b.text(x, y, text, options.bold ? typeRole.rowTitle : typeRole.body, {
+      size,
+      color: options.color ?? INK,
+      wrapWidth: width,
+      ...(options.alpha !== undefined ? { alpha: options.alpha } : {}),
+      ...(options.maxLines !== undefined ? { maxLines: options.maxLines } : {}),
+    });
+  }
+
+  /**
+   * A button with its press and focus stop. A button that cannot be used now stays drawn, dimmed, and a press on it says
+   * why in the footer (`reason`), as the Phaser screen's did: its tap area sits over it, since a disabled button takes
+   * no press of its own.
+   */
+  #button(options: {
+    readonly key: string;
+    readonly rect: Rect;
+    readonly label: string;
+    readonly look: "primary" | "secondary" | "quiet" | "onInk";
+    readonly type?: TypeSpec;
+    readonly run: () => void;
+    readonly selected?: boolean;
+    readonly enabled?: boolean;
+    readonly reason?: string;
+    /** No focus stop (the button is not reachable by key). */
+    readonly noStop?: boolean;
+    readonly labelShift?: number;
+    readonly aria?: string;
+  }): void {
+    const enabled = options.enabled ?? true;
+    const run = enabled
+      ? options.run
+      : (): void => {
+          if (options.reason) {
+            this.#say(options.reason);
+            this.#draw();
+          }
+        };
+    this.#press(options.key, run);
+    this.#b.button({
+      key: options.key,
+      rect: options.rect,
+      label: options.label,
+      look: options.look,
+      type: options.type ?? typeRole.label,
+      ...(options.selected ? { selected: true } : {}),
+      ...(enabled ? {} : { disabled: options.reason ?? (true as const) }),
+      ...(options.labelShift ? { labelShift: options.labelShift } : {}),
+      ...(options.aria ? { aria: options.aria } : {}),
+    });
+    if (!enabled) this.#b.tap(options.key, options.rect);
+    if (!options.noStop) this.#stop(options.key, options.rect, run);
+  }
+
+  /**
+   * A focus stop. In a scrolling list its box is read off the panel, so it follows the scroll, and taking focus scrolls
+   * it into view; `rect` is then in the list's content space.
+   */
+  #stop(key: string, rect: Rect, activate: () => void, extra: Partial<FocusStop> = {}): void {
+    const list = this.#listKey;
+    if (list === null) {
+      this.#addStop(key, rect, activate, extra);
+      return;
+    }
+    const view = this.#listViews[list]!;
+    const listTop = this.#listTops[list]!;
+    this.#stopList.set(key, list);
+    this.#addStop(key, () => this.#elementRect(key, { ...rect, y: rect.y + listTop }), activate, {
+      ...extra,
+      view: () => this.#elementRect(`list:${list}`, view),
+      ensureVisible: () => this.#region?.element.elementOf(key)?.scrollIntoView({ block: "nearest" }),
+    });
+  }
+
+  /** An element of the panel in game coordinates, or `fallback` while it is not drawn. */
+  #elementRect(key: string, fallback: Rect): Rect {
+    const region = this.#region;
+    const found = region?.element.elementOf(key);
+    return region && found ? region.rectOf(found) : fallback;
+  }
+
+  /** A list's own element, which scrolls. */
+  #scroller(key: ScrollKey): HTMLElement | null {
+    return this.#region?.element.elementOf(`list:${key}`) ?? null;
+  }
+
+  /**
+   * A box that is drawn under what follows but is as tall as it turns out to be (a seat's card, a note): pushed now with
+   * no height, given its height by the function this returns. A stroke is drawn `inset` px in from the edge, as the
+   * Phaser frame's `strokeRect` was.
+   */
+  #groundBox(
+    x: number,
+    y: number,
+    w: number,
+    look: {
+      readonly fill?: number;
+      readonly stroke?: number;
+      readonly strokeWidth?: number;
+      readonly inset?: number;
+      /** Names the box (its stroke `<key>:frame`), so it keeps its element when parts before it come and go. */
+      readonly key?: string;
+    },
+  ): (height: number) => void {
+    const b = this.#b;
+    const inset = look.inset ?? 0;
+    const at: { readonly index: number; readonly pad: number }[] = [];
+    if (look.fill !== undefined) {
+      at.push({ index: b.nodes.length, pad: 0 });
+      b.box({ x, y, width: w, height: 0 }, { fill: look.fill, ...(look.key ? { key: look.key } : {}) });
+    }
+    if (look.stroke !== undefined) {
+      at.push({ index: b.nodes.length, pad: inset });
+      b.box(
+        { x: x + inset, y: y + inset, width: w - inset * 2, height: 0 },
+        { stroke: look.stroke, strokeWidth: look.strokeWidth ?? 2, ...(look.key ? { key: `${look.key}:frame` } : {}) },
+      );
+    }
+    return (height) => {
+      for (const { index, pad } of at) {
+        const node = b.nodes[index];
+        if (node?.kind === "box") b.nodes[index] = { ...node, rect: { ...node.rect, height: height - pad * 2 } };
+      }
+    };
   }
 
   #draw(): void {
     if (!this.#alive || this.#state.role === "none") return;
     this.#clearWidgets();
+    this.#rememberScrolls();
     // The chat field is a DOM element that keeps its caret across a redraw: lifted out of the sweep and put back.
     const kept = this.#chatInput ? this.#chatInput.gameObjects : [];
     for (const node of kept) this.children.remove(node);
@@ -901,9 +1048,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     for (const node of kept) this.children.add(node);
     this.#hints.reset();
     this.#hoverFaces = [];
-    this.#thumbs = [];
     this.#stops = new Map();
     this.#order = [];
+    this.#actions.clear();
+    this.#stopList.clear();
+    this.#leases.begin();
 
     const state = this.#state;
     const frame = campaignFrame(this);
@@ -946,6 +1095,13 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#layoutMode = layout.mode;
     this.#floatRect = layout.mode === "float" ? (layout.panels.chat ?? null) : null;
     this.#listedInHeader = false;
+    this.#fieldRect = null;
+
+    // The panel: everything under the top bar, built at the layout's own rects.
+    const area: Rect = { x: 0, y: bar.height, width, height: height - bar.height };
+    this.#area = area;
+    this.#b = new SheetBuilder(this.game, { x: area.x, y: area.y }, isDesktopType);
+
     if (!compact) this.#drawHeader(layout.header, phone);
     // What has been read: the chat on screen is read; otherwise the lines since it was last looked at are the badge.
     // The chat in its own window is read there.
@@ -953,37 +1109,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (chatShown) chatSeen.markSeen(state.roomId, state.chatLive);
     const unread = chatShown ? 0 : unreadChatCount(state, chatSeen.seenFor(state.roomId));
 
+    this.#tabIds = [];
     if (layout.tabs) {
       const ids = layout.tabIds.filter((id) => id !== "chat" || chatOn(state));
-      const cell = layout.tabs.width / ids.length;
-      this.#tabs = new McTabs(this, {
-        rect: layout.tabs,
-        tabs: ids.map((id) => ({
-          id,
-          label:
-            id === "seats" && state.epic
-              ? t("epic.tab.tables")
-              : id === "seats" && state.competitive
-                ? t("comp.tab.teams")
-                : t(`room.tab.${id}` as const),
-          ...(id === "chat" && unread > 0 ? { badge: unread } : {}),
-        })),
-        activeId: layout.mode === "stack" && this.#tab === "seats" ? "settings" : this.#tab,
-        onSelect: (id) => {
-          this.#tab = id as LobbyPanelId;
-          this.#draw();
-        },
-      });
-      ids.forEach((id, i) =>
-        this.#addStop(
-          `tab:${id}`,
-          { x: layout.tabs!.x + i * cell, y: layout.tabs!.y, width: cell, height: layout.tabs!.height },
-          () => {
-            this.#tab = id;
-            this.#draw();
-          },
-        ),
-      );
+      this.#tabIds = ids;
+      this.#drawTabs(layout, ids, unread);
     }
 
     const titled = layout.mode !== "tabs";
@@ -996,8 +1126,76 @@ export class RoomLobbyScene extends Phaser.Scene {
       else this.#drawChatPill(layout.chatPill, unread);
     }
     if (!compact) this.#drawFooter(layout.footer, phone);
+
+    // Rendered before the route reads its stops, so a stop inside a list can find its element.
+    this.#mount(area);
+    this.#leases.end();
+    this.#afterMount();
     if (this.#floatRect) this.#dropStopsUnder(this.#floatRect);
     this.#route?.set(this.#order, this.#stops);
+    this.#hover?.onDraw();
+  }
+
+  /** Hands the built parts to the panel (made once, so a list's scroll survives a redraw) and renders them now. */
+  #mount(area: Rect): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      element.addEventListener("mc-activate", (event) => {
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      // A pack picture's blob URL went stale before its lazy image loaded: read it again, once (McSheet's retry).
+      element.addEventListener("mc-image-error", (event) => {
+        const { key, src } = (event as CustomEvent<{ key: string; src: string | null }>).detail;
+        refreshPackArt(key, src ?? undefined);
+      });
+      this.#region = new DomRegion(this, element, area);
+      // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas.
+      this.#region.forwardMouseMoves();
+      // The chat field is a Phaser DOM element under the panel, and the hover popover is drawn in the canvas: both are
+      // left out of the panel to be seen through it. The field only while it shows.
+      this.#region.setHoles(() => {
+        const holes: Rect[] = [];
+        if (this.#chatInput?.shown && this.#fieldRect) holes.push(this.#fieldRect);
+        const popover = this.#hover?.shownRect;
+        if (popover) holes.push(popover);
+        return holes;
+      });
+    }
+    this.#region.setRect(area);
+    this.#nodes = this.#b.nodes;
+    this.#region.element.nodes = this.#nodes;
+    renderNow(this.#region.element);
+  }
+
+  /** What a list was scrolled to, kept from one draw to the next (a list another tab hid comes back where it was). */
+  #rememberScrolls(): void {
+    for (const key of LIST_KEYS) {
+      const element = this.#scroller(key);
+      if (element) this.#scrolled[key] = element.scrollTop;
+    }
+  }
+
+  /** After the panel is rendered: each list back where it was, the chat at its newest line, a "give to" list in view. */
+  #afterMount(): void {
+    for (const key of LIST_KEYS) {
+      const element = this.#scroller(key);
+      if (!element) continue;
+      const kept = this.#scrolled[key] ?? 0;
+      if (element.scrollTop !== kept) element.scrollTop = kept;
+      if (key === "chat" && this.#chatToEnd) {
+        this.#chatToEnd = false;
+        element.scrollTop = element.scrollHeight;
+      }
+    }
+    // A "give to" list just opened lies in view (a phone's list would otherwise open below the fold).
+    const reveal = this.#reveal;
+    const seats = this.#scroller("seats");
+    if (reveal && seats) {
+      this.#reveal = null;
+      const top = reveal.y - seats.scrollTop;
+      const over = top + reveal.height - seats.clientHeight;
+      if (over > 0) seats.scrollTop += Math.min(over, top);
+    }
   }
 
   /** The open floating chat covers rows of the lists beneath it: tab and the pad must not reach what the player cannot see. */
@@ -1033,16 +1231,73 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#order.push(key);
   }
 
+  /** The tab strip: a recessed rail of equal cells, the active one an ink fill, a red count on a Chat tab with news. */
+  #drawTabs(layout: LobbyLayout, ids: readonly LobbyPanelId[], unread: number): void {
+    const state = this.#state;
+    const b = this.#b;
+    const rail = layout.tabs!;
+    const cell = rail.width / ids.length;
+    const active = layout.mode === "stack" && this.#tab === "seats" ? "settings" : this.#tab;
+    const type = { ...typeRole.label, size: Math.max(minType.phoneLabel, typeRole.label.size) };
+    const rows = ids.map((id) => ({
+      id,
+      label:
+        id === "seats" && state.epic
+          ? t("epic.tab.tables")
+          : id === "seats" && state.competitive
+            ? t("comp.tab.teams")
+            : t(`room.tab.${id}` as const),
+      selected: id === active,
+      ...(id === "chat" && unread > 0 ? { badge: unread } : {}),
+    }));
+    // One rail of cells (`mc-tab-rail`, a tap on a cell raises `tab:<id>`); the stops frame each cell.
+    b.tabRail(rail, rows, { prefix: "tab:", size: type.size });
+    ids.forEach((id, i) => {
+      const rect: Rect = { x: rail.x + i * cell, y: rail.y, width: cell, height: rail.height };
+      const key = `tab:${id}`;
+      const select = (): void => {
+        this.#tab = id;
+        this.#draw();
+      };
+      this.#press(key, select);
+      this.#addStop(key, rect, select);
+    });
+  }
+
+  /** LB / RB: the next or previous tab of a layout that has tabs. */
+  #stepTab(direction: 1 | -1): void {
+    const ids = this.#tabIds;
+    if (ids.length === 0) return;
+    const active = this.#layoutMode === "stack" && this.#tab === "seats" ? "settings" : this.#tab;
+    const next = ids[Math.min(ids.length - 1, Math.max(0, ids.indexOf(active) + direction))]!;
+    if (next === active) return;
+    this.#tab = next;
+    this.#draw();
+    this.#route?.focusKey(`tab:${next}`);
+  }
+
+  /** The right stick and Page Up / Down: the list the focused control is in, else the first list on screen. */
+  #scrollList(pixels: number): void {
+    const focused = this.#route?.focused;
+    const key =
+      (focused ? this.#stopList.get(focused) : undefined) ?? LIST_KEYS.find((k) => this.#scroller(k) !== null);
+    this.#scroller(key ?? "seats")?.scrollBy({ top: pixels });
+  }
+
   // The header: the code, Copy link, and the connection line.
   #drawHeader(rect: Rect, phone: boolean): void {
     const state = this.#state;
-    this.add.rectangle(rect.x, rect.y, rect.width, rect.height, INK).setOrigin(0, 0);
-    this.add
-      .text(rect.x + 14, rect.y + 8, t("room.title").toUpperCase(), textStyle(typeRole.label, PAPER, 0.7))
-      .setLetterSpacing(1.1);
-    this.add
-      .text(rect.x + 14, rect.y + 24, codeShown(state.code), textStyle(bangers(phone ? 36 : 44), PAPER))
-      .setLetterSpacing(4);
+    const b = this.#b;
+    b.box(rect, { fill: INK });
+    b.text(rect.x + 14, rect.y + 8, t("room.title").toUpperCase(), typeRole.label, {
+      color: PAPER,
+      alpha: 0.7,
+      letterSpacing: 1.1,
+    });
+    b.text(rect.x + 14, rect.y + 24, codeShown(state.code), bangers(phone ? 36 : 44), {
+      color: PAPER,
+      letterSpacing: 4,
+    });
     const copyWidth = phone ? 120 : 160;
     const copyRect: Rect = {
       x: rect.x + rect.width - copyWidth - 12,
@@ -1063,14 +1318,13 @@ export class RoomLobbyScene extends Phaser.Scene {
       });
     };
     this.#button({
-      kind: "onInk",
+      key: "copy",
+      look: "onInk",
       label: this.#linkCopied ? t("room.linkCopied") : t("room.copyLink"),
-      type: typeRole.label,
       rect: copyRect,
       enabled: state.link !== null && state.connection !== "ended",
-      onClick: copy,
+      run: copy,
     });
-    this.#addStop("copy", copyRect, copy);
     // The host's "List this room in Live now", up top beside Copy link where it is seen (Quin, 2026-11-23: it was
     // buried at the bottom of the settings). A phone's header has no room for it: it leads the settings there.
     const settings = state.settings;
@@ -1084,107 +1338,69 @@ export class RoomLobbyScene extends Phaser.Scene {
         width: listedWidth,
         height: hit.target,
       };
-      const flip = (): void => this.#api.setLobby({ settings: { listed: settings.listed !== true } });
       this.#button({
-        kind: "onInk",
+        key: "listed",
+        look: "onInk",
         label: on ? t("room.listed.headerOn") : t("room.listed.headerOff"),
-        type: typeRole.label,
         rect: listedRect,
         selected: on,
         enabled: state.connection !== "ended",
-        onClick: flip,
+        run: () => this.#api.setLobby({ settings: { listed: settings.listed !== true } }),
       });
-      this.#addStop("listed", listedRect, flip);
     }
     const words = connectionWords(state);
     if (words) {
-      const line = this.add
-        .text(
-          rect.x + 14,
-          rect.y + rect.height - 22,
-          wordsText(words),
-          textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
-        )
-        .setFontSize(12)
-        .setBackgroundColor("#f2b01e")
-        .setPadding(6, 2, 6, 2);
-      fitText(line, rect.width - 28, 12);
+      const text = wordsText(words);
+      const fit = rect.width - 28 - 12;
+      const size = b.measure(text, typeRole.rowTitle, { size: 12, fitWidth: fit });
+      const y = rect.y + rect.height - 22;
+      b.box({ x: rect.x + 14, y, width: size.width + 12, height: size.height + 4 }, { fill: signal.caution.hex });
+      b.text(rect.x + 20, y + 2, text, typeRole.rowTitle, { size: 12, color: surface.inkOnHue.hex, fitWidth: fit });
     }
   }
 
   /** A panel's frame and heading; returns the room inside it for content. */
   #frame(rect: Rect, title: string | null): Rect {
-    const g = this.add.graphics();
-    g.fillStyle(PARCHMENT, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    g.lineStyle(2, INK, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
+    const b = this.#b;
+    b.box(rect, { fill: PARCHMENT });
+    b.box(
+      { x: rect.x + 1, y: rect.y + 1, width: rect.width - 2, height: rect.height - 2 },
+      { stroke: INK, strokeWidth: 2 },
+    );
     let top = rect.y + 8;
     if (title) {
-      this.add.text(rect.x + 12, rect.y + 8, title.toUpperCase(), textStyle(bangers(18), INK)).setLetterSpacing(1);
+      b.text(rect.x + 12, rect.y + 8, title.toUpperCase(), bangers(18), { color: INK, letterSpacing: 1 });
       top = rect.y + 38;
     }
     return { x: rect.x + 10, y: top, width: rect.width - 20, height: rect.y + rect.height - top - 8 };
   }
 
   /**
-   * A scrolling panel: `draw` puts its content at `inner`'s own coordinates and returns the content's height. Its
-   * buttons take the region's clip and drag so a swipe never presses one (issue #227).
+   * A scrolling panel: `draw` puts its content at the list's own coordinates (`top` is 0) and returns the content's
+   * height. The list is a native scroll region of the panel, kept by its key across redraws.
    */
-  #scrollPanel(
-    key: ScrollKey,
-    inner: Rect,
-    draw: (
-      x: number,
-      top: number,
-      width: number,
-      region: {
-        clip: () => Rect;
-        suppress: () => boolean;
-        stop: (key: string, rect: Rect, activate: () => void) => void;
-      },
-    ) => number,
-  ): McScrollRegion {
-    const scroll = this.#scrolls[key];
-    const heights = [Math.max(inner.height, this.#contentHeights[key] ?? 0)];
-    // The floating chat covers part of the lists under it: the wheel and drags there belong to the chat.
-    const enabled = (): boolean => {
-      const over = this.#floatRect;
-      const pointer = this.input.activePointer;
-      return key === "chat" || !over || !pointInRect(pointer.x, pointer.y, over);
-    };
-    const region = new McScrollRegion(this, { rect: inner, heights, scroll, clipInteractive: true, enabled });
-    this.#regions.push(region);
-    const before = this.children.list.length;
-    const guard = {
-      clip: (): Rect => inner,
-      suppress: (): boolean => region.isDragSuppressingClick,
-      stop: (stopKey: string, rect: Rect, activate: () => void): void => {
-        const bringIntoView = (): void => {
-          const top = rect.y - inner.y - scroll.offsetPx;
-          const over = top + rect.height - inner.height;
-          if (top < 0) region.scrollByPx(top);
-          else if (over > 0) region.scrollByPx(over);
-        };
-        this.#addStop(stopKey, () => ({ ...rect, y: rect.y - scroll.offsetPx }), activate, {
-          ensureVisible: bringIntoView,
-          view: inner,
-        });
-      },
-    };
-    const used = draw(inner.x, inner.y, inner.width - 12, guard);
-    heights[0] = Math.max(inner.height, used);
-    this.#contentHeights[key] = heights[0];
-    const added = this.children.list.slice(before).filter((node) => node !== region.root);
-    if (added.length > 0) region.content.add(added);
-    region.refresh();
-    // A "give to" list just opened lies in view (a phone's list would otherwise open below the fold).
-    const reveal = this.#reveal;
-    if (reveal) {
-      this.#reveal = null;
-      const top = reveal.y - inner.y - scroll.offsetPx;
-      const over = top + reveal.height - inner.height;
-      if (over > 0) region.scrollByPx(Math.min(over, top));
+  #scrollPanel(key: ScrollKey, inner: Rect, draw: (x: number, top: number, width: number) => number): void {
+    // The list's content is 12px narrower than its box: the scrollbar's room.
+    const rect: Rect = { x: inner.x, y: inner.y, width: inner.width - 12, height: inner.height };
+    const outer = this.#b;
+    this.#listViews[key] = inner;
+    this.#listTops[key] = inner.y;
+    this.#listKey = key;
+    try {
+      outer.scrollFit(`list:${key}`, rect, (listBuilder) => {
+        this.#b = listBuilder;
+        return draw(rect.x, 0, rect.width);
+      });
+    } finally {
+      this.#b = outer;
+      this.#listKey = null;
     }
-    return region;
+  }
+
+  /** A card's box in the screen's own coordinates, from one drawn in the list in `this.#listKey`'s content space. */
+  #inScreen(rect: Rect): Rect {
+    const list = this.#listKey;
+    return list === null ? rect : { ...rect, y: rect.y + this.#listTops[list]! };
   }
 
   // ---- People and seats ----------------------------------------------------------------------------------------
@@ -1194,7 +1410,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (this.#state.competitive) return this.#drawCompetitivePanel(rect, titled);
     const inner = this.#frame(rect, titled ? t("room.seats") : null);
     const state = this.#state;
-    const region = this.#scrollPanel("seats", inner, (x, top, w, guard) => {
+    this.#scrollPanel("seats", inner, (x, top, w) => {
       let y = top + 2;
       if (this.#isHost()) {
         const hintKey = this.#state.settings?.askToSit === true ? "room.hostHint" : "room.hostHintClaim";
@@ -1203,26 +1419,23 @@ export class RoomLobbyScene extends Phaser.Scene {
         const setupRect: Rect = { x, y, width: w, height: hit.target };
         const label = roomDraft() ? t("room.setupAgain") : t("room.setup");
         this.#button({
-          kind: roomDraft() ? "secondary" : "primary",
+          key: "setup",
+          look: roomDraft() ? "secondary" : "primary",
           label,
-          type: typeRole.label,
           rect: setupRect,
-          onClick: () => this.#setUpTable(),
-          clip: guard.clip,
-          suppressClick: guard.suppress,
+          run: () => this.#setUpTable(),
         });
-        guard.stop("setup", setupRect, () => this.#setUpTable());
         y += hit.target + 10;
-        y = this.#drawTablePlan(x, y, w, guard);
-        y = this.#drawSeatCount(x, y, w, guard) + 14;
+        y = this.#drawTablePlan(x, y, w);
+        y = this.#drawSeatCount(x, y, w) + 14;
       } else {
-        y = this.#drawTablePlan(x, y, w, guard);
+        y = this.#drawTablePlan(x, y, w);
         if (!state.buildMatches) {
           const note = this.#text(x, y, t(myBuildReason(state)), 13, w, { bold: true });
           y += note.height + 10;
         }
       }
-      if (this.#startResult) y = this.#drawStartResult(this.#startResult, x, y, w, guard) + 12;
+      if (this.#startResult) y = this.#drawStartResult(this.#startResult, x, y, w) + 12;
       const rows = seatRows(state, { installed: this.#installed(), refused: this.#refused });
       if (rows.length === 0) {
         const none = this.#text(x, y, t(this.#isHost() ? "room.seats.noneHost" : "room.seats.none"), 14, w, {
@@ -1230,39 +1443,43 @@ export class RoomLobbyScene extends Phaser.Scene {
         });
         y += none.height + 10;
       }
-      for (const row of rows) y += this.#drawSeatRow(row, x, y, w, guard) + 10;
+      for (const row of rows) y += this.#drawSeatRow(row, x, y, w) + 10;
       y += 6;
       y = this.#heading(x, y, w, t("room.people"));
-      for (const person of participantRows(state)) {
+      for (const [personIndex, person] of participantRows(state).entries()) {
         const hasMore = person.seats.length > 0 || person.differentVersion;
         // The device is a line of words with a small icon (never the icon alone), when their client said what it runs on.
         const rowHeight = 38 + (person.device ? 18 : 0) + (hasMore ? 16 : 0);
-        const g = this.add.graphics();
-        g.lineStyle(1, INK, 0.35).strokeRect(x + 0.5, y + 0.5, w - 1, rowHeight - 1);
-        const roleText = this.add
-          .text(0, 0, t(person.roleKey).toUpperCase(), textStyle(typeRole.label, INK))
-          .setFontSize(11)
-          .setLetterSpacing(1);
-        const chipW = roleText.width + 14;
-        g.lineStyle(2, INK, 1).strokeRect(x + w - chipW - 8, y + 8, chipW, 22);
-        roleText
-          .setPosition(x + w - chipW - 1, y + 19)
-          .setOrigin(0.5, 0.5)
-          .setX(x + w - chipW / 2 - 8);
-        const name = this.add.text(
-          x + 10,
-          y + 10,
-          person.me ? `${person.name} (${t("room.you")})` : person.name,
-          textStyle(typeRole.rowTitle, INK),
+        const b = this.#b;
+        b.box(
+          { x: x + 0.5, y: y + 0.5, width: w - 1, height: rowHeight - 1 },
+          { stroke: INK, strokeWidth: 1, alpha: 0.35 },
         );
-        fitText(name, w - chipW - 30, 15);
+        const role = t(person.roleKey).toUpperCase();
+        const chipW = b.measure(role, typeRole.label, { size: 11, letterSpacing: 1 }).width + 14;
+        b.box({ x: x + w - chipW - 8, y: y + 8, width: chipW, height: 22 }, { stroke: INK, strokeWidth: 2 });
+        b.text(x + w - chipW / 2 - 8, y + 19, role, typeRole.label, {
+          size: 11,
+          letterSpacing: 1,
+          color: INK,
+          origin: [0.5, 0.5],
+        });
+        b.text(x + 10, y + 10, person.me ? `${person.name} (${t("room.you")})` : person.name, typeRole.rowTitle, {
+          size: 15,
+          color: INK,
+          fitWidth: w - chipW - 30,
+        });
         let lineY = y + 30;
         if (person.device) {
           const mark = person.platform ? playPlatformMarkOf({ platform: person.platform }) : null;
           let tx = x + 10;
           if (mark) {
-            const icon = this.add.graphics();
-            drawPlayPlatformIcon(icon, mark, { x: x + 10, y: lineY + 1, width: 14, height: 14 }, INK, 0.85);
+            b.svg(
+              { x: x + 10, y: lineY + 1, width: 14, height: 14 },
+              PLATFORM_ICON_VIEWBOX,
+              playPlatformSvgOps(mark, sheetColor(INK, "line"), 0.85),
+              `device:${personIndex}`,
+            );
             tx += 20;
           }
           this.#text(tx, lineY, person.device, 12, w - (tx - x) - 10, { alpha: 0.85 });
@@ -1275,9 +1492,6 @@ export class RoomLobbyScene extends Phaser.Scene {
       }
       return y - top + 4;
     });
-    // The plan's pictures scroll with the panel: their images join the region's content once their faces are baked.
-    for (const slot of this.#thumbs) slot.parent ??= region.content;
-    this.#fillThumbs();
   }
 
   /**
@@ -1285,7 +1499,7 @@ export class RoomLobbyScene extends Phaser.Scene {
    * pictures with their names (each opens the card hover on desktop); difficulty, Heroic and Skirmish are words. A guest
    * sees a line saying the host has not chosen yet; the host, who has the Set up button, sees nothing until it has.
    */
-  #drawTablePlan(x: number, top: number, w: number, guard: { clip: () => Rect }): number {
+  #drawTablePlan(x: number, top: number, w: number): number {
     const plan = this.#state.tablePlan;
     if (!plan) {
       if (this.#isHost()) return top;
@@ -1307,28 +1521,27 @@ export class RoomLobbyScene extends Phaser.Scene {
     const all: PlanPicture[] = [pictures.villain, ...pictures.sets];
     const { cols, size } = planGrid(all.length, w);
     const gap = 8;
+    const b = this.#b;
     for (let start = 0; start < all.length; start += cols) {
       let rowHeight = 0;
       all.slice(start, start + cols).forEach((item, col) => {
         const rect: Rect = { x: x + col * (size + gap), y, width: size, height: size };
-        const g = this.add.graphics();
-        g.fillStyle(PARCHMENT, 1).fillRect(rect.x, rect.y, size, size);
-        g.lineStyle(2, INK, 1).strokeRect(rect.x + 1, rect.y + 1, size - 2, size - 2);
-        if (item.artUrl) this.#thumbs.push({ rect, url: item.artUrl, parent: null, done: false });
+        // The picture fills its square (cropped toward the top, where a villain's face is), under an ink frame.
+        b.pictureTile(rect, { src: item.artUrl, focus: { x: 0.5, y: 0.12 }, key: `plan:${item.key}` });
         if (item.cardId) {
           this.#hoverFaces.push({
             cardId: item.cardId,
             ...(item.face ? { face: item.face } : {}),
-            rect,
-            view: guard.clip(),
+            rect: this.#inScreen(rect),
             scroll: "seats",
           });
         }
         const kind = item.key === "villain" ? `${t("room.table.villain").toUpperCase()} · ` : "";
         // At most two lines, so a long name never runs into the next row.
-        const name = this.#text(rect.x, rect.y + size + 3, `${kind}${item.name}`, 11, size, { bold: true }).setMaxLines(
-          2,
-        );
+        const name = this.#text(rect.x, rect.y + size + 3, `${kind}${item.name}`, 11, size, {
+          bold: true,
+          maxLines: 2,
+        });
         rowHeight = Math.max(rowHeight, size + 3 + Math.min(name.height, 30));
       });
       y += rowHeight + 8;
@@ -1340,35 +1553,16 @@ export class RoomLobbyScene extends Phaser.Scene {
     return y + 8;
   }
 
-  /** Draws every waiting picture whose baked face is on hand. */
-  #fillThumbs(): void {
-    if (!this.#alive) return;
-    const faces = cardFaces(this);
-    for (const slot of this.#thumbs) {
-      if (slot.done) continue;
-      const rect = { ...slot.rect, width: Math.round(slot.rect.width), height: Math.round(slot.rect.height) };
-      const key = faces.request(artThumbSpec(rect, slot.url, 0.12, "cover"));
-      if (!key) continue;
-      const image = this.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
-      faces.hold(key, image);
-      slot.parent?.add(image);
-      slot.done = true;
-    }
-  }
-
   /** The host's seat count: fewer / more (one to four). A seat somebody holds is never dropped by a press. */
-  #drawSeatCount(
-    x: number,
-    y: number,
-    w: number,
-    guard: { clip: () => Rect; suppress: () => boolean; stop: (key: string, rect: Rect, activate: () => void) => void },
-  ): number {
+  #drawSeatCount(x: number, y: number, w: number): number {
     const count = this.#state.seats.length;
     const size = hit.target;
-    const label = this.add
-      .text(x, y + size / 2, `${t("room.seats.count")}: ${count}`, textStyle(typeRole.rowTitle, INK))
-      .setOrigin(0, 0.5)
-      .setFontSize(15);
+    this.#b.text(x, y + size / 2, `${t("room.seats.count")}: ${count}`, typeRole.rowTitle, {
+      size: 15,
+      color: INK,
+      origin: [0, 0.5],
+      fitWidth: Math.max(60, w - size * 2 - 20),
+    });
     const lastHeld = this.#state.seats[count - 1]?.holder != null;
     const buttons: { id: string; label: string; to: number; enabled: boolean; reason?: string; aria: string }[] = [
       {
@@ -1384,49 +1578,38 @@ export class RoomLobbyScene extends Phaser.Scene {
     let bx = x + w - size * 2 - 8;
     for (const button of buttons) {
       const rect: Rect = { x: bx, y, width: size, height: size };
-      const go = (): void => {
-        if (!button.enabled) {
-          if (button.reason) this.#say(button.reason);
-          this.#draw();
-          return;
-        }
-        this.#setSeatCount(button.to);
-      };
       this.#button({
-        kind: "secondary",
+        key: `seats:${button.id}`,
+        look: "secondary",
         label: button.label,
+        aria: button.aria,
         type: { ...typeRole.label, size: 18 },
         rect,
         enabled: button.enabled,
         ...(button.reason ? { reason: button.reason } : {}),
-        onUnavailablePress: go,
-        onClick: go,
-        clip: guard.clip,
-        suppressClick: guard.suppress,
+        run: () => this.#setSeatCount(button.to),
       });
-      guard.stop(`seats:${button.id}`, rect, go);
       bx += size + 8;
     }
-    fitText(label, Math.max(60, w - size * 2 - 20), 15);
     const hint = this.#text(x, y + size + 4, t("room.seats.countHint"), 12, w, { alpha: 0.8 });
     return y + size + 4 + hint.height;
   }
 
   /** What the host's Start said when it did not start the game: the headline and a line per refused seat. */
-  #drawStartResult(
-    result: StartResultView,
-    x: number,
-    y: number,
-    w: number,
-    guard: { clip: () => Rect; suppress: () => boolean; stop: (key: string, rect: Rect, activate: () => void) => void },
-  ): number {
+  #drawStartResult(result: StartResultView, x: number, y: number, w: number): number {
     const pad = 10;
-    const bg = this.add.graphics();
-    const mark = this.add.graphics();
+    const b = this.#b;
+    const ground = this.#groundBox(x, y, w, {
+      fill: PAPER,
+      stroke: INK,
+      strokeWidth: 3,
+      inset: 1.5,
+      key: "start-result",
+    });
     let cy = y + 10;
     const head = this.#text(x + pad + 26, cy, wordsText(result.headline), 14, w - pad * 2 - 26, { bold: true });
-    mark.fillStyle(INK, 1).fillRect(x + pad, cy, 18, 18);
-    this.add.text(x + pad + 9, cy + 9, "!", textStyle(bangers(16), PAPER)).setOrigin(0.5);
+    b.box({ x: x + pad, y: cy, width: 18, height: 18 }, { fill: INK });
+    b.text(x + pad + 9, cy + 9, "!", bangers(16), { color: PAPER, origin: [0.5, 0.5] });
     cy += Math.max(head.height, 18) + 6;
     for (const line of result.lines) {
       const who = line.holder === "" ? "" : ` (${line.holder})`;
@@ -1440,31 +1623,37 @@ export class RoomLobbyScene extends Phaser.Scene {
       cy += text.height + 6;
     }
     const rect: Rect = { x: x + pad, y: cy + 2, width: w - pad * 2, height: hit.target };
-    const dismiss = (): void => {
-      this.#startResult = null;
-      this.#draw();
-    };
     this.#button({
-      kind: "secondary",
+      key: "start-result-dismiss",
+      look: "secondary",
       label: t("room.startResult.dismiss"),
       type: { ...typeRole.label, size: 12 },
       rect,
-      onClick: dismiss,
-      clip: guard.clip,
-      suppressClick: guard.suppress,
+      run: () => {
+        this.#startResult = null;
+        this.#draw();
+      },
     });
-    guard.stop("start-result-dismiss", rect, dismiss);
     cy += hit.target + 12;
-    bg.fillStyle(PAPER, 1).fillRect(x, y, w, cy - y);
-    bg.lineStyle(3, INK, 1).strokeRect(x + 1.5, y + 1.5, w - 3, cy - y - 3);
+    ground(cy - y);
     return cy;
   }
 
+  /** A block's heading with its rule (`mc-section-header`); returns the y under it. */
   #heading(x: number, y: number, w: number, text: string): number {
-    const h = this.add.text(x, y, text.toUpperCase(), textStyle(bangers(17), INK)).setLetterSpacing(1);
-    const g = this.add.graphics();
-    g.fillStyle(INK, 1).fillRect(x + h.width + 10, y + h.height / 2 - 1, Math.max(0, w - h.width - 10), 2);
-    return y + h.height + 8;
+    const height = this.#b.measure(text.toUpperCase(), bangers(17), { letterSpacing: 1 }).height;
+    this.#b.sectionHeader({ x, y, width: w, height }, text);
+    return y + height + 8;
+  }
+
+  /** The hero a seat's deck is, as a picture for the panel: its own picture, else the identity card's hero scan. */
+  #heroPicture(cardId: string): { src: string | null; retry?: string; cover: { x: number; y: number } } {
+    const identity = currentCardsById().get(cardId);
+    const picture = identity ? heroArtForIdentity(HERO_ART, identity.id, POOL_CARDS, () => 0) : null;
+    if (picture)
+      return { src: picture.url, cover: { x: picture.focus?.x ?? 0.5, y: picture.focus?.y ?? FACE_FOCUS_Y } };
+    const art = identity ? artFor(identity, { kind: "hero" }) : null;
+    return { ...this.#leases.image(art), cover: { x: 0.5, y: 0.3 } };
   }
 
   /**
@@ -1472,30 +1661,32 @@ export class RoomLobbyScene extends Phaser.Scene {
    * who holds it (a filled dot when connected, a hollow one when away), its action, the deck button, a deck the host turned
    * down (with the reason), mods this device lacks (with a Mod Store link) and requests.
    */
-  #drawSeatRow(
-    row: SeatRowView,
-    x: number,
-    y: number,
-    w: number,
-    guard: { clip: () => Rect; suppress: () => boolean; stop: (key: string, rect: Rect, activate: () => void) => void },
-  ): number {
+  #drawSeatRow(row: SeatRowView, x: number, y: number, w: number): number {
     const pad = 10;
     const buttonWidth = 104;
     const art = 56;
-    // The card's ground and frame are drawn last, once the height is known; created first so it sits under everything.
-    const bg = this.add.graphics();
-    const g = this.add.graphics();
+    const b = this.#b;
+    // The card's ground and frame sit under everything and are as tall as the card turns out to be.
+    const ground = this.#groundBox(x, y, w, {
+      fill: PAPER,
+      stroke: INK,
+      strokeWidth: row.mine ? 4 : 2,
+      inset: 1,
+      key: `seat-ground:${row.id}`,
+    });
     const tx = x + pad + art + 10;
     const textWidth = w - (tx - x) - pad - (row.action ? buttonWidth + 8 : 0);
     const deck = row.deck;
 
     let ty = y + 8;
     const tag = [row.name, ...(deck?.preset ? [t("room.deck.preset")] : [])].join(" · ").toUpperCase();
-    const nameText = this.add
-      .text(tx, ty, tag, textStyle(typeRole.label, INK, 0.75))
-      .setFontSize(11)
-      .setLetterSpacing(1);
-    fitText(nameText, textWidth, 11);
+    const nameText = b.text(tx, ty, tag, typeRole.label, {
+      size: 11,
+      letterSpacing: 1,
+      color: INK,
+      alpha: 0.75,
+      fitWidth: textWidth,
+    });
     ty += nameText.height + 2;
     if (deck) {
       const hero = this.#text(tx, ty, deck.heroName, 15, textWidth, { bold: true });
@@ -1523,40 +1714,58 @@ export class RoomLobbyScene extends Phaser.Scene {
     // Who holds it.
     const dotY = ty + 12;
     const held = row.holderName !== null;
-    g.lineStyle(2, INK, 1);
-    if (held && row.holderConnected) g.fillStyle(INK, 1).fillCircle(tx + 6, dotY, 6);
-    else g.strokeCircle(tx + 6, dotY, 6);
+    if (held && row.holderConnected) {
+      b.box({ x: tx, y: dotY - 6, width: 12, height: 12 }, { fill: INK, round: true });
+    } else b.box({ x: tx, y: dotY - 6, width: 12, height: 12 }, { stroke: INK, strokeWidth: 2, round: true });
     const device = row.holderDevice && textWidth >= 230 ? ` · ${row.holderDevice}` : "";
     const who = held
       ? `${row.holderName}${row.mine ? ` (${t("room.you")})` : ""}${row.holderConnected ? "" : ` · ${t("room.seat.away")}`}${row.takenOver ? ` · ${t("room.seat.takenOver")}` : ""}${device}`
       : t("room.seat.open");
-    const holder = this.add
-      .text(tx + 20, dotY, who, textStyle(typeRole.body, INK, held ? 1 : 0.7))
-      .setOrigin(0, 0.5)
-      .setFontSize(14);
-    fitText(holder, textWidth - 20, 14);
+    b.text(tx + 20, dotY, who, typeRole.body, {
+      size: 14,
+      color: INK,
+      alpha: held ? 1 : 0.7,
+      origin: [0, 0.5],
+      fitWidth: textWidth - 20,
+    });
     ty = dotY + 12;
     if (row.requestedByMe) {
       const asked = this.#text(tx, ty + 2, t("room.seat.requestedByMe"), 12, textWidth, { alpha: 0.85 });
       ty += asked.height + 4;
     }
     if (row.mismatch) {
-      const mark = this.add
-        .text(tx + 6, ty + 4, t("room.differentVersion").toUpperCase(), textStyle(typeRole.label, INK))
-        .setFontSize(11)
-        .setLetterSpacing(1);
-      g.lineStyle(2, INK, 1).strokeRect(tx, ty, mark.width + 12, 20);
+      const label = t("room.differentVersion").toUpperCase();
+      const mark = b.text(tx + 6, ty + 4, label, typeRole.label, { size: 11, letterSpacing: 1, color: INK });
+      b.box({ x: tx, y: ty, width: mark.width + 12, height: 20 }, { stroke: INK, strokeWidth: 2 });
       ty += 26;
     }
 
     // The hero's picture (the identity card's art, as Take your seats shows it) at the left; an empty frame until a deck.
     const artRect: Rect = { x: x + pad, y: y + 10, width: art, height: art };
     if (deck) {
-      drawHeroAvatar(this, artRect, currentCardsById().get(deck.cardId), INK);
-      this.#hoverFaces.push({ cardId: deck.cardId, rect: artRect, view: guard.clip(), scroll: "seats" });
+      const picture = this.#heroPicture(deck.cardId);
+      b.pictureTile(artRect, {
+        key: `hero:${row.id}`,
+        src: picture.src,
+        focus: picture.cover,
+        frame: border.detail,
+        ...(picture.retry !== undefined ? { retry: picture.retry } : {}),
+      });
+      this.#hoverFaces.push({ cardId: deck.cardId, rect: this.#inScreen(artRect), scroll: "seats" });
     } else {
-      g.lineStyle(2, INK, 0.45).strokeRect(artRect.x + 1, artRect.y + 1, art - 2, art - 2);
-      this.add.text(artRect.x + art / 2, artRect.y + art / 2, "?", textStyle(bangers(30), INK, 0.4)).setOrigin(0.5);
+      b.box(
+        { x: artRect.x + 1, y: artRect.y + 1, width: art - 2, height: art - 2 },
+        {
+          stroke: INK,
+          strokeWidth: 2,
+          alpha: 0.45,
+        },
+      );
+      b.text(artRect.x + art / 2, artRect.y + art / 2, "?", bangers(30), {
+        color: INK,
+        alpha: 0.4,
+        origin: [0.5, 0.5],
+      });
     }
 
     const canGive = row.candidates.length > 0 || (this.#isHost() && row.holderName === null);
@@ -1569,31 +1778,21 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (row.action) {
       const action = row.action;
       const rect: Rect = { x: x + w - pad - buttonWidth, y: y + 10, width: buttonWidth, height: hit.target };
-      const go = (): void => {
-        if (!action.enabled) {
-          if (action.reason) this.#say(t(action.reason));
-          this.#draw();
-          return;
-        }
-        if (action.kind === "ask" || action.kind === "take") this.#api.requestSeat(row.id);
-        else if (action.kind === "leave" || action.kind === "withdraw") this.#api.releaseSeat(row.id);
-        else if (action.kind === "remove" && action.participant) this.#api.denySeat(row.id, action.participant);
-      };
       this.#button({
-        kind:
+        key: `seat:${row.id}`,
+        look:
           action.kind === "leave" || action.kind === "withdraw" || action.kind === "remove" ? "secondary" : "primary",
         label: t(action.labelKey),
         type: { ...typeRole.label, size: 12 },
         rect,
         enabled: action.enabled,
         ...(action.reason ? { reason: t(action.reason) } : {}),
-        onUnavailablePress: go,
-        onClick: go,
-        clip: guard.clip,
-        suppressClick: guard.suppress,
-        wrap: true,
+        run: () => {
+          if (action.kind === "ask" || action.kind === "take") this.#api.requestSeat(row.id);
+          else if (action.kind === "leave" || action.kind === "withdraw") this.#api.releaseSeat(row.id);
+          else if (action.kind === "remove" && action.participant) this.#api.denySeat(row.id, action.participant);
+        },
       });
-      guard.stop(`seat:${row.id}`, rect, go);
     }
     if (row.play) {
       const play = row.play;
@@ -1603,34 +1802,30 @@ export class RoomLobbyScene extends Phaser.Scene {
         width: buttonWidth,
         height: hit.target,
       };
-      const go = (): void => {
-        if (play.kind === "giveBack") {
-          this.#api.giveBackSeat(row.id);
-          return;
-        }
-        // Acting for someone is the host's call, and a returning player may find their hero moved: confirm first.
-        const hero = row.deck?.heroName ?? row.name;
-        const name = row.holderName ?? "";
-        const vacant = row.holderName === null;
-        askToConfirm(
-          this,
-          t(vacant ? "takeover.vacantTitle" : "takeover.title", { name, hero }),
-          t(vacant ? "takeover.vacantBody" : "takeover.body", { name, hero }),
-          t("takeover.confirm"),
-          () => this.#api.takeOverSeat(row.id),
-        );
-      };
       this.#button({
-        kind: "primary",
+        key: `play:${row.id}`,
+        look: "primary",
         label: t(play.labelKey),
         type: { ...typeRole.label, size: 12 },
         rect: playRect,
-        onClick: go,
-        clip: guard.clip,
-        suppressClick: guard.suppress,
-        wrap: true,
+        run: () => {
+          if (play.kind === "giveBack") {
+            this.#api.giveBackSeat(row.id);
+            return;
+          }
+          // Acting for someone is the host's call, and a returning player may find their hero moved: confirm first.
+          const hero = row.deck?.heroName ?? row.name;
+          const name = row.holderName ?? "";
+          const vacant = row.holderName === null;
+          askToConfirm(
+            this,
+            t(vacant ? "takeover.vacantTitle" : "takeover.title", { name, hero }),
+            t(vacant ? "takeover.vacantBody" : "takeover.body", { name, hero }),
+            t("takeover.confirm"),
+            () => this.#api.takeOverSeat(row.id),
+          );
+        },
       });
-      guard.stop(`play:${row.id}`, playRect, go);
     }
     if (canGive) {
       const giveRect: Rect = {
@@ -1639,22 +1834,19 @@ export class RoomLobbyScene extends Phaser.Scene {
         width: buttonWidth,
         height: hit.target,
       };
-      const toggle = (): void => {
-        this.#picking = picking ? null : row.id;
-        this.#revealPicker = this.#picking !== null;
-        this.#draw();
-      };
       this.#button({
-        kind: "secondary",
+        key: `give:${row.id}`,
+        look: "secondary",
         label: t("room.seat.give"),
         type: { ...typeRole.label, size: 12 },
         rect: giveRect,
         selected: picking,
-        onClick: toggle,
-        clip: guard.clip,
-        suppressClick: guard.suppress,
+        run: () => {
+          this.#picking = picking ? null : row.id;
+          this.#revealPicker = this.#picking !== null;
+          this.#draw();
+        },
       });
-      guard.stop(`give:${row.id}`, giveRect, toggle);
       if (picking) {
         let py = y + topEnd + 6;
         if (this.#revealPicker) {
@@ -1665,21 +1857,18 @@ export class RoomLobbyScene extends Phaser.Scene {
           this.#text(x + pad, py + 4, t("room.seat.giveNobody"), 12, w - pad * 2, { alpha: 0.85 });
         for (const person of row.candidates) {
           const rect: Rect = { x: x + pad, y: py, width: w - pad * 2, height: hit.target };
-          const give = (): void => {
-            this.#picking = null;
-            this.#api.assignSeat(row.id, person.id);
-            this.#draw();
-          };
           this.#button({
-            kind: "primary",
+            key: `give:${row.id}:${person.id}`,
+            look: "primary",
             label: person.name,
             type: { ...typeRole.label, size: 13 },
             rect,
-            onClick: give,
-            clip: guard.clip,
-            suppressClick: guard.suppress,
+            run: () => {
+              this.#picking = null;
+              this.#api.assignSeat(row.id, person.id);
+              this.#draw();
+            },
           });
-          guard.stop(`give:${row.id}:${person.id}`, rect, give);
           py += hit.target + 6;
         }
       }
@@ -1691,19 +1880,20 @@ export class RoomLobbyScene extends Phaser.Scene {
       const problem = row.problem;
       const boxX = x + pad;
       const boxW = w - pad * 2;
-      const head = this.add
-        .text(boxX + 30, cy + 8, t("room.deckProblem.heading").toUpperCase(), textStyle(typeRole.label, INK))
-        .setFontSize(11)
-        .setLetterSpacing(1);
-      fitText(head, boxW - 40, 11);
+      const head = b.text(boxX + 30, cy + 8, t("room.deckProblem.heading").toUpperCase(), typeRole.label, {
+        size: 11,
+        letterSpacing: 1,
+        color: INK,
+        fitWidth: boxW - 40,
+      });
       const title = this.#text(boxX + 30, cy + 8 + head.height + 2, t(problem.titleKey), 14, boxW - 40, { bold: true });
       const reason = this.#text(boxX + 30, cy + 8 + head.height + 2 + title.height + 2, problem.reason, 12, boxW - 40, {
         alpha: 0.9,
       });
       const boxH = 8 + head.height + 2 + title.height + 2 + reason.height + 10;
-      g.lineStyle(3, INK, 1).strokeRect(boxX + 1.5, cy + 1.5, boxW - 3, boxH - 3);
-      g.fillStyle(INK, 1).fillRect(boxX + 8, cy + 10, 16, 16);
-      this.add.text(boxX + 16, cy + 18, "!", textStyle(bangers(16), PAPER)).setOrigin(0.5);
+      b.box({ x: boxX + 1.5, y: cy + 1.5, width: boxW - 3, height: boxH - 3 }, { stroke: INK, strokeWidth: 3 });
+      b.box({ x: boxX + 8, y: cy + 10, width: 16, height: 16 }, { fill: INK });
+      b.text(boxX + 16, cy + 18, "!", bangers(16), { color: PAPER, origin: [0.5, 0.5] });
       cy += boxH + 8;
     }
 
@@ -1721,23 +1911,20 @@ export class RoomLobbyScene extends Phaser.Scene {
       );
       cy += line.height + 6;
       const store: Rect = { x: x + pad, y: cy, width: w - pad * 2, height: hit.target };
-      const open = (): void => {
-        this.scale.off("resize", this.#draw, this);
-        goToScreen(this, SCENES.modStore, {
-          packId: mod.id,
-          returnTo: SCENES.roomLobby,
-        } satisfies ModStoreSceneData);
-      };
       this.#button({
-        kind: "secondary",
+        key: `modstore:${row.id}:${mod.id}`,
+        look: "secondary",
         label: t("room.mods.store"),
         type: { ...typeRole.label, size: 12 },
         rect: store,
-        onClick: open,
-        clip: guard.clip,
-        suppressClick: guard.suppress,
+        run: () => {
+          this.scale.off("resize", this.#draw, this);
+          goToScreen(this, SCENES.modStore, {
+            packId: mod.id,
+            returnTo: SCENES.roomLobby,
+          } satisfies ModStoreSceneData);
+        },
       });
-      guard.stop(`modstore:${row.id}:${mod.id}`, store, open);
       cy += hit.target + 8;
     }
 
@@ -1745,27 +1932,16 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (row.deckButton) {
       const button = row.deckButton;
       const rect: Rect = { x: x + pad, y: cy, width: w - pad * 2, height: hit.target };
-      const go = (): void => {
-        if (!button.enabled) {
-          if (button.reason) this.#say(t(button.reason));
-          this.#draw();
-          return;
-        }
-        this.#pickDeck(row.id, button.kind === "preset");
-      };
       this.#button({
-        kind: button.kind === "choose" && !row.deck ? "primary" : "secondary",
+        key: `deck:${row.id}`,
+        look: button.kind === "choose" && !row.deck ? "primary" : "secondary",
         label: t(button.labelKey),
         type: { ...typeRole.label, size: 13 },
         rect,
         enabled: button.enabled,
         ...(button.reason ? { reason: t(button.reason) } : {}),
-        onUnavailablePress: go,
-        onClick: go,
-        clip: guard.clip,
-        suppressClick: guard.suppress,
+        run: () => this.#pickDeck(row.id, button.kind === "preset"),
       });
-      guard.stop(`deck:${row.id}`, rect, go);
       cy += hit.target + 10;
     }
 
@@ -1773,49 +1949,34 @@ export class RoomLobbyScene extends Phaser.Scene {
     const requestHeight = 78;
     row.requests.forEach((request, index) => {
       const top = cy + index * requestHeight;
-      g.lineStyle(1, INK, 0.5).lineBetween(x + pad, top, x + w - pad, top);
+      b.box({ x: x + pad, y: top, width: w - pad * 2, height: 1 }, { fill: INK, alpha: 0.5 });
       this.#text(x + pad, top + 8, t("room.seat.asks", { name: request.name }), 13, w - pad * 2, { bold: true });
       const half = (w - pad * 2 - 8) / 2;
       const approve: Rect = { x: x + pad, y: top + 28, width: half, height: hit.target };
       const deny: Rect = { x: x + pad + half + 8, y: top + 28, width: half, height: hit.target };
-      const ok = (): void => {
-        if (!request.approvable) {
-          if (request.reason) this.#say(t(request.reason));
-          this.#draw();
-          return;
-        }
-        this.#api.assignSeat(row.id, request.participant);
-      };
-      const no = (): void => this.#api.denySeat(row.id, request.participant);
       this.#button({
-        kind: "primary",
+        key: `approve:${row.id}:${request.participant}`,
+        look: "primary",
         label: t("room.seat.approve"),
         type: { ...typeRole.label, size: 12 },
         rect: approve,
         enabled: request.approvable,
         ...(request.reason ? { reason: t(request.reason) } : {}),
-        onUnavailablePress: ok,
-        onClick: ok,
-        clip: guard.clip,
-        suppressClick: guard.suppress,
+        run: () => this.#api.assignSeat(row.id, request.participant),
       });
       this.#button({
-        kind: "secondary",
+        key: `deny:${row.id}:${request.participant}`,
+        look: "secondary",
         label: t("room.seat.deny"),
         type: { ...typeRole.label, size: 12 },
         rect: deny,
-        onClick: no,
-        clip: guard.clip,
-        suppressClick: guard.suppress,
+        run: () => this.#api.denySeat(row.id, request.participant),
       });
-      guard.stop(`approve:${row.id}:${request.participant}`, approve, ok);
-      guard.stop(`deny:${row.id}:${request.participant}`, deny, no);
     });
     cy += row.requests.length * requestHeight;
 
     const height = cy - y;
-    bg.fillStyle(PAPER, 1).fillRect(x, y, w, height);
-    bg.lineStyle(row.mine ? 4 : 2, INK, 1).strokeRect(x + 1, y + 1, w - 2, height - 2);
+    ground(height);
     return height;
   }
 
@@ -1828,35 +1989,20 @@ export class RoomLobbyScene extends Phaser.Scene {
     w: number,
     label: string,
     run: () => void,
-    guard: PanelGuard,
     key: string,
     options: { kind?: "primary" | "secondary"; selected?: boolean; enabled?: boolean; reason?: string } = {},
   ): number {
-    const rect: Rect = { x, y, width: w, height: hit.target };
-    const enabled = options.enabled ?? true;
-    const go = (): void => {
-      if (!enabled) {
-        if (options.reason) this.#say(options.reason);
-        this.#draw();
-        return;
-      }
-      run();
-    };
     this.#button({
-      kind: options.kind ?? "secondary",
+      key,
+      look: options.kind ?? "secondary",
       label,
       type: { ...typeRole.label, size: 12 },
-      rect,
-      enabled,
+      rect: { x, y, width: w, height: hit.target },
+      ...(options.enabled !== undefined ? { enabled: options.enabled } : {}),
       ...(options.selected ? { selected: true } : {}),
       ...(options.reason ? { reason: options.reason } : {}),
-      onUnavailablePress: go,
-      onClick: go,
-      clip: guard.clip,
-      suppressClick: guard.suppress,
-      wrap: true,
+      run,
     });
-    guard.stop(key, rect, go);
     return y + hit.target + 6;
   }
 
@@ -1867,11 +2013,10 @@ export class RoomLobbyScene extends Phaser.Scene {
     w: number,
     left: { label: string; run: () => void; enabled: boolean; key: string },
     right: { label: string; run: () => void; enabled: boolean; key: string },
-    guard: PanelGuard,
   ): number {
     const half = (w - 8) / 2;
-    this.#panelButton(x, y, half, left.label, left.run, guard, left.key, { enabled: left.enabled });
-    this.#panelButton(x + half + 8, y, half, right.label, right.run, guard, right.key, { enabled: right.enabled });
+    this.#panelButton(x, y, half, left.label, left.run, left.key, { enabled: left.enabled });
+    this.#panelButton(x + half + 8, y, half, right.label, right.run, right.key, { enabled: right.enabled });
     return y + hit.target + 6;
   }
 
@@ -1891,10 +2036,10 @@ export class RoomLobbyScene extends Phaser.Scene {
     const state = this.#state;
     const host = this.#isHost();
     const plan = competitivePlanOf(state);
-    this.#scrollPanel("seats", inner, (x, top, w, guard) => {
+    this.#scrollPanel("seats", inner, (x, top, w) => {
       let y = top + 2;
       y += this.#text(x, y, t("comp.mode.detail"), 13, w, { alpha: 0.85 }).height + 8;
-      if (this.#startResult) y = this.#drawStartResult(this.#startResult, x, y, w, guard) + 12;
+      if (this.#startResult) y = this.#drawStartResult(this.#startResult, x, y, w) + 12;
       if (host && !state.started) {
         y = this.#panelPair(
           x,
@@ -1912,12 +2057,11 @@ export class RoomLobbyScene extends Phaser.Scene {
             enabled: perTeamOf(plan) !== 2,
             key: "comp:size2",
           },
-          guard,
         );
       }
       const speaking = speakingFor(state, this.#hostPick ?? "registration");
       for (const view of teamViews(state, speaking)) {
-        y = this.#drawTeam(view, x, y, w, guard) + 12;
+        y = this.#drawTeam(view, x, y, w) + 12;
       }
       y = this.#heading(x, y, w, t("room.people"));
       for (const person of participantRows(state)) {
@@ -1930,18 +2074,25 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   /** One side's card: its seats and heroes, whether a scenario is sealed for the other side, and Ready. Never the scenario. */
-  #drawTeam(view: TeamView, x: number, y0: number, w: number, guard: PanelGuard): number {
+  #drawTeam(view: TeamView, x: number, y0: number, w: number): number {
     const state = this.#state;
     const host = this.#isHost();
     const pad = 10;
     const inW = w - pad * 2;
     let y = y0 + pad;
-    const g = this.add.graphics();
+    const ground = this.#groundBox(x, y0, w, {
+      fill: PARCHMENT,
+      stroke: INK,
+      strokeWidth: view.mine ? 4 : 2,
+      inset: 1,
+      key: `team-ground:${view.team}`,
+    });
     const side = t(view.nameKey);
-    const title = this.add
-      .text(x + pad, y, view.mine ? t("comp.area.you", { side }) : side, textStyle(typeRole.rowTitle, INK))
-      .setFontSize(17);
-    fitText(title, inW, 17);
+    const title = this.#b.text(x + pad, y, view.mine ? t("comp.area.you", { side }) : side, typeRole.rowTitle, {
+      size: 17,
+      color: INK,
+      fitWidth: inW,
+    });
     y += title.height + 4;
     const status = [
       view.submitted ? t("comp.seal.sealed") : t("comp.seal.none"),
@@ -1952,7 +2103,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     for (const seat of view.seats) {
       const row = rows.get(seat.id);
       if (!row) continue;
-      y += this.#drawSeatRow(row, x + pad, y, inW, guard) + 6;
+      y += this.#drawSeatRow(row, x + pad, y, inW) + 6;
       if (seat.canSwitch && !state.started) {
         const to = otherTeam(view.team);
         y = this.#panelButton(
@@ -1961,7 +2112,6 @@ export class RoomLobbyScene extends Phaser.Scene {
           inW,
           t("comp.team.moveTo", { side: t(to === "registration" ? "comp.side.registration" : "comp.side.resistance") }),
           () => (this.#preview ? this.#record(`setTeam(${seat.id},${to})`) : this.#api.setTeam(seat.id, to)),
-          guard,
           `team:${seat.id}`,
         );
       }
@@ -1976,7 +2126,6 @@ export class RoomLobbyScene extends Phaser.Scene {
           this.#hostPick = view.team;
           this.#draw();
         },
-        guard,
         `speak:${view.team}`,
         { selected: view.mine },
       );
@@ -1989,7 +2138,6 @@ export class RoomLobbyScene extends Phaser.Scene {
       inW,
       t(view.submitted ? "comp.seal.rebuild" : "comp.seal.build", { side: forSide }),
       () => this.#openSeal(view.team),
-      guard,
       `seal:${view.team}`,
       { enabled: block === null, ...(block ? { reason: t(block) } : {}), kind: view.mine ? "primary" : "secondary" },
     );
@@ -2003,13 +2151,11 @@ export class RoomLobbyScene extends Phaser.Scene {
         this.#preview
           ? this.#record(`setTeamReady(${view.team},${!view.ready})`)
           : this.#api.setTeamReady(!view.ready, view.team),
-      guard,
       `ready:${view.team}`,
       { enabled: readyBlock === null, ...(readyBlock ? { reason: t(readyBlock) } : {}), selected: view.ready },
     );
     const height = y - y0 + pad - 6;
-    g.fillStyle(PARCHMENT, 1).fillRect(x, y0, w, height);
-    g.lineStyle(view.mine ? 4 : 2, INK, 1).strokeRect(x + 1, y0 + 1, w - 2, height - 2);
+    ground(height);
     return y0 + height;
   }
 
@@ -2054,7 +2200,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     const state = this.#state;
     const epic = state.epic!;
     const organizer = this.#isHost();
-    this.#scrollPanel("seats", inner, (x, top, w, guard) => {
+    this.#scrollPanel("seats", inner, (x, top, w) => {
       let y = top + 2;
       const hint = this.#text(x, y, t(organizer ? "epic.hint.organizer" : "epic.hint.player"), 13, w, { alpha: 0.85 });
       y += hint.height + 8;
@@ -2076,7 +2222,6 @@ export class RoomLobbyScene extends Phaser.Scene {
             enabled: plan.tables.length < MAX_EPIC_TABLES,
             key: "epic:more",
           },
-          guard,
         );
         const limit = epic.timeLimitMinutes;
         const words = `${t("epic.timeLimit.title")}: ${limit === null ? t("epic.timeLimit.none") : minutesText(limit)}`;
@@ -2089,7 +2234,6 @@ export class RoomLobbyScene extends Phaser.Scene {
             this.#api.setLobby({
               settings: { tableRules: withEpicTimeLimit(state.settings?.tableRules, nextTimeLimit(limit)) },
             }),
-          guard,
           "epic:limit",
         );
         const note = this.#text(x + 4, y - 2, t("epic.timeLimit.note"), 12, w - 8, { alpha: 0.75 });
@@ -2101,7 +2245,7 @@ export class RoomLobbyScene extends Phaser.Scene {
         y += line.height + 8;
       }
       for (const view of epicTableViews(state, { installed: this.#installed() })) {
-        y = this.#drawEpicTable(view, plan, x, y, w, guard) + 12;
+        y = this.#drawEpicTable(view, plan, x, y, w) + 12;
       }
       y = this.#heading(x, y, w, t("room.people"));
       for (const person of participantRows(state)) {
@@ -2114,22 +2258,20 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   /** One table's card: name, pod, difficulty and status in words, its host, the organizer's controls and its seats. */
-  #drawEpicTable(
-    view: EpicTableView,
-    plan: EpicPlan | null,
-    x: number,
-    y0: number,
-    w: number,
-    guard: PanelGuard,
-  ): number {
+  #drawEpicTable(view: EpicTableView, plan: EpicPlan | null, x: number, y0: number, w: number): number {
     const organizer = this.#isHost();
     const editable = organizer && plan !== null && !this.#state.epic?.start;
     const pad = 10;
     const inW = w - pad * 2;
     let y = y0 + pad;
-    const g = this.add.graphics();
-    const name = this.add.text(x + pad, y, view.name, textStyle(typeRole.rowTitle, INK)).setFontSize(17);
-    fitText(name, inW, 17);
+    const ground = this.#groundBox(x, y0, w, {
+      fill: PARCHMENT,
+      stroke: INK,
+      strokeWidth: view.mine ? 4 : 2,
+      inset: 1,
+      key: `epic-ground:${view.id}`,
+    });
+    const name = this.#b.text(x + pad, y, view.name, typeRole.rowTitle, { size: 17, color: INK, fitWidth: inW });
     y += name.height + 4;
     const facts = [
       t("epic.table.pod", { pod: view.podName }),
@@ -2160,7 +2302,6 @@ export class RoomLobbyScene extends Phaser.Scene {
           enabled: true,
           key: `pod:${id}`,
         },
-        guard,
       );
       y = this.#panelPair(
         x + pad,
@@ -2178,7 +2319,6 @@ export class RoomLobbyScene extends Phaser.Scene {
           enabled: true,
           key: `host:${id}`,
         },
-        guard,
       );
       y = this.#panelPair(
         x + pad,
@@ -2196,7 +2336,6 @@ export class RoomLobbyScene extends Phaser.Scene {
           enabled: view.canAddSeat,
           key: `more:${id}`,
         },
-        guard,
       );
     }
     // An organizer who hosts no table watches any table that has a game (no seat, no board of its own).
@@ -2207,7 +2346,6 @@ export class RoomLobbyScene extends Phaser.Scene {
         inW,
         t("epic.sheet.watch"),
         () => void this.#watchTableFromLobby(view.id),
-        guard,
         `watch:${view.id}`,
       );
     }
@@ -2222,7 +2360,6 @@ export class RoomLobbyScene extends Phaser.Scene {
           if (this.#epicRetry) this.#epicRetry = epicRetryNow(this.#epicRetry);
           void this.#maybeStartTable();
         },
-        guard,
         `retry:${view.id}`,
       );
     }
@@ -2240,16 +2377,14 @@ export class RoomLobbyScene extends Phaser.Scene {
             t("epic.sheet.dropConfirm"),
             () => (this.#preview ? undefined : dropTable(view.id)),
           ),
-        guard,
         `drop:${view.id}`,
       );
     }
     // Each seat shows its deck and the deck button of the standard seat row: the player (or the organizer, as a preset)
     // chooses the deck, and the hero is the deck's.
-    for (const seat of view.seats) y += this.#drawSeatRow(seat, x + pad, y, inW, guard) + 6;
+    for (const seat of view.seats) y += this.#drawSeatRow(seat, x + pad, y, inW) + 6;
     const height = y - y0 + pad - 6;
-    g.fillStyle(PARCHMENT, 1).fillRect(x, y0, w, height);
-    g.lineStyle(view.mine ? 4 : 2, INK, 1).strokeRect(x + 1, y0 + 1, w - 2, height - 2);
+    ground(height);
     return y0 + height;
   }
 
@@ -2325,7 +2460,8 @@ export class RoomLobbyScene extends Phaser.Scene {
     const inner = this.#frame(rect, titled ? t("room.settings.title") : null);
     const settings = this.#state.settings;
     const host = this.#isHost();
-    this.#scrollPanel("settings", inner, (x, top, w, guard) => {
+    this.#scrollPanel("settings", inner, (x, top, w) => {
+      const b = this.#b;
       let y = top + 2;
       if (!settings) {
         const wait = this.#text(x, y, t("room.state.connecting"), 14, w);
@@ -2351,27 +2487,33 @@ export class RoomLobbyScene extends Phaser.Scene {
         const rect2: Rect = { x: x + w - btnW, y: y + (rowH - hit.target) / 2, width: btnW, height: hit.target };
         if (host && !locked) {
           this.#button({
-            kind: "secondary",
+            key,
+            look: "secondary",
             label: on ? t("room.on") : t("room.off"),
-            type: typeRole.label,
             rect: rect2,
             selected: on,
-            onClick: change,
-            clip: guard.clip,
-            suppressClick: guard.suppress,
+            run: change,
           });
-          guard.stop(key, rect2, change);
         } else {
-          const g = this.add.graphics();
-          g.lineStyle(2, INK, on ? 1 : 0.5).strokeRect(rect2.x, rect2.y + 4, rect2.width, hit.target - 8);
-          this.add
-            .text(
-              rect2.x + rect2.width / 2,
-              rect2.y + hit.target / 2,
-              (on ? t("room.on") : t("room.off")).toUpperCase(),
-              textStyle(typeRole.label, INK, on ? 1 : 0.6),
-            )
-            .setOrigin(0.5);
+          b.box(
+            { x: rect2.x, y: rect2.y + 4, width: rect2.width, height: hit.target - 8 },
+            {
+              stroke: INK,
+              strokeWidth: 2,
+              alpha: on ? 1 : 0.5,
+            },
+          );
+          b.text(
+            rect2.x + rect2.width / 2,
+            rect2.y + hit.target / 2,
+            (on ? t("room.on") : t("room.off")).toUpperCase(),
+            typeRole.label,
+            {
+              color: INK,
+              alpha: on ? 1 : 0.6,
+              origin: [0.5, 0.5],
+            },
+          );
         }
         y += rowH + 8;
       };
@@ -2382,6 +2524,34 @@ export class RoomLobbyScene extends Phaser.Scene {
           this.#api.setLobby({ settings: { listed: settings.listed !== true } }),
         );
       if (host && !this.#listedInHeader) listedRow();
+
+      // One choice of a few: the host's button with its detail under it, everyone else just the chosen one.
+      const choice = (
+        key: string,
+        title: string,
+        detail: string,
+        selected: boolean,
+        pressable: boolean,
+        choose: () => void,
+      ): void => {
+        if (pressable) {
+          this.#button({
+            key,
+            look: "secondary",
+            label: title,
+            rect: { x, y, width: w, height: hit.target },
+            selected,
+            run: choose,
+          });
+          y += hit.target + 4;
+          const info = this.#text(x + 4, y, detail, 12, w - 8, { alpha: 0.8 });
+          y += info.height + 10;
+        } else if (selected) {
+          const name = this.#text(x, y, title, 15, w, { bold: true });
+          const info = this.#text(x, y + name.height + 2, detail, 12, w, { alpha: 0.85 });
+          y += name.height + info.height + 12;
+        }
+      };
 
       // Standard or Epic (Trickster Takeover): the organizer's choice, everyone's to read.
       y = this.#heading(x, y, w, t("epic.mode.title"));
@@ -2398,10 +2568,7 @@ export class RoomLobbyScene extends Phaser.Scene {
         // each one is: `scenes/room-mode-picker.ts`).
         const thumb: Rect = { x, y, width: 52, height: 68 };
         const copy = ROOM_MODE_COPY[modeNow];
-        this.add
-          .graphics()
-          .fillStyle(INK, 1)
-          .fillRect(thumb.x + 3, thumb.y + 3, thumb.width, thumb.height);
+        b.box({ x: thumb.x + 3, y: thumb.y + 3, width: thumb.width, height: thumb.height }, { fill: INK });
         copy.art.forEach((id, i) => {
           const slot: Rect = {
             x: thumb.x + (i * thumb.width) / copy.art.length,
@@ -2409,9 +2576,15 @@ export class RoomLobbyScene extends Phaser.Scene {
             width: thumb.width / copy.art.length,
             height: thumb.height,
           };
-          drawPicture(this, villainPicture(id), slot, () => this.#draw(), { scaleToSlot: true, focusY: 0.3 });
+          const picture = villainPicture(id);
+          b.pictureTile(slot, {
+            key: `modeThumb:${i}`,
+            src: picture?.url ?? null,
+            frame: 0,
+            focus: { x: picture?.focus?.x ?? 0.5, y: picture?.focus?.y ?? 0.3 },
+          });
         });
-        this.add.graphics().lineStyle(3, INK, 1).strokeRect(thumb.x, thumb.y, thumb.width, thumb.height);
+        b.box(thumb, { stroke: INK, strokeWidth: 3 });
         const tx = thumb.x + thumb.width + 12;
         const nameText = this.#text(tx, y + 2, t(copy.title), 17, w - (tx - x), { bold: true });
         const tag = this.#text(tx, y + 2 + nameText.height, t(copy.tagline), 12, w - (tx - x), { alpha: 0.85 });
@@ -2421,17 +2594,14 @@ export class RoomLobbyScene extends Phaser.Scene {
           width: Math.min(w - (tx - x), 220),
           height: hit.target,
         };
-        const openPicker = (): void => this.#openModePicker(modeNow, choose);
         this.#button({
-          kind: "secondary",
+          key: "epicmode:change",
+          look: "secondary",
           label: t("room.modes.change"),
           type: { ...typeRole.label, size: 12 },
           rect: change,
-          onClick: openPicker,
-          clip: guard.clip,
-          suppressClick: guard.suppress,
+          run: () => this.#openModePicker(modeNow, choose),
         });
-        guard.stop("epicmode:change", change, openPicker);
         y = Math.max(thumb.y + thumb.height, change.y + hit.target) + 8;
         if (this.#state.competitive) {
           y += this.#text(x + 4, y, t("comp.friendly"), 12, w - 8, { alpha: 0.8 }).height + 10;
@@ -2465,86 +2635,31 @@ export class RoomLobbyScene extends Phaser.Scene {
       y = this.#heading(x, y, w, t("room.mode.title"));
       for (const mode of ["strict", "host"] as const) {
         const words = playModeKeys[mode];
-        const selected = settings.playMode === mode;
-        if (host) {
-          const btn: Rect = { x, y, width: w, height: hit.target };
-          const choose = (): void => this.#api.setLobby({ settings: { playMode: mode } });
-          this.#button({
-            kind: "secondary",
-            label: t(words.title),
-            type: typeRole.label,
-            rect: btn,
-            selected,
-            onClick: choose,
-            clip: guard.clip,
-            suppressClick: guard.suppress,
-          });
-          guard.stop(`mode:${mode}`, btn, choose);
-          y += hit.target + 4;
-          const info = this.#text(x + 4, y, t(words.detail), 12, w - 8, { alpha: 0.8 });
-          y += info.height + 10;
-        } else if (selected) {
-          const name = this.#text(x, y, t(words.title), 15, w, { bold: true });
-          const info = this.#text(x, y + name.height + 2, t(words.detail), 12, w, { alpha: 0.85 });
-          y += name.height + info.height + 12;
-        }
+        choice(`mode:${mode}`, t(words.title), t(words.detail), settings.playMode === mode, host, () =>
+          this.#api.setLobby({ settings: { playMode: mode } }),
+        );
       }
 
       // Villain phase pacing (#881): who steps a guest's villain phase screen along.
       y = this.#heading(x, y + 4, w, t("room.villain.title"));
       for (const value of ["host", "each"] as const) {
         const words = villainPacingKeys[value];
-        const selected = pacingOf(settings) === value;
-        if (host) {
-          const btn: Rect = { x, y, width: w, height: hit.target };
-          const choose = (): void => this.#api.setLobby({ settings: { villainPacing: value } });
-          this.#button({
-            kind: "secondary",
-            label: t(words.title),
-            type: typeRole.label,
-            rect: btn,
-            selected,
-            onClick: choose,
-            clip: guard.clip,
-            suppressClick: guard.suppress,
-          });
-          guard.stop(`villain:${value}`, btn, choose);
-          y += hit.target + 4;
-          const info = this.#text(x + 4, y, t(words.detail), 12, w - 8, { alpha: 0.8 });
-          y += info.height + 10;
-        } else if (selected) {
-          const name = this.#text(x, y, t(words.title), 15, w, { bold: true });
-          const info = this.#text(x, y + name.height + 2, t(words.detail), 12, w, { alpha: 0.85 });
-          y += name.height + info.height + 12;
-        }
+        choice(`villain:${value}`, t(words.title), t(words.detail), pacingOf(settings) === value, host, () =>
+          this.#api.setLobby({ settings: { villainPacing: value } }),
+        );
       }
 
       // Undo: who may take a move back (Strict forces Off).
       y = this.#heading(x, y + 4, w, t("room.undo.title"));
       for (const row of undoRows(settings)) {
-        const pressable = host && settings.playMode !== "strict";
-        if (pressable) {
-          const btn: Rect = { x, y, width: w, height: hit.target };
-          const choose = (): void => this.#api.setLobby({ settings: { undo: row.value } });
-          this.#button({
-            kind: "secondary",
-            label: t(row.titleKey),
-            type: typeRole.label,
-            rect: btn,
-            selected: row.selected,
-            onClick: choose,
-            clip: guard.clip,
-            suppressClick: guard.suppress,
-          });
-          guard.stop(`undo:${row.value}`, btn, choose);
-          y += hit.target + 4;
-          const info = this.#text(x + 4, y, t(row.detailKey), 12, w - 8, { alpha: 0.8 });
-          y += info.height + 10;
-        } else if (row.selected) {
-          const name = this.#text(x, y, t(row.titleKey), 15, w, { bold: true });
-          const info = this.#text(x, y + name.height + 2, t(row.detailKey), 12, w, { alpha: 0.85 });
-          y += name.height + info.height + 12;
-        }
+        choice(
+          `undo:${row.value}`,
+          t(row.titleKey),
+          t(row.detailKey),
+          row.selected,
+          host && settings.playMode !== "strict",
+          () => this.#api.setLobby({ settings: { undo: row.value } }),
+        );
       }
 
       // Cheats: the host's own cheats on or off, fixed once the game starts; the note is for everyone.
@@ -2597,31 +2712,25 @@ export class RoomLobbyScene extends Phaser.Scene {
             mod.have ? `✓ ${t("room.mods.have")}` : `✗ ${t("room.mods.missing")}`,
             12,
             w,
-            {
-              alpha: 0.9,
-            },
+            { alpha: 0.9 },
           );
           y += name.height + state.height + 10;
           if (!mod.have) {
             // The Mod Store, opened on this pack; its Back returns here (the room stays joined).
-            const store: Rect = { x, y, width: w, height: hit.target };
-            const open = (): void => {
-              this.scale.off("resize", this.#draw, this);
-              goToScreen(this, SCENES.modStore, {
-                packId: mod.id,
-                returnTo: SCENES.roomLobby,
-              } satisfies ModStoreSceneData);
-            };
             this.#button({
-              kind: "secondary",
+              key: `modstore:${mod.id}`,
+              look: "secondary",
               label: t("room.mods.store"),
               type: { ...typeRole.label, size: 12 },
-              rect: store,
-              onClick: open,
-              clip: guard.clip,
-              suppressClick: guard.suppress,
+              rect: { x, y, width: w, height: hit.target },
+              run: () => {
+                this.scale.off("resize", this.#draw, this);
+                goToScreen(this, SCENES.modStore, {
+                  packId: mod.id,
+                  returnTo: SCENES.roomLobby,
+                } satisfies ModStoreSceneData);
+              },
             });
-            guard.stop(`modstore:${mod.id}`, store, open);
             y += hit.target + 10;
           }
         }
@@ -2730,15 +2839,13 @@ export class RoomLobbyScene extends Phaser.Scene {
   #drawPopOutButton(rect: Rect, offset: number): void {
     if (!this.#canPopOut || !chatOn(this.#state)) return;
     const popRect: Rect = { x: rect.x + rect.width - 12 - offset - 120, y: rect.y + 6, width: 120, height: 30 };
-    const pop = (): void => this.#popOut();
     this.#button({
-      kind: "secondary",
+      key: "chat-popout",
+      look: "secondary",
       label: t("room.chat.popout"),
-      type: typeRole.label,
       rect: popRect,
-      onClick: pop,
+      run: () => this.#popOut(),
     });
-    this.#addStop("chat-popout", popRect, pop);
   }
 
   /** What the lobby's chat says while it is in its own window, with the way back. */
@@ -2746,51 +2853,60 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#chatInput?.setVisible(false);
     this.#text(inner.x + 2, inner.y + 4, t("room.chat.popped"), 14, inner.width - 4, { bold: true });
     const back: Rect = { x: inner.x, y: inner.y + 40, width: Math.min(inner.width, 200), height: hit.target };
-    const bring = (): void => this.#bringBack();
     this.#button({
-      kind: "primary",
+      key: "chat-bring-back",
+      look: "primary",
       label: t("room.chat.bringBack"),
-      type: typeRole.label,
       rect: back,
-      onClick: bring,
+      run: () => this.#bringBack(),
     });
-    this.#addStop("chat-bring-back", back, bring);
   }
 
   /** The floating chat's corner while the chat is in its own window: a small card in the pill's place. */
   #drawPoppedCard(rect: Rect): void {
-    this.add.rectangle(rect.x + 6, rect.y + 6, rect.width, rect.height, INK).setOrigin(0, 0);
-    this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
+    // The card's own box takes every press over it, so nothing under it is pressed through it.
+    this.#b.box({ x: rect.x + 6, y: rect.y + 6, width: rect.width, height: rect.height }, { fill: INK });
     const inner = this.#frame(rect, null);
-    this.add
-      .graphics()
-      .lineStyle(3, INK, 1)
-      .strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+    this.#b.box(
+      { x: rect.x + 1.5, y: rect.y + 1.5, width: rect.width - 3, height: rect.height - 3 },
+      {
+        stroke: INK,
+        strokeWidth: 3,
+      },
+    );
     this.#drawPoppedNotice({ ...inner, y: inner.y + 2, width: inner.width });
   }
 
   /** The closed floating chat: a Chat pill at the corner, with the unread count beside it. */
   #drawChatPill(rect: Rect, unread: number): void {
-    const open = (): void => this.#setChatOpen(true);
     this.#button({
-      kind: "primary",
+      key: "chat-pill",
+      look: "primary",
       label: t("room.tab.chat"),
-      type: typeRole.label,
       rect,
-      ...(unread > 0 ? { value: unread > 9 ? "9+" : String(unread) } : {}),
-      onClick: open,
+      run: () => this.#setChatOpen(true),
+      ...(unread > 0 ? { labelShift: -10 } : {}),
     });
-    this.#addStop("chat-pill", rect, open);
+    if (unread > 0) {
+      this.#b.text(
+        rect.x + rect.width - 12,
+        rect.y + rect.height / 2,
+        unread > 9 ? "9+" : String(unread),
+        typeRole.label,
+        {
+          color: PAPER,
+          origin: [1, 0.5],
+        },
+      );
+    }
   }
 
   #drawChatPanel(rect: Rect, titled: boolean, phone: boolean, floating = false): void {
     const state = this.#state;
-    // A floating panel is opaque and takes the pointer, so nothing under it scrolls or presses through it.
-    if (floating) {
-      // A comic-panel drop shadow (an offset ink rectangle) and a heavier border lift it off the settings.
-      this.add.rectangle(rect.x + 6, rect.y + 6, rect.width, rect.height, INK).setOrigin(0, 0);
-      this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
-    }
+    const b = this.#b;
+    // A floating panel is opaque and takes the pointer, so nothing under it scrolls or presses through it: a comic-panel
+    // drop shadow (an offset ink box) and a heavier border lift it off the settings.
+    if (floating) b.box({ x: rect.x + 6, y: rect.y + 6, width: rect.width, height: rect.height }, { fill: INK });
     const framed = this.#frame(rect, titled ? t("room.tab.chat") : null);
     let inner = framed;
     if (this.#popBlocked && titled && !this.#popped) {
@@ -2798,20 +2914,21 @@ export class RoomLobbyScene extends Phaser.Scene {
       inner = { ...framed, y: framed.y + 20, height: framed.height - 20 };
     }
     if (floating) {
-      this.add
-        .graphics()
-        .lineStyle(3, INK, 1)
-        .strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+      b.box(
+        { x: rect.x + 1.5, y: rect.y + 1.5, width: rect.width - 3, height: rect.height - 3 },
+        {
+          stroke: INK,
+          strokeWidth: 3,
+        },
+      );
       const closeRect: Rect = { x: rect.x + rect.width - 12 - 92, y: rect.y + 6, width: 92, height: 30 };
-      const close = (): void => this.#setChatOpen(false);
       this.#button({
-        kind: "secondary",
+        key: "chat-close",
+        look: "secondary",
         label: t("room.chat.close"),
-        type: typeRole.label,
         rect: closeRect,
-        onClick: close,
+        run: () => this.#setChatOpen(false),
       });
-      this.#addStop("chat-close", closeRect, close);
       this.#drawPopOutButton(rect, 92 + 8);
     } else if (this.#layoutMode === "triple") {
       // Only the floating panel and the ultrawide column pop out; the tablet-landscape and stacked layouts do not.
@@ -2847,7 +2964,8 @@ export class RoomLobbyScene extends Phaser.Scene {
       height: rowHeight,
     };
 
-    const chatRegion = this.#scrollPanel("chat", listRect, (x, top, w) => {
+    this.#scrollPanel("chat", listRect, (x, top, w) => {
+      const list = this.#b;
       if (state.chat.length === 0) {
         const none = this.#text(x + 2, top + 4, t("room.chat.empty"), 13, w, { alpha: 0.75 });
         return none.height + 8;
@@ -2855,20 +2973,24 @@ export class RoomLobbyScene extends Phaser.Scene {
       let y = top + 2;
       for (const line of state.chat) {
         const who = line.name ?? "?";
-        const text = this.#text(x + 8, y + 4, `${who}: ${line.text}`, 13, w - 16, { bold: line.mine });
-        const h = text.height + 8;
-        const g = this.add.graphics();
-        g.lineStyle(line.mine ? 2 : 1, INK, line.mine ? 1 : 0.35).strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-        this.children.moveTo(g, this.children.getIndex(text));
+        const text = `${who}: ${line.text}`;
+        const spec = line.mine ? typeRole.rowTitle : typeRole.body;
+        const h = list.measure(text, spec, { size: 13, wrapWidth: w - 16 }).height + 8;
+        list.box(
+          { x: x + 0.5, y: y + 0.5, width: w - 1, height: h - 1 },
+          {
+            stroke: INK,
+            strokeWidth: line.mine ? 2 : 1,
+            alpha: line.mine ? 1 : 0.35,
+          },
+        );
+        list.text(x + 8, y + 4, text, spec, { size: 13, color: INK, wrapWidth: w - 16 });
         y += h + 4;
       }
       return y - top;
     });
 
-    if (this.#chatToEnd) {
-      this.#chatToEnd = false;
-      chatRegion.scrollByPx(1_000_000);
-    }
+    this.#fieldRect = fieldRect;
     if (!this.#chatInput) {
       this.#chatInput = new McTextInput(this, {
         rect: fieldRect,
@@ -2891,12 +3013,13 @@ export class RoomLobbyScene extends Phaser.Scene {
       });
     }
     this.#button({
-      kind: "primary",
+      key: "chat-send",
+      look: "primary",
       label: t("room.chat.send"),
-      type: typeRole.label,
       rect: sendRect,
       enabled: this.#state.connection !== "ended",
-      onClick: () => this.#sendChat(!this.sys.game.device.input.touch),
+      run: () => this.#sendChat(!this.sys.game.device.input.touch),
+      noStop: true,
     });
     this.#addStop("chat-field", fieldRect, () => this.#chatInput?.focus());
     this.#addStop("chat-send", sendRect, () => this.#sendChat());
@@ -2906,7 +3029,8 @@ export class RoomLobbyScene extends Phaser.Scene {
 
   #drawFooter(rect: Rect, phone: boolean): void {
     const state = this.#state;
-    this.add.rectangle(rect.x, rect.y, rect.width, rect.height, INK).setOrigin(0, 0);
+    const b = this.#b;
+    b.box(rect, { fill: INK });
     const pad = 10;
     const full = rect.width >= 600;
     const hasButton = this.#isHost() || state.connection === "ended" || this.#confirmLeave;
@@ -2927,19 +3051,19 @@ export class RoomLobbyScene extends Phaser.Scene {
           width: rect.width - pad * 2,
           height: hasButton ? rect.height - hit.primary - 10 : rect.height - 8,
         };
-    const say2 = (text: string, bold = false): Phaser.GameObjects.Text => {
-      const line = this.add
-        .text(
-          textRect.x,
-          textRect.y + textRect.height / 2,
-          text,
-          textStyle(bold ? typeRole.rowTitle : typeRole.body, PAPER),
-        )
-        .setOrigin(0, 0.5)
-        .setWordWrapWidth(textRect.width, true);
-      fitText(line, textRect.width, phone ? 12 : 13);
-      if (line.height > textRect.height) line.setFontSize(11);
-      return line;
+    /** The footer's line of words: wrapped to the strip, a point smaller (down to 11) when it is too tall for it. */
+    const say2 = (text: string, bold = false): number => {
+      const spec = bold ? typeRole.rowTitle : typeRole.body;
+      let size = phone ? 12 : 13;
+      if (b.measure(text, spec, { size, wrapWidth: textRect.width }).height > textRect.height) size = 11;
+      b.text(textRect.x, textRect.y + textRect.height / 2, text, spec, {
+        size,
+        color: PAPER,
+        origin: [0, 0.5],
+        wrapWidth: textRect.width,
+        key: "footer-words",
+      });
+      return b.nodes.length - 1;
     };
 
     if (this.#confirmLeave) {
@@ -2948,40 +3072,34 @@ export class RoomLobbyScene extends Phaser.Scene {
       const stay: Rect = { ...buttonRect, width: half };
       const close: Rect = { ...buttonRect, x: buttonRect.x + half + 8, width: half };
       this.#button({
-        kind: "onInk",
+        key: "stay",
+        look: "onInk",
         label: t("room.stay"),
-        type: typeRole.label,
         rect: stay,
-        onClick: () => {
+        run: () => {
           this.#confirmLeave = false;
           this.#draw();
         },
       });
       this.#button({
-        kind: "primary",
+        key: "close",
+        look: "primary",
         label: t("room.closeRoom"),
-        type: typeRole.label,
         rect: close,
-        onClick: () => this.#goTitle(),
+        run: () => this.#goTitle(),
       });
-      this.#addStop("stay", stay, () => {
-        this.#confirmLeave = false;
-        this.#draw();
-      });
-      this.#addStop("close", close, () => this.#goTitle());
       return;
     }
     if (state.connection === "ended") {
       const words = connectionWords(state);
       if (words) say2(wordsText(words), true);
       this.#button({
-        kind: "primary",
+        key: "back-title",
+        look: "primary",
         label: t("room.backToTitle"),
-        type: typeRole.label,
         rect: buttonRect,
-        onClick: () => this.#goTitle(),
+        run: () => this.#goTitle(),
       });
-      this.#addStop("back-title", buttonRect, () => this.#goTitle());
       return;
     }
     const note = this.#noteNow();
@@ -2991,10 +3109,10 @@ export class RoomLobbyScene extends Phaser.Scene {
       if (activity) {
         const base = wordsText(activity);
         // Fitted with the longest ellipsis, so the text never needs refitting as the dots change.
-        const line = say2(base + "...", true);
+        const at = say2(base + "...", true);
         const dots = activityDots(this.time.now, appSession().settings.reducedMotion);
-        line.setText(base + dots);
-        this.#activity = { text: line, words: base, dots };
+        this.#activity = { index: at, words: base, dots: "..." };
+        this.#writeActivityDots(dots);
         return;
       }
       say2(note ?? t("room.start.guestWait"), note !== null);
@@ -3004,17 +3122,31 @@ export class RoomLobbyScene extends Phaser.Scene {
     const resultNote = this.#startResult ? wordsText(this.#startResult.headline) : null;
     say2(note ?? resultNote ?? (block ? wordsText(block) : ""), note !== null || resultNote !== null);
     this.#button({
-      kind: "primary",
+      key: "start",
+      look: "primary",
       label: this.#starting ? t("room.starting") : t("room.start"),
       type: bangers(22),
       rect: buttonRect,
       enabled: block === null && !this.#starting,
-      onUnavailablePress: () => {
-        if (block) this.#say(wordsText(block));
-        this.#draw();
-      },
-      onClick: () => void this.#start(),
+      ...(block ? { reason: wordsText(block) } : {}),
+      run: () => void this.#start(),
     });
-    this.#addStop("start", buttonRect, () => void this.#start());
+  }
+
+  /** Puts the host-activity line's ellipsis in the parts being built. */
+  #writeActivityDots(dots: string): void {
+    const activity = this.#activity;
+    const node = activity ? this.#b.nodes[activity.index] : undefined;
+    if (!activity || node?.kind !== "text") return;
+    activity.dots = dots;
+    this.#b.nodes[activity.index] = { ...node, text: activity.words + dots };
+  }
+
+  /** The ellipsis moves on: the panel gets the parts again with only that line changed. */
+  #setActivityDots(dots: string): void {
+    if (!this.#activity || this.#activity.dots === dots || !this.#region) return;
+    this.#writeActivityDots(dots);
+    this.#nodes = [...this.#b.nodes];
+    this.#region.element.nodes = this.#nodes;
   }
 }

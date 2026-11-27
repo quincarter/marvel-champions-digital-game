@@ -306,6 +306,10 @@ test("a press begun on one notice's button and finished after another input dism
   const y = box.y + box.height / 2;
   await page.mouse.move(x, y);
   await page.mouse.down();
+  // The mouse moving hid the focus ring, so the first key only brings it back (a press never acts on a control the
+  // player cannot see, `FocusRoute`); the next Enter presses OK, which moves on to Notice B.
+  await pressKey(page, "ArrowLeft");
+  await expect(panel).toContainText("Notice A");
   await pressKey(page, "Enter");
   await expect(panel).toContainText("Notice B");
   await page.mouse.up();
