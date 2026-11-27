@@ -1002,6 +1002,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       size: phone ? 28 : 38,
       wrapWidth: column - 108,
       letterSpacing: 2,
+      // The title type is set tight (line height 0.86); the sheet's default is 1.2.
+      lineSpacing: (phone ? 28 : 38) * (typeRole.screenTitle.lineHeight - 1.2),
     });
     const backRect: Rect = { x: left + column - 100, y: y + 2, width: 100, height: hit.target };
     const campaign = this.#campaign;
