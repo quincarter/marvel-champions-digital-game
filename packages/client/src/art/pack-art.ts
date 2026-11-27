@@ -30,6 +30,8 @@ import { setHouseRuleFaceSource, setPackArtResolver, type ArtSource } from "./ar
 export interface PackArtStore {
   objectUrl(id: string, path: string): Promise<string | undefined>;
   revoke(id: string, path?: string): void;
+  /** Forgets the cached URL for one file without revoking it and returns it, so the next read makes a fresh one. */
+  detach?(id: string, path: string): string | undefined;
 }
 
 interface PackArtPack {
@@ -270,6 +272,9 @@ const leaseCounts = new Map<string, number>();
 /** Keys whose eviction asked for a revoke while leased: done when the last lease is released. */
 const revokeOnRelease = new Set<string>();
 
+/** Blob URLs `refreshPackArt` detached from the store while a decode read them: revoked when the last decode settles. */
+const detachedUrls = new Map<string, string[]>();
+
 /** How many `CardArt` decodes read each key's URL (a subset of `leaseCounts`). */
 const decodeCounts = new Map<string, number>();
 
@@ -308,7 +313,11 @@ export function leasePackUrl(key: string, opts: PackLeaseOptions = {}): PackUrlL
       if (opts.decode) {
         const decodes = (decodeCounts.get(key) ?? 1) - 1;
         if (decodes > 0) decodeCounts.set(key, decodes);
-        else decodeCounts.delete(key);
+        else {
+          decodeCounts.delete(key);
+          for (const old of detachedUrls.get(key) ?? []) URL.revokeObjectURL(old);
+          detachedUrls.delete(key);
+        }
       }
       const left = (leaseCounts.get(key) ?? 1) - 1;
       if (left > 0) {
@@ -368,10 +377,19 @@ export function refreshPackArt(key: string, failedUrl: string | undefined): void
   if (!info) return;
   const current = urls.get(key);
   if (current !== undefined && (failedUrl === undefined || current === failedUrl)) {
-    // A decode still reads this URL: revoking now would fail it (and cache the picture missing). The revoke waits for
-    // its release; the URL stays current meanwhile.
+    // A decode still reads this URL: revoking now would fail it. The URL stops being current at once (so that decode's
+    // failure is a retry, not a missing scan, and a fresh URL is read and announced now); only the revoke of the old
+    // blob waits for the last decode to settle. A store that cannot detach keeps the defer-and-keep behavior.
     if ((decodeCounts.get(key) ?? 0) > 0) {
-      revokeOnRelease.add(key);
+      const old = store?.detach?.(info.id, info.path);
+      if (old === undefined) {
+        revokeOnRelease.add(key);
+        return;
+      }
+      detachedUrls.set(key, [...(detachedUrls.get(key) ?? []), old]);
+      urls.delete(key);
+      const pack = packs.get(info.id);
+      if (pack && key === packArtKey(pack.id, pack.version, info.path)) ensure(pack, info.path);
       return;
     }
     store?.revoke(info.id, info.path);
@@ -404,6 +422,7 @@ export function resetPackArt(): void {
   urls.clear();
   leaseCounts.clear();
   decodeCounts.clear();
+  detachedUrls.clear();
   revokeOnRelease.clear();
   fileOfKey.clear();
   resolving.clear();

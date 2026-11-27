@@ -531,6 +531,7 @@ describe("CardArt and PackLeases share one URL lifetime (pack-art owns it)", () 
     const store = {
       objectUrl: async (id: string, path: string) => `blob:${id}/${path}#${++serial}`,
       revoke: (id: string, path?: string) => void revoked.push(`${id}/${path ?? "*"}`),
+      detach: (id: string, path: string) => `blob:${id}/${path}#${serial}`,
     };
     real.setPackArt([manifest], store);
     real.packArtFor("x.demo.01a", "en");
@@ -612,14 +613,48 @@ describe("CardArt and PackLeases share one URL lifetime (pack-art owns it)", () 
     expect(revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
   });
 
-  it("refreshPackArt does not revoke a URL a decode reads, and its stale failure is not cached as missing", async () => {
+  it("refreshPackArt during a failing decode with a live DOM lease delivers a fresh URL and the retry succeeds", async () => {
     const { real, art, scene, held, gates, revoked } = await rig();
+    const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const announced = vi.fn();
+    const off = (await import("../language-change.js")).onArtChange(announced);
+    // Rules holds a DOM lease on the URL; a decode reads it too.
+    const dom = new real.PackLeases();
+    dom.begin();
+    dom.image(held);
+    dom.end();
     art.request(scene, held);
+    // The DOM image fails and asks for a refresh while the decode is still out.
     real.refreshPackArt(held.key, held.url);
+    // Nothing is revoked under the decode, but the failed URL is no longer current and a fresh one is being read.
     expect(revoked).toEqual([]);
-    // The decode finds nothing at the URL (a stale failure): the picture is retried, not missing, once the URL moved on.
+    expect(revokeUrl).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(250);
+    const fresh = real.currentPackArt(held);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.url).not.toBe(held.url);
+    expect(announced).toHaveBeenCalled();
+    // The decode of the failed URL fails (nothing at it): a retry, not a missing scan; the old blob is revoked now.
+    // (the DOM lease is still held and does not block this)
     gates.splice(0).forEach((open) => open());
     await settle();
-    expect(revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
+    expect(art.isMissing(held.key)).toBe(false);
+    expect(revokeUrl).toHaveBeenCalledWith(held.url);
+    // The redraw asks again with the fresh URL and it decodes.
+    const sizes = new Map<string, Size>();
+    sizes.set(fresh!.url, { width: 300, height: 400 });
+    const retry = new CardArt({
+      decode: (url, slot) =>
+        Promise.resolve({ width: sizes.get(url)!.width, height: Math.min(400, slot.height) } as HTMLCanvasElement),
+      budgetBytes: BUDGET,
+      renderScale: () => 1,
+    });
+    retry.request(scene, fresh!);
+    await settle();
+    expect(retry.isMissing(held.key)).toBe(false);
+    expect(scene.textures.exists(held.key)).toBe(true);
+    dom.dispose();
+    off();
+    revokeUrl.mockRestore();
   });
 });

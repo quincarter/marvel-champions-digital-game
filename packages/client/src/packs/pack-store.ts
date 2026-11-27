@@ -45,6 +45,8 @@ export interface PackStorage {
   objectUrl(id: string, path: string): Promise<string | undefined>;
   /** Revokes the URL `objectUrl` handed out for one file, or every file of the pack when `path` is omitted. */
   revoke(id: string, path?: string): void;
+  /** Forgets the cached URL for one file without revoking it; returns it for a later revoke. */
+  detach(id: string, path: string): string | undefined;
   /** Bytes of every stored file. */
   totalBytes(): Promise<number>;
   /** Bytes of one pack's files. */
@@ -219,6 +221,15 @@ export class IdbPackStore implements PackStorage {
     };
     request.then(forget, forget);
     return request;
+  }
+
+  /** Forgets one file's cached URL without revoking it (a decode may still read it) and hands it back to revoke later. */
+  detach(id: string, path: string): string | undefined {
+    const key = `${id}/${path}`;
+    const url = this.urls.get(key);
+    this.pending.delete(key);
+    this.urls.delete(key);
+    return url;
   }
 
   revoke(id: string, path?: string): void {
