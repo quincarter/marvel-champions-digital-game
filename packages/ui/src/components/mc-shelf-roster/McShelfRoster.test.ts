@@ -191,3 +191,69 @@ describe("mc-shelf-roster keys, dimming and row-paging glyphs", () => {
     expect(el.shadowRoot!.querySelector(".chevrons.hinted")).toBeTruthy();
   });
 });
+
+describe("mc-shelf-roster header controls", () => {
+  it("gives the fold, See all and chevron controls translated names, and presses them with Enter or Space but not with a pointer's click", async () => {
+    const el = await mount(model());
+    const heard: string[] = [];
+    el.addEventListener("mc-activate", (event) => heard.push((event as CustomEvent<{ key: string }>).detail.key));
+    const fold = el.elementOf("all:core") as HTMLButtonElement;
+    expect(fold.tagName).toBe("BUTTON");
+    expect(fold.getAttribute("aria-label")).toBe("See all: Pack core");
+    const prev = el.elementOf("chev:core:prev") as HTMLButtonElement;
+    const next = el.elementOf("chev:core:next") as HTMLButtonElement;
+    expect(prev.tagName).toBe("BUTTON");
+    expect(prev.getAttribute("aria-label")).toBe("Scroll left: Pack core");
+    expect(next.getAttribute("aria-label")).toBe("Scroll right: Pack core");
+    // A keyboard click (detail 0) acts; a pointer's (detail 1) was the tap's business.
+    fold.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true, detail: 0 }));
+    fold.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true, detail: 1 }));
+    expect(heard).toEqual(["all:core"]);
+    const header = el.shadowRoot!.querySelector<HTMLButtonElement>("button.tap")!;
+    expect(header.getAttribute("aria-label")).toBe("Pack core");
+  });
+
+  it("states whether a folding shelf is open on its header button", async () => {
+    const el = await mount(model({ shelves: [shelf("core", { open: false })] }));
+    expect(el.shadowRoot!.querySelector("button.tap")!.getAttribute("aria-expanded")).toBe("false");
+  });
+});
+
+describe("mc-shelf-roster picture watching", () => {
+  it("watches only the tiles on the page: filtering and folding cycles do not pile up observed tiles", async () => {
+    const observed = new Set<Element>();
+    class FakeObserver {
+      observe(target: Element): void {
+        observed.add(target);
+      }
+      unobserve(target: Element): void {
+        observed.delete(target);
+      }
+      disconnect(): void {
+        observed.clear();
+      }
+    }
+    vi.stubGlobal("IntersectionObserver", FakeObserver);
+    try {
+      const all = model({ shelves: [shelf("core", { items: ["a", "b", "c", "d"].map((id) => item(id)) })] });
+      const el = await mount(all);
+      expect(observed.size).toBe(4);
+      for (let cycle = 0; cycle < 5; cycle++) {
+        el.model = { ...all, shelves: [shelf("core", { items: [item("a")] })] };
+        await el.updateComplete;
+        expect(observed.size).toBe(1);
+        el.model = { ...all, shelves: [shelf("core", { open: false, items: [] })] };
+        await el.updateComplete;
+        expect(observed.size).toBe(0);
+        el.model = all;
+        await el.updateComplete;
+        expect(observed.size).toBe(4);
+      }
+      expect(el.watchedCount).toBe(4);
+      el.remove();
+      expect(observed.size).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

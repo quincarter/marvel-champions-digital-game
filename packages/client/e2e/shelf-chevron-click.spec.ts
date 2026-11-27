@@ -22,7 +22,7 @@ test.describe("Take your seats: shelf chevrons", () => {
 
     const roster = page.locator('#mc-ui [data-scene="Seats"] mc-shelf-roster').first();
     const row = roster.locator("[data-row]").first();
-    const next = roster.locator(".chevrons mc-button").nth(1);
+    const next = roster.locator(".chevrons button").nth(1);
     await next.scrollIntoViewIfNeeded();
     const scenesBefore = await activeScenes(page);
     const seatsBefore = await seats(page);

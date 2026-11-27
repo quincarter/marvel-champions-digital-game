@@ -72,11 +72,21 @@ const styles = css`
   .tap {
     position: absolute;
     inset: 0;
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
   }
   .all {
+    appearance: none;
+    background: none;
+    border: 0;
+    margin: 0;
+    font-family: var(--mc-font-body);
     flex: none;
     display: flex;
     align-items: center;
@@ -100,10 +110,33 @@ const styles = css`
     flex: none;
     gap: 4px;
   }
-  .chevrons mc-button {
+  /* Real buttons: a keyboard reaches them and Enter or Space presses them. */
+  .chevrons button {
+    appearance: none;
     width: 44px;
     height: 44px;
-    --mc-button-size: 24px;
+    padding: 0;
+    margin: 0;
+    font: 800 24px var(--mc-font-body);
+    line-height: 1;
+    color: var(--mc-text-ink);
+    background: var(--mc-fill-paper);
+    border: 2.5px solid var(--mc-line-ink);
+    border-radius: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (hover: hover) {
+    .chevrons button:hover {
+      color: var(--mc-text-paper);
+      background: var(--mc-fill-ink);
+    }
+  }
+  .tap:focus-visible,
+  .all:focus-visible,
+  .chevrons button:focus-visible {
+    outline: 3px solid var(--mc-line-red);
+    outline-offset: -3px;
   }
   @media (pointer: fine) {
     .chevrons {
@@ -168,7 +201,8 @@ export class McShelfRoster extends LitElement {
   declare model: ShelfRosterModel;
   /** The tiles that have been near the box: their pictures load (and stay loaded). */
   readonly #near = new Set<string>();
-  #watched = new WeakSet<Element>();
+  /** The tiles the observer is watching: dropped when a tile leaves the page, so filtering and folding never pile them up. */
+  readonly #watched = new Set<Element>();
   #observer: IntersectionObserver | null = null;
   /** Without an `IntersectionObserver` every tile loads at once. */
   readonly #windowed = typeof IntersectionObserver !== "undefined";
@@ -194,7 +228,7 @@ export class McShelfRoster extends LitElement {
     this.#observer?.disconnect();
     this.#observer = null;
     // Reconnected, the tiles are watched afresh by a new observer.
-    this.#watched = new WeakSet<Element>();
+    this.#watched.clear();
   }
 
   protected override updated(): void {
@@ -209,17 +243,29 @@ export class McShelfRoster extends LitElement {
           if (!entry.isIntersecting || id === undefined || this.#near.has(id)) continue;
           this.#near.add(id);
           this.#observer?.unobserve(entry.target);
+          this.#watched.delete(entry.target);
           fresh = true;
         }
         if (fresh) this.requestUpdate();
       },
       { root, rootMargin: NEAR },
     );
+    // A tile that has left the page (filtered away, its shelf folded) is no longer watched.
+    for (const card of this.#watched) {
+      if (card.isConnected && this.renderRoot.contains(card)) continue;
+      this.#observer.unobserve(card);
+      this.#watched.delete(card);
+    }
     for (const card of this.renderRoot.querySelectorAll("mc-picture-card")) {
-      if (this.#watched.has(card)) continue;
+      if (this.#watched.has(card) || this.#near.has((card as HTMLElement).dataset.key ?? "")) continue;
       this.#watched.add(card);
       this.#observer.observe(card);
     }
+  }
+
+  /** How many tiles are being watched now (tests: it must follow the tiles on the page, not grow). */
+  get watchedCount(): number {
+    return this.#watched.size;
   }
 
   /** The tile's picture, or its plain ground until the tile has been near the box. */
@@ -290,6 +336,16 @@ export class McShelfRoster extends LitElement {
     }
   }
 
+  /**
+   * A button's native `click` from the keyboard (Enter or Space: `detail` 0) acts; one from a pointer does not, as the
+   * tap (`shared/tap.ts`) already took it, and the lift that ends a swipe is no press.
+   */
+  #keyboardClick(act: () => void): (event: MouseEvent) => void {
+    return (event) => {
+      if (event.detail === 0) act();
+    };
+  }
+
   #emit(name: string, key: string): void {
     this.dispatchEvent(new CustomEvent(name, { detail: { key }, bubbles: true, composed: true }));
   }
@@ -328,24 +384,28 @@ export class McShelfRoster extends LitElement {
       <div class="title">
         ${shelf.cover ? html`<mc-picture-tile .picture=${shelf.cover} .frame=${1.5}></mc-picture-tile>` : nothing}
         <mc-section-header .label=${shelf.title} .count=${shelf.count} .open=${shelf.open}></mc-section-header>
-        <div
+        <button
+          type="button"
           class="tap"
           data-key=${key}
-          role="button"
+          aria-label=${shelf.title}
           aria-expanded=${folds ? String(shelf.open) : nothing}
           ${tapped(() => this.#emit("mc-activate", key))}
-        ></div>
+          @click=${this.#keyboardClick(() => this.#emit("mc-activate", key))}
+        ></button>
       </div>
       ${
         shelf.seeAll
-          ? html`<div
+          ? html`<button
+              type="button"
               class="all"
-              role="button"
+              aria-label=${`${shelf.seeAll}: ${shelf.title}`}
               data-key=${`all:${shelf.id}`}
               ${tapped(() => this.#emit("mc-activate", `all:${shelf.id}`))}
+              @click=${this.#keyboardClick(() => this.#emit("mc-activate", `all:${shelf.id}`))}
             >
               ${shelf.seeAll}
-            </div>`
+            </button>`
           : nothing
       }
       ${
@@ -354,15 +414,15 @@ export class McShelfRoster extends LitElement {
           : html`<div class=${hinted ? "chevrons hinted" : "chevrons"}>
               ${[-1, 1].map(
                 (direction) =>
-                  html`${hinted ? this.#hint(hint, direction as 1 | -1) : nothing}<mc-button
-                      kind="secondary"
-                      .label=${direction < 0 ? "‹" : "›"}
-                      aria-label=${direction < 0 ? previousLabel : nextLabel}
-                      @mc-press=${(event: Event) => {
-                        event.stopPropagation();
-                        this.pageShelf(shelf.id, direction as 1 | -1);
-                      }}
-                    ></mc-button>`,
+                  html`${hinted ? this.#hint(hint, direction as 1 | -1) : nothing}<button
+                      type="button"
+                      data-key=${`chev:${shelf.id}:${direction < 0 ? "prev" : "next"}`}
+                      aria-label=${`${direction < 0 ? previousLabel : nextLabel}: ${shelf.title}`}
+                      ${tapped(() => this.pageShelf(shelf.id, direction as 1 | -1))}
+                      @click=${this.#keyboardClick(() => this.pageShelf(shelf.id, direction as 1 | -1))}
+                    >
+                      ${direction < 0 ? "‹" : "›"}
+                    </button>`,
               )}
             </div>`
       }

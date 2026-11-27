@@ -1157,7 +1157,8 @@ export class SeatsScene extends Phaser.Scene {
           index,
           deckId: slot.deckId,
           frame,
-          label: seatLabelOf(youWords, frame, index),
+          // " · YOU" only where the card is wide enough to keep the name beside the clear button whole.
+          label: seatLabelOf(youWords, frame, index, rect.width >= 260),
           name: slot.identityName,
           meta: slot.deckId
             ? t("seats.slotMeta", { aspect: slot.aspectLabel ?? "", hp: slot.hp ?? "—", hand: slot.handSize ?? "—" })
