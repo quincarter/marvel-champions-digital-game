@@ -75,7 +75,7 @@ test("a swipe down from the grab handle closes the confirm as Cancel, once", asy
   );
   expect(await page.evaluate(() => (window as any).__cancelled as number), "Cancel answered once").toBe(1);
   expect(await page.evaluate(() => (window as any).__confirmed as number), "End turn was not pressed").toBe(0);
-  expect(errors()).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 test("a short drag springs back, and a drag from the box body does nothing", async ({ page }) => {
@@ -95,5 +95,5 @@ test("a short drag springs back, and a drag from the box body does nothing", asy
   expect(await activeScenes(page), "a drag from the body leaves it open").toContain("EndTurnConfirmOverlay");
   expect(await page.evaluate(() => (window as any).__cancelled as number)).toBe(0);
   expect(await page.evaluate(() => (window as any).__confirmed as number)).toBe(0);
-  expect(errors()).toEqual([]);
+  expect(errors).toEqual([]);
 });
