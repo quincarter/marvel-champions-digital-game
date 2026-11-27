@@ -9,4 +9,6 @@ export interface TextLine {
   readonly opacity?: number;
   /** A label's capitals and tracking. */
   readonly label?: boolean;
+  /** The smallest size in px it may shrink to before it is cut with an ellipsis (the caption floor, 8px, when absent). */
+  readonly floor?: number;
 }

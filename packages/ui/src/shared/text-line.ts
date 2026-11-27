@@ -1,4 +1,4 @@
-import { html, type TemplateResult } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 import type { TextLine } from "./text-line.types.js";
 
 /** A size as CSS: the small sizes follow the client's desktop type bump. */
@@ -15,5 +15,8 @@ export function lineOf(line: TextLine): TemplateResult {
     line.opacity !== undefined ? `opacity:${line.opacity}` : "",
     line.label ? "text-transform:uppercase;letter-spacing:1.2px" : "",
   ].join(";");
-  return html`<div class="line" data-fit data-size=${sizeCss(line.size)} style=${style}>${line.text}</div>`;
+  const floor = line.floor ?? nothing;
+  const size = sizeCss(line.size);
+  // One line, no whitespace inside the element: its text is what fits.
+  return html`<div class="line" data-fit data-size=${size} data-floor=${floor} style=${style}>${line.text}</div>`;
 }

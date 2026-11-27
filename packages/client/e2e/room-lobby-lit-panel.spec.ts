@@ -204,3 +204,31 @@ test("the Epic lobby's Rename and Host pickers are pop-up panels over the lobby,
   await expect(epicSheet(page)).toHaveCount(0, { timeout: 10000 });
   expect(errors).toEqual([]);
 });
+
+test("on a small phone the host's Seats controls sit whole inside the seats list and the screen, at the top of the list", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "phone", "a phone");
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 375, height: 667 });
+  const errors = trackPageErrors(page);
+  await openLobby(page, "as=host");
+  for (const id of ["seats:less", "seats:more"]) {
+    const box = await page.evaluate((name) => {
+      const root = document.querySelector(`#mc-ui [data-scene="RoomLobby"] mc-sheet`)!.shadowRoot!;
+      const button = root.querySelector(`[data-key="${name}"]`)!.getBoundingClientRect();
+      const list = root.querySelector('[data-key="list:seats"]')!.getBoundingClientRect();
+      return {
+        top: button.top,
+        bottom: button.bottom,
+        listTop: list.top,
+        listBottom: list.bottom,
+        screen: window.innerHeight,
+      };
+    }, id);
+    expect(box.top, `${id} starts inside the list`).toBeGreaterThanOrEqual(box.listTop);
+    expect(box.bottom, `${id} ends inside the list`).toBeLessThanOrEqual(box.listBottom);
+    expect(box.bottom, `${id} ends inside the screen`).toBeLessThanOrEqual(box.screen);
+  }
+  expect(errors).toEqual([]);
+});

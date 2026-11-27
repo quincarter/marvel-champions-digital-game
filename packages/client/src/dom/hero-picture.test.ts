@@ -13,7 +13,8 @@ describe("heroPictureOf", () => {
     const plain = [...HERO_ART.heroes].find(([, pictures]) => pictures[0]?.focus === undefined);
     expect(plain, "a hero picture with no focus.json").toBeTruthy();
     const picture = heroPictureOf(card(plain![0]), leases);
-    expect(picture.src).toBe(plain![1][0]!.tileUrl ?? plain![1][0]!.url);
+    expect(plain![1][0]!.tileUrl, "a hero.* file has a tile copy").toBeDefined();
+    expect(picture.src).toBe(plain![1][0]!.tileUrl);
     expect(picture.cover).toEqual({ x: 0.5, y: 0.22, centered: false });
   });
 

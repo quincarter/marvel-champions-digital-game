@@ -565,8 +565,8 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     });
     // A pack picture's blob URL went stale before its lazy image loaded: read it again, once.
     element.addEventListener("mc-image-error", (event) => {
-      const { key, src } = (event as CustomEvent<{ key: string; src: string | null }>).detail;
-      refreshPackArt(key, src ?? undefined);
+      const { key, src } = (event as CustomEvent<{ key?: string; src: string | null }>).detail;
+      if (key) refreshPackArt(key, src ?? undefined);
     });
     const region = new DomRegion<E>(this, element, rect);
     // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas; the popover itself is
@@ -932,7 +932,8 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       x: rect.x + 14,
       y: rect.y + 14,
       width: rect.width - 28,
-      height: Math.max(0, rect.height - 153),
+      // The body's own height, as the panel laid it out.
+      height: region.element.scroller?.clientHeight ?? Math.max(0, rect.height - 153),
     };
     if (this.#panelShown !== row.id) {
       const scroller = region.element.scroller;

@@ -68,6 +68,10 @@ export class McSearchField extends LitElement {
   /** What the field holds now (the typist own, ahead of the `value` property). */
   #text = "";
   #timer: ReturnType<typeof setTimeout> | undefined;
+  /** A debounced `mc-search` is waiting. */
+  #pending = false;
+  /** The text the last `mc-search` carried, so the same text is not raised twice (an IME's compositionend and input). */
+  #emitted = "";
   #composing = false;
 
   constructor() {
@@ -120,7 +124,14 @@ export class McSearchField extends LitElement {
   }
 
   protected override willUpdate(changed: PropertyValues): void {
-    if (changed.has("value") && this.value !== this.#text) this.#text = this.value;
+    // Adopted only when the client changes `value`: a redraw that hands in the same (stale) value never wipes what the
+    // typist holds. A real change (a client clear, say) also cancels a pending debounce.
+    if (changed.has("value") && this.value !== this.#text) {
+      this.#text = this.value;
+      this.#emitted = this.value;
+      clearTimeout(this.#timer);
+      this.#pending = false;
+    }
   }
 
   override disconnectedCallback(): void {
@@ -130,6 +141,9 @@ export class McSearchField extends LitElement {
 
   #emit(immediate: boolean): void {
     clearTimeout(this.#timer);
+    this.#pending = false;
+    if (!immediate && this.#text === this.#emitted) return;
+    this.#emitted = this.#text;
     const detail: McSearchDetail = { value: this.#text, immediate };
     this.dispatchEvent(new CustomEvent("mc-search", { detail, bubbles: true, composed: true }));
   }
@@ -140,7 +154,10 @@ export class McSearchField extends LitElement {
     if (this.#composing) return;
     clearTimeout(this.#timer);
     if (this.debounce <= 0) this.#emit(false);
-    else this.#timer = setTimeout(() => this.#emit(false), this.debounce);
+    else {
+      this.#pending = true;
+      this.#timer = setTimeout(() => this.#emit(false), this.debounce);
+    }
   };
 
   #onKey = (event: KeyboardEvent): void => {
@@ -175,9 +192,12 @@ export class McSearchField extends LitElement {
     this.focusInput();
   };
 
+  override updated(): void {
+    this.style.setProperty("--mc-search-size", `${this.size}px`);
+  }
+
   override render() {
     const hint = this.focused && this.#text === "" && this.focusPlaceholder ? this.focusPlaceholder : this.placeholder;
-    this.style.setProperty("--mc-search-size", `${this.size}px`);
     return html`
       <input
         type="text"
@@ -202,7 +222,11 @@ export class McSearchField extends LitElement {
           this.#emit(false);
         }}
         @focus=${() => this.#setFocus(true)}
-        @blur=${() => this.#setFocus(false)}
+        @blur=${() => {
+          // Leaving the field says what was typed, rather than losing it to the pause.
+          if (this.#pending) this.#emit(false);
+          this.#setFocus(false);
+        }}
       />
       ${
         this.#text === "" || !this.clearable

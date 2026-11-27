@@ -7,7 +7,7 @@ export function fitTextWithin(root: ParentNode): void {
   for (const element of root.querySelectorAll<HTMLElement>("[data-fit]")) {
     element.style.fontSize = element.dataset.size ?? "";
     const style = getComputedStyle(element);
-    const floor = parseFloat(style.getPropertyValue("--mc-small-8")) || 8;
+    const floor = Number(element.dataset.floor) || parseFloat(style.getPropertyValue("--mc-small-8")) || 8;
     let size = parseFloat(style.fontSize);
     while (element.scrollWidth > element.clientWidth && size > floor) {
       size = Math.max(floor, size - 0.5);

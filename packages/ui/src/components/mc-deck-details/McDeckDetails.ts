@@ -8,7 +8,7 @@ import "../mc-picture-tile/mc-picture-tile.js";
 import "../mc-section-header/mc-section-header.js";
 import "../mc-stat-tiles/mc-stat-tiles.js";
 import type { McLineList } from "../mc-line-list/McLineList.js";
-import { SCROLL_GUTTER } from "../mc-sheet/McSheet.js";
+import { SCROLL_GUTTER } from "../../shared/scroll.js";
 import { fitTextWithin } from "../../shared/fit-text.js";
 import type { DeckDetailsAction, DeckDetailsModel } from "./mc-deck-details.types.js";
 

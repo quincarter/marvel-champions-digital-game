@@ -70,6 +70,7 @@ export class McListRow extends LitElement {
   }
 
   override updated(): void {
+    this.style.setProperty("--mc-row-border", this.heavy ? "5px" : "2px");
     fitTextWithin(this.renderRoot);
   }
 
@@ -82,7 +83,6 @@ export class McListRow extends LitElement {
   override render() {
     if (this.rich) {
       this.classList.remove("closed", "active");
-      this.style.setProperty("--mc-row-border", this.heavy ? "5px" : "2px");
       return html`<div class="border"></div>
         <mc-picture-tile .picture=${this.picture ?? { src: null }} .frame=${2}></mc-picture-tile>
         <div class="words">${this.lines.map(lineOf)}</div>

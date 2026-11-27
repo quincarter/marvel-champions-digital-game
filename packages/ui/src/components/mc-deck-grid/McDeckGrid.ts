@@ -7,7 +7,7 @@ import "../mc-list-row/mc-list-row.js";
 import "../mc-picture-card/mc-picture-card.js";
 import type { McListRow } from "../mc-list-row/McListRow.js";
 import type { McPictureCard } from "../mc-picture-card/McPictureCard.js";
-import { SCROLL_GUTTER } from "../mc-sheet/McSheet.js";
+import { SCROLL_GUTTER } from "../../shared/scroll.js";
 import type { DeckGridItem, DeckGridModel } from "./mc-deck-grid.types.js";
 
 const styles = css`
@@ -30,6 +30,9 @@ const styles = css`
   }
   .grid {
     display: grid;
+  }
+  mc-button {
+    --mc-button-size: 13px;
   }
   .rows {
     display: flex;
@@ -82,7 +85,12 @@ export class McDeckGrid extends LitElement {
   /** The hero pictures, with their cards: where a hover popover is wanted. */
   hoverFaces(): { readonly cardId: string; readonly element: HTMLElement }[] {
     const faces: { cardId: string; element: HTMLElement }[] = [];
+    const scroller = this.scroller;
+    const top = scroller?.scrollTop ?? 0;
+    const bottom = top + (scroller?.clientHeight ?? Number.MAX_SAFE_INTEGER);
     for (const item of this.renderRoot.querySelectorAll<McPictureCard | McListRow>("mc-picture-card, mc-list-row")) {
+      // Only the ones in view: a long list is not measured, tile by tile, on every pointer move.
+      if (item.offsetTop + item.offsetHeight < top || item.offsetTop > bottom) continue;
       const element = item.artElement;
       const cardId = item.dataset.card;
       if (element && cardId) faces.push({ cardId, element });
@@ -126,7 +134,6 @@ export class McDeckGrid extends LitElement {
           ? html`<mc-button
               slot="trailing"
               data-key=${`pick:${item.id}`}
-              style="--mc-button-size:13px"
               kind=${pick.look}
               .label=${pick.label}
               ?disabled=${pick.disabled !== undefined}

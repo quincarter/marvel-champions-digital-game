@@ -193,18 +193,16 @@ describe("hero tile art is found and intact on a case-sensitive disk", () => {
 });
 
 describe("parseHeroArt tile copies", () => {
-  test("tileUrl is set only where a copy exists, and url is untouched", () => {
+  it("carries the small copy of a picture as tileUrl, by the same path", () => {
     const catalog = parseHeroArt(
       {
-        "../art/heroes/01001a-spider-man/hero.jpg": "/a",
-        "../art/heroes/51001a-black-panther-shuri/hero.webp": "/c",
+        "../../../../art/heroes/01001a-spider-man/hero.jpg": "/full.jpg",
+        "../../../../art/heroes/01002a-x/hero.jpg": "/x.jpg",
       },
       {},
-      { "../art/heroes/01001a-spider-man/hero.jpg": "/a-tile" },
+      { "../../../../art/heroes/01001a-spider-man/hero.jpg": "/tile.webp" },
     );
-    expect(catalog.heroes.get("01001a")?.[0]).toMatchObject({ url: "/a", tileUrl: "/a-tile" });
-    const plain = catalog.heroes.get("51001a")?.[0];
-    expect(plain?.url).toBe("/c");
-    expect(plain).not.toHaveProperty("tileUrl");
+    expect(catalog.heroes.get("01001a")?.[0]).toMatchObject({ url: "/full.jpg", tileUrl: "/tile.webp" });
+    expect(catalog.heroes.get("01002a")?.[0]?.tileUrl).toBeUndefined();
   });
 });

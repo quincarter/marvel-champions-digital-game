@@ -64,7 +64,7 @@ export function deckDetailsOf(row: PickerRow, pool: CardPool): DeckDetails {
     cardId: row.cardId,
     countText: deckCountText(stats, lang),
     averageCostText:
-      stats.averageCost === null ? null : t("deckPicker.averageCost", { avg: stats.averageCost.toFixed(1) }),
+      stats.averageCost === null ? null : t("deckPicker.averageCost", { avg: stats.averageCost.toFixed(1) }, lang),
     curve: costCurveBars(stats),
     tiles: compositionTilesOf(stats, lang),
     groups: deckListGroupsOf(deck, pool, undefined, true, lang),

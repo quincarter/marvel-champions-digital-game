@@ -1,4 +1,5 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
+import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import type { FilterChip, FilterSort } from "../../shared/filter.types.js";
 import "../mc-button/mc-button.js";
@@ -70,9 +71,52 @@ export class McFilterBar extends LitElement {
     return this.renderRoot.querySelector(".bar");
   }
 
-  /** The element drawn for a key (a chip), for a screen focus stops. */
+  /** The element drawn for a key (a chip), for a screen focus stops. A chip the row limit cut off is not there to focus. */
   elementOf(key: string): HTMLElement | null {
-    return this.renderRoot.querySelector(`[data-key="${CSS.escape(key)}"]`);
+    const found = this.renderRoot.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+    return found && !found.hasAttribute("clipped") ? found : null;
+  }
+
+  /** Marks the chips that fall past the last allowed row: hidden from the eye and the focus ring both. */
+  #resize: ResizeObserver | null = null;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    // The bar's width changes which chips fall past the last row.
+    if (typeof ResizeObserver !== "undefined") {
+      this.#resize = new ResizeObserver(() => this.#markClipped());
+      this.#resize.observe(this);
+    }
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#resize?.disconnect();
+    this.#resize = null;
+  }
+
+  override async updated(): Promise<void> {
+    this.#markClipped();
+    // The chips lay themselves out after they render: look again once they have.
+    await Promise.all(
+      [...this.renderRoot.querySelectorAll<HTMLElement & { updateComplete?: Promise<unknown> }>(".chip")].map(
+        (c) => c.updateComplete,
+      ),
+    );
+    this.#markClipped();
+  }
+
+  #markClipped(): void {
+    const bar = this.renderRoot.querySelector<HTMLElement>(".bar");
+    if (!bar) return;
+    const limited = this.rows > 0 && this.rowHeight > 0;
+    const bottom = bar.getBoundingClientRect().top + bar.clientHeight;
+    for (const chip of bar.querySelectorAll<HTMLElement>(".chip")) {
+      const cut = limited && chip.getBoundingClientRect().bottom > bottom + 0.5;
+      chip.toggleAttribute("clipped", cut);
+      if (cut) chip.style.visibility = "hidden";
+      else if (chip.style.visibility) chip.style.visibility = "";
+    }
   }
 
   #emit(name: string, detail: object = {}): void {
@@ -84,44 +128,48 @@ export class McFilterBar extends LitElement {
     const limit = rows > 0 && rowHeight > 0 ? `;max-height:${rows * rowHeight + (rows - 1) * gap}px` : "";
     const cell = rowHeight > 0 ? `height:${rowHeight}px` : "min-height:44px";
     return html`<div class=${this.rail ? "bar rail" : "bar"} role="group" style=${`gap:${gap}px${limit}`}>
-      ${this.chips.map((chip) => {
-        const key = this.prefix + chip.id;
-        const main = html`<mc-filter-chip
-          class="chip"
-          data-key=${key}
-          style=${`${chip.width !== undefined ? `width:${chip.width}px;` : ""}${cell}`}
-          .label=${chip.label}
-          .count=${chip.count}
-          .value=${key}
-          .mark=${chip.mark ?? true}
-          .tint=${chip.tint}
-          ?selected=${chip.selected}
-          ?disabled=${chip.disabled !== undefined && chip.disabled !== false}
-          .reason=${typeof chip.disabled === "string" ? chip.disabled : ""}
-          @mc-activate=${(event: Event) => {
-            event.stopPropagation();
-            this.#emit("mc-activate", { key, id: chip.id });
-          }}
-        ></mc-filter-chip>`;
-        const info = chip.info;
-        if (!info) return main;
-        // A split chip: the filter and, beside it, the "i" button of its own (a tap on it opens the tip, never filters).
-        return html`<span class="split"
-          >${main}<mc-button
-            class="info"
-            data-key=${`${key}:info`}
-            style=${`${cell};width:${INFO_WIDTH}px${chip.tint ? `;--mc-tint-fill:color-mix(in srgb, ${chip.tint.fill} 78%, black);--mc-tint-ink:${chip.tint.ink}` : ""}`}
-            kind="secondary"
-            label="i"
-            aria-label=${info.label}
-            ?selected=${info.open}
-            @mc-press=${(event: Event) => {
+      ${repeat(
+        this.chips,
+        (chip) => chip.id,
+        (chip) => {
+          const key = this.prefix + chip.id;
+          const main = html`<mc-filter-chip
+            class="chip"
+            data-key=${key}
+            style=${`${chip.width !== undefined ? `width:${chip.width}px;` : ""}${cell}`}
+            .label=${chip.label}
+            .count=${chip.count}
+            .value=${key}
+            .mark=${chip.mark ?? true}
+            .tint=${chip.tint}
+            ?selected=${chip.selected}
+            ?disabled=${chip.disabled !== undefined && chip.disabled !== false}
+            .reason=${typeof chip.disabled === "string" ? chip.disabled : ""}
+            @mc-activate=${(event: Event) => {
               event.stopPropagation();
-              this.#emit("mc-info", { key, id: chip.id });
+              this.#emit("mc-activate", { key, id: chip.id });
             }}
-          ></mc-button
-        ></span>`;
-      })}
+          ></mc-filter-chip>`;
+          const info = chip.info;
+          if (!info) return main;
+          // A split chip: the filter and, beside it, the "i" button of its own (a tap on it opens the tip, never filters).
+          return html`<span class="split"
+            >${main}<mc-button
+              class="info"
+              data-key=${`${key}:info`}
+              style=${`${cell};width:${INFO_WIDTH}px${chip.tint ? `;--mc-tint-fill:color-mix(in srgb, ${chip.tint.fill} 78%, black);--mc-tint-ink:${chip.tint.ink}` : ""}`}
+              kind="secondary"
+              label="i"
+              aria-label=${info.label}
+              ?selected=${info.open}
+              @mc-press=${(event: Event) => {
+                event.stopPropagation();
+                this.#emit("mc-info", { key, id: chip.id });
+              }}
+            ></mc-button
+          ></span>`;
+        },
+      )}
       ${
         this.sheetLabel
           ? html`<mc-button
