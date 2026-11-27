@@ -442,6 +442,40 @@ export class SheetBuilder {
     });
   }
 
+  /** A heading over a rule with a count (`mc-section-header`); `open` makes it a folding section with a chevron. */
+  sectionHeader(
+    rect: Rect,
+    options: {
+      readonly heading: string;
+      readonly count: string;
+      readonly size?: "large" | "small";
+      readonly open?: boolean;
+      readonly titleSize?: number;
+      readonly key?: string;
+    },
+  ): void {
+    this.nodes.push({
+      kind: "section-header",
+      rect: this.#rect(rect),
+      heading: options.heading,
+      count: options.count,
+      size: options.size ?? "large",
+      ...(options.open !== undefined ? { open: options.open } : {}),
+      ...(options.titleSize !== undefined ? { titleSize: options.titleSize } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
+  }
+
+  /** What a list says in place of rows (`mc-empty-state`). */
+  empty(rect: Rect, message: string, detail?: string): void {
+    this.nodes.push({
+      kind: "empty",
+      rect: this.#rect(rect),
+      message,
+      ...(detail ? { detail } : {}),
+    });
+  }
+
   /** A scrolling region at `rect`, `height` tall inside, its parts built in its own content space (`y` from 0). */
   scroll(key: string, rect: Rect, height: number, build: (inner: SheetBuilder) => void): void {
     const inner = new SheetBuilder(this.#game, { x: rect.x, y: 0 }, this.#desktop);

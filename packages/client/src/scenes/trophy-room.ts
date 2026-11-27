@@ -752,21 +752,11 @@ export class TrophyRoomScene extends Phaser.Scene {
     const inkHex = surface.ink.hex;
 
     if (row.kind === "section") {
-      b.box({ x: rect.x, y: rect.y + rect.height - 4, width: innerWidth, height: 2 }, { fill: inkHex });
-      b.text(
-        rect.x,
-        rect.y + rect.height - 12,
-        // The chevron says whether the family is open; the count says what is under it.
-        `${row.expanded ? "▾" : "▸"} ${row.title.toUpperCase()}`,
-        bangers(phone ? 20 : 24),
-        { color: inkHex, origin: [0, 1], letterSpacing: 1, fitWidth: innerWidth - 120 },
+      // A folding heading over a rule: the chevron says whether the family is open, the count what is under it.
+      b.sectionHeader(
+        { x: rect.x, y: rect.y, width: innerWidth, height: rect.height - 2 },
+        { heading: row.title.toUpperCase(), count: row.count, open: row.expanded, titleSize: phone ? 20 : 24 },
       );
-      b.text(rect.x + innerWidth, rect.y + rect.height - 12, row.count, typeRole.rowTitle, {
-        size: 13,
-        color: inkHex,
-        alpha: ink.secondary,
-        origin: [1, 1],
-      });
       const key = keyOfRow(row);
       b.tap(key, { x: rect.x, y: rect.y, width: innerWidth, height: rect.height });
       this.#press(key, () => this.#toggleFamily(row.id));
@@ -775,20 +765,10 @@ export class TrophyRoomScene extends Phaser.Scene {
 
     if (row.kind === "group") {
       // A pack's heading inside Mods: its name and how many it has earned, under a thin rule. Not pressable.
-      b.box({ x: rect.x, y: rect.y + rect.height - 3, width: innerWidth, height: 1 }, { fill: inkHex, fillAlpha: 0.5 });
-      b.text(
-        rect.x + 4,
-        rect.y + rect.height - 8,
-        t("trophies.fromPack", { name: row.title }).toUpperCase(),
-        typeRole.rowTitle,
-        { size: 13, color: inkHex, origin: [0, 1], fitWidth: innerWidth - 90 },
+      b.sectionHeader(
+        { x: rect.x + 4, y: rect.y, width: innerWidth - 4, height: rect.height - 2 },
+        { heading: t("trophies.fromPack", { name: row.title }).toUpperCase(), count: row.count, size: "small" },
       );
-      b.text(rect.x + innerWidth, rect.y + rect.height - 8, row.count, typeRole.rowTitle, {
-        size: 12,
-        color: inkHex,
-        alpha: ink.secondary,
-        origin: [1, 1],
-      });
       return;
     }
 

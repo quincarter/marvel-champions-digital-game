@@ -4,6 +4,7 @@
  * screen the favorite hero stands tall at the left with the other tiles stacked beside it (`overviewRowsOf`). A hero's
  * cards come as strips of card pictures, as many across as fit. Pure: sizes and positions only, no Phaser.
  */
+import { t } from "../i18n/translate.js";
 import type { Rect } from "./layout.js";
 import type { MatchupRow } from "./matchup-grid.js";
 import type {
@@ -45,17 +46,17 @@ export interface StatsTabEntry {
 export function statsTabsOf(stats: PlayerStats): readonly StatsTabEntry[] {
   const has = (id: string) => stats.sections.some((section) => section.id === id);
   return [
-    { id: "overview", label: "Overview" },
-    ...(has("heroes") ? [{ id: "heroes" as const, label: "Heroes" }] : []),
-    ...(has("villains") ? [{ id: "villains" as const, label: "Villains" }] : []),
-    ...(stats.matchups ? [{ id: "matchups" as const, label: "Matchups" }] : []),
-    ...(has("aspects") ? [{ id: "aspects" as const, label: "Aspects" }] : []),
+    { id: "overview", label: t("stats.tab.overview") },
+    ...(has("heroes") ? [{ id: "heroes" as const, label: t("stats.tab.heroes") }] : []),
+    ...(has("villains") ? [{ id: "villains" as const, label: t("stats.tab.villains") }] : []),
+    ...(stats.matchups ? [{ id: "matchups" as const, label: t("stats.tab.matchups") }] : []),
+    ...(has("aspects") ? [{ id: "aspects" as const, label: t("stats.tab.aspects") }] : []),
     // Side schemes and modular sets share Encounter; devices sit under Records.
-    ...(has("side-schemes") || has("encounter") ? [{ id: "encounter" as const, label: "Encounter" }] : []),
-    ...(has("records") || has("devices") ? [{ id: "records" as const, label: "Records" }] : []),
-    ...(stats.allCards ? [{ id: "all-cards" as const, label: "Cards" }] : []),
-    ...(stats.decks.length > 0 ? [{ id: "decks" as const, label: "Decks" }] : []),
-    ...(stats.heroCards.length > 0 ? [{ id: "cards" as const, label: "Cards by hero" }] : []),
+    ...(has("side-schemes") || has("encounter") ? [{ id: "encounter" as const, label: t("stats.tab.encounter") }] : []),
+    ...(has("records") || has("devices") ? [{ id: "records" as const, label: t("stats.tab.records") }] : []),
+    ...(stats.allCards ? [{ id: "all-cards" as const, label: t("stats.tab.cards") }] : []),
+    ...(stats.decks.length > 0 ? [{ id: "decks" as const, label: t("stats.tab.decks") }] : []),
+    ...(stats.heroCards.length > 0 ? [{ id: "cards" as const, label: t("stats.tab.cardsByHero") }] : []),
   ];
 }
 

@@ -960,13 +960,8 @@ export class PastGamesScene extends Phaser.Scene {
     const rows = this.#rows;
 
     if (ctx.empty !== null) {
-      b.text(ctx.width / 2, ctx.areaTop + 24, ctx.empty, typeRole.body, {
-        color: surface.ink.hex,
-        alpha: 0.8,
-        origin: [0.5, 0],
-        wrapWidth: Math.min(ctx.contentWidth, 560) - 24,
-        align: "center",
-      });
+      const emptyWidth = Math.min(ctx.contentWidth, 560) - 24;
+      b.empty({ x: ctx.width / 2 - emptyWidth / 2, y: ctx.areaTop + 24, width: emptyWidth, height: 80 }, ctx.empty);
       this.#built = null;
     } else {
       this.#drawList(b, ctx, rows);

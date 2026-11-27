@@ -25,7 +25,15 @@ export {
   measureGlyphText,
   parseArt,
 } from "./components/mc-glyph/mc-glyph.js";
+export { McSectionHeader } from "./components/mc-section-header/mc-section-header.js";
+export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
+export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
+export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
+export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
+export { McFilterBar } from "./components/mc-filter-bar/mc-filter-bar.js";
 export { McGameLog } from "./components/mc-game-log/mc-game-log.js";
+export type { FilterBarModel, FilterChipModel, FilterSort } from "./shared/filter.types.js";
+export type { PictureFocusPoint, SectionHeaderSize } from "./shared/display.types.js";
 export type { McButtonKind } from "./shared/button.types.js";
 export type {
   GlyphKeySpec,
@@ -43,6 +51,8 @@ export type {
   SheetButton,
   SheetChip,
   SheetDots,
+  SheetEmpty,
+  SheetSectionHeader,
   SheetGlyph,
   SheetHalftone,
   SheetImage,

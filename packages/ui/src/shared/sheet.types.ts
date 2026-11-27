@@ -292,9 +292,34 @@ export interface SheetScroll {
   readonly nodes: readonly SheetNode[];
 }
 
+/** A heading over a rule with a count (`mc-section-header`): a Trophy Room family, a pack inside one. */
+export interface SheetSectionHeader {
+  readonly kind: "section-header";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly heading: string;
+  readonly count: string;
+  readonly size: "large" | "small";
+  /** A folding section says whether it is open; absent for a plain heading. */
+  readonly open?: boolean;
+  /** The title's size in px. */
+  readonly titleSize?: number;
+}
+
+/** What a list says in place of rows (`mc-empty-state`): still reading, nothing yet, nothing matches. */
+export interface SheetEmpty {
+  readonly kind: "empty";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly message: string;
+  readonly detail?: string;
+}
+
 export type SheetNode =
   | SheetBox
   | SheetDots
+  | SheetSectionHeader
+  | SheetEmpty
   | SheetText
   | SheetButton
   | SheetGlyph

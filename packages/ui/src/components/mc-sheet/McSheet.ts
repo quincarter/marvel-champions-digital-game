@@ -7,6 +7,8 @@ import { cancelHold } from "../../shared/tap.js";
 import "../mc-aspect-chip/mc-aspect-chip.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
+import "../mc-section-header/mc-section-header.js";
+import "../mc-empty-state/mc-empty-state.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
@@ -466,6 +468,24 @@ export class McSheet extends LitElement {
           }
         </div>`;
       }
+      case "section-header":
+        return html`<mc-section-header
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${`${px(node.rect)}${node.titleSize ? `;--mc-section-size:${node.titleSize}px` : ""}`}
+          .heading=${node.heading}
+          .count=${node.count}
+          .size=${node.size}
+          .open=${node.open === undefined ? undefined : node.open ? "true" : "false"}
+        ></mc-section-header>`;
+      case "empty":
+        return html`<mc-empty-state
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          .message=${node.message}
+          .detail=${node.detail ?? ""}
+        ></mc-empty-state>`;
       case "halftone": {
         const circles: { x: number; y: number; r: number }[] = [];
         const { step, fade } = node;
