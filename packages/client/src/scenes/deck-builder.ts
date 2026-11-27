@@ -1102,12 +1102,13 @@ export class DeckBuilderScene extends Phaser.Scene {
         this.#onTrack(key, over);
       });
       element.addEventListener("mc-search", (event) => {
-        const field = (event.composedPath()[0] as HTMLElement | undefined)?.dataset?.key;
-        this.#onSearch(field ?? "", (event as CustomEvent<McSearchDetail>).detail.value);
+        // The sheet hands a field's events on with its key (`detail.key`).
+        const { key, value } = (event as CustomEvent<McSearchDetail & { key?: string }>).detail;
+        this.#onSearch(key ?? "", value);
       });
       element.addEventListener("mc-search-focus", (event) => {
-        const field = (event.composedPath()[0] as HTMLElement | undefined)?.dataset?.key ?? null;
-        const focused = (event as CustomEvent<McSearchFocusDetail>).detail.focused;
+        const { key, focused } = (event as CustomEvent<McSearchFocusDetail & { key?: string }>).detail;
+        const field = key ?? null;
         if (focused) this.#focusedField = field;
         else if (this.#focusedField === field) this.#focusedField = null;
       });
