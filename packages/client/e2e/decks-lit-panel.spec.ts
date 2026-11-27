@@ -55,7 +55,7 @@ test("Decks draws its chrome and deck list as a Lit panel: rows, search through 
   await waitFor(async () => ((await rows(page).count()) === all ? true : null), "the list is whole again", 15_000);
 
   // The Filters button opens the chips (each a stop); a chip narrows the list and a second press clears it.
-  await page.locator(`${PANEL} [data-key="deck-filters"]`).locator("[data-key='filters']").click();
+  await page.locator(`${PANEL} [data-key="filters"]`).click();
   const chips = page.locator(`${PANEL} [data-key="deck-chips"]`);
   await expect(chips).toHaveCount(1);
   const stops = await waitFor(
