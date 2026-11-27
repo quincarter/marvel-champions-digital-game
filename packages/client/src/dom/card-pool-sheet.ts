@@ -61,14 +61,15 @@ export function drawCardPool(b: SheetBuilder, model: CardPoolModel): CardPoolLay
     cellRect: (index) => cellRectFor(model, rowHeight, index),
     faceRect: (index) => {
       const cell = cellRectFor(model, rowHeight, index);
+      const strip = model.controls === false ? 0 : 1;
       return geometry
         ? {
             x: cell.x + 4,
             y: cell.y + 2,
             width: cell.width - 8,
-            height: geometry.cellHeight - POOL_GRID_CONTROLS_HEIGHT - 4,
+            height: geometry.cellHeight - strip * POOL_GRID_CONTROLS_HEIGHT - 4,
           }
-        : { x: cell.x + 4, y: cell.y, width: cell.width - 8 - POOL_ROW_CONTROLS_WIDTH, height: rowHeight - 6 };
+        : { x: cell.x + 4, y: cell.y, width: cell.width - 8 - strip * POOL_ROW_CONTROLS_WIDTH, height: rowHeight - 6 };
     },
   };
   if (window === "") return layout;

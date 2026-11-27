@@ -43,6 +43,8 @@ export interface CardPoolModel {
   /** The window the list is drawn in, in the sheet's own coordinates. */
   readonly rect: Rect;
   readonly view: "grid" | "list";
+  /** False for a pool that only reads: no −/quantity/+ strip, so a card face takes its whole cell (true by default). */
+  readonly controls?: boolean;
   readonly count: number;
   /** Card view's geometry (cell sizes, columns), with the strip's room already in `cellHeight`; null in List view. */
   readonly geometry: PoolGridGeometry | null;

@@ -123,6 +123,14 @@ export class CardPoolSearch {
     this.#client.setDocuments(docs, version);
   }
 
+  /** Forgets the text and the ranking without telling the screen (it is starting over). */
+  reset(): void {
+    this.#client.cancel();
+    this.#ranking = null;
+    this.#text = "";
+    this.#version = null;
+  }
+
   /** Ends the worker and forgets the ranking (the screen closed). */
   destroy(): void {
     this.#destroyed = true;

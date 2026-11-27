@@ -111,8 +111,6 @@ import {
 import { heroPacksOf } from "../view/hero-deck-groups.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import type { SearchDocument } from "../view/deck-search.js";
-import { cardSearchDocumentOf } from "../view/card-search-document.js";
-import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-names.js";
 import { localizedLabelOf } from "../view/card-text.js";
 import { testedCatalog } from "../view/seatable-decks.js";
 import { isDesktopType } from "../ui/desktop-type.js";
@@ -120,7 +118,6 @@ import { cardArt, type ArtRedraw } from "../art/card-art.js";
 import { artFor, artLanguageNow, type ArtSource } from "../art/art-source.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { artKeyFor } from "../art/card-art.js";
-import { drawArtSlot } from "../art/art-slot.js";
 import { markRenderDirty } from "../ui/idle-render.js";
 import { browsablePool, duplicateDeck, subtitleCutFrom, type PoolFilter } from "../view/deck-builder-model.js";
 import {
@@ -167,7 +164,7 @@ import {
 import { deckStatusOf } from "../view/deck-status.js";
 import { cardTitleOf, deckAspectsText, deckMetaCandidates } from "../view/deck-title.js";
 import { decksLayout, type DecksTab } from "../view/decks-layout.js";
-import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
+import { poolGridGeometry } from "../view/deck-pool-grid.js";
 import { cardSizeFactor } from "../settings.js";
 import {
   deckListChips,
@@ -191,7 +188,6 @@ import { decksFocusOrder } from "../view/screen-focus.js";
 import { deckKeyToString, resultsHistoryOf, type DeckKey, type ResultsHistory } from "../view/results-history.js";
 import { CHIP_GAP, chipsFitBesideHeading, minChipCellWidth } from "../view/chip-layout.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
-import { ListScroll } from "../view/list-scroll.js";
 import { HoverPreview, hoverCardIdsOf, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import {
   NOTHING_STANDS_OUT,
@@ -207,20 +203,14 @@ import { layerTriggerGlyph } from "../view/input-glyph-model.js";
 import { loadDeckInsights } from "../view/player-stats-client.js";
 import { clipToView } from "../view/focus-list.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
-import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../view/card-hover.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import { drawCardPool, poolWindowKey } from "../dom/card-pool-sheet.js";
+import type { CardPoolCard, CardPoolLayout } from "../dom/card-pool-sheet.types.js";
+import { drawTintButton } from "../dom/tint-button.js";
+import { CardPoolSearch, poolSearchDocuments } from "../view/card-pool-search.js";
 import { accent, border, hit, ink, minType, signal, surface, typeRole } from "../tokens.js";
-import { caseOf, cssOf, textStyle } from "../ui/theme.js";
-import {
-  McButton,
-  McTextInput,
-  fitText,
-  label,
-  paintDotGrid,
-  paintPanel,
-  sectionHeader,
-  STAMP_CHIP_TYPE,
-} from "../ui/widgets.js";
+import { caseOf, cssOf } from "../ui/theme.js";
+import { McButton, paintDotGrid, paintPanel, STAMP_CHIP_TYPE } from "../ui/widgets.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { appSession, deckStorage } from "../session.js";
 import { isCommunityDeckId } from "../view/community-deck-id.js";
@@ -283,6 +273,9 @@ function keyOf(deck: Deck): DeckKey {
     ? { kind: "starter", starterDeckId: deck.source.starterDeckId as string }
     : { kind: "custom", deckId: deck.id as string };
 }
+
+/** The pool list's element key. */
+const POOL_LIST = "list:pool";
 
 /** One chip/button's own natural width — never less than it needs (`minChipCellWidth`'s own estimate is deliberately conservative), so a row of these can never truncate the way equal-width division could. */
 interface ChipDef {
@@ -379,8 +372,7 @@ export class DecksScene extends Phaser.Scene {
   #marvelcdbText = "";
   /** True while the caret is in the paste or MarvelCDB field (the route stands aside). */
   #fieldFocused = false;
-  /** The card pool pane's own text search (name, traits, type, rules text), kept across rebuilds like `#searchInput`. */
-  #poolSearchInput: McTextInput | null = null;
+  /** The card pool pane's text search (name, traits, type, rules text, and `field:value` terms), kept across rebuilds. */
   #poolSearchText = "";
   /** Both text searches run in a worker (view/deck-search-client.ts); each ranking is the last answer, shown until the next arrives. Null when no search is active. */
   readonly #deckSearch = new DeckSearchClient();
@@ -395,9 +387,24 @@ export class DecksScene extends Phaser.Scene {
   /** True while `#askStatuses` is calling `checkDecks`: an answer that comes back inside the call (no worker) is used by the draw already under way. */
   #askingStatuses = false;
   #rebuildTimer: ReturnType<typeof setTimeout> | null = null;
-  readonly #poolSearch = new DeckSearchClient();
-  #poolRanking: ReadonlyMap<string, number> | null = null;
+  /** The pool search: `field:value` terms filter here, the free words are ranked by the worker (`view/card-pool-search.ts`). */
+  readonly #poolSearch = new CardPoolSearch({
+    alive: () => this.sys.isActive(),
+    language: () => artLanguageNow(),
+    documents: () => this.#poolDocuments(),
+    onChange: () => {
+      this.#poolFromTop = true;
+      this.#rebuild();
+    },
+  });
   #poolDocsVersion: string | null = null;
+  /** The deck and identity the pool pane draws now: what the search worker ranks. */
+  #poolContext: { readonly deck: Deck; readonly identity: HeroIdentityCard } | null = null;
+  /** The pool list starts from its top (a new search, filter or deck) on the next draw. */
+  #poolFromTop = false;
+  /** What the pool list last drew: its rows, for the scroll's window and the focus stops. */
+  #poolMetrics = { rowHeight: 0, rowCount: 0, viewHeight: 0, window: "" };
+  readonly #poolHooked = new WeakSet<HTMLElement>();
   /** `cardSearchDocumentOf` per card id: the rules text is built once, not per selected deck. */
   readonly #poolDocs = new Map<string, SearchDocument>();
   /** The deck whose Delete was pressed once and awaits its confirming second press. */
@@ -453,13 +460,10 @@ export class DecksScene extends Phaser.Scene {
   #hints!: GlyphHints;
   #obstacles: Rect[] = [];
   #stops = new Map<string, FocusStop>();
-  /** Both lists are recreated every rebuild (`ui/virtual-list.ts`); only their scroll positions persist, in these fields. */
-  #poolList: McVirtualList | null = null;
   /** A scan drawn outside the pool grid this draw was not on hand yet, so its arrival redraws the screen. */
   #paneArtMissing = false;
   /** The scans drawn outside the pool grid this draw, asked for again on each arrival. */
   #paneArt: { readonly source: ArtSource; readonly rect: Rect; readonly texture: unknown }[] = [];
-  #poolListScroll = new ListScroll();
   /** The list shown alone (the Preconstructed, Your decks or Community chip), or null for all three (#755). */
   #deckList: DeckListId | null = null;
   /** `communityOffers` for the saved decks and unlocks it was last built from (both are replaced, never mutated). */
@@ -506,9 +510,9 @@ export class DecksScene extends Phaser.Scene {
     this.#deckSearch.cancel();
     this.#deckRanking = null;
     this.#deckDocsVersion = null;
-    this.#poolSearch.cancel();
-    this.#poolRanking = null;
+    this.#poolSearch.reset();
     this.#poolDocsVersion = null;
+    this.#poolContext = null;
     this.#deleteArmedId = null;
     this.#selectedDeckId = data.focusDeckId ?? null;
     this.#activeTab = "decks";
@@ -519,7 +523,7 @@ export class DecksScene extends Phaser.Scene {
     this.#searchFocused = false;
     this.#fieldFocused = false;
     this.#holes = [];
-    this.#poolListScroll = new ListScroll();
+    this.#poolFromTop = true;
     // A deck asked for by id (just saved, or sent here) is looked for in every list, so it is never filtered away.
     const openSettings = appSession().settings;
     const visit = freshDeckVisit(
@@ -553,15 +557,11 @@ export class DecksScene extends Phaser.Scene {
       this.#rebuildTimer = null;
       this.#deckSearch.destroy();
       this.#poolSearch.destroy();
-      this.#poolSearchInput?.destroy();
-      this.#poolSearchInput = null;
       this.#hints.dispose();
       this.#glyphs.dispose();
       offLanguage();
       // The panel goes with the scene (`DomRegion`); the next open makes a new one.
       this.#region = null;
-      this.#poolList?.destroy();
-      this.#poolList = null;
     });
     this.#hints = new GlyphHints(this, () => this.#obstacles);
     this.#glyphs = new SheetGlyphs(
@@ -576,7 +576,7 @@ export class DecksScene extends Phaser.Scene {
       () => ({ focused: this.#searchFocused, blur: () => this.#searchField()?.blurInput() }),
       covered,
     );
-    bindTextFieldEscape(this, () => this.#poolSearchInput, covered);
+    bindTextFieldEscape(this, () => this.#poolSearchField(), covered);
     bindTextFieldEscape(
       this,
       () => ({
@@ -614,19 +614,13 @@ export class DecksScene extends Phaser.Scene {
         this.scene.isActive(SCENES.deckActions) ||
         this.#fieldFocused ||
         this.#searchFocused ||
-        (this.#poolSearchInput?.focused ?? false),
-      onPage: (direction) =>
-        this.#activeTab === "cards"
-          ? this.#poolList?.scrollByPage(direction)
-          : this.#listScroller()?.scrollBy({ top: direction * this.#listScroller()!.clientHeight * 0.85 }),
-      onScroll: (_dx, dy) =>
-        this.#activeTab === "cards" ? this.#poolList?.scrollByPx(dy) : this.#listScroller()?.scrollBy({ top: dy }),
-      onHomeEnd: (edge) => {
-        if (this.#activeTab === "cards") {
-          if (edge === "home") this.#poolList?.scrollToStart();
-          else this.#poolList?.scrollToEnd();
-        } else this.#listScroller()?.scrollTo({ top: edge === "home" ? 0 : Number.MAX_SAFE_INTEGER });
+        (this.#poolSearchField()?.focused ?? false),
+      onPage: (direction) => {
+        const scroller = this.#pageScroller();
+        scroller?.scrollBy({ top: direction * scroller.clientHeight * 0.85 });
       },
+      onScroll: (_dx, dy) => this.#pageScroller()?.scrollBy({ top: dy }),
+      onHomeEnd: (edge) => this.#pageScroller()?.scrollTo({ top: edge === "home" ? 0 : Number.MAX_SAFE_INTEGER }),
     });
 
     this.#rebuild();
@@ -694,7 +688,14 @@ export class DecksScene extends Phaser.Scene {
         this.#inspects.get((event as CustomEvent<{ key: string }>).detail.key)?.();
       });
       element.addEventListener("mc-search", (event) => {
-        const { value } = (event as CustomEvent<McSearchDetail>).detail;
+        const { value, key } = (event as CustomEvent<McSearchDetail & { key?: string }>).detail;
+        if (key === "pool-search") {
+          if (value !== this.#poolSearchText) {
+            this.#poolSearchText = value;
+            this.#poolSearch.request(value);
+          }
+          return;
+        }
         if (value === this.#filter.text) return;
         this.#filter = { ...this.#filter, text: value };
         this.#requestDeckSearch(value);
@@ -723,6 +724,15 @@ export class DecksScene extends Phaser.Scene {
     });
     region.element.nodes = builder.nodes;
     renderNow(region.element);
+    const pool = this.#poolScroller();
+    if (pool) {
+      if (!this.#poolHooked.has(pool)) {
+        this.#poolHooked.add(pool);
+        pool.addEventListener("scroll", () => this.#onPoolScroll(pool.scrollTop), { passive: true });
+      }
+      if (this.#poolFromTop) pool.scrollTop = 0;
+    }
+    this.#poolFromTop = false;
     const scroller = this.#listScroller();
     if (scroller && this.#listFromTop) {
       scroller.scrollTop = 0;
@@ -880,7 +890,6 @@ export class DecksScene extends Phaser.Scene {
       this.#rebuild();
       return;
     }
-    this.#poolList?.refreshRows();
     markRenderDirty();
   }
 
@@ -907,8 +916,6 @@ export class DecksScene extends Phaser.Scene {
     // Both lists are recreated fresh every rebuild, in the normal draw order (`ui/virtual-list.ts` — reattaching
     // one across a sweep put it ahead of whatever the scene drew afterward, so a later background panel ended up
     // on top of it). Their scroll positions live in `#listScroll`/`#poolListScroll`, which survive this regardless.
-    this.#poolList?.destroy();
-    this.#poolList = null;
 
     const { width, height } = this.scale.gameSize;
     const b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
@@ -924,15 +931,7 @@ export class DecksScene extends Phaser.Scene {
     // The surviving DOM text fields survive the sweep: every object they draw with is detached first and handed
     // back after, in the same order. The paste field is a rexUI sizer with children of its own in the display
     // list, so its root alone is not enough (`McMultilineInput.gameObjects`).
-    // The pool search belongs to the "Cards" group: wide always draws it, narrow only on that tab.
-    if (!layout.wide && this.#activeTab !== "cards") {
-      this.#poolSearchInput?.destroy();
-      this.#poolSearchInput = null;
-    }
-    const kept = [...(this.#poolSearchInput ? [this.#poolSearchInput.gameObject] : [])];
-    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
-    for (const node of kept) this.children.add(node);
 
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", { spacing: 6, radius: 1, alpha: 0.1 });
 
@@ -1099,9 +1098,8 @@ export class DecksScene extends Phaser.Scene {
 
     if (layout.wide) {
       const deckIds = this.#drawListPane(b, layout.listPane!, ownOptions, offers, selected);
-      const poolCardIds = this.#drawPoolPane(layout.poolPane!, selected, selectedOffer !== null);
+      const poolCardIds = this.#drawPoolPane(b, layout.poolPane!, selected, selectedOffer !== null);
       drawStats(layout.statsPane!);
-      this.#holes.push(layout.poolPane!);
       this.#route?.set(
         decksFocusOrder({
           showMarvelCdbImport: true,
@@ -1158,10 +1156,9 @@ export class DecksScene extends Phaser.Scene {
       let poolCardIds: readonly string[] = [];
       if (this.#activeTab === "decks") deckIds = this.#drawListPane(b, layout.content!, ownOptions, offers, selected);
       else if (this.#activeTab === "cards")
-        poolCardIds = this.#drawPoolPane(layout.content!, selected, selectedOffer !== null);
+        poolCardIds = this.#drawPoolPane(b, layout.content!, selected, selectedOffer !== null);
       else drawStats(layout.content!);
-      if (this.#activeTab === "cards" || (this.#activeTab === "stats" && selectedOffer))
-        this.#holes.push(layout.content!);
+      if (this.#activeTab === "stats" && selectedOffer) this.#holes.push(layout.content!);
 
       this.#route?.set(
         decksFocusOrder({
@@ -1190,8 +1187,8 @@ export class DecksScene extends Phaser.Scene {
 
   #stepTab(direction: 1 | -1): void {
     if (!this.#tabsShown) {
-      if (this.#activeTab === "cards") this.#poolList?.scrollByPage(direction);
-      else this.#listScroller()?.scrollBy({ top: direction * this.#listScroller()!.clientHeight * 0.85 });
+      const scroller = this.#pageScroller();
+      scroller?.scrollBy({ top: direction * scroller.clientHeight * 0.85 });
       return;
     }
     const order: readonly DecksTab[] = ["decks", "cards", "stats"];
@@ -1375,7 +1372,7 @@ export class DecksScene extends Phaser.Scene {
     if (tab === this.#activeTab) return;
     this.#activeTab = tab;
     this.#listFromTop = true;
-    this.#poolListScroll.reset();
+    this.#poolFromTop = true;
     this.#rebuild();
   }
 
@@ -1612,14 +1609,6 @@ export class DecksScene extends Phaser.Scene {
       alert: illegal,
       dim: locked && !selected,
     };
-  }
-
-  /** A chip's width from its stamp label as drawn, never under the per-character estimate. */
-  #chipWidth(chip: ChipDef): number {
-    const probe = this.add.text(0, 0, caseOf(STAMP_CHIP_TYPE, chip.text), textStyle(STAMP_CHIP_TYPE, 0));
-    const width = Math.ceil(probe.width) + 28;
-    probe.destroy();
-    return Math.max(minChipCellWidth(chip.text), width);
   }
 
   /**
@@ -2021,33 +2010,25 @@ export class DecksScene extends Phaser.Scene {
   // cards — filtered by one of those (radio-style; "all" clears it) and sortable by cost. Read-only browsing:
   // editing a deck's contents is `scenes/deck-builder.ts`'s job, reached from "Edit" in the stats pane.
   // ------------------------------------------------------------------------------------------------------------
-  #drawPoolPane(rect: Rect, selected: DeckOption | null, deckListOnly = false): readonly string[] {
+  #drawPoolPane(b: SheetBuilder, rect: Rect, selected: DeckOption | null, deckListOnly = false): readonly string[] {
     const left = rect.x;
     const column = rect.width;
-
-    if (!selected) {
-      this.#poolSearchInput?.destroy();
-      this.#poolSearchInput = null;
-      const y = sectionHeader(this, left, rect.y, column, "Card pool");
-      this.add
-        .text(left, y, "Select a deck to browse its card pool.", textStyle(typeRole.body, surface.ink.hex, ink.meta))
-        .setWordWrapWidth(column);
+    this.#poolContext = null;
+    this.#poolMetrics = { rowHeight: 0, rowCount: 0, viewHeight: 0, window: "" };
+    const say = (text: string): readonly string[] => {
+      b.sectionHeader({ x: left, y: rect.y, width: column, height: 24 }, t("decks.cardPool"), { size: 19 });
+      b.emptyState({ x: left, y: rect.y + 32, width: column }, text);
       return [];
-    }
+    };
+    if (!selected) return say(t("decks.poolSelectDeck"));
     const identity = this.#identityOf(selected.deck);
-    if (!identity) {
-      this.#poolSearchInput?.destroy();
-      this.#poolSearchInput = null;
-      const y = sectionHeader(this, left, rect.y, column, "Card pool");
-      this.add
-        .text(
-          left,
-          y,
-          "This deck's identity card isn't in the pool.",
-          textStyle(typeRole.body, surface.ink.hex, ink.meta),
-        )
-        .setWordWrapWidth(column);
-      return [];
+    if (!identity) return say(t("decks.poolNoIdentity"));
+    this.#poolContext = { deck: selected.deck, identity };
+    // The worker ranks the cards this deck can browse: they change with its hero and aspects.
+    const version = `${currentPoolKey()}:${identity.id as string}:${selected.deck.aspects.join(",")}:${artLanguageNow()}`;
+    if (version !== this.#poolDocsVersion) {
+      this.#poolDocsVersion = version;
+      this.#poolSearch.refresh();
     }
 
     // D14's own header shape (point 3 of the 2026-09-18 fidelity pass): small filter chips right-aligned on the
@@ -2055,116 +2036,198 @@ export class DecksScene extends Phaser.Scene {
     // rule followed by a separate row of full-height buttons.
     // A community deck previews its own list (it can't be edited here, so the rest of the pool is beside the point).
     let y = this.#drawPoolHeader(
+      b,
       left,
       rect.y,
       column,
       this.#poolChipDefs(selected.deck),
-      deckListOnly ? "DECK LIST" : "CARD POOL",
+      deckListOnly ? t("decks.deckList") : t("decks.cardPool"),
     );
 
-    // The text search, one compact row under the header (and under the chips, which wrap to their own row on a phone).
+    // The text search (a real input in the panel), one compact row under the header and the chips: free words are
+    // ranked by the fuzzy worker, and the smart filter's `field:value` terms (`o:2 a:justice t:event`) narrow the pool.
     const poolSearchRect: Rect = { x: left, y, width: column, height: this.#row };
-    if (this.#poolSearchInput) this.#poolSearchInput.layout(poolSearchRect);
-    else {
-      this.#poolSearchInput = new McTextInput(this, {
-        rect: poolSearchRect,
-        value: this.#poolSearchText,
-        placeholder: "Search cards: name, trait, text",
-        onChange: (value) => {
-          this.#poolSearchText = value;
-          this.#requestPoolSearch(value);
-        },
-      });
-    }
-    this.#stops.set("pool-search", { rect: poolSearchRect, activate: () => this.#poolSearchInput?.focus() });
+    const steam = inputDevice().mode === "pad" && inputDevice().pad?.steam === true;
+    b.search(poolSearchRect, {
+      key: "pool-search",
+      value: this.#poolSearchField()?.text ?? this.#poolSearchText,
+      placeholder: t("decks.poolSearch"),
+      clearLabel: t("decks.clearSearch"),
+      escapeClears: true,
+      ...(steam ? { focusPlaceholder: t("reader.steamKeyboard") } : {}),
+    });
+    this.#stops.set("pool-search", { rect: poolSearchRect, activate: () => this.#poolSearchField()?.focusInput() });
     y += this.#row + 10;
 
-    this.#syncPoolDocuments(selected.deck, identity);
     const cards = this.#poolCards(selected.deck, identity, deckListOnly);
     if (cards.length === 0) {
       const searched = this.#poolSearchText.trim();
-      this.add
-        .text(
-          left,
-          y,
-          searched ? `No cards match “${searched}”.` : "No cards match this filter.",
-          textStyle(typeRole.body, surface.ink.hex, ink.meta),
-        )
-        .setWordWrapWidth(column);
+      b.emptyState(
+        { x: left, y, width: column },
+        searched ? t("decks.poolNoMatchSearch", { text: searched }) : t("decks.poolNoMatch"),
+      );
       return [];
     }
 
     const geometry = poolGridGeometry(column, cards.length, false, cardSizeFactor(appSession().settings.cardSize));
-    const gridRect: Rect = {
+    const listRect: Rect = {
       x: left,
       y,
       width: column,
       height: Math.max(geometry.cellHeight, rect.y + rect.height - y),
     };
-    const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow =>
-      this.#renderPoolRow(rowRect, geometry, cards, rowIndex, selected.deck);
-    const onRowActivate = (rowIndex: number, pointer: Phaser.Input.Pointer): void => {
-      const list = this.#poolList;
-      if (!list) return;
-      const startIndex = rowIndex * geometry.columns;
-      const countInRow = Math.min(geometry.columns, cards.length - startIndex);
-      const column2 = poolColumnAt(geometry, list.rectFor(rowIndex), pointer.x, countInRow);
-      if (column2 === null) return;
-      const card = cards[startIndex + column2];
-      if (!card) return;
-      // Right-click still inspects; a tap or a hold reads it in the stats pane.
-      if (pointer.rightButtonReleased()) this.#inspectCard(card);
-      else this.#showPaneCard(card);
+    const layout = drawCardPool(b, {
+      key: POOL_LIST,
+      rect: listRect,
+      view: "grid",
+      controls: false,
+      count: cards.length,
+      geometry,
+      listRow: { height: 0, thumbWidth: 0 },
+      scrollTop: this.#poolScrollTop(),
+      cardAt: (index) => this.#poolCardView(cards[index]!, selected.deck),
+    });
+    this.#poolMetrics = {
+      rowHeight: layout.rowHeight,
+      rowCount: layout.rowCount,
+      viewHeight: listRect.height,
+      window: layout.window,
     };
-    this.#poolList = new McVirtualList(this, {
-      rect: gridRect,
-      rowHeight: geometry.cellHeight,
-      count: geometry.rows,
-      renderRow,
-      scroll: this.#poolListScroll,
-      onRowActivate,
-      // A tap here only reads the card, so a long press reads it at once, as on the table.
-      activateOnHold: true,
-      background: false,
-    });
-    const list = this.#poolList;
-    // The pool grid's cells, from the list's scroll on each pointer move; a cell is hovered over its picture and caption.
-    this.#hoverLists.push(() => {
-      const found: (readonly [string, HoverCardIdRect])[] = [];
-      const view = list.rect;
-      const rowsShown = visibleRowRange(view.y - list.rectFor(0).y, geometry.cellHeight, view.height, geometry.rows);
-      for (let rowIndex = rowsShown.start; rowIndex < rowsShown.end; rowIndex++) {
-        const at = list.rectFor(rowIndex);
-        const inRow = Math.min(geometry.columns, cards.length - rowIndex * geometry.columns);
-        for (let col = 0; col < inRow; col++) {
-          const card = cards[rowIndex * geometry.columns + col]!;
-          const cell = poolCellRect(geometry, at, col);
-          const rect = clipHoverRect(
-            { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 },
-            view,
-          );
-          if (rect)
-            found.push([
-              hoverSlotOf(card.id as string, `cell${rowIndex}.${col}`),
-              { ...rect, cardId: card.id as string, through: true },
-            ]);
-        }
-      }
-      return found;
-    });
+    // The pool grid's cards, from the list's scroll on each pointer move; a card is hovered over its picture and caption.
+    this.#hoverLists.push(() => this.#poolHovers(cards.length, layout, geometry.columns, (i) => cards[i]!));
+    const view = (): Rect => {
+      const scroller = this.#poolScroller();
+      return scroller && this.#region ? this.#region.rectOf(scroller) : listRect;
+    };
     cards.forEach((card, index) => {
-      const rowIndex = Math.floor(index / geometry.columns);
-      const col = index % geometry.columns;
+      const row = Math.floor(index / geometry.columns);
       this.#stops.set(`pool-card:${card.id as string}`, {
-        // Clipped to the grid, so the ring on a card scrolled half out of view never draws over the search or chips.
-        rect: () => clipToView(poolCellRect(geometry, list.rectFor(rowIndex), col), gridRect),
-        view: gridRect,
+        // Clipped to the list, so the ring on a card scrolled half out of view never draws over the search or chips.
+        rect: () => {
+          const at = view();
+          const cell = layout.cellRect(index);
+          const top = this.#poolScroller()?.scrollTop ?? 0;
+          return clipToView({ x: cell.x, y: at.y + cell.y - top, width: cell.width, height: cell.height }, at);
+        },
+        view,
         activate: () => this.#showPaneCard(card, true),
         inspect: () => this.#inspectCard(card),
-        ensureVisible: () => list.scrollIntoView(rowIndex),
+        ensureVisible: () => this.#poolScrollIntoView(row, layout.rowHeight),
       });
     });
     return cards.map((card) => card.id as string);
+  }
+
+  /** The pool list's scroller, while it is drawn. */
+  #poolScroller(): HTMLElement | null {
+    return this.#region?.element.elementOf(POOL_LIST) ?? null;
+  }
+
+  /** The pool search field (`mc-search-field`), while it is drawn. */
+  #poolSearchField(): McSearchField | null {
+    return (this.#region?.element.elementOf("pool-search") as McSearchField | null) ?? null;
+  }
+
+  /** The list the pad's paging and right stick scroll: the pool on the Cards tab (and the wide layout's pool), else the deck list. */
+  #pageScroller(): HTMLElement | null {
+    return this.#activeTab === "cards" ? this.#poolScroller() : this.#listScroller();
+  }
+
+  /** Where the pool list is scrolled to now (0 after a new search, filter or deck). */
+  #poolScrollTop(): number {
+    return this.#poolFromTop ? 0 : (this.#poolScroller()?.scrollTop ?? 0);
+  }
+
+  /** A pad focus brings a card's row into view. */
+  #poolScrollIntoView(row: number, rowHeight: number): void {
+    const scroller = this.#poolScroller();
+    if (!scroller) return;
+    const top = row * rowHeight;
+    const bottom = top + rowHeight;
+    if (top < scroller.scrollTop) scroller.scrollTop = top;
+    else if (bottom > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = bottom - scroller.clientHeight;
+  }
+
+  /** The pool list scrolled: the rows near the new offset are built when the window moves. */
+  #onPoolScroll(top: number): void {
+    const { rowHeight, rowCount, viewHeight, window } = this.#poolMetrics;
+    if (poolWindowKey(rowHeight, rowCount, viewHeight, top) !== window) this.#rebuild();
+  }
+
+  /** The pool cards on screen with their place (the list scroll applied), for the hover popover. */
+  #poolHovers(
+    count: number,
+    layout: CardPoolLayout,
+    columns: number,
+    cardAt: (index: number) => AnyCard,
+  ): readonly (readonly [string, HoverCardIdRect])[] {
+    const scroller = this.#poolScroller();
+    if (!scroller || !this.#region) return [];
+    const view = this.#region.rectOf(scroller);
+    const top = scroller.scrollTop;
+    const found: (readonly [string, HoverCardIdRect])[] = [];
+    const first = Math.max(0, Math.floor(top / layout.rowHeight));
+    const last = Math.min(layout.rowCount, Math.ceil((top + view.height) / layout.rowHeight));
+    for (let row = first; row < last; row++) {
+      const inRow = Math.min(columns, count - row * columns);
+      for (let col = 0; col < inRow; col++) {
+        const index = row * columns + col;
+        const face = layout.faceRect(index);
+        const rect = clipHoverRect(
+          { x: face.x, y: view.y + face.y - top, width: face.width, height: face.height },
+          view,
+        );
+        const cardId = cardAt(index).id as string;
+        if (rect) found.push([hoverSlotOf(cardId, `cell${row}.${col}`), { ...rect, cardId, through: true }]);
+      }
+    }
+    return found;
+  }
+
+  /** A pool card as the shared pool draws it: its scan, name, type and how many the deck holds of its limit. */
+  #poolCardView(card: AnyCard, deck: Deck): CardPoolCard {
+    const cardId = card.id as string;
+    const limit = ("deckLimit" in card ? (card as unknown as { deckLimit: number }).deckLimit : null) ?? null;
+    const have = deck.cards.find((c) => (c.cardId as string) === cardId)?.quantity ?? 0;
+    const lang = artLanguageNow();
+    const title = localizedLabelOf(card, lang);
+    const typeLabel = `${subtitleCutFrom(card, title) ? `${subtitleCutFrom(card, title)} · ` : ""}${card.type.replace(/_/g, " ")}`;
+    this.#actions.set(`open:${cardId}`, () => this.#showPaneCard(card));
+    this.#inspects.set(`open:${cardId}`, () => this.#inspectCard(card));
+    return {
+      cardId,
+      imageUrl: artFor(card, { kind: "front" })?.url ?? null,
+      missing: t("deckCheck.noScan"),
+      title,
+      cost:
+        "cost" in card && typeof (card as unknown as { cost: unknown }).cost === "number"
+          ? (card as unknown as { cost: number }).cost
+          : null,
+      caption: limit !== null ? `${typeLabel} · ${t("decks.poolInDeck", { have, limit })}` : typeLabel,
+      captionStrong: false,
+      typeLine: "",
+      note: null,
+      rules: "",
+      quantity: have,
+      shown: this.#paneCard !== null && (this.#paneCard.id as string) === cardId,
+    };
+  }
+
+  /** The documents the search worker ranks: every card the selected deck can browse. */
+  #poolDocuments(): { readonly docs: readonly SearchDocument[]; readonly version: string } {
+    const context = this.#poolContext;
+    if (!context) return { docs: [], version: "" };
+    const lang = artLanguageNow();
+    const { deck, identity } = context;
+    return {
+      docs: poolSearchDocuments(
+        browsablePool(currentPool(), identity, deck.aspects, {}),
+        lang,
+        (code) => packNameOf(code),
+        this.#poolDocs,
+      ),
+      version: `${currentPoolKey()}:${identity.id as string}:${deck.aspects.join(",")}:${lang}`,
+    };
   }
 
   /**
@@ -2172,22 +2235,28 @@ export class DecksScene extends Phaser.Scene {
    * a `<span style="flex:1">` sitting *between* the label and the chips, not a separate full-width rule with its
    * own row of chips below). Returns the next free `y`.
    */
-  #drawPoolHeader(left: number, y: number, column: number, chipDefs: readonly ChipDef[], title = "CARD POOL"): number {
-    const heading = this.add.text(left, y, title, {
-      ...textStyle(typeRole.barTitle, surface.ink.hex),
-      fontSize: "19px",
-    });
+  #drawPoolHeader(
+    b: SheetBuilder,
+    left: number,
+    y: number,
+    column: number,
+    chipDefs: readonly ChipDef[],
+    title: string,
+  ): number {
+    const headingSize = b.measure(title, typeRole.barTitle, { size: 19 });
     const chipHeight = this.#row;
-    // Sized to the stamp label as drawn: the per-character estimate left "Hero" and "Basic" too narrow for the
-    // stamp's Bangers face, and `McButton` shrank them to fit.
-    const beside = chipsFitBesideHeading(
-      column,
-      heading.width,
-      chipDefs.map((chip) => this.#chipWidth(chip)),
-    );
+    // Sized to the stamp label as drawn, never under the per-character estimate, and with room for the chosen tick.
+    const widthOf = (chip: ChipDef): number =>
+      Math.max(
+        minChipCellWidth(chip.text),
+        Math.ceil(b.measure(caseOf(STAMP_CHIP_TYPE, chip.text), STAMP_CHIP_TYPE, { letterSpacing: 1.1 }).width) + 44,
+      );
+    const beside = chipsFitBesideHeading(column, headingSize.width, chipDefs.map(widthOf));
     // On a phone the chips would be drawn over the heading ("CARD POOL" clipped to "CA" behind the first chip), so
     // they fold behind a Filters button beside it, and open onto their own row(s) under it, left-aligned.
     const toggleWidth = 124;
+    const headingY = beside ? y : y + (chipHeight - headingSize.height) / 2;
+    b.text(left, headingY, title, typeRole.barTitle, { size: 19, color: surface.ink.hex });
     if (!beside) {
       const active = (this.#poolAspectFilter ? 1 : 0) + (this.#poolSortByCost ? 1 : 0);
       const rect: Rect = { x: left + column - toggleWidth, y, width: toggleWidth, height: chipHeight };
@@ -2195,50 +2264,48 @@ export class DecksScene extends Phaser.Scene {
         this.#poolFiltersOpen = !this.#poolFiltersOpen;
         this.#rebuild();
       };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: `Filters ${this.#poolFiltersOpen ? "▴" : "▾"}${active > 0 ? ` · ${active}` : ""}`,
-          type: typeRole.label,
-          rect,
-          selected: active > 0,
-          onClick: toggle,
-        }),
-      );
+      b.button({
+        key: "pool-chip:filters",
+        rect,
+        label: `${t("decks.filters")} ${this.#poolFiltersOpen ? "▴" : "▾"}${active > 0 ? ` · ${active}` : ""}`,
+        look: "secondary",
+        type: typeRole.label,
+        selected: active > 0,
+      });
+      this.#actions.set("pool-chip:filters", toggle);
       this.#stops.set("pool-chip:filters", { rect, activate: toggle });
-      heading.setY(y + (chipHeight - heading.height) / 2);
     }
-    const chipY = beside ? y + (heading.height - chipHeight) / 2 : y + chipHeight + 8;
+    const chipY = beside ? y + (headingSize.height - chipHeight) / 2 : y + chipHeight + 8;
     const shownChips = beside || this.#poolFiltersOpen ? chipDefs : [];
-    const packed = packChipsNatural(shownChips, left, chipY, column, chipHeight, beside ? "right" : "left", (chip) =>
-      this.#chipWidth(chip),
-    );
+    const packed = packChipsNatural(shownChips, left, chipY, column, chipHeight, beside ? "right" : "left", widthOf);
     for (const { chip, rect: cell } of packed.placed) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: chip.text,
-          type: STAMP_CHIP_TYPE,
+      const key = `pool-chip:${chip.id}`;
+      if (chip.tint)
+        drawTintButton(b, key, cell, chip.text, chip.tint, { selected: chip.selected, type: STAMP_CHIP_TYPE });
+      else
+        b.button({
+          key,
           rect: cell,
+          label: chip.text,
+          look: "secondary",
+          type: STAMP_CHIP_TYPE,
           selected: chip.selected,
-          onClick: chip.onClick,
-          ...(chip.tint ? { tint: chip.tint } : {}),
-        }),
-      );
-      this.#stops.set(`pool-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
+        });
+      this.#actions.set(key, chip.onClick);
+      this.#stops.set(key, { rect: cell, activate: chip.onClick });
     }
     const chipsLeftEdge =
       beside && packed.placed.length > 0 ? Math.min(...packed.placed.map((p) => p.rect.x)) : left + column;
-    const ruleStart = left + heading.width + 10;
+    const ruleStart = left + headingSize.width + 10;
     const ruleEnd = (beside ? chipsLeftEdge : left + column - toggleWidth) - 10;
     if (ruleEnd > ruleStart) {
-      const rule = this.add.graphics();
-      rule
-        .fillStyle(surface.ink.hex, 1)
-        .fillRect(ruleStart, heading.y + heading.height / 2 - 1.5, ruleEnd - ruleStart, 3);
+      b.box(
+        { x: ruleStart, y: headingY + headingSize.height / 2 - 1.5, width: ruleEnd - ruleStart, height: 3 },
+        { fill: surface.ink.hex },
+      );
     }
     if (!beside) return (shownChips.length > 0 ? packed.bottom : y + chipHeight) + 12;
-    return Math.max(y + heading.height, packed.bottom + chipHeight) + 12;
+    return Math.max(y + headingSize.height, packed.bottom + chipHeight) + 12;
   }
 
   /** D14's own pool filter chips: the deck's own chosen aspect(s), Basic, Hero — one active at a time, click again to clear back to "everything" — then a Cost sort toggle. Deviation from the mock's own static screenshot, noted in this scene's header comment: D14 draws its "Aggression" chip pre-filled while the grid still shows Basic/Hero cards too, which reads as a static label rather than a working filter; here every chip (aspect included) is a real, symmetric toggle. */
@@ -2246,7 +2313,7 @@ export class DecksScene extends Phaser.Scene {
     const defs: ChipDef[] = [];
     const toggleAspect = (value: CoreAspect | "basic" | "identity"): void => {
       this.#poolAspectFilter = this.#poolAspectFilter === value ? null : value;
-      this.#poolListScroll.reset();
+      this.#poolFromTop = true;
       this.#rebuild();
     };
     // Each chip wears its aspect's stamp, the colors the deck rows and the deck builder use; Hero, which has no
@@ -2273,18 +2340,18 @@ export class DecksScene extends Phaser.Scene {
     });
     defs.push({
       id: "hero",
-      text: "Hero",
+      text: t("decks.poolHero"),
       selected: this.#poolAspectFilter === "identity",
       onClick: () => toggleAspect("identity"),
       tint: { fill: surface.ink.hex, ink: surface.paper.hex },
     });
     defs.push({
       id: "cost",
-      text: "Cost ▾",
+      text: t("decks.poolCost"),
       selected: this.#poolSortByCost,
       onClick: () => {
         this.#poolSortByCost = !this.#poolSortByCost;
-        this.#poolListScroll.reset();
+        this.#poolFromTop = true;
         this.#rebuild();
       },
     });
@@ -2293,10 +2360,10 @@ export class DecksScene extends Phaser.Scene {
 
   #poolCards(deck: Deck, identity: HeroIdentityCard, deckListOnly = false): readonly AnyCard[] {
     const filter: PoolFilter = this.#poolAspectFilter ? { aspect: this.#poolAspectFilter } : {};
-    const browsable = browsablePool(currentPool(), identity, deck.aspects, filter);
+    const browsable = browsablePool(currentPool(), identity, deck.aspects, this.#poolSearch.filterFor(filter));
     const inDeck = new Set(deck.cards.map((entry) => entry.cardId as string));
     const inScope = deckListOnly ? browsable.filter((card) => inDeck.has(card.id as string)) : browsable;
-    const ranking = this.#poolSearchText.trim() === "" ? null : this.#poolRanking;
+    const ranking = this.#poolSearch.ranking;
     const found = ranking ? inScope.filter((card) => ranking.has(card.id as string)) : inScope;
     const pool = ranking
       ? [...found].sort((a, b) => (ranking.get(b.id as string) ?? 0) - (ranking.get(a.id as string) ?? 0))
@@ -2305,140 +2372,6 @@ export class DecksScene extends Phaser.Scene {
     const costOf = (card: AnyCard): number =>
       "cost" in card ? (card as unknown as { cost: number }).cost : Number.POSITIVE_INFINITY;
     return [...pool].sort((a, b) => costOf(a) - costOf(b) || a.name.localeCompare(b.name));
-  }
-
-  /** Hands the pool worker the selected deck's browsable cards when its hero or aspects change, and re-asks the open query. */
-  #syncPoolDocuments(deck: Deck, identity: HeroIdentityCard): void {
-    const lang = artLanguageNow();
-    // The card language's names load on first use; the documents are built again once they are in.
-    if (!cardNamesReady(lang)) {
-      void loadCardNames(lang).then(() => {
-        if (!this.sys.isActive()) return;
-        this.#poolDocsVersion = null;
-        this.#poolDocs.clear();
-        this.#syncPoolDocuments(deck, identity);
-      });
-      return;
-    }
-    const version = `${currentPoolKey()}:${identity.id as string}:${deck.aspects.join(",")}:${lang}`;
-    if (version === this.#poolDocsVersion) return;
-    this.#poolDocsVersion = version;
-    const documents = browsablePool(currentPool(), identity, deck.aspects, {}).map((card) => {
-      const key = card.id as string;
-      const docKey = `${key}:${lang}`;
-      let doc = this.#poolDocs.get(docKey);
-      if (!doc) {
-        doc = cardSearchDocumentOf(card, packNameOf(card.setCode as string), localizedNameOf(key, lang));
-        this.#poolDocs.set(docKey, doc);
-      }
-      return doc;
-    });
-    this.#poolSearch.setDocuments(documents, version);
-    const text = this.#poolSearchText;
-    if (text.trim() !== "") queueMicrotask(() => this.sys.isActive() && this.#requestPoolSearch(text));
-  }
-
-  /** Asks the worker to rank the pool for the text; the grid redraws when the newest answer arrives. An empty text clears at once. */
-  #requestPoolSearch(text: string): void {
-    if (text.trim() === "") {
-      this.#poolSearch.cancel();
-      this.#poolRanking = null;
-      this.#poolListScroll.reset();
-      this.#rebuild();
-      return;
-    }
-    this.#poolSearch.search(text, (ranked) => {
-      if (!this.sys.isActive()) return;
-      this.#poolRanking = new Map(ranked.map((r) => [r.id, r.score]));
-      this.#poolListScroll.reset();
-      this.#rebuild();
-    });
-  }
-
-  #renderPoolRow(
-    rowRect: Rect,
-    geometry: PoolGridGeometry,
-    cards: readonly AnyCard[],
-    rowIndex: number,
-    deck: Deck,
-  ): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const waiting: (() => boolean)[] = [];
-    const startIndex = rowIndex * geometry.columns;
-    const countInRow = Math.min(geometry.columns, cards.length - startIndex);
-    for (let col = 0; col < countInRow; col++) {
-      const card = cards[startIndex + col]!;
-      const cell = poolCellRect(geometry, rowRect, col);
-      const cardRect: Rect = { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 };
-      const g = this.add.graphics();
-      paintPanel(g, cardRect, "card", "rest");
-      objects.push(g);
-
-      const artRect: Rect = {
-        x: cardRect.x + 2,
-        y: cardRect.y + 2,
-        width: cardRect.width - 4,
-        height: cardRect.height - geometry.captionHeight - 4,
-      };
-      const artFill = this.add.graphics();
-      artFill.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
-      objects.push(artFill);
-      const fill = drawArtSlot(this, artFor(card, { kind: "front" }), artRect, objects, () =>
-        label(
-          this,
-          artRect.x + artRect.width / 2,
-          artRect.y + artRect.height / 2,
-          t("deckCheck.noScan"),
-          typeRole.label,
-          surface.ink.hex,
-          ink.meta,
-        ).setOrigin(0.5),
-      );
-      waiting.push(fill);
-      const ruleY = artRect.y + artRect.height + 2;
-      const rule = this.add.graphics();
-      rule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, ruleY, cardRect.width, 2.5);
-      objects.push(rule);
-
-      if ("cost" in card) {
-        const costText = String((card as unknown as { cost: number }).cost);
-        const pipText = label(this, 0, 0, costText, typeRole.label, surface.paper.hex, 1);
-        const pipWidth = Math.ceil(pipText.width) + 12;
-        const pipBg = this.add.graphics();
-        pipBg.fillStyle(surface.ink.hex, 1).fillRect(artRect.x, artRect.y, pipWidth, 18);
-        pipText.setPosition(artRect.x + 6, artRect.y + 9).setOrigin(0, 0.5);
-        objects.push(pipBg, pipText);
-      }
-
-      const entry = ("deckLimit" in card ? (card as unknown as { deckLimit: number }).deckLimit : null) ?? null;
-      const inDeckQuantity = deck.cards.find((c) => (c.cardId as string) === (card.id as string))?.quantity ?? 0;
-      const name = this.add.text(
-        cardRect.x + 8,
-        ruleY + 6,
-        localizedLabelOf(card, artLanguageNow()),
-        textStyle(typeRole.rowTitle, surface.ink.hex),
-      );
-      fitText(name, cardRect.width - 16);
-      objects.push(name);
-      const subtitleCut = subtitleCutFrom(card, name.text);
-      const typeLabel = `${subtitleCut ? `${subtitleCut} · ` : ""}${card.type.replace(/_/g, " ")}`;
-      const caption = entry !== null ? `${typeLabel} · ${inDeckQuantity} of ${entry} in deck` : typeLabel;
-      // `label()` (not a bare `this.add.text`) so `typeRole.label`'s own uppercase rule actually applies —
-      // "EVENT · 2 OF 3 IN DECK", not the lowercase caption this cell used to draw (2026-09-18 fidelity pass, point 4).
-      // Wrapped inside the cell, as D14 draws it; unwrapped it ran under the next card.
-      objects.push(
-        label(
-          this,
-          cardRect.x + 8,
-          ruleY + 6 + name.height + 3,
-          caption,
-          typeRole.label,
-          surface.ink.hex,
-          ink.meta,
-        ).setWordWrapWidth(cardRect.width - 16),
-      );
-    }
-    return waiting.length > 0 ? { objects, refresh: () => waiting.forEach((fill) => fill()) } : { objects };
   }
 
   /**

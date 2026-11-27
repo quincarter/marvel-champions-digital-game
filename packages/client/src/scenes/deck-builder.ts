@@ -186,6 +186,7 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-model.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
+import { drawTintButton } from "../dom/tint-button.js";
 import {
   drawCardPool,
   poolWindowKey,
@@ -895,34 +896,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     onClick: () => void,
     options: { readonly selected?: boolean; readonly disabled?: string | true; readonly type?: TypeSpec } = {},
   ): void {
-    const b = this.#b;
     const off = options.disabled !== undefined;
-    b.box(rect, {
-      fill: tint.fill,
-      stroke: surface.ink.hex,
-      strokeWidth: options.selected ? 5 : 2,
-      ...(off ? { alpha: 0.5 } : {}),
-    });
-    b.text(
-      rect.x + rect.width / 2,
-      rect.y + rect.height / 2,
-      caseOf(options.type ?? typeRole.stamp, text),
-      options.type ?? typeRole.stamp,
-      {
-        color: tint.ink,
-        origin: [0.5, 0.5],
-        fitWidth: rect.width - 12,
-        ...(off ? { alpha: 0.5 } : {}),
-      },
-    );
-    // The tick is its own mark beside the name, so what is chosen is said by the tick and the heavy outline, and the name stays the name.
-    if (options.selected)
-      b.text(rect.x + 10, rect.y + rect.height / 2, "✓", typeRole.rowTitle, {
-        color: tint.ink,
-        origin: [0, 0.5],
-        ...(off ? { alpha: 0.5 } : {}),
-      });
-    b.tap(key, rect);
+    drawTintButton(this.#b, key, rect, text, tint, options);
     const press = (): void => {
       if (!off) onClick();
     };
