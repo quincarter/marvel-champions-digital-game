@@ -1,3 +1,6 @@
+import type { BarChartBar } from "../components/mc-bar-chart/mc-bar-chart.types.js";
+import type { LineListGroup } from "../components/mc-line-list/mc-line-list.types.js";
+import type { StatTile } from "../components/mc-stat-tiles/mc-stat-tiles.types.js";
 import type { McArticleModel } from "../components/mc-article/mc-article.types.js";
 import type { McListRowModel } from "../components/mc-list-row/mc-list-row.types.js";
 import type { McPictureCardModel } from "../components/mc-picture-card/mc-picture-card.types.js";
@@ -459,6 +462,30 @@ export interface SheetMediaRow {
   readonly fit?: PictureFit;
 }
 
+/** Boxed counts (`mc-stat-tiles`) in rows of equal-width cells filling `rect`. */
+export interface SheetStatTiles {
+  readonly kind: "statTiles";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly rows: readonly (readonly StatTile[])[];
+}
+
+/** A bar chart (`mc-bar-chart`) as tall as `rect`, labels included. */
+export interface SheetBarChart {
+  readonly kind: "barChart";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly bars: readonly BarChartBar[];
+}
+
+/** Titled groups of one-line entries with a count each (`mc-line-list`); an entry with `hover` names a card for the hover popover. */
+export interface SheetLineList {
+  readonly kind: "lineList";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly groups: readonly LineListGroup[];
+}
+
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
 export interface SheetScroll {
   readonly kind: "scroll";
@@ -492,4 +519,7 @@ export type SheetNode =
   | SheetEmptyState
   | SheetFilterBar
   | SheetMediaRow
+  | SheetStatTiles
+  | SheetBarChart
+  | SheetLineList
   | SheetScroll;

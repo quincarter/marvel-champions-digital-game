@@ -17,6 +17,9 @@ import "../mc-search-field/mc-search-field.js";
 import "../mc-article/mc-article.js";
 import "../mc-filter-bar/mc-filter-bar.js";
 import "../mc-media-row/mc-media-row.js";
+import "../mc-stat-tiles/mc-stat-tiles.js";
+import "../mc-bar-chart/mc-bar-chart.js";
+import "../mc-line-list/mc-line-list.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { PictureErrorDetail } from "../mc-picture-tile/mc-picture-tile.types.js";
 import { objectPositionFor } from "../../shared/crop.js";
@@ -741,6 +744,17 @@ export class McSheet extends LitElement {
             this.#activate(event.detail.key);
           }}
         ></mc-filter-bar>`;
+      case "statTiles":
+        return html`<mc-stat-tiles class="part" style=${px(node.rect)} .rows=${node.rows}></mc-stat-tiles>`;
+      case "barChart":
+        return html`<mc-bar-chart
+          class="part"
+          style=${px(node.rect)}
+          .bars=${node.bars}
+          .height=${node.rect.height}
+        ></mc-bar-chart>`;
+      case "lineList":
+        return html`<mc-line-list class="part" style=${px(node.rect)} .groups=${node.groups}></mc-line-list>`;
       case "mediaRow": {
         const events = this.#pictureEvents(node.retry);
         return html`<mc-media-row
