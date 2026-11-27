@@ -3,6 +3,7 @@
  * grouped by family (docs/achievements.md). What is earned, and the rank, is `progression/achievements.ts`'s; this
  * module only words and orders it. State is always a word as well as a look (EARNED / LOCKED / SOON), never color alone.
  */
+import { t, type MessageKey } from "../i18n/translate.js";
 import {
   ACHIEVEMENT_FAMILIES,
   rankProgressOf,
@@ -65,6 +66,12 @@ export type TrophyRow =
       readonly packName?: string;
     };
 
+/** The words a family heading and a rank go by, in the app's language (`trophies.family.*`, `trophies.rank.*`). */
+export const familyLabelOf = (id: AchievementFamily): string => t(`trophies.family.${id}` as MessageKey);
+export const rankTitleOf = (rank: number): string => t(`trophies.rank.${rank}` as MessageKey);
+
+/** "Tracked from a future update" (the sentence a soon-to-count achievement's description ends with). */
+export const trackedLater = (): string => t("trophies.trackedLater");
 export const TRACKED_LATER = "Tracked from a future update";
 
 /** 1250 becomes "1,250": a fixed grouping, so a screenshot reads the same in any locale. */
@@ -76,32 +83,34 @@ export function trophyHeaderOf(lifetimePoints: number, statuses: readonly Achiev
   const base = statuses.filter((s) => s.def.family !== "mods");
   const earned = base.filter((s) => s.earned).length;
   return {
-    rankLabel: `Rank ${progress.rank.rank} of 9`,
-    title: progress.rank.title,
-    pointsLabel: `${formatTrophyNumber(lifetimePoints)} lifetime points`,
+    rankLabel: t("trophies.rankOf", { rank: progress.rank.rank }),
+    title: rankTitleOf(progress.rank.rank),
+    pointsLabel: t("trophies.lifetimePoints", { points: formatTrophyNumber(lifetimePoints) }),
     fraction: progress.fraction,
     nextLabel: progress.next
-      ? `${formatTrophyNumber(progress.next.threshold - lifetimePoints)} to ${progress.next.title}`
-      : "Top rank",
-    earnedLabel: `${earned} of ${base.length} achievements`,
+      ? t("trophies.toNext", {
+          points: formatTrophyNumber(progress.next.threshold - lifetimePoints),
+          title: rankTitleOf(progress.next.rank),
+        })
+      : t("trophies.topRank"),
+    earnedLabel: t("trophies.earnedOf", { earned, total: base.length }),
   };
 }
 
 function rewardOf(status: AchievementStatus): string {
-  if (status.def.points > 0) return `+${status.def.points} points`;
-  if (status.def.family === "mods") return "No points";
-  return status.def.rewardPackId ? "Silly pack" : "";
+  if (status.def.points > 0) return t("trophies.reward.points", { points: status.def.points });
+  if (status.def.family === "mods") return t("trophies.reward.none");
+  return status.def.rewardPackId ? t("trophies.reward.silly") : "";
 }
 
 /** How the list is ordered (#479): the book's own order, how far along, what it is worth, or by name. */
 export type TrophySort = "category" | "completion" | "points" | "name";
 
-export const TROPHY_SORTS: readonly { readonly id: TrophySort; readonly label: string }[] = [
-  { id: "category", label: "Category" },
-  { id: "completion", label: "Complete %" },
-  { id: "points", label: "Points" },
-  { id: "name", label: "A–Z" },
-];
+export const TROPHY_SORT_IDS: readonly TrophySort[] = ["category", "completion", "points", "name"];
+
+/** The four sorts with their words in the app's language, read when the chips draw. */
+export const trophySorts = (): readonly { readonly id: TrophySort; readonly label: string }[] =>
+  TROPHY_SORT_IDS.map((id) => ({ id, label: t(`trophies.sort.${id}` as MessageKey) }));
 
 /**
  * The player's view of the list: its order, and which families are open. Kept between visits
@@ -124,7 +133,7 @@ export const ALL_OPEN_TROPHY_VIEW: TrophyView = {
 
 /** "Complete % ▼", for the Filters button. */
 export function trophySortLabel(view: Pick<TrophyView, "sort" | "descending">): string {
-  const label = TROPHY_SORTS.find((s) => s.id === view.sort)?.label ?? "Category";
+  const label = trophySorts().find((s) => s.id === view.sort)?.label ?? t("trophies.sort.category");
   return `${label} ${view.descending ? "▼" : "▲"}`;
 }
 
@@ -178,7 +187,7 @@ export function trophyRowsOf(
       : view.sort === "points"
         ? f.points
         : view.sort === "name"
-          ? f.family.label
+          ? familyLabelOf(f.family.id)
           : f.index;
   const statusKey = (s: AchievementStatus): number | string =>
     view.sort === "completion"
@@ -193,8 +202,12 @@ export function trophyRowsOf(
     rows.push({
       kind: "section",
       id: f.family.id,
-      title: f.family.label,
-      count: `${f.earned} of ${f.members.length} · ${Math.round(f.completion * 100)}%`,
+      title: familyLabelOf(f.family.id),
+      count: t("trophies.familyCount", {
+        earned: f.earned,
+        total: f.members.length,
+        percent: Math.round(f.completion * 100),
+      }),
       expanded,
     });
     if (!expanded) continue;
@@ -209,7 +222,7 @@ export function trophyRowsOf(
           kind: "group",
           id: packId,
           title: members[0]!.def.pack!.name,
-          count: `${members.filter((s) => s.earned).length} of ${members.length}`,
+          count: t("trophies.groupCount", { earned: members.filter((s) => s.earned).length, total: members.length }),
         };
         return members.map((status, i) => ({ status, heading: i === 0 ? heading : null }));
       }),
@@ -228,9 +241,15 @@ export function trophyRowsOf(
         kind: "achievement",
         id: status.def.id,
         name: status.def.name,
-        detail: state === "untracked" ? `${status.def.description} ${TRACKED_LATER}.` : status.def.description,
+        detail: state === "untracked" ? `${status.def.description} ${trackedLater()}.` : status.def.description,
         state,
-        stateLabel: state === "earned" ? "EARNED" : state === "locked" ? "LOCKED" : "SOON",
+        stateLabel: t(
+          state === "earned"
+            ? "trophies.state.earned"
+            : state === "locked"
+              ? "trophies.state.locked"
+              : "trophies.state.soon",
+        ),
         reward: rewardOf(status),
         progress,
         progressLabel: progress ? `${progress.current} / ${progress.target}` : "",
