@@ -448,4 +448,20 @@ export class SheetBuilder {
     build(inner);
     this.nodes.push({ kind: "scroll", key, rect: this.#rect(rect), height, nodes: inner.nodes });
   }
+
+  /**
+   * A scrolling region whose content height is known only once its parts are laid out: `build` draws them (its `y`
+   * from 0, `x` the screen's) and returns how far down they reach. The region is never shorter than `rect`.
+   */
+  scrollFit(key: string, rect: Rect, build: (inner: SheetBuilder) => number): void {
+    const inner = new SheetBuilder(this.#game, { x: rect.x, y: 0 }, this.#desktop);
+    const used = build(inner);
+    this.nodes.push({
+      kind: "scroll",
+      key,
+      rect: this.#rect(rect),
+      height: Math.max(rect.height, Math.ceil(used)),
+      nodes: inner.nodes,
+    });
+  }
 }

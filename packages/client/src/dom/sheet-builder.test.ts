@@ -121,3 +121,21 @@ describe("SheetBuilder chips", () => {
     ]);
   });
 });
+
+describe("SheetBuilder scrollFit", () => {
+  const builder = (): SheetBuilder => new SheetBuilder({} as never, { x: 10, y: 20 }, () => false);
+
+  it("takes the content height from what the build says it used, never less than the box", () => {
+    const outer = builder();
+    outer.scrollFit("list", { x: 30, y: 60, width: 200, height: 100 }, (inner) => {
+      inner.box({ x: 30, y: 250, width: 50, height: 10 }, { fill: surface.ink.hex });
+      return 300.2;
+    });
+    outer.scrollFit("short", { x: 30, y: 60, width: 200, height: 100 }, () => 40);
+    const [tall, short] = outer.nodes;
+    expect(tall).toMatchObject({ kind: "scroll", key: "list", rect: { x: 20, y: 40 }, height: 301 });
+    // Parts inside sit in the region's own space: `x` from the region's left, `y` from its top.
+    expect(tall!.kind === "scroll" && tall.nodes[0]).toMatchObject({ rect: { x: 0, y: 250 } });
+    expect(short).toMatchObject({ kind: "scroll", height: 100 });
+  });
+});
