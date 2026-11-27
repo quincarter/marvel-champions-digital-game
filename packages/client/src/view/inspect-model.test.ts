@@ -307,7 +307,8 @@ describe("inspectModel — keyword definitions, against a revealed minion", () =
       const words = Object.values(GLOSSARY_ES).find((entry) => entry.definition === spanish.definition);
       expect(words, spanish.definition).toBeDefined();
       expect(spanish.label).toBe(words!.name);
-      expect(spanish.definition).not.toBe(english.definition);
+      // The words are the glossary's own (pinned to the official guide in `i18n/terminology-es.test.ts`).
+      expect(spanish.definition).toBe(words!.definition);
       expect(spanish.citeLabel).toBe(english.citeLabel);
     } finally {
       useEnglish();

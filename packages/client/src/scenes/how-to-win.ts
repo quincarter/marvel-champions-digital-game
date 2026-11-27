@@ -25,6 +25,7 @@
  * (`view/term-text-layout.ts`) whose tooltip (`view/term-tooltip-layout.ts`) is part of the sheet too. The scene keeps
  * the focus route (its ring drawn in the DOM, `dom/dom-ring.ts`), the glyph beside the title and navigation.
  */
+import { sheetThemeFor } from "../ui/campaign-chrome.js";
 import Phaser from "phaser";
 import "@mc/ui";
 import type { McSheet } from "@mc/ui";
@@ -350,17 +351,24 @@ export class HowToWinScene extends Phaser.Scene {
     b.tap("close", close);
     this.#actions.set("close", () => this.#leave());
 
-    const title = b.text(
-      close.x + close.width + 12,
-      layout.header.height / 2,
-      t("howToWin.lesson"),
-      typeRole.barTitle,
-      {
-        size: 18,
-        color: surface.paper.hex,
-        origin: [0, 0.5],
-      },
-    );
+    const lessonLeft = close.x + close.width + 12;
+    const lessonWidth = b.measure(t("howToWin.lesson"), typeRole.barTitle, { size: 18 }).width;
+    // Set under the dark mode tab, or stopped before it, when a long (Spanish) title would run under it.
+    const lessonRoom = layout.progress.x - lessonLeft - 12;
+    const { drop: lessonDrop, maxRight } = sheetThemeFor(this, {
+      width: layout.header.width,
+      textLeft: lessonLeft,
+      textRight: lessonLeft + Math.min(lessonRoom, lessonWidth),
+      textTop: layout.header.height / 2 - 12,
+      textHeight: 24,
+      barHeight: layout.header.height,
+    });
+    const title = b.text(lessonLeft, layout.header.height / 2 + lessonDrop, t("howToWin.lesson"), typeRole.barTitle, {
+      size: 18,
+      color: surface.paper.hex,
+      origin: [0, 0.5],
+      fitWidth: maxRight === null ? lessonRoom : Math.max(40, Math.min(lessonRoom, maxRight - lessonLeft)),
+    });
 
     // A five-segment tick bar, first segment filled (guide caution yellow — this screen is lesson 1 of 5), the
     // rest empty: the same "where am I" signal `docs/guided-mode.md`'s own step labels give inside a lesson, but

@@ -4,12 +4,16 @@
  * right-aligned label. The same numbers, so a screen moved to a panel keeps its bar where it was.
  */
 import { hit, ink, surface, typeRole } from "../tokens.js";
-import { bangers, estimateBangersWidth } from "../ui/campaign-chrome.js";
+import { bangers, estimateBangersWidth, sheetThemeFor } from "../ui/campaign-chrome.js";
 import type { Rect } from "../view/layout.js";
 import type { SheetBuilder } from "./sheet-builder.js";
 import type { SheetGlyphs } from "./sheet-glyphs.js";
 
 export interface SheetTopBarOptions {
+  /**
+   * The scene the bar is in. The bar asks `topBarThemePlan` (through `sheetThemeFor`, the one rule every panel bar and heading follows) where the dark mode toggle goes, and drops its title under the tab when the toggle would sit on the words.
+   */
+  readonly scene: Phaser.Scene;
   /** The screen's width, whether it is a phone layout and the bar's height (`campaignFrame`). */
   readonly frame: { readonly width: number; readonly phone: boolean; readonly topBar: number };
   /** "◂ TITLE": a boxed paper-on-ink button. Omit for no back button. */
@@ -63,11 +67,23 @@ export function sheetTopBar(b: SheetBuilder, glyphs: SheetGlyphs, options: Sheet
       letterSpacing: 1.1,
     });
   }
-  b.text(x, height / 2, options.title.toUpperCase(), bangers(frame.phone ? 22 : 28), {
+  const titleSize = frame.phone ? 22 : 28;
+  const title = options.title.toUpperCase();
+  const room = frame.width - pad - rightWidth - x;
+  const titleWidth = Math.min(room, b.measure(title, bangers(titleSize), { letterSpacing: 1 }).width);
+  const { drop, maxRight } = sheetThemeFor(options.scene, {
+    width: frame.width,
+    textLeft: x,
+    textRight: x + titleWidth,
+    textTop: height / 2 - titleSize / 2,
+    textHeight: titleSize,
+    barHeight: height,
+  });
+  b.text(x, height / 2 + drop, title, bangers(titleSize), {
     color: surface.paper.hex,
     origin: [0, 0.5],
     letterSpacing: 1,
-    fitWidth: frame.width - pad - rightWidth - x,
+    fitWidth: maxRight === null ? room : Math.max(40, Math.min(room, maxRight - x)),
   });
   return { height, backRect };
 }

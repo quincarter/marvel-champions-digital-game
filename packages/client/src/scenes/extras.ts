@@ -300,6 +300,7 @@ export class ExtrasScene extends Phaser.Scene {
     this.add.rectangle(0, 0, width, frame.topBar, surface.ink.hex).setOrigin(0, 0);
     b.box({ x: 0, y: 0, width, height }, { fill: surface.paper.hex });
     const bar = sheetTopBar(b, this.#glyphs, {
+      scene: this,
       frame,
       backLabel: phone ? "◂" : t("extras.back"),
       title: t("title.extras"),

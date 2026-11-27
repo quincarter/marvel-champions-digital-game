@@ -143,6 +143,7 @@ export const McMediaRowStyles = css`
     outline-offset: -1.25px;
     color: var(--mc-text-ink);
     overflow: visible;
+    container-type: size;
   }
   .row.deck.selected {
     background: var(--mc-fill-ink);
@@ -179,10 +180,11 @@ export const McMediaRowStyles = css`
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 2px 5px;
+    padding: 2px 4px;
     font-weight: 800;
     font-size: var(--mc-small-9);
-    letter-spacing: 1px;
+    /* Tight, so a long aspect word (LEADERSHIP, PROTECTION) fits a narrow picture whole. */
+    letter-spacing: 0.3px;
     text-transform: uppercase;
     line-height: 1.1;
     white-space: nowrap;
@@ -227,6 +229,12 @@ export const McMediaRowStyles = css`
   }
   .row.deck .text.has-foot .meta {
     -webkit-line-clamp: 1;
+  }
+  /* A short row (a phone's list) has no room for a two line title above the meta and the footer line. */
+  @container (max-height: 78px) {
+    .row.deck .text.has-foot .heading {
+      -webkit-line-clamp: 1;
+    }
   }
   .row.deck.selected .meta {
     opacity: 0.75;

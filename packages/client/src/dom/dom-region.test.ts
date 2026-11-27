@@ -32,6 +32,9 @@ describe("regionTakesEvents", () => {
       "mc-submit",
       "mc-sort",
       "mc-filter-sheet",
+      "mc-input",
+      "mc-field-focus",
+      "mc-search-focus",
     ]);
   });
 });
