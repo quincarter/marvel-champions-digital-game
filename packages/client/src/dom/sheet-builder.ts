@@ -9,7 +9,7 @@
  *   same font the sheet draws it in (`measure`).
  * - Coordinates are the screen's; the builder subtracts the sheet's own origin.
  */
-import type { GlyphSpec as UiGlyphSpec, McGlyphGround, SheetNode, SheetRect, SvgOp } from "@mc/ui";
+import type { GlyphSpec as UiGlyphSpec, McGlyphGround, SheetNode, SheetRect, SvgOp, TabRailTab } from "@mc/ui";
 import { accent, font, signal, status, surface, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { uiLayer } from "./ui-layer.js";
@@ -388,6 +388,61 @@ export class SheetBuilder {
       ...(options.hover !== undefined ? { hover: options.hover } : {}),
       ...(options.key !== undefined ? { key: options.key } : {}),
       ...(options.retry !== undefined ? { retry: options.retry } : {}),
+    });
+  }
+
+  /** A section heading with its rule running on to the end of `rect` (`mc-section-header`). */
+  sectionHeader(rect: Rect, label: string, options: { readonly size?: number; readonly key?: string } = {}): void {
+    this.nodes.push({
+      kind: "sectionHeader",
+      rect: this.#rect(rect),
+      label,
+      ...(options.size !== undefined ? { size: options.size } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
+  }
+
+  /** A rail of tabs in `rect` (`mc-tab-rail`); a tap raises `mc-activate` with `prefix + id`. */
+  tabRail(
+    rect: Rect,
+    tabs: readonly TabRailTab[],
+    options: { readonly prefix?: string; readonly size?: number; readonly key?: string } = {},
+  ): void {
+    this.nodes.push({
+      kind: "tabRail",
+      rect: this.#rect(rect),
+      tabs,
+      ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
+      ...(options.size !== undefined ? { size: options.size } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
+  }
+
+  /** A framed picture (`mc-picture-tile`): cropped around `focus`, or `fit: "contain"`; `missing` says so when none. */
+  pictureTile(
+    rect: Rect,
+    options: {
+      readonly src: string | null;
+      readonly missing?: string;
+      readonly fit?: "cover" | "contain";
+      readonly focus?: { readonly x: number; readonly y: number };
+      readonly frame?: number;
+      readonly hover?: string;
+      readonly retry?: string;
+      readonly key?: string;
+    },
+  ): void {
+    this.nodes.push({
+      kind: "pictureTile",
+      rect: this.#rect(rect),
+      src: options.src,
+      ...(options.missing !== undefined ? { missing: options.missing } : {}),
+      ...(options.fit ? { fit: options.fit } : {}),
+      ...(options.focus ? { focus: options.focus } : {}),
+      ...(options.frame !== undefined ? { frame: options.frame } : {}),
+      ...(options.hover !== undefined ? { hover: options.hover } : {}),
+      ...(options.retry !== undefined ? { retry: options.retry } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
     });
   }
 

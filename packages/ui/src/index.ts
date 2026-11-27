@@ -25,6 +25,10 @@ export {
   measureGlyphText,
   parseArt,
 } from "./components/mc-glyph/mc-glyph.js";
+export { McSectionHeader } from "./components/mc-section-header/mc-section-header.js";
+export { McTabRail } from "./components/mc-tab-rail/mc-tab-rail.js";
+export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
+export type { TabRailTab } from "./components/mc-tab-rail/mc-tab-rail.types.js";
 export { McGameLog } from "./components/mc-game-log/mc-game-log.js";
 export type { McButtonKind } from "./shared/button.types.js";
 export type {
@@ -50,7 +54,10 @@ export type {
   SheetPoly,
   SheetQr,
   SheetRect,
+  SheetPictureTile,
   SheetScroll,
+  SheetSectionHeader,
+  SheetTabRail,
   SheetSlider,
   SheetSvg,
   SheetTap,

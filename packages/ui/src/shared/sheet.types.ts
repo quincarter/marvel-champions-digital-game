@@ -1,3 +1,4 @@
+import type { TabRailTab } from "../components/mc-tab-rail/mc-tab-rail.types.js";
 import type { McButtonKind } from "./button.types.js";
 import type { GlyphSpec, McGlyphGround } from "./glyph.types.js";
 
@@ -283,6 +284,42 @@ export interface SheetSlider {
   readonly stepLabels: readonly [string, string];
 }
 
+/** A section heading with its rule (`mc-section-header`), its top left at the rect's. */
+export interface SheetSectionHeader {
+  readonly kind: "sectionHeader";
+  readonly rect: SheetRect;
+  readonly label: string;
+  readonly size?: number;
+  readonly key?: string;
+}
+
+/** A rail of tabs (`mc-tab-rail`): a tap on a cell raises `mc-activate` with `prefix + id` as its key. */
+export interface SheetTabRail {
+  readonly kind: "tabRail";
+  readonly rect: SheetRect;
+  readonly tabs: readonly TabRailTab[];
+  readonly prefix?: string;
+  readonly size?: number;
+  readonly key?: string;
+}
+
+/** A framed picture (`mc-picture-tile`): cropped around a focal point, or fitted whole; `missing` says so when it has none. */
+export interface SheetPictureTile {
+  readonly kind: "pictureTile";
+  readonly rect: SheetRect;
+  readonly src: string | null;
+  readonly missing?: string;
+  readonly fit?: "cover" | "contain";
+  readonly focus?: { readonly x: number; readonly y: number };
+  /** The ink frame's width in px (2 when absent, 0 for none). */
+  readonly frame?: number;
+  /** Names the card the picture shows (the client's card hover popover reads it). */
+  readonly hover?: string;
+  /** Names where `src` came from, as `SheetImage.retry`. */
+  readonly retry?: string;
+  readonly key?: string;
+}
+
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
 export interface SheetScroll {
   readonly kind: "scroll";
@@ -306,4 +343,7 @@ export type SheetNode =
   | SheetQr
   | SheetSvg
   | SheetSlider
+  | SheetSectionHeader
+  | SheetTabRail
+  | SheetPictureTile
   | SheetScroll;

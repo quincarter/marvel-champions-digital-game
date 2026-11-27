@@ -7,6 +7,9 @@ import { cancelHold } from "../../shared/tap.js";
 import "../mc-aspect-chip/mc-aspect-chip.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
+import "../mc-section-header/mc-section-header.js";
+import "../mc-tab-rail/mc-tab-rail.js";
+import "../mc-picture-tile/mc-picture-tile.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
@@ -538,6 +541,57 @@ export class McSheet extends LitElement {
           }`;
       case "slider":
         return this.#slider(node);
+      case "sectionHeader":
+        return html`<mc-section-header
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          .label=${node.label}
+          .size=${node.size ?? 17}
+        ></mc-section-header>`;
+      case "tabRail":
+        return html`<mc-tab-rail
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          .tabs=${node.tabs}
+          .prefix=${node.prefix ?? "tab:"}
+          .size=${node.size ?? 0}
+          @mc-activate=${(event: CustomEvent<{ key: string }>) => {
+            event.stopPropagation();
+            this.#activate(event.detail.key);
+          }}
+        ></mc-tab-rail>`;
+      case "pictureTile": {
+        const src = node.src !== null && !this.#failed.has(node.src) ? node.src : "";
+        return html`<mc-picture-tile
+          class="part"
+          data-key=${node.key ?? nothing}
+          data-hover=${node.hover ?? nothing}
+          style=${px(node.rect)}
+          .src=${src}
+          .missing=${node.missing ?? ""}
+          .fit=${node.fit ?? "cover"}
+          .focusX=${node.focus?.x ?? 0.5}
+          .focusY=${node.focus?.y ?? 0.5}
+          .frame=${node.frame ?? 2}
+          @mc-image-error=${(event: CustomEvent<{ src: string }>) => {
+            event.stopPropagation();
+            this.#failed.add(event.detail.src);
+            if (node.retry !== undefined && !this.#retried.has(node.retry)) {
+              this.#retried.add(node.retry);
+              this.dispatchEvent(
+                new CustomEvent("mc-image-error", {
+                  detail: { key: node.retry, src: event.detail.src },
+                  bubbles: true,
+                  composed: true,
+                }),
+              );
+            }
+            this.requestUpdate();
+          }}
+        ></mc-picture-tile>`;
+      }
       case "scroll":
         return html`<div class="part scroller" data-key=${node.key} style=${px(scrollBox(node))}>
           <div class="content" style=${`height:${node.height}px`}>

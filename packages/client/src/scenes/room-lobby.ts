@@ -79,7 +79,7 @@ import type { TeamId } from "../live/room-state.js";
 import { enterSeatGame, playRoomGame } from "../platform/seat-play.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import { copyText } from "../ui/report-export.js";
-import { accent, border, hit, minType, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { border, hit, minType, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { drawArtBackdrop } from "../ui/art-backdrop.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -1234,10 +1234,22 @@ export class RoomLobbyScene extends Phaser.Scene {
     const state = this.#state;
     const b = this.#b;
     const rail = layout.tabs!;
-    b.box(rail, { fill: PARCHMENT, stroke: INK, strokeWidth: border.detail });
     const cell = rail.width / ids.length;
     const active = layout.mode === "stack" && this.#tab === "seats" ? "settings" : this.#tab;
     const type = { ...typeRole.label, size: Math.max(minType.phoneLabel, typeRole.label.size) };
+    const rows = ids.map((id) => ({
+      id,
+      label:
+        id === "seats" && state.epic
+          ? t("epic.tab.tables")
+          : id === "seats" && state.competitive
+            ? t("comp.tab.teams")
+            : t(`room.tab.${id}` as const),
+      selected: id === active,
+      ...(id === "chat" && unread > 0 ? { badge: unread } : {}),
+    }));
+    // One rail of cells (`mc-tab-rail`, a tap on a cell raises `tab:<id>`); the stops frame each cell.
+    b.tabRail(rail, rows, { prefix: "tab:", size: this.#desktopSize(type.size) });
     ids.forEach((id, i) => {
       const rect: Rect = { x: rail.x + i * cell, y: rail.y, width: cell, height: rail.height };
       const key = `tab:${id}`;
@@ -1246,29 +1258,13 @@ export class RoomLobbyScene extends Phaser.Scene {
         this.#draw();
       };
       this.#press(key, select);
-      b.button({
-        key,
-        rect,
-        label:
-          id === "seats" && state.epic
-            ? t("epic.tab.tables")
-            : id === "seats" && state.competitive
-              ? t("comp.tab.teams")
-              : t(`room.tab.${id}` as const),
-        look: "rail",
-        type,
-        selected: id === active,
-      });
       this.#addStop(key, rect, select);
-      if (id === "chat" && unread > 0 && id !== active) {
-        // A count, not a dot: "3 changed" is a different message from "changed".
-        b.box({ x: rect.x + rect.width - 18, y: rect.y + 4, width: 14, height: 14 }, { fill: accent.heroRed.hex });
-        b.text(rect.x + rect.width - 11, rect.y + 11, String(Math.min(9, unread)), typeRole.label, {
-          color: PAPER,
-          origin: [0.5, 0.5],
-        });
-      }
     });
+  }
+
+  /** A label size as the panel draws it: a small one grows on desktop, as the client's desktop type does. */
+  #desktopSize(size: number): number {
+    return isDesktopType() && size <= 12 ? Math.min(13, size + 2) : size;
   }
 
   /** LB / RB: the next or previous tab of a layout that has tabs. */
@@ -1533,12 +1529,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       all.slice(start, start + cols).forEach((item, col) => {
         const rect: Rect = { x: x + col * (size + gap), y, width: size, height: size };
         // The picture fills its square (cropped toward the top, where a villain's face is), under an ink frame.
-        b.image(rect, {
-          src: item.artUrl,
-          fill: surface.parchment.hex,
-          cover: { x: 0.5, y: 0.12 },
-        });
-        b.box({ x: rect.x + 1, y: rect.y + 1, width: size - 2, height: size - 2 }, { stroke: INK, strokeWidth: 2 });
+        b.pictureTile(rect, { src: item.artUrl, focus: { x: 0.5, y: 0.12 } });
         if (item.cardId) {
           this.#hoverFaces.push({
             cardId: item.cardId,
@@ -1643,13 +1634,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     return cy;
   }
 
+  /** A block's heading with its rule (`mc-section-header`); returns the y under it. */
   #heading(x: number, y: number, w: number, text: string): number {
-    const size = this.#b.text(x, y, text.toUpperCase(), bangers(17), { color: INK, letterSpacing: 1 });
-    this.#b.box(
-      { x: x + size.width + 10, y: y + size.height / 2 - 1, width: Math.max(0, w - size.width - 10), height: 2 },
-      { fill: INK },
-    );
-    return y + size.height + 8;
+    const height = this.#b.measure(text.toUpperCase(), bangers(17), { letterSpacing: 1 }).height;
+    this.#b.sectionHeader({ x, y, width: w, height }, text);
+    return y + height + 8;
   }
 
   /** The hero a seat's deck is, as a picture for the panel: its own picture, else the identity card's hero scan. */
@@ -1749,8 +1738,12 @@ export class RoomLobbyScene extends Phaser.Scene {
     const artRect: Rect = { x: x + pad, y: y + 10, width: art, height: art };
     if (deck) {
       const picture = this.#heroPicture(deck.cardId);
-      b.image(artRect, { ...picture, fill: signal.spent.hex });
-      b.box(artRect, { stroke: INK, strokeWidth: border.detail });
+      b.pictureTile(artRect, {
+        src: picture.src,
+        focus: picture.cover,
+        frame: border.detail,
+        ...(picture.retry !== undefined ? { retry: picture.retry } : {}),
+      });
       this.#hoverFaces.push({ cardId: deck.cardId, rect: this.#inScreen(artRect), scroll: "seats" });
     } else {
       b.box(
@@ -2575,10 +2568,10 @@ export class RoomLobbyScene extends Phaser.Scene {
             height: thumb.height,
           };
           const picture = villainPicture(id);
-          b.image(slot, {
+          b.pictureTile(slot, {
             src: picture?.url ?? null,
-            fill: signal.spent.hex,
-            cover: { x: picture?.focus?.x ?? 0.5, y: picture?.focus?.y ?? 0.3 },
+            frame: 0,
+            focus: { x: picture?.focus?.x ?? 0.5, y: picture?.focus?.y ?? 0.3 },
           });
         });
         b.box(thumb, { stroke: INK, strokeWidth: 3 });
