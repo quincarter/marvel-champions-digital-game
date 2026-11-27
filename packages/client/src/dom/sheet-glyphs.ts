@@ -17,6 +17,7 @@ import { bindInputHints, type InputHints, type InputHintsSnapshot } from "../ui/
 import {
   glyphBesideLabel,
   glyphHeightFor,
+  glyphHangingBelow,
   glyphOutsideButton,
   glyphRect,
   hangIsClear,
@@ -192,6 +193,54 @@ export class SheetGlyphs {
       specs: specs.map(uiSpecOf),
       height: scaledGlyphHeight(entry.height, snapshot.settings.glyphSize),
       ground: entry.ground ?? "ink",
+      openness: glyphsExpanded(snapshot.state) ? 1 : 0,
+      still: snapshot.settings.reducedMotion,
+      key: `glyph:${entry.key}`,
+    });
+  }
+
+  /**
+   * A glyph hung just below `anchor`, its right edge on the anchor's (a corner button's press glyph), if that spot is
+   * clear of the obstacles. Drawn only while a keyboard or pad is in use. The DOM twin of `GlyphHints.hang`.
+   */
+  hang(
+    builder: SheetBuilder,
+    entry: {
+      readonly key: string;
+      readonly anchor: Rect;
+      readonly ids: readonly ShortcutId[];
+      readonly height: number;
+      readonly ground?: McGlyphGround;
+    },
+  ): void {
+    const registered: Registered = {
+      entry: {
+        key: entry.key,
+        rect: entry.anchor,
+        label: "",
+        look: "onInk",
+        ids: entry.ids,
+      },
+      drawn: null,
+    };
+    this.#entries.push(registered);
+    const snapshot = this.#snapshot;
+    if (!snapshot) return;
+    const specs = this.#specsOf(registered.entry, snapshot);
+    this.#drawnFlags = this.#flagsOf(snapshot);
+    registered.drawn = specs ? specsSignature(specs) : null;
+    if (!specs) return;
+    this.#hadGlyph = true;
+    const height = scaledGlyphHeight(entry.height, snapshot.settings.glyphSize);
+    const { fullWidth } = layoutGlyph(specs.map(uiSpecOf), height, BODY_MEASURE);
+    const point = glyphHangingBelow(entry.anchor, fullWidth, height);
+    if (!hangIsClear(glyphRect(point, fullWidth, height), this.#obstacles())) return;
+    builder.glyph({
+      x: point.x,
+      y: point.y,
+      specs: specs.map(uiSpecOf),
+      height,
+      ground: entry.ground ?? "paper",
       openness: glyphsExpanded(snapshot.state) ? 1 : 0,
       still: snapshot.settings.reducedMotion,
       key: `glyph:${entry.key}`,

@@ -16,13 +16,14 @@
  */
 
 import Phaser from "phaser";
+import "@mc/ui";
+import type { AlertBannerModel, McTitlePanel, MenuButton, TitlePanelModel } from "@mc/ui";
 import { artLanguageNow } from "../art/art-source.js";
-import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { accent, dotGrid, surface, typeRole, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import { cssOf, skin, textStyle } from "../ui/theme.js";
-import { drawPlayPlatformIcon } from "../ui/play-platform-icon.js";
-import { playPlatformMarkOf, playPlatformSlotIn } from "../view/play-platform-mark.js";
-import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
+import { cssOf, textStyle } from "../ui/theme.js";
+import { playPlatformMarkOf } from "../view/play-platform-mark.js";
+import { McButton, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArtFor, titleArtSizeOf, type TitleArt } from "../art/title-art.js";
 import { drawnDensity } from "../platform/screen-settings.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
@@ -43,13 +44,11 @@ import { detectPlatform, isNativeShell, openExternal } from "../platform/platfor
 import { DISCORD_INVITE_URL } from "../view/issue-report.js";
 import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
-import { onTap } from "../ui/tap.js";
-import { bangers } from "../ui/campaign-chrome.js";
 import { fetchLiveRooms } from "../platform/live-rooms.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
-import { liveCountOf, type OnlinePanelLayout } from "../view/title-online-panel.js";
+import { liveCountOf } from "../view/title-online-panel.js";
 import type { OnlineData } from "./online.js";
-import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
+import { checkForUpdate, latestReleaseVersion, type AvailableUpdate } from "../platform/update-check.js";
 import {
   OLD_SAVE_OPEN_ID,
   OLD_SAVE_PAGE_URL,
@@ -74,17 +73,17 @@ import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
 import {
   GAMES_PANEL_HEADER,
-  RANK_BADGE_HEIGHT,
   titleMenuLayout,
   updateBannerActionCount,
   updateBannerParts,
+  type UpdateBannerParts,
 } from "../view/title-menu-layout.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
 import { drawGamesList } from "../ui/games-list.js";
 import { GAME_LABEL_NAMES } from "../view/game-label-names.js";
-import { drawBetaTag, drawBetaTagBeside } from "../ui/beta-tag.js";
-import { BETA_TAG_SIZE } from "../view/beta-tag.js";
+import { drawBetaTagBeside } from "../ui/beta-tag.js";
+import { BETA_TAG_TEXT, SHOW_BETA_TAGS } from "../view/beta-tag.js";
 import { gameRowsOf, shouldShowGamesList, type GameRow } from "../view/games-list-model.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { GamesListOverlayData } from "./games-list.js";
@@ -119,7 +118,21 @@ import {
   FocusRoute,
   type FocusStop,
 } from "./focus-route.js";
-import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { isDesktopType } from "../ui/desktop-type.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder } from "../dom/sheet-builder.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import {
+  MENU_LABEL,
+  bannerButtonOf,
+  bannerModelOf,
+  continueIconOf,
+  promoModelOf,
+  rankBarOf,
+} from "../dom/title-panel-model.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
 import { onSyncApplied } from "../sync/sync-events.js";
 import { onLanguageChange } from "../language-change.js";
@@ -151,10 +164,15 @@ import {
 } from "../packs/pack-updates.js";
 import { drawDiscordIconButton, type DiscordIconButton } from "../ui/discord-icon.js";
 import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
-import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
-import { drawReleaseNoticeBar } from "../ui/release-notice-bar.js";
-import { McScrollRegion } from "../ui/scroll-region.js";
-import { captureIntoRegion } from "../ui/scroll-capture.js";
+import {
+  RELEASE_NOTICE_FOLLOW_LATEST,
+  RELEASE_NOTICE_LINK_SHORT,
+  RELEASE_NOTICE_ON,
+  RELEASE_NOTICE_VERSION,
+  noticeBarParts,
+  noticeVersionOf,
+} from "../view/release-notice.js";
+import { openReleaseReport } from "../ui/release-notice-bar.js";
 
 /**
  * "Play this deck ▸" (W9, docs/phase4-screen-gaps.md §3): the Decks screen starts Title with the deck to seat.
@@ -188,8 +206,8 @@ export function newGameDraft(picked = false): ReturnType<typeof initialSetupDraf
 
 export class TitleScene extends Phaser.Scene {
   #buttons: McButton[] = [];
-  #status: Phaser.GameObjects.Text | null = null;
-  #platformTip: Phaser.GameObjects.Text | null = null;
+  /** Why the game picked to resume could not be, said above the footer. */
+  #statusText: string | null = null;
   #starting = false;
   /** The game in progress when this screen opened, if any — looked up asynchronously; the screen draws without it first. */
   #continuable: SaveMeta | null = null;
@@ -197,8 +215,6 @@ export class TitleScene extends Phaser.Scene {
   #games: readonly SaveMeta[] = [];
   /** The games panel's scroll offset, kept across the redraws a resize or a sync makes. */
   #gamesScroll = new VariableListScroll();
-  /** The menu's scroll offset on a window too short for it (`layout.menuScroll`), kept across redraws. */
-  #menuScroll = new VariableListScroll();
   /** The game the panel is asking "Remove this game?" about, or null while it lists. */
   #removing: string | null = null;
   #removeBusy = false;
@@ -245,7 +261,20 @@ export class TitleScene extends Phaser.Scene {
   #discordIcon: DiscordIconButton | null = null;
   /** Why a replay didn't open, and until when it is said (`#replayProblem`). */
   #problem: { readonly text: string; readonly until: number } | null = null;
-  #problemLine: Phaser.GameObjects.Text | null = null;
+  /** The panel over the canvas (`@mc/ui`'s `mc-title-panel`), made once a visit so the menu's scroll stays. */
+  #region: DomRegion<McTitlePanel> | null = null;
+  /** The panel's glyphs (pad and keyboard only), drawn in the DOM since Phaser's would sit under the panel. */
+  #glyphs: SheetGlyphs | null = null;
+  /** What a key does when the panel reports a tap on it, or a focus stop is pressed. */
+  #actions = new Map<string, () => void>();
+  /** Builds the panel's model from what the last `#rebuild` laid out and renders it: a focus move redraws only this. */
+  #compose: (() => void) | null = null;
+  /** The Phaser parts the panel leaves showing through it (the games panel, the storefront and Discord icons). */
+  #holes: readonly Rect[] = [];
+  /** Where the menu scrolls on a window too short for it, or null (`layout.menuScroll`). */
+  #menuScrollRect: Rect | null = null;
+  /** The release the news bar names: the pinned one until GitHub names the latest. */
+  #noticeVersion = RELEASE_NOTICE_VERSION;
 
   constructor() {
     super(SCENES.title);
@@ -266,29 +295,11 @@ export class TitleScene extends Phaser.Scene {
   /** Says why a replay didn't open, at the top of the screen, for a few seconds (drawn again by every `#rebuild`). */
   #replayProblem(text: string): void {
     this.#problem = { text, until: this.time.now + REPLAY_PROBLEM_MS };
-    this.#drawProblem();
+    this.#compose?.();
     this.time.delayedCall(REPLAY_PROBLEM_MS, () => {
       this.#problem = null;
-      this.#problemLine?.destroy();
-      this.#problemLine = null;
+      if (this.sys.isActive()) this.#compose?.();
     });
-  }
-
-  #drawProblem(): void {
-    this.#problemLine?.destroy();
-    this.#problemLine = null;
-    if (!this.#problem || this.time.now >= this.#problem.until) return;
-    this.#problemLine = this.#replayNote(this.#problem.text, signal.caution.hex);
-  }
-
-  /** A line about a replay at the top of the screen, on an ink ground so it reads over the title art. */
-  #replayNote(text: string, color: number): Phaser.GameObjects.Text {
-    const { width } = this.scale.gameSize;
-    return this.add
-      .text(width / 2, 8, text, { ...textStyle(typeRole.body, color), backgroundColor: cssOf(surface.ink.hex) })
-      .setPadding(10, 6, 10, 6)
-      .setOrigin(0.5, 0)
-      .setDepth(1000);
   }
 
   create(data: TitleSceneData = {}): void {
@@ -300,7 +311,8 @@ export class TitleScene extends Phaser.Scene {
     clearWatchAddress();
     this.#readyDismissed = null;
     this.#problem = null;
-    this.#problemLine = null;
+    this.#statusText = null;
+    this.#region = null;
     if (data.initialSeatDeckId) {
       // The player still picks what to play against first; the deck waits in seat one on Take your seats (#958).
       const draft = withSeatOne(this.#freshDraft(), data.initialSeatDeckId);
@@ -313,6 +325,8 @@ export class TitleScene extends Phaser.Scene {
     this.#oldSave = oldSaveNoticeWanted(detectPlatform());
     this.scale.on("resize", this.#rebuild, this);
     this.#hints = new GlyphHints(this);
+    // The panel's own glyphs: a new input device or setting redraws just the panel.
+    this.#glyphs = new SheetGlyphs(this, () => this.#compose?.());
     // The footer says when power saving mode is on (`platform/power-saving.ts`).
     const unsubscribePowerSaving = onPowerSavingChange(() => {
       if (this.sys.isActive()) this.#rebuild();
@@ -354,6 +368,10 @@ export class TitleScene extends Phaser.Scene {
       unsubscribeSync();
       this.#hints?.dispose();
       this.#hints = null;
+      this.#glyphs?.dispose();
+      this.#glyphs = null;
+      this.#compose = null;
+      this.#region = null;
     });
     this.#route = new FocusRoute(this, {
       // The whole icon row beside the menu, not just the note and the bug.
@@ -363,8 +381,13 @@ export class TitleScene extends Phaser.Scene {
       // Up from the menu's first row reaches the icon row, then the notice bar above it.
       barAboveChrome: "release-notice",
       // The press glyphs on the top row and the notice bar show on the focused stop.
+      // The panel is a DOM layer over the canvas, so the ring is drawn there too.
+      ring: domFocusRing,
+      // The right stick scrolls a menu that is too tall for the window.
+      onScroll: (_dx, dy) => this.#region?.element.scroller?.scrollBy({ top: dy }),
       onFocusChange: () => {
         this.#hints?.refresh();
+        this.#compose?.();
         this.#discordIcon?.setFocused(this.#route?.focused === "chrome:discord");
       },
       blocked: () =>
@@ -470,6 +493,13 @@ export class TitleScene extends Phaser.Scene {
       this.#updateFailed = true;
       this.#rebuild();
     });
+    // The news bar names the latest release once GitHub has answered.
+    if (RELEASE_NOTICE_FOLLOW_LATEST) {
+      void latestReleaseVersion().then((latest) => {
+        this.#noticeVersion = noticeVersionOf(latest);
+        if (this.sys.isActive()) this.#compose?.();
+      });
+    }
     void checkForUpdate().then((update) => {
       // A banner the player closed for this very release stays closed; a newer release brings it back.
       if (!update || !this.sys.isActive() || isUpdateDismissed(update.version, dismissedUpdateVersion())) return;
@@ -563,24 +593,7 @@ export class TitleScene extends Phaser.Scene {
     } satisfies GamesListOverlayData);
   }
 
-  /** The desktop hover note under the Continue row's platform icon ("Played on Windows"); null closes it. */
-  #showPlatformTip(tip: { readonly text: string; readonly box: Rect } | null): void {
-    this.#platformTip?.destroy();
-    this.#platformTip = null;
-    if (!tip) return;
-    const text = this.add
-      .text(0, 0, tip.text, textStyle(typeRole.label, surface.paper.hex))
-      .setDepth(TIP_DEPTH)
-      .setPadding(10, 6, 10, 6)
-      .setBackgroundColor(cssOf(surface.ink.hex));
-    const x = Math.max(8, Math.min(tip.box.x, this.scale.gameSize.width - text.width - 8));
-    text.setPosition(x, tip.box.y + tip.box.height + 10);
-    this.#platformTip = text;
-  }
-
   #rebuild(): void {
-    this.#platformTip?.destroy();
-    this.#platformTip = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -673,144 +686,114 @@ export class TitleScene extends Phaser.Scene {
       .setLetterSpacing(2);
     this.add.rectangle(layout.rule.x, layout.rule.y, layout.rule.width, layout.rule.height, textColor).setOrigin(0, 0);
 
-    // A window too short for the menu: everything from here to the footer is drawn as usual, then moved into a
-    // scroll region under the rule (`ui/scroll-capture.ts`).
-    // A placeholder until the menu is drawn, so a kept offset survives the region's first layout.
-    const menuHeights: number[] = [1_000_000];
-    const menuRegion = layout.menuScroll
-      ? new McScrollRegion(this, {
-          rect: layout.menuScroll,
-          heights: menuHeights,
-          scroll: this.#menuScroll,
-          clipInteractive: true,
-        })
-      : null;
-    const menuFrom = this.children.list.length;
-    const stopsBeforeMenu = new Set(this.#stops.keys());
+    // The menu, the banners, the rank plate, the promo panel and the footer are a Lit panel over the canvas
+    // (`@mc/ui`'s `mc-title-panel`, `#mountPanel`); the ground, the picture, the logo, the games panel and the corner
+    // buttons stay Phaser's, drawn under it (the panel leaves the canvas showing wherever it has nothing).
+    const measure = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+    const wordWidth = (text: string): number => measure.measure(text, { ...typeRole.label, uppercase: false }).width;
+    const stops = new Map<string, FocusStop>();
+    const actions = new Map<string, () => void>();
+    const scrolls = layout.menuScroll !== null;
+    this.#menuScrollRect = layout.menuScroll;
+    const act = (key: string, activate: () => void, rect: Rect, inScroll = scrolls): void => {
+      actions.set(key, activate);
+      stops.set(key, this.#domStop(key, activate, rect, inScroll));
+    };
+    const menu: MenuButton[] = [];
+    const kindOf = menuKind as MenuButton["kind"];
+    const row = (
+      key: string,
+      label: string,
+      rect: Rect,
+      activate: () => void,
+      extra: Partial<MenuButton> = {},
+    ): void => {
+      menu.push({
+        key,
+        label,
+        kind: kindOf,
+        rect,
+        ...MENU_LABEL,
+        ...extra,
+      });
+      act(key, activate, rect);
+    };
 
     if (layout.continueRow) {
       const save = this.#continuable!;
       const rect = layout.continueRow;
       // Where the game was last played (device sync, #276): a mark at the row's left edge, beside the label.
       const mark = playPlatformMarkOf(save.lastPlayedOn);
-      const slot = mark ? playPlatformSlotIn(rect) : null;
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "primary",
-          label: continueLabel(save),
-          // A built game's label names its stages and sets: wrapped onto a second line rather than cut.
-          wrap: true,
-          type: typeRole.menuButton,
-          rect,
-          enabled: !this.#starting,
-          ...(slot ? { labelInset: slot.labelInset } : {}),
-          onHover: (over) =>
-            this.#showPlatformTip(
-              over && mark && slot && !this.input.activePointer.wasTouch ? { text: mark.label, box: slot.box } : null,
-            ),
-          onClick: () => void this.#resume(save),
-        }),
-      );
+      const withIcon = mark ? continueIconOf(mark, rect) : null;
+      // A built game's label names its stages and sets: wrapped onto a second line rather than cut.
+      row("continue", continueLabel(save), rect, () => void this.#resume(save), {
+        kind: "primary",
+        wrap: true,
+        disabled: this.#starting,
+        ...(withIcon ? { icon: withIcon.icon, labelInset: withIcon.labelInset } : {}),
+      });
       // Dev-only e2e hook: the platform whose mark the Continue row drew (never read by product code).
       if (import.meta.env.DEV) {
         (window as unknown as { __mcContinuePlatform?: string | null }).__mcContinuePlatform = mark?.platform ?? null;
       }
-      if (mark && slot) {
-        const s = skin("primary", this.#starting ? "unavailable" : "rest");
-        drawPlayPlatformIcon(this.add.graphics(), mark, slot.box, s.text, s.textAlpha);
-      }
-      this.#stops.set("continue", {
-        rect,
-        activate: () => void this.#resume(save),
-      });
     }
 
     const gameRows = layout.gamesPanel ? gameRowsOf(this.#listedGames(), GAME_LABEL_NAMES, Date.now()) : [];
     if (layout.gamesRow) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: menuKind,
-          label: `In-progress games (${this.#listedGames().length})`,
-          type: typeRole.menuButton,
-          rect: layout.gamesRow,
-          enabled: !this.#starting,
-          onClick: () => this.#openGamesList(),
-        }),
+      row(
+        "games-row",
+        t("title.gamesRow", { count: this.#listedGames().length }),
+        layout.gamesRow,
+        () => this.#openGamesList(),
+        {
+          disabled: this.#starting,
+          ...(SHOW_BETA_TAGS && layout.gamesRow.width >= 300 ? { tag: BETA_TAG_TEXT } : {}),
+        },
       );
-      this.#hints?.button(this.#buttons.at(-1)!, ["expand"], "ink");
-      // A decorative tag at the row's right end, over the button but taking no press.
-      if (layout.gamesRow.width >= 300) {
-        const row = layout.gamesRow;
-        drawBetaTag(this, row.x + row.width - 12 - BETA_TAG_SIZE.width, row.y + row.height / 2);
-      }
-      this.#stops.set("games-row", { rect: layout.gamesRow, activate: () => this.#openGamesList() });
     }
 
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: this.#starting ? t("title.starting") : t("title.newGame"),
-        type: typeRole.barTitle,
-        rect: layout.newGame,
-        enabled: !this.#starting,
-        onClick: () => this.#newGame(),
-      }),
-    );
-    this.#stops.set("new-game", {
-      rect: layout.newGame,
-      activate: () => this.#newGame(),
+    row("new-game", this.#starting ? t("title.starting") : t("title.newGame"), layout.newGame, () => this.#newGame(), {
+      kind: "primary",
+      plain: false,
+      display: true,
+      size: typeRole.barTitle.size,
+      disabled: this.#starting,
     });
 
-    const openDecks = (): void => {
+    const goTo = (scene: string, data?: object) => (): void => {
       this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.decks);
+      goToScreen(this, scene, data);
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.decks"),
-        type: typeRole.menuButton,
-        rect: layout.decks,
-        onClick: openDecks,
-      }),
-    );
-    this.#stops.set("decks", { rect: layout.decks, activate: openDecks });
-
-    const openCampaign = (): void => {
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.campaignSaga);
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.campaign"),
-        type: typeRole.menuButton,
-        rect: layout.campaign,
-        onClick: openCampaign,
-      }),
-    );
-    this.#stops.set("campaign", { rect: layout.campaign, activate: openCampaign });
+    row("decks", t("title.decks"), layout.decks, goTo(SCENES.decks));
+    row("campaign", t("title.campaign"), layout.campaign, goTo(SCENES.campaignSaga));
 
     // "Play online" (#880): an entry point only. Nothing online starts, and nothing is loaded, until its own screen is used.
-    const openOnline = (intent?: OnlineData["intent"]): void => {
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.online, intent ? ({ intent } satisfies OnlineData) : undefined);
-    };
-    if (layout.playOnline) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: menuKind,
-          label: t("title.playOnline"),
-          type: typeRole.menuButton,
-          rect: layout.playOnline,
-          onClick: () => openOnline(),
-        }),
-      );
-      this.#stops.set("play-online", { rect: layout.playOnline, activate: () => openOnline() });
-    }
+    const openOnline = (intent?: OnlineData["intent"]): void =>
+      goTo(SCENES.online, intent ? ({ intent } satisfies OnlineData) : undefined)();
+    if (layout.playOnline) row("play-online", t("title.playOnline"), layout.playOnline, () => openOnline());
+    let promo: TitlePanelModel["promo"] = null;
     // A tablet or desktop gets the feature panel instead (`view/title-online-panel.ts`): the same two flows, one press away.
     if (layout.onlinePanel) {
-      this.#drawOnlinePanel(layout.onlinePanel, openOnline);
+      const available = this.#onlineAvailable();
+      const count = available ? liveCountOf(this.#liveCount) : null;
+      promo = {
+        rect: layout.onlinePanel.rect,
+        scrolls: layout.onlinePanel.placement === "side",
+        model: promoModelOf(
+          layout.onlinePanel,
+          {
+            title: t("title.playOnline"),
+            pitch: available ? t("title.online.pitch") : t("title.online.offline"),
+            liveText: count !== null ? t("title.online.live", { count }) : null,
+            host: t("online.host"),
+            join: t("online.join"),
+          },
+          available,
+        ),
+      };
+      const side = layout.onlinePanel.placement === "side" && scrolls;
+      act("play-online-host", () => openOnline("host"), layout.onlinePanel.host, side);
+      act("play-online-join", () => openOnline("join"), layout.onlinePanel.join, side);
       if (!this.#liveAsked) {
         this.#liveAsked = true;
         // One fetch when the Title opens, never polled; every failure is an empty answer, so offline just shows no count.
@@ -824,287 +807,94 @@ export class TitleScene extends Phaser.Scene {
 
     // "Civil War!": the box's own entry, once it is open. The last build, or the first leader as printed.
     if (civilWar && layout.civilWar) {
-      const openCivilWar = (): void => {
+      row("civil-war", CIVIL_WAR_TITLE_LABEL, layout.civilWar, () => {
         const entry = enterBuilder("build", newGameDraft(true), civilWar.scenarioId);
         setBuilderOrigin("title");
-        this.scale.off("resize", this.#rebuild, this);
-        goToScreen(this, SCENES.civilWarBuilder, {
+        goTo(SCENES.civilWarBuilder, {
           draft: entry.draft,
           step: entry.step,
-        } satisfies CivilWarBuilderData);
-      };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: menuKind,
-          label: CIVIL_WAR_TITLE_LABEL,
-          type: typeRole.menuButton,
-          rect: layout.civilWar,
-          onClick: openCivilWar,
-        }),
-      );
-      this.#stops.set("civil-war", { rect: layout.civilWar, activate: openCivilWar });
+        } satisfies CivilWarBuilderData)();
+      });
     }
 
-    const openExtras = (): void => {
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.extras);
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.extras"),
-        type: typeRole.menuButton,
-        rect: layout.extras,
-        onClick: openExtras,
-      }),
-    );
-    this.#stops.set("extras", { rect: layout.extras, activate: openExtras });
-
-    const openPastGames = (): void => {
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.pastGames);
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.pastGames"),
-        type: typeRole.menuButton,
-        rect: layout.pastGames,
-        onClick: openPastGames,
-      }),
-    );
-    this.#stops.set("past-games", { rect: layout.pastGames, activate: openPastGames });
-
-    const openTrophies = (): void => {
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.trophyRoom);
-    };
+    row("extras", t("title.extras"), layout.extras, goTo(SCENES.extras));
+    row("past-games", t("title.pastGames"), layout.pastGames, goTo(SCENES.pastGames));
+    const openTrophies = goTo(SCENES.trophyRoom);
     this.#openTrophies = openTrophies;
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.trophyRoom"),
-        type: typeRole.menuButton,
-        rect: layout.trophies,
-        onClick: openTrophies,
-      }),
+    row("trophies", t("title.trophyRoom"), layout.trophies, openTrophies);
+    row(
+      "stats",
+      t("title.yourStats"),
+      layout.stats,
+      goTo(SCENES.playerStats, { from: SCENES.title } satisfies PlayerStatsData),
     );
-    this.#stops.set("trophies", { rect: layout.trophies, activate: openTrophies });
-
-    const openStats = (): void => {
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.playerStats, { from: SCENES.title } satisfies PlayerStatsData);
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.yourStats"),
-        type: typeRole.menuButton,
-        rect: layout.stats,
-        onClick: openStats,
-      }),
-    );
-    this.#stops.set("stats", { rect: layout.stats, activate: openStats });
-
     // "How to play" (guided mode G6c, `docs/guided-mode.md` §4): the learning hub. Not a guided run by itself —
     // starting a lesson from inside the hub is what sets `appSession().guidedRun` (`guide/start-tutorial.ts`).
-    const openHowToPlay = (): void => {
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.howToPlay);
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.howToPlay"),
-        type: typeRole.menuButton,
-        rect: layout.howToPlay,
-        onClick: openHowToPlay,
-      }),
-    );
-    this.#stops.set("how-to-play", { rect: layout.howToPlay, activate: openHowToPlay });
-
+    row("how-to-play", t("title.howToPlay"), layout.howToPlay, goTo(SCENES.howToPlay));
     // The Mod Store, a main-menu item of its own (issue #734, bluefireF5ran's playtest notes).
-    const openModStore = (): void => {
-      this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.modStore);
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.modStore"),
-        type: typeRole.menuButton,
-        rect: layout.modStore,
-        onClick: openModStore,
-      }),
-    );
-    this.#stops.set("mod-store", { rect: layout.modStore, activate: openModStore });
+    const openModStore = goTo(SCENES.modStore);
     const packUpdates = packUpdateCount();
-    if (packUpdates > 0) drawCountBadge(this, layout.modStore, badgeTextOf(packUpdates), { name: "mod-store" });
-
-    // W4's Settings is an overlay: launched over this scene, it stops itself on Back (`scenes/settings.ts`).
-    const openSettings = (): void => {
-      this.scene.launch(SCENES.settings);
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.settings"),
-        type: typeRole.menuButton,
-        rect: layout.settings,
-        onClick: openSettings,
-      }),
-    );
-    this.#stops.set("settings", {
-      rect: layout.settings,
-      activate: openSettings,
+    row("mod-store", t("title.modStore"), layout.modStore, openModStore, {
+      ...(packUpdates > 0 ? { badge: badgeTextOf(packUpdates) } : {}),
     });
-
+    // W4's Settings is an overlay: launched over this scene, it stops itself on Back (`scenes/settings.ts`).
+    row("settings", t("title.settings"), layout.settings, () => this.scene.launch(SCENES.settings));
     // The desktop app has no browser tab to close, so it offers its own way out (the owner, 2026-10-16).
-    if (layout.quit) {
-      const quit = (): void => void quitToDesktop();
-      this.#buttons.push(
-        new McButton(this, {
-          kind: menuKind,
-          label: t("title.quit"),
-          type: typeRole.menuButton,
-          rect: layout.quit,
-          onClick: quit,
-        }),
-      );
-      this.#stops.set("quit", { rect: layout.quit, activate: quit });
-    }
+    if (layout.quit) row("quit", t("title.quit"), layout.quit, () => void quitToDesktop());
 
+    // The footer: the app's card-pool coverage, the release notes, the build version and, where the top row has no room
+    // for the Discord icon, a Discord link. A phone's footer has no room for all of it (the panel drops the coverage note).
     const coverage = cardPoolCoverageOf(POOL_CARDS, POOL_DEPS);
-    const coverageText = this.add.text(
-      layout.footer.x,
-      layout.footer.y,
-      cardPoolCoverageText(coverage),
-      textStyle(typeRole.label, textColor, ink.meta),
+    const version = appVersionText(
+      CLIENT_VERSION,
+      detectPlatform(),
+      buildCommit(),
+      cardLanguage(),
+      this.#steam !== null,
     );
-    const versionText = this.add.text(
-      0,
-      layout.footer.y,
-      appVersionText(CLIENT_VERSION, detectPlatform(), buildCommit(), cardLanguage(), this.#steam !== null),
-      textStyle(typeRole.label, textColor, ink.meta),
-    );
-    versionText.setX(layout.footer.x + layout.footer.width - versionText.width);
     const { detected, applied } = powerSavingState();
-    const powerSaving = powerSavingFooterOf(detected, applied);
-    if (powerSaving !== null) {
-      const powerText = this.add.text(0, layout.footer.y - 20, powerSaving, textStyle(typeRole.label, textColor));
-      powerText.setX(layout.footer.x + layout.footer.width - powerText.width);
-    }
-
-    // The release history. Underlined in the footer's own ink rather than red, which
-    // is the screen's one forward action.
     const releaseNotes = (): void =>
       openExternal(
         releaseNotesPageUrl(CLIENT_VERSION, globalThis.location?.href ?? "", isNativeShell(), artLanguageNow()),
       );
-    const linkText = this.add.text(0, layout.footer.y, t("title.releaseNotes"), textStyle(typeRole.label, textColor));
-    linkText.setX(versionText.x - 16 - linkText.width);
-    // A phone's footer has no room for all three once the version names its language and install.
-    coverageText.setVisible(coverageText.x + coverageText.width + 8 <= linkText.x - 6);
-    this.add
-      .graphics()
-      .fillStyle(textColor, 0.6)
-      .fillRect(linkText.x, linkText.y + linkText.height, linkText.width, 1);
-    // A touch-sized target around the small label.
-    const linkRect: Rect = {
-      x: linkText.x - 6,
-      // Hung from the footer's own top edge, so a tight menu's Settings row (just above) is never under it.
-      y: layout.footer.y,
-      width: linkText.width + 12,
-      height: hit.target,
-    };
-    const releaseZone = this.add
-      .zone(linkRect.x, linkRect.y, linkRect.width, linkRect.height)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true });
-    onTap(releaseZone, releaseNotes, "title:release-notes");
-    this.#stops.set("release-notes", { rect: linkRect, activate: releaseNotes });
-
+    const releaseLabel = t("title.releaseNotes");
     // The Discord icon's slot in the top row (#759), left of the storefront on a tablet or desktop and, on a phone, left of
     // the theme button where the eyebrow leaves room (its width varies by language); none where it would touch the eyebrow.
     const topLanguage = languageSlotBeside(musicRect);
     const topTheme = themeSlotBeside(topLanguage);
     const discordIconRect = layout.split ? themeSlotBeside(themeSlotBeside(topTheme)) : themeSlotBeside(topTheme);
     const discordIconFits = discordIconRect.x >= eyebrowText.x + eyebrowText.width + 8;
-    // The community Discord, left of Release notes in the same link style; dropped where the footer is too tight to
-    // keep it clear of the footer's left edge (Report an issue carries it there too).
+    // The Discord icon in the top row stands in for this link (#759): never both at once. Where the top row has no room
+    // for the icon, the link is the only Discord control, kept where it clears the footer's left edge.
     const openDiscord = (): void => openExternal(DISCORD_INVITE_URL);
-    const discordText = this.add.text(0, layout.footer.y, "Discord ↗", textStyle(typeRole.label, textColor));
-    discordText.setX(linkText.x - 24 - discordText.width);
-    // The Discord icon in the top row stands in for this link (#759): never both at once.
-    // Where the top row has no room for the icon, the link is the only Discord control, so it wins the footer over the
-    // card-pool line (which is hidden when they would touch).
-    const discord = !discordIconFits && discordText.x - 6 >= layout.footer.x;
-    if (discord && discordText.x - 6 < coverageText.x + coverageText.width + 8) coverageText.setVisible(false);
-    if (discord) {
-      this.add
-        .graphics()
-        .fillStyle(textColor, 0.6)
-        .fillRect(discordText.x, discordText.y + discordText.height, discordText.width, 1);
-      const discordRect: Rect = {
-        x: discordText.x - 6,
-        y: layout.footer.y,
-        width: discordText.width + 12,
-        height: hit.target,
-      };
-      const discordZone = this.add
-        .zone(discordRect.x, discordRect.y, discordRect.width, discordRect.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true });
-      onTap(discordZone, openDiscord, "title:discord");
-      this.#stops.set("discord", { rect: discordRect, activate: openDiscord });
-    } else {
-      discordText.destroy();
-    }
+    const footerRight = layout.footer.x + layout.footer.width;
+    const releaseLeft = footerRight - wordWidth(version) - 16 - wordWidth(releaseLabel);
+    const discordLeft = releaseLeft - 24 - wordWidth(DISCORD_LINK_LABEL);
+    const discord = !discordIconFits && discordLeft - 6 >= layout.footer.x;
+    act("release-notes", releaseNotes, layout.footer);
+    if (discord) act("discord", openDiscord, layout.footer);
+    const footer: TitlePanelModel["footer"] = {
+      rect: layout.footer,
+      model: {
+        note: cardPoolCoverageText(coverage),
+        version,
+        links: [
+          { key: "release-notes", label: releaseLabel },
+          ...(discord ? [{ key: "discord", label: DISCORD_LINK_LABEL }] : []),
+        ],
+        aside: powerSavingFooterOf(detected, applied),
+      },
+    };
 
-    this.#status = this.add
-      .text(layout.left, layout.footer.y - 24, "", textStyle(typeRole.body, textColor))
-      .setWordWrapWidth(layout.column);
-
-    if (menuRegion && layout.menuScroll) {
-      const viewport = layout.menuScroll;
-      captureIntoRegion(this, {
-        region: menuRegion,
-        heights: menuHeights,
-        scroll: this.#menuScroll,
-        fromIndex: menuFrom,
-        stops: this.#stops,
-        stopsBefore: stopsBeforeMenu,
-        viewportTop: viewport.y,
-        viewportBottom: viewport.y + viewport.height,
-        bottom: layout.footer.y + layout.footer.height,
-        padBottom: layout.pad,
-      });
-      menuRegion.syncInteractivity();
-    }
-
-    // The games panel sits in the art panel, outside the menu's scroll region, so it is drawn after the capture.
+    // The games panel sits in the art panel, outside the menu's scroll region: Phaser draws it, and the panel leaves a hole there.
+    const holes: Rect[] = [];
     if (layout.gamesPanel && layout.gamesPanelList) {
-      this.#drawGamesPanel(layout.gamesPanel, layout.gamesPanelList, gameRows);
+      this.#drawGamesPanel(layout.gamesPanel, layout.gamesPanelList, gameRows, stops);
+      holes.push(layout.gamesPanel);
     }
 
-    // The release notice bar across the top (`view/release-notice.ts`).
-    if (layout.noticeBar) {
-      const notice = drawReleaseNoticeBar(this, layout.noticeBar);
-      // The bar runs edge to edge: inset, so the ring is on screen all the way round.
-      const bar = layout.noticeBar;
-      const noticeRing = { x: bar.x + 6, y: bar.y + 6, width: bar.width - 12, height: bar.height - 12 };
-      this.#stops.set("release-notice", { rect: noticeRing, activate: notice.open });
-      this.#hints?.custom(
-        (_set, snapshot) =>
-          this.#route?.focused === "release-notice" ? specsForShortcuts(["activate"], snapshot) : null,
-        Math.min(TOP_ROW_GLYPH_HEIGHT, layout.noticeBar.height - 8),
-        ({ width }) => notice.glyphSpot(width),
-        { ground: "ink" },
-      );
-    }
-
-    // The top row's press glyphs, hung under each button while it has focus. The buttons are chrome scenes of their
-    // own, with no hints.
+    // The top row's press glyphs, hung under each button while it has focus. The corner buttons are chrome scenes of
+    // their own, with no hints.
     const languageRect = languageSlotBeside(musicRect);
     const topRow: readonly (readonly [string, Rect])[] = [
       [CHROME_THEME_STOP, themeSlotBeside(languageRect)],
@@ -1112,38 +902,123 @@ export class TitleScene extends Phaser.Scene {
       [CHROME_MUSIC_STOP, musicRect],
       [CHROME_REPORT_STOP, reportRect],
     ];
+    const hangs: (readonly [string, Rect])[] = [...topRow];
     // The storefront button, left of the theme button: tablets and desktops only, where the top row has the room; a
-    // phone has the menu item. Its stop is keyed as one of the top row's (`chrome:`), which it is on screen.
+    // phone has the menu item. Its stop is keyed as one of the top row's (`chrome:`), which it is on screen. A Phaser
+    // icon the panel leaves a hole for, like the Discord icon.
     const storeIconRect = layout.split ? themeSlotBeside(themeSlotBeside(languageRect)) : null;
     if (storeIconRect) {
       drawStoreIconButton(this, storeIconRect, openModStore);
       if (packUpdates > 0)
         drawCountBadge(this, storeIconRect, badgeTextOf(packUpdates), { name: "store-icon", inset: 2 });
-      this.#stops.set("chrome:mod-store", { rect: storeIconRect, activate: openModStore });
-      this.#hints?.hang(storeIconRect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
-        ground: onDark ? "ink" : "paper",
-        when: () => this.#route?.focused === "chrome:mod-store",
+      stops.set("chrome:mod-store", { rect: storeIconRect, activate: openModStore });
+      hangs.push(["chrome:mod-store", storeIconRect]);
+      holes.push({
+        x: storeIconRect.x - 2,
+        y: storeIconRect.y - 12,
+        width: storeIconRect.width + 14,
+        height: storeIconRect.height + 12,
       });
     }
     // The Discord icon (#759); the footer link stands in for it where the top row has no room.
     if (discordIconFits) {
-      const discordIcon = drawDiscordIconButton(this, discordIconRect, openDiscord);
-      this.#stops.set("chrome:discord", { rect: discordIconRect, activate: openDiscord });
-      this.#hints?.hang(discordIconRect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
-        ground: onDark ? "ink" : "paper",
-        when: () => this.#route?.focused === "chrome:discord",
-      });
-      this.#discordIcon = discordIcon;
-    }
-    for (const [key, rect] of topRow) {
-      this.#hints?.hang(rect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
-        ground: onDark ? "ink" : "paper",
-        when: () => this.#route?.focused === key,
-      });
+      this.#discordIcon = drawDiscordIconButton(this, discordIconRect, openDiscord);
+      stops.set("chrome:discord", { rect: discordIconRect, activate: openDiscord });
+      hangs.push(["chrome:discord", discordIconRect]);
+      holes.push(discordIconRect);
     }
 
-    const bannerStops = this.#drawUpdateBanner(layout.updateBanner);
-    this.#drawRankBadge(layout.rankBadge, openTrophies);
+    const banner = this.#bannerSpec(layout.updateBanner);
+    for (const button of banner?.buttons ?? []) act(button.id, button.activate, button.rect, false);
+    act("rank-badge", openTrophies, layout.rankBadge, false);
+    if (layout.noticeBar) act("release-notice", () => openReleaseReport(this.#noticeVersion), layout.noticeBar, false);
+    this.#holes = holes;
+    this.#compose = () => {
+      const focused = this.#route?.focused ?? null;
+      this.#glyphs?.reset();
+      const menuNow = menu.map((model) =>
+        model.key === "games-row" ? this.#withGlyph(model, ["expand"], "ink", typeRole.menuButton) : model,
+      );
+      // The hanging press glyphs of the top row, under the focused one.
+      const hung = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+      for (const [key, anchor] of hangs) {
+        if (focused !== key) continue;
+        this.#glyphs?.hang(hung, {
+          key,
+          anchor,
+          ids: ["activate"],
+          height: TOP_ROW_GLYPH_HEIGHT,
+          ground: onDark ? "ink" : "paper",
+        });
+      }
+      let news: TitlePanelModel["news"] = null;
+      if (layout.noticeBar) {
+        const bar = layout.noticeBar;
+        const full = t("title.news.link");
+        const short =
+          noticeBarParts(bar, measure.measure(full, typeRole.rowTitle).width).link === RELEASE_NOTICE_LINK_SHORT;
+        const glyphScratch = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+        if (focused === "release-notice") {
+          this.#glyphs?.hint(glyphScratch, {
+            key: "release-notice",
+            x: 0,
+            y: 0,
+            ids: ["activate"],
+            height: Math.min(TOP_ROW_GLYPH_HEIGHT, bar.height - 8),
+            ground: "ink",
+          });
+        }
+        const glyph = glyphScratch.nodes.find((node) => node.kind === "glyph");
+        news = {
+          rect: bar,
+          model: {
+            tag: t("title.news.tag"),
+            message: t("title.news.text", { version: this.#noticeVersion }),
+            link: short ? t("title.news.linkShort") : full,
+            glyph:
+              glyph?.kind === "glyph"
+                ? {
+                    specs: glyph.specs,
+                    height: glyph.height,
+                    ground: glyph.ground,
+                    openness: glyph.openness,
+                    ...(glyph.still ? { still: true } : {}),
+                  }
+                : null,
+          },
+        };
+      }
+      const bannerModel = banner ? this.#bannerModel(banner, focused) : null;
+      const panel: TitlePanelModel = {
+        ground: onDark ? "ink" : "paper",
+        scroll: layout.menuScroll,
+        scrollHeight: layout.menuScroll ? layout.footer.y + layout.footer.height + layout.pad - layout.menuScroll.y : 0,
+        news,
+        banner: banner && bannerModel ? { rect: banner.rect, model: bannerModel } : null,
+        rank: {
+          rect: layout.rankBadge,
+          model: rankBarOf(layout.rankBadge, titleRankBadgeOf(lifetimeChampionPoints()), this.#rankUp, {
+            rankUp: t("title.rankUp"),
+          }),
+        },
+        menu: menuNow,
+        promo,
+        footer,
+        status: this.#statusText
+          ? {
+              rect: { x: layout.left, y: layout.footer.y - 24, width: layout.column, height: 20 },
+              text: this.#statusText,
+            }
+          : null,
+        problem: this.#problemText(),
+        glyphs: hung.nodes.filter((node) => node.kind === "glyph"),
+      };
+      this.#mountPanel(panel);
+    };
+
+    this.#stops = stops;
+    this.#actions = actions;
+    this.#compose();
     this.#route?.set(
       [
         // The notice bar is the top-most control, so it comes first.
@@ -1153,9 +1028,9 @@ export class TitleScene extends Phaser.Scene {
           civilWar: civilWar !== null,
           quit: layout.quit !== null,
           discord,
-          updateActions: bannerStops,
-          gameIds: gameRows.map((row) => row.id),
-          removeConfirm: this.#removing !== null && gameRows.some((row) => row.id === this.#removing),
+          updateActions: banner?.stops ?? [],
+          gameIds: gameRows.map((gameRow) => gameRow.id),
+          removeConfirm: this.#removing !== null && gameRows.some((gameRow) => gameRow.id === this.#removing),
           gamesRow: layout.gamesRow !== null,
           onlinePanel: layout.onlinePanel !== null,
         }),
@@ -1166,9 +1041,6 @@ export class TitleScene extends Phaser.Scene {
       this.#stops,
     );
     this.#drawArt();
-    // `destroyChildren` above took the replay problem's line too.
-    this.#problemLine = null;
-    this.#drawProblem();
   }
 
   /** Whether online play can be tried from here: a connection and a service. Anything else reads as unavailable. */
@@ -1177,124 +1049,8 @@ export class TitleScene extends Phaser.Scene {
     return !noNetwork && syncServiceUrl() !== null;
   }
 
-  /**
-   * The "Play online" feature panel (tablet and desktop): a comic caption box, an ink halftone header with the title, a
-   * one-line pitch, the "N live" chip when public rooms are up, and Host / Join buttons that open the Play online
-   * screen already on that flow. Borders, not shadows, and no red: New game keeps the screen's one red.
-   */
-  #drawOnlinePanel(panel: OnlinePanelLayout, open: (intent: OnlineData["intent"]) => void): void {
-    const available = this.#onlineAvailable();
-    const { rect, band } = panel;
-    const side = panel.placement === "side";
-    this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.paper.hex).setOrigin(0, 0);
-    this.add.rectangle(band.x, band.y, band.width, band.height, surface.ink.hex).setOrigin(0, 0);
-    // The halftone: dots that grow toward the right edge, offset every other row, kept clear of the border.
-    const dots = this.add.graphics();
-    const step = 9;
-    const rows = Math.floor((band.height - 8) / step);
-    const cols = Math.floor((band.width - 8) / step);
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const radius = 0.6 + 2.6 * (c / Math.max(1, cols - 1));
-        dots
-          .fillStyle(surface.paper.hex, available ? 0.2 : 0.1)
-          .fillCircle(band.x + 6 + c * step + (r % 2) * (step / 2), band.y + 6 + r * step, radius);
-      }
-    }
-    // The comic's rule under the band.
-    this.add.rectangle(band.x, band.y + band.height, band.width, 3, surface.ink.hex).setOrigin(0, 0);
-
-    const words = t("title.playOnline").toUpperCase();
-    const cut = words.lastIndexOf(" ");
-    const titleText =
-      panel.titleLines === 2 && cut > 0
-        ? `${words.slice(0, cut)}
-${words.slice(cut + 1)}!`
-        : `${words}!`;
-    const titleSize = panel.titleLines === 2 ? 40 : side ? 30 : 26;
-    const title = this.add
-      .text(panel.title.x, panel.title.y + panel.title.height / 2, titleText, {
-        ...textStyle(bangers(titleSize, 0.95), surface.paper.hex),
-        align: "left",
-      })
-      .setOrigin(0, 0.5)
-      .setLetterSpacing(1);
-    if (panel.titleLines === 1) fitText(title, panel.title.width, titleSize);
-
-    const count = available ? liveCountOf(this.#liveCount) : null;
-    if (count !== null && panel.live) {
-      const chip = panel.live;
-      const text = this.add
-        .text(
-          0,
-          chip.y + chip.height / 2,
-          t("title.online.live", { count }),
-          textStyle(typeRole.label, surface.ink.hex),
-        )
-        .setOrigin(0, 0.5);
-      const chipWidth = Math.min(chip.width, Math.ceil(text.width) + 32);
-      const chipX = side ? chip.x : chip.x + chip.width - chipWidth;
-      // Paper chip with an ink edge; the green dot is a second cue beside the number, never the only one.
-      this.add
-        .rectangle(chipX, chip.y, chipWidth, chip.height, surface.paper.hex)
-        .setOrigin(0, 0)
-        .setStrokeStyle(2, surface.ink.hex);
-      this.add.circle(chipX + 12, chip.y + chip.height / 2, 4, signal.heal.hex);
-      this.children.bringToTop(text);
-      text.setX(chipX + 22);
-    }
-
-    const pitchLine = available ? t("title.online.pitch") : t("title.online.offline");
-    const pitch = this.add
-      .text(panel.pitch.x, panel.pitch.y, pitchLine, {
-        ...textStyle(typeRole.body, surface.ink.hex, available ? 1 : ink.meta),
-        wordWrap: { width: panel.pitch.width },
-      })
-      .setOrigin(0, 0);
-    let pitchSize = typeRole.body.size + (side ? 4 : 2);
-    pitch.setFontSize(pitchSize);
-    while (pitch.height > panel.pitch.height && pitchSize > 9) pitch.setFontSize(--pitchSize);
-
-    if (panel.seats) this.#drawSeats(panel.seats, available);
-
-    const buttons: Array<[string, Rect, string, "host" | "join"]> = [
-      ["play-online-host", panel.host, t("online.host"), "host"],
-      ["play-online-join", panel.join, t("online.join"), "join"],
-    ];
-    for (const [id, rect2, label, intent] of buttons) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label,
-          type: typeRole.menuButton,
-          rect: rect2,
-          enabled: available,
-          onClick: () => open(intent),
-        }),
-      );
-      this.#stops.set(id, { rect: rect2, activate: () => open(intent) });
-    }
-    // The panel's own frame, last so it sits over the band's edge.
-    this.add.rectangle(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setStrokeStyle(3, surface.ink.hex);
-  }
-
-  /** A table of four seats joined by a line, the first filled (you): decoration for the side panel's spare room. */
-  #drawSeats(area: Rect, available: boolean): void {
-    const g = this.add.graphics();
-    const radius = Math.min(16, Math.floor(area.height / 2) - 4);
-    const spacing = Math.min(64, (area.width - radius * 2) / 3);
-    const cy = area.y + area.height / 2;
-    const x0 = area.x + area.width / 2 - (spacing * 3) / 2;
-    g.lineStyle(3, surface.ink.hex, available ? 1 : 0.4).lineBetween(x0, cy, x0 + spacing * 3, cy);
-    for (let i = 0; i < 4; i++) {
-      const x = x0 + i * spacing;
-      g.fillStyle(i === 0 ? surface.ink.hex : surface.paper.hex, available ? 1 : 0.5).fillCircle(x, cy, radius);
-      g.lineStyle(3, surface.ink.hex, available ? 1 : 0.4).strokeCircle(x, cy, radius);
-    }
-  }
-
   /** The "In-progress games" panel in the art panel (split screens): heading, then the list or the remove question. */
-  #drawGamesPanel(panel: Rect, list: Rect, rows: readonly GameRow[]): void {
+  #drawGamesPanel(panel: Rect, list: Rect, rows: readonly GameRow[], stops: Map<string, FocusStop>): void {
     this.add
       .rectangle(panel.x, panel.y, panel.width, panel.height, surface.ink.hex, 0.9)
       .setOrigin(0, 0)
@@ -1303,7 +1059,7 @@ ${words.slice(cut + 1)}!`
       .text(
         list.x,
         panel.y + 12 + (GAMES_PANEL_HEADER - typeRole.sectionHeader.size) / 2,
-        `IN-PROGRESS GAMES (${rows.length})`,
+        t("title.games.heading", { count: rows.length }),
         textStyle(typeRole.sectionHeader, surface.paper.hex),
       )
       .setLetterSpacing(1);
@@ -1332,165 +1088,238 @@ ${words.slice(cut + 1)}!`
       onRemove: (row) => void this.#removeGame(row),
     });
     this.#buttons.push(...drawn.buttons);
-    for (const [key, stop] of drawn.stops) this.#stops.set(key, stop);
+    for (const [key, stop] of drawn.stops) stops.set(key, stop);
   }
 
   /**
-   * The update banner (native apps, `platform/update-check.ts`): caution yellow, the advisory color, with the new
-   * version and a button per action: the changelog and this install's own installer, or the update panel for an
-   * install the Install for Steam script can update. Returns its focus stops.
+   * The update banner's content (native apps, `platform/update-check.ts`; and the notices that share its slot): caution
+   * yellow, the advisory color, with a heading, a detail line and a button per action. Saves that can't be read come
+   * first, then a downloaded update waiting on a restart, the old-save notice (web), and the update on offer.
    */
-  #drawUpdateBanner(banner: Rect | null): readonly string[] {
+  #bannerSpec(banner: Rect | null): BannerSpec | null {
+    if (!banner) return null;
     const update = this.#update;
-    // Saves that can't be read come first: nothing else on this screen works as it should until they can.
-    if (this.#savesStuck && banner) return this.#drawSavesStuckBanner(banner);
-    if (this.#readyVersion !== null && banner) return this.#drawReadyBanner(banner, this.#readyVersion);
-    if (!update && this.#oldSave && banner) return this.#drawOldSaveBanner(banner);
-    if (!update || !banner) return [];
+    const close = (onClose: () => void, parts: UpdateBannerParts): BannerButton => ({
+      id: UPDATE_DISMISS_ID,
+      kind: "secondary",
+      label: "×",
+      rect: parts.dismiss,
+      activate: onClose,
+    });
+    if (this.#savesStuck) {
+      // Nothing else on this screen works as it should until the saves can be read: one button reloads the page, which
+      // is what brings a stuck IndexedDB back on iOS (#871); the close button hides it for this visit.
+      const parts = updateBannerParts(banner, 1);
+      return {
+        rect: banner,
+        parts,
+        heading: t("title.savesStuck"),
+        detail: t("title.savesStuckDetail"),
+        buttons: [
+          {
+            id: SAVES_RELOAD_ID,
+            kind: "primary",
+            label: t("title.savesStuckReload"),
+            rect: parts.buttons[0]!,
+            activate: () => window.location.reload(),
+          },
+          close(() => {
+            this.#savesStuck = false;
+            this.#rebuild();
+          }, parts),
+        ],
+        stops: [SAVES_RELOAD_ID],
+      };
+    }
+    if (this.#readyVersion !== null) {
+      // "The game has been updated, restart to apply" (issue #843): Restart quits; the updater installs and, for the
+      // game's own updater, starts the game again. The Steam script's update leaves starting it again to Steam, so its
+      // button says Quit. Close hides it for this visit; the update still installs whenever the game quits.
+      const version = this.#readyVersion;
+      const parts = updateBannerParts(banner, 1);
+      const steam = this.#steam !== null;
+      return {
+        rect: banner,
+        parts,
+        heading: t("title.updateReady"),
+        detail: t(steam ? "title.updateReadySteam" : "title.updateReadyDetail", { version }),
+        buttons: [
+          {
+            id: UPDATE_RESTART_ID,
+            kind: "primary",
+            label: t(steam ? "title.updateQuit" : "title.updateRestart"),
+            rect: parts.buttons[0]!,
+            activate: () => void quitForSteamUpdate(),
+          },
+          close(() => {
+            this.#readyDismissed = version;
+            this.#readyVersion = null;
+            this.#rebuild();
+          }, parts),
+        ],
+        stops: [UPDATE_RESTART_ID],
+      };
+    }
+    if (!update && this.#oldSave) {
+      // The web game's "Looking for your old save?" banner (issue #723, `platform/old-save-notice.ts`): one button to
+      // the moved page at the old address, whose steps recover the saves the browser kept there, and a close button that
+      // hides it for good.
+      const parts = updateBannerParts(banner, 1);
+      return {
+        rect: banner,
+        parts,
+        heading: t("title.oldSave"),
+        detail: t("title.oldSaveDetail"),
+        buttons: [
+          {
+            id: OLD_SAVE_OPEN_ID,
+            kind: "primary",
+            label: t("title.oldSaveOpen"),
+            rect: parts.buttons[0]!,
+            activate: () => openExternal(OLD_SAVE_PAGE_URL),
+          },
+          close(() => {
+            dismissOldSaveNotice();
+            this.#oldSave = false;
+            this.#rebuild();
+          }, parts),
+        ],
+        stops: [OLD_SAVE_OPEN_ID],
+      };
+    }
+    if (!update) return null;
     // The game's own updater checks the download against the release's checksum, so it needs one.
     const selfUpdate = this.#selfUpdate !== null && update.downloadDigest !== null;
     const all = updateActions(update, this.#steam?.canUpdate === true, selfUpdate);
     const actions = all.slice(all.length - updateBannerActionCount(banner, all.length));
     const parts = updateBannerParts(banner, actions.length);
-    this.add
-      .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, surface.inkOnHue.hex);
-    const heading = this.add
+    return {
+      rect: banner,
+      parts,
       // The last try was downloaded but didn't install (the old game started again): said in the heading, which is short
       // enough for a phone's banner, where the version line would be cut off.
-      .text(
-        parts.text.x,
-        parts.text.y,
-        t(this.#updateFailed ? "title.updateFailed" : "title.updateAvailable"),
-        textStyle(typeRole.label, surface.inkOnHue.hex),
-      )
-      .setLetterSpacing(1);
-    fitText(heading, parts.textWidth, typeRole.label.size); // a translation can run longer than the English
-    const detail = this.add.text(
-      parts.text.x,
-      parts.text.y + 16,
-      `Version ${update.version}`,
-      textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
+      heading: t(this.#updateFailed ? "title.updateFailed" : "title.updateAvailable"),
+      detail: t("title.updateVersion", { version: update.version }),
+      buttons: [
+        ...actions.map((action, index): BannerButton => ({
+          id: action.id,
+          kind: action.id === "update-notes" ? "secondary" : "primary",
+          label: action.label,
+          rect: parts.buttons[index]!,
+          activate: () =>
+            action.url !== null
+              ? openExternal(action.url)
+              : this.#openSteamUpdate(update, action.id === "update-install"),
+        })),
+        close(() => {
+          dismissUpdate(update.version);
+          this.#update = null;
+          this.#rebuild();
+        }, parts),
+      ],
+      stops: actions.map((action) => action.id),
+    };
+  }
+
+  /** The banner as the panel draws it, with the press glyph on the focused button (pad and keyboard only). */
+  #bannerModel(spec: BannerSpec, focused: string | null): AlertBannerModel {
+    const desktop = isDesktopType();
+    return bannerModelOf(
+      spec.rect,
+      spec.parts,
+      { heading: spec.heading, detail: spec.detail },
+      spec.buttons.map((button) => {
+        const model = bannerButtonOf(spec.rect, button.id, button.kind, button.label, button.rect, desktop);
+        return focused === button.id ? this.#withGlyph(model, ["activate"], "ink", typeRole.rowTitle) : model;
+      }),
     );
-    fitText(detail, parts.textWidth, typeRole.rowTitle.size);
-    actions.forEach((action, index) => {
-      const rect = parts.buttons[index]!;
-      const { url } = action;
-      const open = (): void =>
-        url !== null ? openExternal(url) : this.#openSteamUpdate(update, action.id === "update-install");
-      this.#bannerButton(action.id, action.id === "update-notes" ? "secondary" : "primary", action.label, rect, open);
-    });
-    this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
-      dismissUpdate(update.version);
-      this.#update = null;
-      this.#rebuild();
-    });
-    return actions.map((action) => action.id);
   }
 
   /**
-   * "Your saves haven't loaded" (#871), in the update banner's slot and colors: the saved games could not be read, so
-   * Continue and the games list are missing for a reason the player can't see. One button reloads the page, which is
-   * what brings a stuck IndexedDB back on iOS; the close button hides it for this visit. Returns its focus stops.
+   * `model` with a key or pad glyph beside its word (or hung just outside when the pair does not fit), as the Phaser
+   * `GlyphHints.button` placed it: placed by the shared rules against a scratch sheet whose origin is the button's own,
+   * so the glyph comes out in the button's coordinates.
    */
-  #drawSavesStuckBanner(banner: Rect): readonly string[] {
-    const parts = updateBannerParts(banner, 1);
-    this.add
-      .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, surface.inkOnHue.hex);
-    const heading = this.add
-      .text(parts.text.x, parts.text.y, t("title.savesStuck"), textStyle(typeRole.label, surface.inkOnHue.hex))
-      .setLetterSpacing(1);
-    fitText(heading, parts.textWidth, typeRole.label.size);
-    const detail = this.add.text(
-      parts.text.x,
-      parts.text.y + 16,
-      t("title.savesStuckDetail"),
-      textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
-    );
-    fitText(detail, parts.textWidth, typeRole.rowTitle.size);
-    this.#bannerButton(SAVES_RELOAD_ID, "primary", t("title.savesStuckReload"), parts.buttons[0]!, () =>
-      window.location.reload(),
-    );
-    this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
-      this.#savesStuck = false;
-      this.#rebuild();
+  #withGlyph(model: MenuButton, ids: readonly ShortcutId[], ground: "ink" | "paper", type: TypeSpec): MenuButton {
+    if (!this.#glyphs) return model;
+    const scratch = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+    this.#glyphs.button(scratch, {
+      key: model.key,
+      rect: { x: 0, y: 0, width: model.rect.width, height: model.rect.height },
+      label: model.label,
+      look: model.kind,
+      type,
+      ids,
+      ground,
     });
-    return [SAVES_RELOAD_ID];
+    const button = scratch.nodes.find((node) => node.kind === "button");
+    const glyph = scratch.nodes.find((node) => node.kind === "glyph");
+    return {
+      ...model,
+      ...(button?.kind === "button" && button.labelShift ? { labelShift: button.labelShift } : {}),
+      ...(button?.kind === "button" && button.still ? { still: true } : {}),
+      ...(button?.kind === "button" && button.keyshortcuts ? { keyshortcuts: button.keyshortcuts } : {}),
+      ...(glyph?.kind === "glyph"
+        ? {
+            glyph: {
+              x: glyph.x,
+              y: glyph.y,
+              specs: glyph.specs,
+              height: glyph.height,
+              ground: glyph.ground,
+              openness: glyph.openness,
+              ...(glyph.still ? { still: true } : {}),
+            },
+          }
+        : {}),
+    };
   }
 
   /**
-   * The web game's "Looking for your old save?" banner (issue #723, `platform/old-save-notice.ts`), in the update
-   * banner's slot and colors: one button to the moved page at the old address, whose steps recover the saves the
-   * browser kept there, and a close button that hides it for good. Returns its focus stops.
+   * A focus stop on a control the panel draws: its box is read off the panel when the ring is drawn (so it follows the
+   * scroll), `fallback` (the layout's own rect) until the panel has rendered. In a scrolling menu it scrolls itself in.
    */
-  #drawOldSaveBanner(banner: Rect): readonly string[] {
-    const parts = updateBannerParts(banner, 1);
-    this.add
-      .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, surface.inkOnHue.hex);
-    const heading = this.add
-      .text(parts.text.x, parts.text.y, t("title.oldSave"), textStyle(typeRole.label, surface.inkOnHue.hex))
-      .setLetterSpacing(1);
-    fitText(heading, parts.textWidth, typeRole.label.size);
-    const detail = this.add.text(
-      parts.text.x,
-      parts.text.y + 16,
-      t("title.oldSaveDetail"),
-      textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
-    );
-    fitText(detail, parts.textWidth, typeRole.rowTitle.size);
-    this.#bannerButton(OLD_SAVE_OPEN_ID, "primary", t("title.oldSaveOpen"), parts.buttons[0]!, () =>
-      openExternal(OLD_SAVE_PAGE_URL),
-    );
-    this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
-      dismissOldSaveNotice();
-      this.#oldSave = false;
-      this.#rebuild();
-    });
-    return [OLD_SAVE_OPEN_ID];
+  #domStop(key: string, activate: () => void, fallback: Rect, scrolls: boolean): FocusStop {
+    const found = (): HTMLElement | null => this.#region?.element.elementOf(key) ?? null;
+    return {
+      rect: () => {
+        const element = found();
+        return element && this.#region ? this.#region.rectOf(element) : fallback;
+      },
+      activate,
+      ...(scrolls
+        ? {
+            view: (): Rect => {
+              const scroller = this.#region?.element.scroller;
+              return scroller && this.#region ? this.#region.rectOf(scroller) : (this.#menuScrollRect ?? fallback);
+            },
+            ensureVisible: (): void => found()?.scrollIntoView({ block: "nearest" }),
+          }
+        : {}),
+    };
   }
 
-  /**
-   * "The game has been updated, restart to apply" (issue #843): a downloaded update waiting on the game, in the update
-   * banner's slot. Restart quits; the updater installs and, for the game's own updater, starts the game again. The
-   * Steam script's update leaves starting it again to Steam, so its button says Quit. Close hides it for this visit;
-   * the update still installs whenever the game quits.
-   */
-  #drawReadyBanner(banner: Rect, version: string): readonly string[] {
-    const parts = updateBannerParts(banner, 1);
-    const steam = this.#steam !== null;
-    this.add
-      .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, surface.inkOnHue.hex);
-    const heading = this.add
-      .text(parts.text.x, parts.text.y, t("title.updateReady"), textStyle(typeRole.label, surface.inkOnHue.hex))
-      .setLetterSpacing(1);
-    fitText(heading, parts.textWidth, typeRole.label.size);
-    const detail = this.add.text(
-      parts.text.x,
-      parts.text.y + 16,
-      t(steam ? "title.updateReadySteam" : "title.updateReadyDetail", { version }),
-      textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
-    );
-    fitText(detail, parts.textWidth, typeRole.rowTitle.size);
-    this.#bannerButton(
-      UPDATE_RESTART_ID,
-      "primary",
-      t(steam ? "title.updateQuit" : "title.updateRestart"),
-      parts.buttons[0]!,
-      () => void quitForSteamUpdate(),
-    );
-    this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
-      this.#readyDismissed = version;
-      this.#readyVersion = null;
-      this.#rebuild();
-    });
-    return [UPDATE_RESTART_ID];
+  /** The panel (made once a visit, so the menu's scroll stays) takes its model and renders now. */
+  #mountPanel(model: TitlePanelModel): void {
+    const { width, height } = this.scale.gameSize;
+    if (!this.#region) {
+      const element = document.createElement("mc-title-panel") as McTitlePanel;
+      element.addEventListener("mc-activate", (event) => {
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#region = new DomRegion(this, element, { x: 0, y: 0, width, height });
+    }
+    const region = this.#region;
+    region.setRect({ x: 0, y: 0, width, height });
+    // The Phaser parts the panel leaves showing through it: the games panel, the storefront and Discord icons.
+    region.setHoles(this.#holes);
+    region.element.model = model;
+    renderNow(region.element);
+  }
+
+  /** The line about a replay that didn't open, while it is still being said. */
+  #problemText(): string | null {
+    return this.#problem && this.time.now < this.#problem.until ? this.#problem.text : null;
   }
 
   /** Asks whether a downloaded update is waiting, and shows the banner for it (on arrival, and when the panel closes). */
@@ -1502,14 +1331,6 @@ ${words.slice(cut + 1)}!`
       this.#readyVersion = version;
       this.#rebuild();
     });
-  }
-
-  /** A banner button: drawn, a focus stop, and the press glyph while a pad or the keyboard has it focused. */
-  #bannerButton(id: string, kind: "primary" | "secondary", label: string, rect: Rect, activate: () => void): void {
-    const button = new McButton(this, { kind, label, type: typeRole.rowTitle, rect, onClick: activate });
-    this.#buttons.push(button);
-    this.#stops.set(id, { rect, activate });
-    this.#hints?.button(button, ["activate"], "ink", { when: () => this.#route?.focused === id });
   }
 
   /** The update panel: the Steam script's update, or with `installer` the game's own (`platform/self-update.ts`). */
@@ -1531,96 +1352,6 @@ ${words.slice(cut + 1)}!`
     this.game.events.once(STEAM_UPDATE_CLOSED, () => {
       if (this.sys.isActive()) this.#checkReadyUpdate();
     });
-  }
-
-  /**
-   * The rank badge: rank, lifetime points and a thin bar to the next rank on an ink plate; a tap opens the Trophy
-   * Room. While a rank-up is being announced the plate turns red and names the new rank instead of the bar.
-   */
-  #drawRankBadge(rect: Rect, open: () => void): void {
-    const badge = titleRankBadgeOf(lifetimeChampionPoints());
-    const up = this.#rankUp;
-    this.add
-      .rectangle(rect.x, rect.y, rect.width, rect.height, up ? accent.heroRed.hex : surface.ink.hex, up ? 1 : 0.9)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, surface.paper.hex);
-    if (rect.height < RANK_BADGE_HEIGHT) {
-      this.#drawCompactRankBadge(rect, badge, up);
-    } else {
-      this.#drawFullRankBadge(rect, badge, up);
-    }
-    const zone = this.add
-      .zone(rect.x, rect.y, rect.width, rect.height)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true });
-    onTap(zone, open, "title:rank-badge");
-    this.#stops.set("rank-badge", { rect, activate: open });
-  }
-
-  /** The phone strip: "RANK 1 · Sidekick in Training" and the points on one line, then the bar and its caption. */
-  #drawCompactRankBadge(rect: Rect, badge: ReturnType<typeof titleRankBadgeOf>, up: string | null): void {
-    const pad = 8;
-    const inner = rect.width - pad * 2;
-    const paper = surface.paper.hex;
-    const line = this.add.text(
-      rect.x + pad,
-      rect.y + 4,
-      up ? `${t("title.rankUp")} · ${up.replace(/^Rank up: /, "")}` : `${badge.rankLabel} · ${badge.title}`,
-      textStyle(typeRole.label, paper),
-    );
-    let room = inner;
-    if (!up) {
-      const points = this.add.text(0, rect.y + 4, badge.pointsLabel, textStyle(typeRole.label, paper));
-      points.setX(rect.x + rect.width - pad - points.width);
-      room = Math.max(20, inner - points.width - 6);
-      this.#drawRankBar(rect.x + pad, rect.y + 20, inner, badge.fraction);
-      const next = this.add.text(
-        rect.x + pad,
-        rect.y + 27,
-        badge.nextLabel,
-        textStyle(typeRole.label, paper, ink.meta),
-      );
-      fitText(next, inner, typeRole.label.size);
-    }
-    fitText(line, room, typeRole.label.size);
-  }
-
-  /** The art-panel plate: rank and points, the rank's name, the bar and its caption. */
-  #drawFullRankBadge(rect: Rect, badge: ReturnType<typeof titleRankBadgeOf>, up: string | null): void {
-    const pad = 8;
-    const inner = rect.width - pad * 2;
-    const paper = surface.paper.hex;
-    const label = this.add
-      .text(rect.x + pad, rect.y + 5, up ? t("title.rankUp") : badge.rankLabel, textStyle(typeRole.label, paper))
-      .setLetterSpacing(1);
-    if (!up) {
-      const points = this.add.text(0, rect.y + 5, badge.pointsLabel, textStyle(typeRole.label, paper));
-      points.setX(rect.x + rect.width - pad - points.width);
-      fitText(label, Math.max(20, inner - points.width - 6), typeRole.label.size);
-    } else {
-      fitText(label, inner, typeRole.label.size); // a translation can run longer than "RANK UP"
-    }
-    const title = this.add.text(rect.x + pad, rect.y + 19, up ? up.replace(/^Rank up: /, "") : badge.title, {
-      ...textStyle(typeRole.rowTitle, paper),
-    });
-    fitText(title, inner, typeRole.rowTitle.size);
-    if (!up) {
-      this.#drawRankBar(rect.x + pad, rect.y + 36, inner, badge.fraction);
-      const next = this.add.text(
-        rect.x + pad,
-        rect.y + 44,
-        inner < 170 ? badge.shortNextLabel : badge.nextLabel,
-        textStyle(typeRole.label, paper, ink.meta),
-      );
-      fitText(next, inner, typeRole.label.size);
-    }
-  }
-
-  /** The bar to the next rank on the ink plate: a paper outline, so the track shows, and a Hero Red fill. */
-  #drawRankBar(x: number, y: number, width: number, fraction: number): void {
-    const g = this.add.graphics();
-    g.lineStyle(1, surface.paper.hex, 1).strokeRect(x, y, width, 6);
-    if (fraction > 0) g.fillStyle(accent.heroRed.hex, 1).fillRect(x + 1, y + 1, Math.max(2, (width - 2) * fraction), 4);
   }
 
   /** Resolves once this visit's picture is loaded (at once when it already is, or there is none). */
@@ -1774,7 +1505,8 @@ ${words.slice(cut + 1)}!`
       this.#starting = false;
       // Read the saves again rather than dropping Continue: the failed game was retired by the host, the others stand.
       await this.#refreshSaves();
-      this.#status?.setText(store.state.error ?? "that game could not be resumed");
+      this.#statusText = store.state.error ?? "that game could not be resumed";
+      this.#compose?.();
       return;
     }
     this.scale.off("resize", this.#rebuild, this);
@@ -1795,8 +1527,29 @@ const READY_CHECK_MS = 2000;
 const ART_GROUND_DEPTH = -3;
 const ART_DEPTH = -2;
 const ART_SCRIM_DEPTH = -1;
-/** The hover note over the buttons below the Continue row. */
-const TIP_DEPTH = 50;
+
+/** The Discord link's label in the footer: a brand name, the same in every language. */
+const DISCORD_LINK_LABEL = "Discord ↗";
+
+/** The update banner as laid out, before the panel draws it. */
+interface BannerSpec {
+  readonly rect: Rect;
+  readonly parts: UpdateBannerParts;
+  readonly heading: string;
+  readonly detail: string;
+  /** Its buttons, the close button last. */
+  readonly buttons: readonly BannerButton[];
+  /** The action buttons' focus stops (the close button follows them). */
+  readonly stops: readonly string[];
+}
+
+interface BannerButton {
+  readonly id: string;
+  readonly kind: "primary" | "secondary";
+  readonly label: string;
+  readonly rect: Rect;
+  readonly activate: () => void;
+}
 
 /** The press glyph on a focused top-row button or the notice bar. */
 const TOP_ROW_GLYPH_HEIGHT = 18;

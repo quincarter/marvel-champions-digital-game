@@ -157,6 +157,7 @@ export default defineConfig({
         "card-size-scroll.spec.ts",
         "campaign-market-scroll.spec.ts",
         "title-short-landscape.spec.ts",
+        "title-lit-panel.spec.ts",
         "campaign-aftermath-scroll.spec.ts",
         "settings-close-after-card-size.spec.ts",
         "villain-phase-gate.spec.ts",
