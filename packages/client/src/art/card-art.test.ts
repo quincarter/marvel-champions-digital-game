@@ -549,7 +549,7 @@ describe("CardArt and PackLeases share one URL lifetime (pack-art owns it)", () 
       );
     const { art, scene } = setup({ decode });
     sizes.set(held.url, { width: 300, height: 400 });
-    return { real, art, scene, held, gates, revoked };
+    return { real, art, scene, held, gates, revoked, sizes };
   }
 
   const reset = async (): Promise<void> => {
@@ -614,7 +614,7 @@ describe("CardArt and PackLeases share one URL lifetime (pack-art owns it)", () 
   });
 
   it("refreshPackArt during a failing decode with a live DOM lease delivers a fresh URL and the retry succeeds", async () => {
-    const { real, art, scene, held, gates, revoked } = await rig();
+    const { real, art, scene, held, gates, revoked, sizes } = await rig();
     const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     const announced = vi.fn();
     const off = (await import("../language-change.js")).onArtChange(announced);
@@ -634,27 +634,60 @@ describe("CardArt and PackLeases share one URL lifetime (pack-art owns it)", () 
     expect(fresh).not.toBeNull();
     expect(fresh!.url).not.toBe(held.url);
     expect(announced).toHaveBeenCalled();
-    // The decode of the failed URL fails (nothing at it): a retry, not a missing scan; the old blob is revoked now.
-    // (the DOM lease is still held and does not block this)
+    // The decode of the failed URL really fails (nothing is served at it): a retry, not a missing scan; the old blob
+    // is revoked now (the DOM lease is still held and does not block this).
+    sizes.delete(held.url);
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(scene.textures.exists(held.key)).toBe(false);
+    expect(art.isMissing(held.key)).toBe(false);
+    expect(revokeUrl).toHaveBeenCalledWith(held.url);
+    // The same CardArt asks again with the fresh URL and it decodes.
+    sizes.set(fresh!.url, { width: 300, height: 400 });
+    art.request(scene, fresh!);
+    expect(gates).toHaveLength(1);
     gates.splice(0).forEach((open) => open());
     await settle();
     expect(art.isMissing(held.key)).toBe(false);
-    expect(revokeUrl).toHaveBeenCalledWith(held.url);
-    // The redraw asks again with the fresh URL and it decodes.
-    const sizes = new Map<string, Size>();
-    sizes.set(fresh!.url, { width: 300, height: 400 });
-    const retry = new CardArt({
-      decode: (url, slot) =>
-        Promise.resolve({ width: sizes.get(url)!.width, height: Math.min(400, slot.height) } as HTMLCanvasElement),
-      budgetBytes: BUDGET,
-      renderScale: () => 1,
-    });
-    retry.request(scene, fresh!);
-    await settle();
-    expect(retry.isMissing(held.key)).toBe(false);
     expect(scene.textures.exists(held.key)).toBe(true);
     dom.dispose();
     off();
     revokeUrl.mockRestore();
   });
+
+  for (const order of ["fresh first", "old first"] as const) {
+    it(`revokes both URL generations once each whatever the release order (${order})`, async () => {
+      const { real, art, scene, held, gates, revoked } = await rig();
+      const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+      const oldDom = new real.PackLeases();
+      oldDom.begin();
+      oldDom.image(held);
+      oldDom.end();
+      art.request(scene, held);
+      real.refreshPackArt(held.key, held.url);
+      await vi.advanceTimersByTimeAsync(250);
+      const fresh = real.currentPackArt(held)!;
+      expect(fresh.url).not.toBe(held.url);
+      // The old decode settles: the detached old blob goes, though its DOM lease is still held.
+      gates.splice(0).forEach((open) => open());
+      await settle();
+      expect(revokeUrl).toHaveBeenCalledWith(held.url);
+      // The fresh URL is leased by a second screen, then evicted while leased.
+      const freshDom = new real.PackLeases();
+      freshDom.begin();
+      freshDom.image(fresh);
+      freshDom.end();
+      real.releasePackArt(held.key);
+      expect(revoked).toEqual([]);
+      if (order === "fresh first") {
+        freshDom.dispose();
+        oldDom.dispose();
+      } else {
+        oldDom.dispose();
+        freshDom.dispose();
+      }
+      expect(revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
+      revokeUrl.mockRestore();
+    });
+  }
 });
