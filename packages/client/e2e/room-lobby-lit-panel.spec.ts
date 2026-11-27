@@ -177,3 +177,30 @@ test("a seat's button on the panel sends its call, and a kept table changes what
   await expect(sheet(page).locator('mc-button[data-key="start"]')).toHaveAttribute("disabled", "");
   expect(errors).toEqual([]);
 });
+
+const epicSheet = (page: Page) => page.locator('#mc-ui [data-scene="EpicSheetOverlay"] mc-sheet');
+
+test("the Epic lobby's Rename and Host pickers are pop-up panels over the lobby, which stays shown under them", async ({
+  page,
+}) => {
+  const errors = trackPageErrors(page);
+  await openLobby(page, "epic=organizer");
+  await key(page, "rename:t1").scrollIntoViewIfNeeded();
+  await key(page, "rename:t1").click();
+  await expect(epicSheet(page)).toBeVisible();
+  await expect(sheet(page)).toBeVisible();
+  const field = page.locator("input").filter({ visible: true }).first();
+  await expect(field).toBeVisible();
+  await field.fill("Zed Table");
+  await epicSheet(page).locator('[data-key="done"]').click();
+  await expect(epicSheet(page)).toHaveCount(0, { timeout: 10000 });
+  await expect.poll(() => calls(page)).toContainEqual(expect.stringMatching(/^setEpic\(/));
+  // The host picker lists who may host; the first row presses and the pop-up leaves.
+  await key(page, "host:t1").scrollIntoViewIfNeeded();
+  await key(page, "host:t1").click();
+  await expect(epicSheet(page)).toBeVisible();
+  await epicSheet(page).locator('[data-key="row1"]').click();
+  await expect.poll(() => calls(page)).toContainEqual(expect.stringMatching(/^assignTableHost\(t1,/));
+  await expect(epicSheet(page)).toHaveCount(0, { timeout: 10000 });
+  expect(errors).toEqual([]);
+});
