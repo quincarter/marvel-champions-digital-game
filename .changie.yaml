@@ -45,6 +45,3 @@ replacements:
   - path: packages/client/src/version.ts
     find: 'export const CLIENT_VERSION = ".*";'
     replace: 'export const CLIENT_VERSION = "{{.VersionNoPrefix}}";'
-  - path: packages/content/src/index.ts
-    find: 'export const SCHEMA_VERSION = ".*";'
-    replace: 'export const SCHEMA_VERSION = "{{.VersionNoPrefix}}";'
