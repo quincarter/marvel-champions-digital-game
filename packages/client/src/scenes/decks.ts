@@ -467,9 +467,6 @@ export class DecksScene extends Phaser.Scene {
   /** The scans drawn outside the pool grid this draw, asked for again on each arrival. */
   #paneArt: { readonly source: ArtSource; readonly rect: Rect; readonly texture: unknown }[] = [];
   #poolListScroll = new ListScroll();
-  /** The author's notes in a community deck's detail rail: a list of wrapped lines, so a long write-up scrolls. */
-  #notesList: McVirtualList | null = null;
-  #notesScroll = new ListScroll();
   /** The list shown alone (the Preconstructed, Your decks or Community chip), or null for all three (#755). */
   #deckList: DeckListId | null = null;
   /** `communityOffers` for the saved decks and unlocks it was last built from (both are replaced, never mutated). */
@@ -529,7 +526,6 @@ export class DecksScene extends Phaser.Scene {
     this.#searchFocused = false;
     this.#holes = [];
     this.#poolListScroll = new ListScroll();
-    this.#notesScroll = new ListScroll();
     // A deck asked for by id (just saved, or sent here) is looked for in every list, so it is never filtered away.
     const openSettings = appSession().settings;
     const visit = freshDeckVisit(
@@ -576,8 +572,6 @@ export class DecksScene extends Phaser.Scene {
       this.#region = null;
       this.#poolList?.destroy();
       this.#poolList = null;
-      this.#notesList?.destroy();
-      this.#notesList = null;
     });
     this.#hints = new GlyphHints(this, () => this.#obstacles);
     this.#glyphs = new SheetGlyphs(
@@ -917,8 +911,6 @@ export class DecksScene extends Phaser.Scene {
     // on top of it). Their scroll positions live in `#listScroll`/`#poolListScroll`, which survive this regardless.
     this.#poolList?.destroy();
     this.#poolList = null;
-    this.#notesList?.destroy();
-    this.#notesList = null;
 
     const { width, height } = this.scale.gameSize;
     const b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
@@ -1114,7 +1106,7 @@ export class DecksScene extends Phaser.Scene {
     const selected = allOptions.find((o) => (o.deck.id as string) === this.#selectedDeckId) ?? null;
     const selectedOffer = offers.find((offer) => offer.option === selected) ?? null;
     const drawStats = (rect: Rect): void => {
-      if (selectedOffer) this.#drawCommunityPane(rect, selectedOffer, layout.wide);
+      if (selectedOffer) this.#drawCommunityPane(b, rect, selectedOffer, layout.wide);
       else this.#drawStatsPane(b, rect, selected);
     };
 
@@ -1123,7 +1115,6 @@ export class DecksScene extends Phaser.Scene {
       const poolCardIds = this.#drawPoolPane(layout.poolPane!, selected, selectedOffer !== null);
       drawStats(layout.statsPane!);
       this.#holes.push(layout.poolPane!);
-      if (selectedOffer) this.#holes.push(layout.statsPane!);
       this.#route?.set(
         decksFocusOrder({
           showMarvelCdbImport: true,
@@ -2865,29 +2856,34 @@ export class DecksScene extends Phaser.Scene {
   // MarvelCDB author's deck, not an official precon), that this game tested it, when it was published and its version,
   // the author's own notes (how they play it), the MarvelCDB link, and one action: add an editable copy.
   // ------------------------------------------------------------------------------------------------------------
-  #drawCommunityPane(rect: Rect, offer: CommunityOffer, wide: boolean): void {
+  #drawCommunityPane(b: SheetBuilder, rect: Rect, offer: CommunityOffer, wide: boolean): void {
+    // The ink panel is drawn in the canvas too (under the panel), so the pane never shows the paper through a seam.
     const bg = this.add.graphics();
     paintPanel(bg, rect, "onInk", "rest");
+    b.box(rect, { fill: surface.ink.hex });
 
     const { entry, option } = offer;
     const left = rect.x + 16;
     const column = rect.width - 32;
     let y = rect.y + 16;
 
-    label(this, left, y, "Community deck · from MarvelCDB", typeRole.label, surface.paper.hex, ink.label);
+    const small = (text: string, at: number, alpha: number = ink.label): void => {
+      b.text(left, at, text.toUpperCase(), typeRole.label, { color: surface.paper.hex, alpha, fitWidth: column - 72 });
+    };
+    small(t("decks.community.from"), y);
     y += 18;
-    const name = this.add
-      .text(left, y, caseOf(typeRole.barTitle, entry.name), {
-        ...textStyle(typeRole.barTitle, surface.paper.hex),
-        fontSize: "24px",
-      })
-      .setWordWrapWidth(column, true);
-    // A very long name steps its type down to fit three lines whole, never an ellipsis.
-    fitWrapped(name, column, 3, 24);
+    // A very long name keeps to three lines, cut only at the extreme.
+    const name = b.text(left, y, entry.name.toUpperCase(), typeRole.barTitle, {
+      size: 24,
+      color: surface.paper.hex,
+      wrapWidth: column,
+      maxLines: 3,
+    });
     y += name.height + 4;
-    const credit = this.add
-      .text(left, y, communityCredit(entry), textStyle(typeRole.rowTitle, surface.paper.hex))
-      .setWordWrapWidth(column, true);
+    const credit = b.text(left, y, communityCredit(entry), typeRole.rowTitle, {
+      color: surface.paper.hex,
+      wrapWidth: column,
+    });
     y += credit.height + 8;
 
     // Aspect stamps, then what this game can say about the deck: Tested, or what keeps it from being offered.
@@ -2895,7 +2891,7 @@ export class DecksScene extends Phaser.Scene {
     const statusText = communityStatusText(offer);
     const chips: { readonly text: string; readonly fill: number; readonly ink: number }[] = [
       ...entry.aspects.map((aspect) => {
-        const stamp = aspectStampOf(aspect);
+        const stamp = aspectStampOf(aspect, artLanguageNow());
         return { text: stamp.label, fill: stamp.fill, ink: stamp.ink };
       }),
       offer.lock || !option.legal
@@ -2905,67 +2901,74 @@ export class DecksScene extends Phaser.Scene {
     let chipX = left;
     const chipHeight = 22;
     for (const chip of chips) {
-      const text = this.add.text(0, 0, caseOf(STAMP_CHIP_TYPE, chip.text), textStyle(STAMP_CHIP_TYPE, chip.ink));
-      const chipWidth = Math.ceil(text.width) + 16;
+      const chipWidth = Math.ceil(b.measure(caseOf(STAMP_CHIP_TYPE, chip.text), STAMP_CHIP_TYPE).width) + 16;
       if (chipX > left && chipX + chipWidth > left + column) {
         chipX = left;
         y += chipHeight + 6;
       }
-      const g = this.add.graphics();
-      g.fillStyle(chip.fill, 1).fillRect(chipX, y, chipWidth, chipHeight);
-      g.lineStyle(border.control, surface.paper.hex, 1).strokeRect(chipX, y, chipWidth, chipHeight);
-      text.setPosition(chipX + chipWidth / 2, y + chipHeight / 2).setOrigin(0.5);
-      this.children.bringToTop(text);
+      b.box(
+        { x: chipX, y, width: chipWidth, height: chipHeight },
+        {
+          fill: chip.fill,
+          stroke: surface.paper.hex,
+          strokeWidth: border.control,
+        },
+      );
+      b.text(chipX + chipWidth / 2, y + chipHeight / 2, chip.text, STAMP_CHIP_TYPE, {
+        color: chip.ink,
+        origin: [0.5, 0.5],
+      });
       chipX += chipWidth + 6;
     }
     y += chipHeight + 10;
 
     const published = communityPublishedText(entry);
-    const meta = label(
-      this,
+    const meta = b.text(
       left,
       y,
       [
         option.identityName ?? entry.heroName,
         deckCountText(stats),
         ...(published ? [published] : []),
-        "Not an official precon",
-      ].join(" · "),
+        t("decks.community.notOfficial"),
+      ]
+        .join(" · ")
+        .toUpperCase(),
       typeRole.label,
-      surface.paper.hex,
-      ink.label,
-    ).setWordWrapWidth(column);
+      { color: surface.paper.hex, alpha: ink.label, wrapWidth: column },
+    );
     y += meta.height + 8;
 
     if (offer.lock || !option.legal) {
-      const why = this.add
-        .text(
-          left,
-          y,
-          offer.lock ?? (option.checking ? t("room.picker.checking") : option.blockedReason) ?? "",
-          textStyle(typeRole.body, accent.heroRed.hex),
-        )
-        .setWordWrapWidth(column, true);
+      const why = b.text(
+        left,
+        y,
+        offer.lock ?? (option.checking ? t("room.picker.checking") : option.blockedReason) ?? "",
+        typeRole.body,
+        { color: accent.heroRed.hex, wrapWidth: column },
+      );
       y += why.height + 8;
     }
-
-    const ruleG = this.add.graphics();
-    ruleG.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, 3);
+    b.box({ x: left, y, width: column, height: 3 }, { fill: surface.paper.hex });
     y += 14;
 
     // Bottom-up: the footer (Check + Add), then the link row above it; the notes take whatever is left between.
     const footerHeight = hit.primary;
     const footerY = rect.y + rect.height - footerHeight - 16;
-    const footerRule = this.add.graphics();
-    footerRule.fillStyle(surface.paper.hex, 1).fillRect(left, footerY - 13, column, 3);
+    b.box({ x: left, y: footerY - 13, width: column, height: 3 }, { fill: surface.paper.hex });
 
     const deck = option.deck;
     const checkWidth = column * 0.3;
     const checkRect: Rect = { x: left, y: footerY, width: checkWidth, height: footerHeight };
     const doCheck = (): void => this.#openDeckCheck(deck);
-    this.#buttons.push(
-      new McButton(this, { kind: "onInk", label: "Check", type: typeRole.label, rect: checkRect, onClick: doCheck }),
-    );
+    b.button({
+      key: "stats-check",
+      rect: checkRect,
+      label: t("decks.stats.check"),
+      look: "onInk",
+      type: typeRole.label,
+    });
+    this.#actions.set("stats-check", doCheck);
     this.#stops.set("stats-check", { rect: checkRect, activate: doCheck });
 
     const addRect: Rect = {
@@ -2978,95 +2981,73 @@ export class DecksScene extends Phaser.Scene {
     const doAdd = (): void => {
       if (canAdd) this.#addCommunityDeck(offer);
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: offer.added ? "Add another copy ▸" : "Add to my decks ▸",
-        type: typeRole.barTitle,
-        rect: addRect,
-        enabled: canAdd,
-        ...(canAdd
-          ? {}
-          : {
-              reason:
-                offer.lock ??
-                (option.checking ? t("room.picker.checking") : option.blockedReason) ??
-                "This deck is not legal.",
-            }),
-        onClick: doAdd,
-      }),
-    );
+    b.button({
+      key: "stats-add",
+      rect: addRect,
+      label: offer.added ? t("decks.community.addAnother") : t("decks.community.add"),
+      look: "primary",
+      type: typeRole.barTitle,
+      ...(canAdd
+        ? {}
+        : {
+            disabled:
+              offer.lock ??
+              (option.checking ? t("room.picker.checking") : option.blockedReason) ??
+              t("decks.stats.notLegal"),
+          }),
+    });
+    this.#actions.set("stats-add", doAdd);
     this.#stops.set("stats-add", { rect: addRect, activate: doAdd });
 
-    // The MarvelCDB link, as text (a canvas can't be selected, so Copy link puts it on the clipboard) and as a
-    // button that opens it outside the game, the way Title opens the release notes.
+    // The MarvelCDB link, as text and as buttons: Copy link puts it on the clipboard, the other opens it outside the game.
     const linkDefs: { readonly id: string; readonly text: string; readonly onClick: () => void }[] = [
-      ...(wide ? [] : [{ id: "preview", text: "Preview cards", onClick: () => this.#setTab("cards") }]),
-      { id: "copy-link", text: "Copy link", onClick: () => this.#copyLink(offer) },
+      ...(wide ? [] : [{ id: "preview", text: t("decks.community.preview"), onClick: () => this.#setTab("cards") }]),
+      { id: "copy-link", text: t("decks.community.copyLink"), onClick: () => this.#copyLink(offer) },
       { id: "open-link", text: "MarvelCDB ↗", onClick: () => openExternal(entry.url) },
     ];
     const linkRowY = footerY - 13 - 12 - this.#row;
     const linkWidth = (column - CHIP_GAP * (linkDefs.length - 1)) / linkDefs.length;
     linkDefs.forEach((def, index) => {
       const cell: Rect = { x: left + index * (linkWidth + CHIP_GAP), y: linkRowY, width: linkWidth, height: this.#row };
-      this.#buttons.push(
-        new McButton(this, { kind: "quiet", label: def.text, type: typeRole.label, rect: cell, onClick: def.onClick }),
-      );
+      b.button({ key: `stats-${def.id}`, rect: cell, label: def.text, look: "quiet", type: typeRole.label });
+      this.#actions.set(`stats-${def.id}`, def.onClick);
       this.#stops.set(`stats-${def.id}`, { rect: cell, activate: def.onClick });
     });
-    const linkText = this.add.text(
-      left,
-      linkRowY - 22,
-      entry.url.replace(/^https:\/\//, ""),
-      textStyle(typeRole.label, surface.paper.hex, ink.secondary),
-    );
-    fitText(linkText, column, typeRole.label.size);
+    b.text(left, linkRowY - 22, entry.url.replace(/^https:\/\//, ""), typeRole.label, {
+      color: surface.paper.hex,
+      alpha: ink.secondary,
+      fitWidth: column,
+    });
 
-    // The author's own write-up: how they play the deck. Long ones scroll.
-    label(this, left, y, "From the author · how it plays", typeRole.label, surface.paper.hex, ink.label);
+    // The author's own write-up: how they play the deck. A long one scrolls natively.
+    small(t("decks.community.notesHeading"), y);
     const notesHeadingY = y;
     y += 18;
     const notesBottom = linkRowY - 22 - 10;
-    // Whole lines only, so the last one shown is never cut through.
-    const notesHeight = Math.floor((notesBottom - y) / NOTES_LINE_HEIGHT) * NOTES_LINE_HEIGHT;
+    const notesHeight = Math.max(0, notesBottom - y);
     const paragraphs = communityNotesOf(entry.description);
     if (paragraphs.length === 0) {
-      this.add
-        .text(
-          left,
-          y,
-          "No notes were saved with this deck. The author's write-up is on MarvelCDB.",
-          textStyle(typeRole.body, surface.paper.hex, ink.meta),
-        )
-        .setWordWrapWidth(column, true);
+      b.text(left, y, t("decks.community.noNotes"), typeRole.body, {
+        color: surface.paper.hex,
+        alpha: ink.meta,
+        wrapWidth: column,
+      });
       return;
     }
     if (notesHeight < NOTES_LINE_HEIGHT * 2) return;
-    const style = textStyle(typeRole.body, surface.paper.hex, ink.secondary);
-    const probe = this.add.text(0, 0, "", style).setWordWrapWidth(column - 8, true);
-    const lines: string[] = [];
-    for (const paragraph of paragraphs) {
-      if (lines.length > 0) lines.push("");
-      probe.setText(paragraph);
-      lines.push(...probe.getWrappedText());
-    }
-    probe.destroy();
+    const notes = paragraphs.join("\n\n");
+    const noteStyle = { color: surface.paper.hex, alpha: ink.secondary, wrapWidth: column - 8 } as const;
+    const total = Math.ceil(b.measure(notes, typeRole.body, { wrapWidth: column - 8 }).height) + 4;
     // A write-up longer than its pane scrolls; the cue sits at the heading's right edge so nothing reads as cut.
-    if (lines.length * NOTES_LINE_HEIGHT > notesHeight) {
-      label(this, left + column, notesHeadingY, "Scroll ▾", typeRole.label, surface.paper.hex, ink.body).setOrigin(
-        1,
-        0,
-      );
+    if (total > notesHeight) {
+      b.text(left + column, notesHeadingY, t("decks.community.scroll").toUpperCase(), typeRole.label, {
+        color: surface.paper.hex,
+        alpha: ink.body,
+        origin: [1, 0],
+      });
     }
-    this.#notesList = new McVirtualList(this, {
-      rect: { x: left, y, width: column, height: notesHeight },
-      rowHeight: NOTES_LINE_HEIGHT,
-      count: lines.length,
-      scroll: this.#notesScroll,
-      background: false,
-      renderRow: (index, rowRect) => ({
-        objects: lines[index] ? [this.add.text(rowRect.x, rowRect.y, lines[index]!, style)] : [],
-      }),
+    b.scroll("community-notes", { x: left, y, width: column, height: notesHeight }, total, (inner) => {
+      inner.text(left, 0, notes, typeRole.body, noteStyle);
     });
   }
 
@@ -3087,7 +3068,7 @@ export class DecksScene extends Phaser.Scene {
       this.#scrollToDeckId = copy.id as string;
       this.#setList(null);
       this.#status = {
-        text: `Added "${copy.name}" ${communityCredit(offer.entry)} to your decks. Edit it like any deck.`,
+        text: t("decks.community.added", { name: copy.name, credit: communityCredit(offer.entry) }),
         tone: "success",
       };
       this.#busy = false;
@@ -3102,12 +3083,12 @@ export class DecksScene extends Phaser.Scene {
       this.#rebuild();
     };
     if (!clipboard?.writeText) {
-      done(`Clipboard access isn't available here. The deck is at ${offer.entry.url}`, "error");
+      done(t("decks.community.noClipboard", { url: offer.entry.url }), "error");
       return;
     }
     clipboard.writeText(offer.entry.url).then(
-      () => done(`Copied the MarvelCDB link for "${offer.entry.name}".`, "success"),
-      () => done(`Couldn't copy to the clipboard. The deck is at ${offer.entry.url}`, "error"),
+      () => done(t("decks.community.copied", { name: offer.entry.name }), "success"),
+      () => done(t("decks.community.copyFailed", { url: offer.entry.url }), "error"),
     );
   }
 
