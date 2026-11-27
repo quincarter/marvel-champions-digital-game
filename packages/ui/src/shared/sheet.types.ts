@@ -1,3 +1,6 @@
+import type { McListRowModel } from "../components/mc-list-row/mc-list-row.types.js";
+import type { McPictureTileModel } from "../components/mc-picture-tile/mc-picture-tile.types.js";
+import type { McTabRailTab } from "../components/mc-tab-rail/mc-tab-rail.types.js";
 import type { McButtonKind } from "./button.types.js";
 import type { GlyphSpec, McGlyphGround } from "./glyph.types.js";
 
@@ -166,6 +169,8 @@ export interface SheetImage {
   readonly retry?: string;
   /** Fills the box, cropped (never stretched) around this focal point, 0 to 1 each way, instead of fitting whole. */
   readonly cover?: { readonly x: number; readonly y: number };
+  /** A gray, faded ghost of the picture on its ground (a locked Extras tile: what there is to earn). */
+  readonly dim?: boolean;
 }
 
 /** Ink dots thickening toward the foot of a box, the way the comic pages shade a panel (a game mode box's art). */
@@ -283,6 +288,42 @@ export interface SheetSlider {
   readonly stepLabels: readonly [string, string];
 }
 
+/** A tab rail (`mc-tab-rail`) filling `rect`: its cells press as `mc-activate` with the key `<prefix><id>`. */
+export interface SheetTabRail {
+  readonly kind: "tabRail";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly tabs: readonly McTabRailTab[];
+  readonly selected: string;
+  readonly size: number;
+  readonly prefix?: string;
+}
+
+/** A picture tile (`mc-picture-tile`) filling `rect`: decorative, a tap area over it takes the press. */
+export interface SheetPictureTile {
+  readonly kind: "pictureTile";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly model: McPictureTileModel;
+}
+
+/** A list row (`mc-list-row`) filling `rect`: decorative, a tap area over it takes the press. */
+export interface SheetListRow {
+  readonly kind: "listRow";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly model: McListRowModel;
+}
+
+/** The quiet line of an empty list (`mc-empty-state`) at `x`, `y`. */
+export interface SheetEmptyState {
+  readonly kind: "emptyState";
+  readonly x: number;
+  readonly y: number;
+  readonly text: string;
+  readonly size?: number;
+}
+
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
 export interface SheetScroll {
   readonly kind: "scroll";
@@ -306,4 +347,8 @@ export type SheetNode =
   | SheetQr
   | SheetSvg
   | SheetSlider
+  | SheetTabRail
+  | SheetPictureTile
+  | SheetListRow
+  | SheetEmptyState
   | SheetScroll;

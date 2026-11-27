@@ -193,7 +193,7 @@ describe("mc-sheet", () => {
   it("draws a cropped picture, halftone dots, a notch, a turned outlined text, and tells a mouse over a tracked area", async () => {
     const sheet = document.createElement("mc-sheet");
     sheet.nodes = [
-      { kind: "image", key: "art", rect: rect(0, 0, 100, 80), src: "/a.png", cover: { x: 0.5, y: 0.3 } },
+      { kind: "image", key: "art", rect: rect(0, 0, 100, 80), src: "/a.png", cover: { x: 0.5, y: 0.3 }, dim: true },
       { kind: "halftone", rect: rect(0, 40, 100, 40), color: "#000", step: 8, fade: 30, opacity: 0.85 },
       {
         kind: "poly",
@@ -239,6 +239,9 @@ describe("mc-sheet", () => {
     const img = sheet.elementOf("art")!.querySelector("img")!;
     expect(img.style.objectFit).toBe("cover");
     expect(img.style.objectPosition).toBe("50% 30%");
+    // A locked tile's picture is a gray, faded ghost.
+    expect(img.style.filter).toBe("grayscale(1)");
+    expect(img.style.opacity).toBe("0.3");
     const root = sheet.shadowRoot!;
     expect(root.querySelectorAll("svg circle").length).toBeGreaterThan(5);
     expect(root.querySelectorAll("polygon")).toHaveLength(1);

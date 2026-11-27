@@ -9,7 +9,16 @@
  *   same font the sheet draws it in (`measure`).
  * - Coordinates are the screen's; the builder subtracts the sheet's own origin.
  */
-import type { GlyphSpec as UiGlyphSpec, McGlyphGround, SheetNode, SheetRect, SvgOp } from "@mc/ui";
+import type {
+  GlyphSpec as UiGlyphSpec,
+  McGlyphGround,
+  McListRowModel,
+  McPictureTileModel,
+  McTabRailTab,
+  SheetNode,
+  SheetRect,
+  SvgOp,
+} from "@mc/ui";
 import { accent, font, signal, status, surface, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { uiLayer } from "./ui-layer.js";
@@ -375,11 +384,14 @@ export class SheetBuilder {
       readonly retry?: string;
       /** Fills the box, cropped around this focal point (0 to 1 each way), instead of fitting the whole picture. */
       readonly cover?: { readonly x: number; readonly y: number };
+      /** A gray, faded ghost of the picture on its ground (a locked tile). */
+      readonly dim?: boolean;
     },
   ): void {
     this.nodes.push({
       kind: "image",
       ...(options.cover ? { cover: options.cover } : {}),
+      ...(options.dim ? { dim: true } : {}),
       rect: this.#rect(rect),
       src: options.src,
       ...(options.fill !== undefined ? { fill: sheetColor(options.fill, "fill") } : {}),
@@ -440,6 +452,43 @@ export class SheetBuilder {
       ...(options.dimmed ? { dimmed: true } : {}),
       stepLabels: options.stepLabels,
     });
+  }
+
+  /** A tab rail (`mc-tab-rail`) filling `rect`; a tap raises `mc-activate` with the key `<prefix><id>` (`tab:` by default). */
+  tabRail(
+    rect: Rect,
+    options: {
+      readonly tabs: readonly McTabRailTab[];
+      readonly selected: string;
+      readonly size: number;
+      readonly prefix?: string;
+      readonly key?: string;
+    },
+  ): void {
+    this.nodes.push({
+      kind: "tabRail",
+      rect: this.#rect(rect),
+      tabs: options.tabs,
+      selected: options.selected,
+      size: this.#desktop() && options.size <= 12 ? Math.min(13, options.size + 2) : options.size,
+      ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
+  }
+
+  /** A picture tile (`mc-picture-tile`) filling `rect`; decorative, put a `tap` over it. */
+  pictureTile(rect: Rect, model: McPictureTileModel, key?: string): void {
+    this.nodes.push({ kind: "pictureTile", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
+  }
+
+  /** A list row (`mc-list-row`) filling `rect`; decorative, put a `tap` over it. */
+  listRow(rect: Rect, model: McListRowModel, key?: string): void {
+    this.nodes.push({ kind: "listRow", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
+  }
+
+  /** The quiet empty-list line (`mc-empty-state`) at `x`, `y`. */
+  emptyState(x: number, y: number, text: string, size = 14): void {
+    this.nodes.push({ kind: "emptyState", x: x - this.#origin.x, y: y - this.#origin.y, text, size });
   }
 
   /** A scrolling region at `rect`, `height` tall inside, its parts built in its own content space (`y` from 0). */

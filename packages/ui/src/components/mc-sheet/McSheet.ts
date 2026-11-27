@@ -7,6 +7,10 @@ import { cancelHold } from "../../shared/tap.js";
 import "../mc-aspect-chip/mc-aspect-chip.js";
 import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
+import "../mc-tab-rail/mc-tab-rail.js";
+import "../mc-picture-tile/mc-picture-tile.js";
+import "../mc-list-row/mc-list-row.js";
+import "../mc-empty-state/mc-empty-state.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
@@ -399,6 +403,37 @@ export class McSheet extends LitElement {
           aria-keyshortcuts=${node.keyshortcuts ?? nothing}
           @mc-press=${() => this.#activate(node.key)}
         ></mc-button>`;
+      case "tabRail":
+        return html`<mc-tab-rail
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          .tabs=${node.tabs}
+          .selected=${node.selected}
+          .size=${node.size}
+          .prefix=${node.prefix ?? "tab:"}
+        ></mc-tab-rail>`;
+      case "pictureTile":
+        return html`<mc-picture-tile
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          .model=${node.model}
+        ></mc-picture-tile>`;
+      case "listRow":
+        return html`<mc-list-row
+          class="part"
+          data-key=${node.key ?? nothing}
+          style=${px(node.rect)}
+          .model=${node.model}
+        ></mc-list-row>`;
+      case "emptyState":
+        return html`<mc-empty-state
+          class="part"
+          style=${`left:${node.x}px;top:${node.y}px`}
+          .text=${node.text}
+          .size=${node.size ?? 14}
+        ></mc-empty-state>`;
       case "chip":
         return html`<mc-aspect-chip
           class="part"
@@ -443,7 +478,14 @@ export class McSheet extends LitElement {
                   alt=""
                   loading="lazy"
                   decoding="async"
-                  style=${node.cover ? `object-fit:cover;object-position:${node.cover.x * 100}% ${node.cover.y * 100}%` : nothing}
+                  style=${
+                    [
+                      node.cover
+                        ? `object-fit:cover;object-position:${node.cover.x * 100}% ${node.cover.y * 100}%`
+                        : "",
+                      node.dim ? "filter:grayscale(1);opacity:0.3" : "",
+                    ].join(";") || nothing
+                  }
                   draggable="false"
                   @load=${() => {
                     if (node.retry !== undefined) this.#retried.delete(node.retry);
