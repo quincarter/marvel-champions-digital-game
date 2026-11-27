@@ -697,7 +697,6 @@ export class PastGamesScene extends Phaser.Scene {
 
   #draw(): void {
     if (!this.#alive) return;
-    this.#pictures.begin();
     this.#destroyWidgets();
     // The search box's DOM field outlives a redraw, so its caret and what is typed stay put.
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
@@ -956,6 +955,9 @@ export class PastGamesScene extends Phaser.Scene {
   #paintPanel(): void {
     const ctx = this.#ctx;
     if (!ctx || !this.#alive) return;
+    // Every path that builds the rows (a full draw, a scroll near the edge, a picture arriving) renews the leases:
+    // the new rows take theirs, and the rows no longer drawn give theirs back once the new parts are mounted.
+    this.#pictures.begin();
     this.#actions = new Map();
     this.#hoverTargets = new Map();
     this.#glyphs.reset();

@@ -1175,7 +1175,6 @@ export class PlayerStatsScene extends Phaser.Scene {
 
   #draw(): void {
     if (!this.#alive) return;
-    this.#pictures.begin();
     this.#destroyWidgets();
     destroyChildren(this);
 
@@ -1657,6 +1656,9 @@ export class PlayerStatsScene extends Phaser.Scene {
   #paintList(): void {
     const list = this.#panelList;
     if (!list || !this.#alive) return;
+    // Every path that builds the rows (a full draw, a scroll near the edge, a picture arriving) renews the leases:
+    // the new rows take theirs, and the rows no longer drawn give theirs back once the new parts are mounted.
+    this.#pictures.begin();
     this.#actions = new Map();
     this.#inspects = new Map();
     // The panel is the list's box (the Focus view's side list, drawn in Phaser, keeps the rest of the row).

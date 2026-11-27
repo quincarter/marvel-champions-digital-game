@@ -87,4 +87,11 @@ describe("the search cheat sheet in Spanish", () => {
     const { clauses } = parsePoolQuery("f:justice");
     expect(POOL_CARDS.some((card) => matchesClauses(card, clauses, PACKS))).toBe(true);
   });
+
+  test("names thwart «intervención» and the Avenger trait «Vengador», and never «frustración»", () => {
+    const text = es.map((row) => (row.kind === "query" ? row.meaning : row.text)).join(" | ");
+    expect(text).toContain("La intervención de un aliado");
+    expect(text).toContain("Aliados con el rasgo Vengador");
+    expect(text).not.toMatch(/frustraci/i);
+  });
 });

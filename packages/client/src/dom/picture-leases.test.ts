@@ -179,3 +179,37 @@ describe("a windowed card pool with a pack scan", () => {
     leases.dispose();
   });
 });
+
+describe("a list that repaints part of itself (a scroll near the edge, a picture arriving)", () => {
+  it("holds exactly the pictures of the rows drawn by the latest pass: new rows take leases, old rows give theirs back", async () => {
+    const store = fakeStore();
+    setPackArt([manifest()], store);
+    packArtFor("x.demo.01a", "en");
+    packArtFor("x.demo.02", "en");
+    await flush();
+    const first = packArtFor("x.demo.01a", "en")!;
+    const second = packArtFor("x.demo.02", "en")!;
+    const leases = new PictureLeases();
+    // The cache evicts both textures while the rows are mounted.
+    const paint = (rows: readonly (typeof first)[]): void => {
+      leases.begin();
+      for (const row of rows) leases.image(row);
+      leases.end();
+    };
+    paint([first]);
+    releasePackArt(first.key);
+    releasePackArt(second.key);
+    // Only the drawn row's URL is held: the other revoked at once.
+    expect(store.revoked).toEqual(["demo/cards/en/x.demo.02.webp"]);
+    // A partial repaint (the rows moved): the new row is leased, the old one is given back.
+    packArtFor("x.demo.02", "en");
+    await flush();
+    const again = packArtFor("x.demo.02", "en")!;
+    paint([again]);
+    expect(store.revoked).toEqual(["demo/cards/en/x.demo.02.webp", "demo/cards/en/x.demo.01a.webp"]);
+    releasePackArt(again.key);
+    expect(store.revoked).toHaveLength(2);
+    leases.dispose();
+    expect(store.revoked).toHaveLength(3);
+  });
+});
