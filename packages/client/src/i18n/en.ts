@@ -606,6 +606,11 @@ export const en = {
   "unlock.noteScenario": "This opens {name} on its own, not the rest of {wave}.",
   // Mod Store (scenes/mod-store.ts, view/mod-store-browse.ts; issue #734)
   "title.modStore": "Mod Store",
+  "modStore.beta.heading": "Beta",
+  "modStore.beta.body":
+    "The Mod Store is brand new. Every pack here is fan-made, and many needed new rules in the game to work, so expect rough edges: a card that resolves oddly, a picture that is missing. If something looks wrong, open About mods and report it.",
+  "modStore.beta.phoneBody": "Brand new and fan-made: expect rough edges. Spot one? Tap ! and report it.",
+  "modStore.about": "About mods",
   "modStore.tab.all": "All",
   "modStore.tab.heroes": "Heroes",
   "modStore.tab.scenarios": "Scenarios",

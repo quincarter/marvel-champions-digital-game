@@ -698,17 +698,25 @@ export class HowToWinScene extends Phaser.Scene {
     const labelSize = b.measure(label, STEP_LABEL_TYPE);
     b.text(rect.x + 14, rect.y + 10, label, STEP_LABEL_TYPE, { color: surface.ink.hex, alpha: ink.secondary });
 
-    const pillHeight = 34;
+    // The steps' words at their natural width; when both (and the arrow) do not fit the strip (the Spanish "ACTÚAS Y
+    // ROBAS HASTA TU TAMAÑO DE MANO" on a phone), the longer one takes what the shorter leaves and both wrap to two lines.
+    const stepTexts = EVERY_ROUND_STEP_KEYS.map((key) => t(key));
+    const arrowRoom = 26;
+    const naturals = stepTexts.map((step) => b.measure(step, TAG_TYPE).width + 24);
+    const available = rect.width - 28 - arrowRoom * (stepTexts.length - 1);
+    const fits = naturals.reduce((sum, width) => sum + width, 0) <= available;
+    // Two steps: the second keeps what it needs (at most 40% of the strip), the first the rest.
+    const second = Math.max(80, Math.min(naturals[1] ?? 0, available * 0.4));
+    const widths = fits ? naturals : [available - second, second];
+    const pillHeight = fits ? 34 : 44;
     // Centered in the space left under the label, not anchored to the strip's bottom edge with a fixed offset — a
     // shorter strip otherwise leaves a dead gap above the chips.
     const labelBottom = rect.y + 10 + labelSize.height + 8;
     const pillY = labelBottom + Math.max(0, rect.y + rect.height - 10 - labelBottom - pillHeight) / 2;
     let px = rect.x + 14;
-    const maxRight = rect.x + rect.width - 14;
-    EVERY_ROUND_STEP_KEYS.forEach((key, index) => {
-      const step = t(key);
-      const stepWidth = b.measure(step, TAG_TYPE).width;
-      const pillWidth = Math.min(stepWidth + 24, maxRight - px - (EVERY_ROUND_STEP_KEYS.length - 1 - index) * 40);
+    EVERY_ROUND_STEP_KEYS.forEach((_key, index) => {
+      const step = stepTexts[index]!;
+      const pillWidth = widths[index]!;
       b.box(
         { x: px, y: pillY, width: pillWidth, height: pillHeight },
         { fill: index === 0 ? surface.ink.hex : accent.heroRed.hex },
@@ -716,6 +724,7 @@ export class HowToWinScene extends Phaser.Scene {
       b.text(px + pillWidth / 2, pillY + pillHeight / 2, step, TAG_TYPE, {
         color: surface.paper.hex,
         origin: [0.5, 0.5],
+        ...(fits ? {} : { wrapWidth: pillWidth - 16, align: "center" as const, maxLines: 2 }),
       });
       px += pillWidth;
       if (index < EVERY_ROUND_STEP_KEYS.length - 1) {
@@ -724,7 +733,7 @@ export class HowToWinScene extends Phaser.Scene {
           color: surface.ink.hex,
           origin: [0, 0.5],
         });
-        px += 26;
+        px += arrowRoom;
       }
     });
   }

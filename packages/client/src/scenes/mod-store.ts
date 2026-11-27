@@ -162,7 +162,7 @@ import { SCENES } from "./keys.js";
 import { modNoticeSeen } from "../platform/mod-notice-seen.js";
 import {
   MOD_NOTICE_LINES,
-  MOD_STORE_BETA_CAPTION,
+  modStoreBetaCaption,
   modNoticeLayoutOf,
   modNoticeControlLabelOf,
   showNoticeBeforeInstall,
@@ -967,10 +967,11 @@ export class ModStoreScene extends Phaser.Scene {
     const shadow = 4;
     const boxWidth = at.width - shadow;
     const headingSpec = bangers(phone ? 16 : 20);
-    const headingText = MOD_STORE_BETA_CAPTION.heading.toUpperCase();
+    const caption = modStoreBetaCaption();
+    const headingText = caption.heading.toUpperCase();
     const heading = b.measure(headingText, headingSpec, { letterSpacing: 1 });
     const bodyX = at.x + pad + heading.width + (phone ? 12 : 20);
-    const bodyText = phone ? MOD_STORE_BETA_CAPTION.phoneBody : MOD_STORE_BETA_CAPTION.body;
+    const bodyText = phone ? caption.phoneBody : caption.body;
     const bodyWidth = at.x + boxWidth - pad - bodyX;
     const body = b.measure(bodyText, typeRole.body, { ...(phone ? { size: 12 } : {}), wrapWidth: bodyWidth });
     const boxHeight = Math.max(heading.height, body.height) + pad * 2;

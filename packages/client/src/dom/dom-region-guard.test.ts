@@ -27,21 +27,21 @@ describe("guardRegion: a text field under a modal", () => {
 
   it("lets a focused field's input and focus through while the scene takes events", () => {
     const takes = { value: true };
-    const { heard, apply, emit, wrap } = setup(takes);
+    const { heard, apply, emit } = setup(takes);
     apply();
-    expect(wrap.inert).toBe(false);
     emit("mc-field-focus", { focused: true });
     emit("mc-input", { value: "abc" });
     expect(heard).toEqual(["mc-field-focus:true", "mc-input:abc"]);
   });
 
-  it("stops a late input (a compositionend that lands after the modal opened) and a focus, and goes inert", () => {
+  it("stops a late input (a compositionend that lands after the modal opened) and a focus, and lets go of the caret", () => {
     const takes = { value: true };
-    const { heard, apply, emit, wrap, field } = setup(takes);
+    const { heard, apply, emit, field } = setup(takes);
     field.focus();
+    expect(document.activeElement).toBe(field);
     takes.value = false; // a modal opened over the panel
     apply();
-    expect(wrap.inert).toBe(true);
+    expect(document.activeElement).not.toBe(field);
     emit("mc-input", { value: "late" });
     emit("mc-search", { value: "late" });
     emit("mc-field-focus", { focused: true });
@@ -52,7 +52,6 @@ describe("guardRegion: a text field under a modal", () => {
     expect(heard).toEqual(["mc-field-focus:false"]);
     takes.value = true;
     apply();
-    expect(wrap.inert).toBe(false);
     emit("mc-input", { value: "back" });
     expect(heard.at(-1)).toBe("mc-input:back");
   });

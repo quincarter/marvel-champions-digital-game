@@ -174,14 +174,28 @@ test("the card pool's free-word search still narrows the pool on a second visit 
   // Leave for the Title and come back: the scene (and its search worker) is made again.
   await page.locator(`${PANEL} [data-key="back"]`).click();
   await waitFor(async () => ((await activeScenes(page)).includes("Title") ? true : null), "the Title", 30_000);
-  await page.evaluate(() =>
-    (window as unknown as { __mcGame: { scene: { start(key: string): void } } }).__mcGame.scene.start("Decks"),
-  );
+  // As the Title's own Decks row does (`goToScreen`): the Title is stopped, not left running under Decks, where the
+  // letters typed below would reach its shortcuts.
+  await page.evaluate(() => {
+    const scenes = (window as unknown as { __mcGame: { scene: { stop(key: string): void; start(key: string): void } } })
+      .__mcGame.scene;
+    scenes.stop("Title");
+    scenes.start("Decks");
+  });
   await waitFor(async () => ((await rows(page).count()) > 3 ? true : null), "the deck rows again", 30_000);
   await waitFor(async () => ((await cells()) > 3 ? true : null), "the pool cards again", 30_000);
   const all = await cells();
   const field = page.locator(`${PANEL} mc-search-field[data-key="pool-search"] input`);
-  await field.click();
+  // The panel may be drawn again (a status or a picture arriving) between the press and the typing: press until the
+  // caret is in the field, so the letters never reach the screen's shortcuts.
+  await waitFor(
+    async () => {
+      await field.click();
+      return (await field.evaluate((el) => (el.getRootNode() as ShadowRoot).activeElement === el)) ? true : null;
+    },
+    "the caret is in the pool search field",
+    15_000,
+  );
   await page.keyboard.type("spider");
   await waitFor(
     async () => {

@@ -1282,6 +1282,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A card the deck already holds stays listed even if its rules now refuse it (so its "-" can remove it); campaign
     // mode keeps its own marks for that (`#campaignModel`), and its granted lines are never browsable.
     const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
+    // The text's words are still being ranked: nothing is listed, never the previous text's matches.
+    if (this.#poolSearch?.pending) return [];
     const ranking = this.#poolSearch?.ranking ?? null;
     const listed = browsablePool(
       this.#pool(),
@@ -1892,26 +1894,38 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A wide column takes every chip on one row with the trait stepper at its end; a narrow one stacks cost, icons
     // and the stepper.
     const oneRow = column >= QUICK_ONE_ROW_MIN;
-    const stepperWidth = oneRow ? QUICK_TRAIT_WIDTH : column;
+    const textOf = (chip: (typeof QUICK_FILTERS)[number]): string =>
+      chip.id.startsWith("icon:") ? t(`deckBuilder.${chip.id.replace(":", ".")}` as MessageKey) : chip.text;
+    // The icon names (longer in Spanish: Universal, Energía) get the room they need before anything is cut short: the
+    // cost squares narrow first (down to 30px), then the trait stepper gives up some of its width (down to a floor).
+    const iconNeed = QUICK_FILTERS.filter((f) => f.id.startsWith("icon:")).reduce(
+      (sum, chip) => sum + textOf(chip).length * 9 + 20,
+      0,
+    );
+    const costCount = QUICK_FILTERS.filter((f) => f.id.startsWith("cost:")).length;
+    const gapsWidth = QUICK_FILTERS.length * CHIP_GAP;
+    const costRoom = (stepper: number): number => (column - stepper - iconNeed - gapsWidth) / costCount;
+    const costSide = oneRow ? Math.max(30, Math.min(hit.target, costRoom(QUICK_TRAIT_WIDTH))) : hit.target;
+    const stepperWidth = oneRow
+      ? Math.max(150, Math.min(QUICK_TRAIT_WIDTH, column - costSide * costCount - iconNeed - gapsWidth))
+      : column;
     const rows = oneRow
       ? [QUICK_FILTERS]
       : [QUICK_FILTERS.filter((f) => f.id.startsWith("cost:")), QUICK_FILTERS.filter((f) => f.id.startsWith("icon:"))];
     const chipsWidth = oneRow ? column - stepperWidth - CHIP_GAP : column;
-    const textOf = (chip: (typeof QUICK_FILTERS)[number]): string =>
-      chip.id.startsWith("icon:") ? t(`deckBuilder.${chip.id.replace(":", ".")}` as MessageKey) : chip.text;
     rows.forEach((row, rowIndex) => {
       // On one row the cost chips ("0" to "5+") take a square each and the icon names share what is left; elsewhere
       // a row's chips share it evenly.
       const isCost = (chip: (typeof row)[number]): boolean => oneRow && chip.id.startsWith("cost:");
       const costs = row.filter(isCost).length;
       const named = row.filter((chip) => !isCost(chip));
-      const nameSpace = chipsWidth - costs * hit.target - (row.length - 1) * CHIP_GAP;
+      const nameSpace = chipsWidth - costs * costSide - (row.length - 1) * CHIP_GAP;
       // Names share their space by length, so "Physical" gets more than "Wild".
       const weight = (chip: (typeof row)[number]): number => (oneRow ? textOf(chip).length + 4 : 1);
       const totalWeight = named.reduce((sum, chip) => sum + weight(chip), 0);
       let x = left;
       row.forEach((chip) => {
-        const width = isCost(chip) ? hit.target : (nameSpace * weight(chip)) / totalWeight;
+        const width = isCost(chip) ? costSide : (nameSpace * weight(chip)) / totalWeight;
         const rect: Rect = { x, y: y + rowIndex * (hit.target + CHIP_GAP), width, height: hit.target };
         x += width + CHIP_GAP;
         const on = chip.isOn(this.#filter);
@@ -3085,7 +3099,11 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#text(
         listRect.x + 10,
         listRect.y + 10,
-        searched ? t("deckBuilder.noMatchSearch", { text: searched }) : t("deckBuilder.noMatch"),
+        this.#poolSearch?.pending
+          ? t("pause.searching")
+          : searched
+            ? t("deckBuilder.noMatchSearch", { text: searched })
+            : t("deckBuilder.noMatch"),
         typeRole.body,
         surface.ink.hex,
         ink.meta,

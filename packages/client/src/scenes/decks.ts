@@ -2120,7 +2120,11 @@ export class DecksScene extends Phaser.Scene {
       const searched = this.#poolSearchText.trim();
       b.emptyState(
         { x: left, y, width: column },
-        searched ? t("decks.poolNoMatchSearch", { text: searched }) : t("decks.poolNoMatch"),
+        this.#poolSearch.pending
+          ? t("pause.searching")
+          : searched
+            ? t("decks.poolNoMatchSearch", { text: searched })
+            : t("decks.poolNoMatch"),
       );
       return [];
     }
@@ -2418,6 +2422,8 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #poolCards(deck: Deck, identity: HeroIdentityCard, deckListOnly = false): readonly AnyCard[] {
+    // The text's words are still being ranked: nothing is listed, never the previous text's matches.
+    if (this.#poolSearch.pending) return [];
     const filter: PoolFilter = this.#poolAspectFilter ? { aspect: this.#poolAspectFilter } : {};
     const browsable = browsablePool(currentPool(), identity, deck.aspects, this.#poolSearch.filterFor(filter));
     const inDeck = new Set(deck.cards.map((entry) => entry.cardId as string));
@@ -2714,7 +2720,7 @@ export class DecksScene extends Phaser.Scene {
     y += 16;
     // A short screen (a phone's Stats tab) cannot fit all of it above the pinned footer: the chart gives up height
     // first, then the tiles get shorter, and "Recently changed" (the least needed) is left out last.
-    const tileCount = compositionTilesOf(stats).length;
+    const tileCount = compositionTilesOf(stats, artLanguageNow()).length;
     const tileRows = Math.ceil(tileCount / 3);
     const footerTop = rect.y + rect.height - hit.primary - 16 - 13 - 8;
     const belowChart = (tileHeight: number): number =>
@@ -2734,7 +2740,7 @@ export class DecksScene extends Phaser.Scene {
 
     small(t("decks.stats.composition").toUpperCase(), y);
     y += 16;
-    y = this.#drawStatTiles(b, left, y, column, compositionTilesOf(stats), tileHeight) + 12;
+    y = this.#drawStatTiles(b, left, y, column, compositionTilesOf(stats, artLanguageNow()), tileHeight) + 12;
 
     // Check/Edit/Delete: real, needed actions D14 itself doesn't draw: a row of small buttons, so the footer below still
     // ends in exactly Duplicate + the red Play button.
