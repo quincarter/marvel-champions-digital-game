@@ -1,0 +1,1261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v1.1.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="What's new in v1.1.0 of the fan-made Marvel Champions digital game: Elektra and Iron Fist are playable, the menu screens are faster and lighter with the same look, more of the game reads in Spanish, online rooms get Each player Undo, the Fear No Evil scenarios get Skirmish, and long games use less memory."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v1.1.0" />
+    <meta
+      property="og:description"
+      content="Chi Flows Faster: Elektra and Iron Fist join the game, menus move off the canvas so the game runs lighter with the same look, and long games use less memory."
+    />
+    <meta property="og:image" content="https://champions-digital-game.com/releases/v1.1.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v1.1.0 release report, a comic page in the game's own house style. Self-contained like
+   sync-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      h1 .g.sub {
+        display: block;
+        margin-top: 8px;
+        font-size: 0.5em;
+        line-height: 1;
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill.feat {
+        display: inline-flex;
+        border-width: 2px;
+        padding: 10px 18px 10px 12px;
+        margin: 0 0 24px;
+        max-width: 100%;
+      }
+      .pill.feat .star {
+        width: 34px;
+        height: 34px;
+        font-size: 16px;
+      }
+      .pill.feat span {
+        font-size: 18px;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      .tracks {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 12px;
+        display: grid;
+        gap: 8px;
+      }
+      .tracks li {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 2px 14px;
+        border-bottom: 1px dashed var(--line);
+        padding-bottom: 7px;
+        font-weight: 700;
+        line-height: 1.4;
+      }
+      .tracks li span {
+        font: 12px/1.6 var(--m);
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .s-cards {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+        align-items: start;
+      }
+      .pair {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .s-cards,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+      code {
+        font: 14px var(--m);
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Release report</div>
+          <h1>Chi Flows Faster<span class="g sub">Iron Fist, Elektra and a lighter game</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v1.1.0</span> · release PR
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/1024">#1024</a><br />after v1.0.0
+          (Nov 25)<br />Android · iOS · Web · Windows · macOS · Linux<br />Nov 27, 2026<span data-history-link
+            ><br /><a href="../index.html#v1.1.0">All releases</a> · <a href="index.es.html" lang="es">Español</a></span
+          >
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star">★</div>
+          <div><small>Achievement unlocked</small><span>Two new heroes</span></div>
+        </div>
+        <p>
+          <b>Elektra and Iron Fist are playable</b>, with their precon decks, their obligation and nemesis sets, and
+          card scans in English and Spanish from @bluefireF5ran. Under the hood, the menu screens are moving off the
+          game's canvas onto plain web pages drawn over it: <b>the same look, but faster and lighter</b>, and each one
+          reads in Spanish as it moves. Online rooms get an Undo for every player, the Fear No Evil scenarios get
+          Skirmish, long games use much less memory, and a stack of your reports is fixed.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="This release in numbers">
+        <div class="tile big">
+          <h4>New heroes</h4>
+          <div class="n">2</div>
+          <p>Elektra and Iron Fist, each with a precon deck and their own obligation and nemesis sets.</p>
+        </div>
+        <div class="tile">
+          <h4>Less scroll stutter</h4>
+          <div class="n c-blue">−94%</div>
+          <p>scrolling the card pool in Decks &amp; Collection, on a slowed-down CPU.</p>
+        </div>
+        <div class="tile">
+          <h4>Less memory growth</h4>
+          <div class="n c-green">−38%</div>
+          <p>over five rounds of a four-hero game in Chromium.</p>
+        </div>
+      </section>
+
+      <!-- ============ ELEKTRA AND IRON FIST ============ -->
+      <div class="band gold">
+        <h2>Elektra and Iron Fist</h2>
+        <div class="lab">Issue #699 · PR #1015</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>The Hand and the Fist</span></div>
+      </div>
+      <p class="lead">
+        <b>Two martial artists join the roster.</b> Pick Elektra or Iron Fist at Take your seats, play their precon
+        decks (Aggression for Elektra, Protection for Iron Fist), or build your own. Their card data now comes from
+        MarvelCDB, and every card has a scan, in English and in Spanish, contributed by @bluefireF5ran.
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/elektra-deck-hover.webp"
+            alt="Elektra's Aggression precon in the deck check, with the card hover open on one of her cards"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Elektra's precon, with the card hover</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/elektra-seats.webp"
+            alt="Take your seats with Elektra picked, her art and her precon"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Elektra at Take your seats</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/iron-fist-seats.webp"
+            alt="Take your seats with Iron Fist picked, his art and his precon"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Iron Fist at Take your seats</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <div class="box">
+          <h3>What they bring</h3>
+          <ul class="ck">
+            <li>
+              <b>Elektra</b> sets up a Ninja deck of six facedown cards, and her basic powers amplify the boost cards
+              they resolve.
+            </li>
+            <li><b>Iron Fist</b> builds and spends chi, with Colleen Wing and the other Martial Artists beside him.</li>
+            <li>Both nemesis sets, with the Hand's ninjas, Hand Katana and Steel Serpent, as printed.</li>
+            <li>
+              Both unlock like Jessica Jones and Luke Cage, and both have hero achievements of their own in the Trophy
+              Room.
+            </li>
+          </ul>
+          <p style="margin-top: 14px">
+            The rules insert for the pack isn't out yet, so how the Ninja deck is set up follows our reading of the
+            cards until it is.
+          </p>
+        </div>
+        <figure class="a">
+          <img
+            src="img/iron-fist-deck-phone.webp"
+            alt="Iron Fist's precon on an iPhone SE: his hero and alter-ego faces, Iron Fist and Danny Rand, and his hero cards"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>Iron Fist's deck on an iPhone SE</figcaption>
+        </figure>
+      </div>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/iron-fist-mulligan.webp"
+            alt="Iron Fist's opening hand in the mulligan"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Iron Fist's opening hand</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ FASTER MENUS ============ -->
+      <div class="band gold">
+        <h2>Faster menus, same look</h2>
+        <div class="lab">PR #1027</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Lighter Than Air</span></div>
+      </div>
+      <p class="lead">
+        <b>This isn't a new look. It's a faster game.</b> The menu and list screens used to be drawn on the same canvas
+        as the table, so the game repainted them like a board full of cards. They are moving onto plain web pages laid
+        over the canvas, which the browser draws and scrolls on its own. They look and work the same, controller and
+        keyboard included, and the game does less work on every frame.
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/settings.webp"
+            alt="Settings over the title screen, looking as it always has, now drawn as a page over the canvas"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Settings: the same screen, drawn the light way</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/pause.webp"
+            alt="The in-game Pause menu over the table, with Resume, Full game log, Rules reference and Settings"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Pause, over the table</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/pause-phone.webp"
+            alt="The Pause menu on an iPhone SE, with its search, card size, reduced motion and dark mode settings"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/rules.webp"
+            alt="The Rules reference's glossary in three columns of entries"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Rules reference</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/game-log.webp"
+            alt="The game log as a panel beside the table during a game against Rhino"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>The game log scrolls natively</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Moved in this release</h3>
+          <p>
+            Art &amp; Credits, Settings (with Controls, Save data and Unlocks), the Pause menu, the confirm, Concede,
+            Ask for a change and room chat pop-ups, the Rules reference, How to play, the game log, Play online and the
+            name prompt, the room mode picker, Give a seat, Rejoin and the game's notices.
+          </p>
+          <!-- PENDING: Lit phases 3 to 5 were not merged when this was written. Confirm or cut this paragraph. -->
+          <p>
+            Also moving: the room lobby and its deck picker; the Title, Decks &amp; Collection, the deck builder, the
+            Mod Store, Past games, Your stats, the Trophy Room, Extras, How to win and the guide chooser; and the game
+            setup screens. Their pictures are sent smaller too, so they open faster.
+          </p>
+        </div>
+        <div class="box">
+          <h3>Faster where it counts</h3>
+          <p>
+            Card pictures in Decks &amp; Collection and a deck's check now fill in their own tile as they arrive,
+            instead of the whole screen being drawn again. On a CPU slowed four times, scrolling the card pool went from
+            about 2.1 to 2.6 seconds of stutter to under 0.2. The check the game runs every frame to skip unchanged
+            frames costs about a third less, which helps the table too.
+          </p>
+          <p>
+            Pop-ups slide up from the bottom, and on a phone you can swipe one down by its handle. Every close and back
+            control has a bigger press area.
+          </p>
+        </div>
+      </div>
+
+      <!-- ============ SPANISH ============ -->
+      <div class="band gold">
+        <h2>More of the game in Spanish</h2>
+        <div class="lab">PRs #1020, #1027 · Issue #390</div>
+      </div>
+      <p class="lead">
+        <b>Every screen that moved was translated as it moved.</b> Settings, Pause, the pop-ups, How to play, the Rules
+        reference's whole glossary, the villain phase steps and Inspect's keyword box now read in Spanish, with the game
+        terms from the official Spanish rules guide.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/how-to-play-es.webp"
+            alt="How to play in Spanish: Aprende a jugar, with its lessons and the aspects"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>How to play, in Spanish</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/controls-es.webp"
+            alt="Settings ▸ Controls in Spanish, with the controller drawing and the button hint settings"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Controls, in Spanish</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/fne-inspect-es.webp"
+            alt="Inspect on Hammerhead in Spanish, Cabeza de Martillo, with his rules text in Spanish"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Fear No Evil's cards now carry Spanish rules text</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/unlocks-es-phone.webp"
+            alt="Settings ▸ Unlocks in Spanish on a Pixel phone, with the eleven campaigns listed"
+            width="412"
+            height="915"
+            loading="lazy"
+          />
+          <figcaption>Unlocks, in Spanish, on a Pixel</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <p>
+          <b>Fear No Evil in Spanish:</b> its villain, scheme and encounter cards showed only their Spanish names. 171
+          card faces now have their Spanish rules text too (#995).
+        </p>
+      </div>
+
+      <!-- ============ ONLINE ROOMS ============ -->
+      <div class="band gold">
+        <h2>Online rooms, smoother</h2>
+        <div class="lab">PR #1019</div>
+      </div>
+      <p class="lead">
+        <b>Everyone can take back their own moves.</b> A new Undo setting, Each player, is now the default: a guest's
+        Undo button works as it does in single player, back to a card draw or the start of their turn, with nothing for
+        the host to answer. Thank you to GarethMagis, who asked for it after an evening of room games.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/lobby-undo.webp"
+            alt="A room's lobby with the Undo setting open: Off, Host only, Ask the host and the new Each player"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The new Each player Undo</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/lobby-undo-phone.webp"
+            alt="The same Undo setting on an iPhone SE"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            The host hears a sound when a guest asks for an Undo or a change, even with the window in the background.
+          </li>
+          <li>The host's room settings are kept for the next room they open.</li>
+          <li>
+            A guest can take an Action with Act during another player's turn, and the host no longer gets Act for a
+            guest's hero.
+          </li>
+          <li>During the villain phase, each device words another player's defend as theirs, not yours.</li>
+        </ul>
+      </div>
+
+      <!-- ============ FEAR NO EVIL ============ -->
+      <div class="band gold">
+        <h2>Skirmish at Fear No Evil</h2>
+        <div class="lab">Issue #995 · PR #1020</div>
+      </div>
+      <p class="lead">
+        <b>Pick one version of the Underling.</b> The five Fear No Evil scenarios with a chosen villain now offer
+        Skirmish in quick play and on the campaign Briefing, as @andy-xxvii27 asked: stage I or II on standard, II or
+        III on expert. Typhoid Mary and the Kingpin finale have one version each, so they don't.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/fne-skirmish-setup.webp"
+            alt="Table setup for Art Museum Heist against Hammerhead, with Skirmish II picked"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Skirmish II against Hammerhead</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/fne-skirmish-setup-phone.webp"
+            alt="The same table setup on an iPhone SE, with the Skirmish row"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/fne-briefing.webp"
+            alt="The campaign Briefing for The Getaway, with Hammerhead chosen and Skirmish under Modes for this issue"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>On the campaign Briefing</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ MEMORY ============ -->
+      <div class="band gold">
+        <h2>Lighter on memory</h2>
+        <div class="lab">PR #1034</div>
+      </div>
+      <p class="lead">
+        <b>Long games no longer pile up memory.</b> A player on an 8 GB MacBook saw the game reach 3.9 GB by round 12.
+        Card pictures are now kept at the size the table shows them, with the full scan only for the hover and Inspect;
+        painted labels are capped; and Safari and the Mac and Linux apps keep a smaller picture cache.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/table-hover.webp"
+            alt="A game against Rhino with the card hover open on Black Cat at full size"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Table-size pictures, the full scan on hover</figcaption>
+        </figure>
+        <div class="box">
+          <h3>Five rounds, measured</h3>
+          <ul class="ck">
+            <li>Memory growth in Chromium: <b>1,210 MB down to 752 MB</b>.</li>
+            <li>Card pictures held by the GPU at the end: <b>287 MB down to 122 MB</b>.</li>
+            <li>Painted labels kept: <b>2,200 down to 500 at most</b>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ YOU ASKED ============ -->
+      <div class="band">
+        <h2>You asked, we fixed</h2>
+        <div class="lab">Issues #1001, #1006, #1012, #1017, #1018, #1021, #1028</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#1012 · reported by @bluefireF5ran</div>
+          <h3>A rules audit of 26 games</h3>
+          <p>
+            An enemy attack now <b>ends when a player it involves is eliminated</b> partway through. Bitter Rival,
+            Apocryphus and the ready effects only offer what they can change, The Red House goes to the side-scheme
+            discard pile, Giant Wasp's divided attack keeps Rapid Growth's +2, and The Rise of Red Skull's campaign log
+            records its Experimental weapon and each rescued ally once.
+          </p>
+          <div class="src">Hail Hydra!: FFG ruling, July 25, 2024. Player elimination: RRG 1.8 p. 34.</div>
+        </div>
+        <div class="paper">
+          <div class="eb">#1006 · reported by @bluefireF5ran</div>
+          <h3>A clearer game log</h3>
+          <p>
+            Other players' mulligans no longer read "to help pay", revealed and defeated cards are named instead of "a
+            facedown card", and repeated lines are merged. In a solo game, <b>"choose a player" picks you</b> without
+            asking.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">#1028 · reported by @FirePenguin17</div>
+          <h3>Crushing Blow for free</h3>
+          <p>
+            When Crushing Blow's cost is reduced to 0, it <b>can be played</b>, even with no physical resource in hand.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">#1001 · requested by @FirePenguin17</div>
+          <h3>Who's that minion with?</h3>
+          <p>
+            Choosing an enemy at a table of more than one hero, each minion's tile says <b>who it is engaged with</b>,
+            so two facedown Drones read apart.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">#1017 · reported by GarethMagis on Discord</div>
+          <h3>The guest's villain phase catches up</h3>
+          <p>
+            After a connection blip, a guest's villain phase screen stopped on a step until Skip. It now
+            <b>catches up and closes with the host's</b>.
+          </p>
+        </div>
+        <div class="paper">
+          <div class="eb">#1018 · reported by GarethMagis on Discord</div>
+          <h3>Music at your volume</h3>
+          <p>
+            A new song sometimes started at full volume and faded down, as on the Rhino intro comic. It now
+            <b>starts at your Music setting</b>.
+          </p>
+        </div>
+        <div class="paper wide">
+          <div>
+            <div class="eb">#1021</div>
+            <h3>Watch live opens room games</h3>
+            <p>
+              The Discord Watch live button and a game's watch link said a game played in a room wasn't open any more.
+              They <b>open it again</b>.
+            </p>
+          </div>
+          <figure class="a">
+            <img
+              src="img/watch-room-game.webp"
+              alt="A room game opened from its watch link, in the replay viewer"
+              width="1280"
+              height="800"
+              loading="lazy"
+            />
+            <figcaption>A room game, open to watch again</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="shots" style="margin-top: 26px">
+        <figure class="a">
+          <img
+            src="img/engaged-target.webp"
+            alt="Choosing a target for Repulsor Blast: Ultron and two facedown Drones, one saying vs Iron Man and the other vs Spider-Man"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>#1001: each Drone says who it's engaged with</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band">
+        <h2>Also in v1.1.0</h2>
+        <div class="lab">PRs #1016, #1023, #1033, #1035 and this report</div>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            The Rules reference's Boost, Team-Up and Threat entries and the villain phase's deal step match RRG 1.8.
+          </li>
+          <li>When the main scheme advances, the new stage's starting threat goes on before its When Revealed.</li>
+          <li>Page panels keep their colors with the Dark Reader extension on.</li>
+          <li>A mod pack that writes a keyword the wrong way is reported when the pack is checked.</li>
+          <li>
+            The official Spanish rules reference guide is archived in the repo, as the source of the game's Spanish
+            terms.
+          </li>
+          <li>The release bundles carry the newest card pictures.</li>
+          <li>This report, in English and Spanish.</li>
+        </ul>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>Thank you!</h2>
+          <p>
+            Keep the ideas and reports coming from Pause ▸ Report a problem, a GitHub issue or the community Discord.
+          </p>
+        </div>
+        <div class="people" style="align-items: start">
+          <div class="person wide">
+            <h3>@bluefireF5ran</h3>
+            <p>
+              Contributed the English and Spanish scans of every Elektra and Iron Fist card, and sent the play notes and
+              the 26-game rules audit behind <b>#1006</b> and <b>#1012</b>.
+            </p>
+          </div>
+          <div class="person">
+            <h3>GarethMagis</h3>
+            <p>Reported <b>#1017</b> and <b>#1018</b> on Discord and asked for Each player Undo.</p>
+          </div>
+          <div class="person">
+            <h3>@FirePenguin17</h3>
+            <p>Reported <b>#1028</b> and asked for <b>#1001</b>.</p>
+          </div>
+          <div class="person">
+            <h3>@andy-xxvii27</h3>
+            <p>Asked for Skirmish at Fear No Evil, <b>#995</b>.</p>
+          </div>
+          <div class="person">
+            <h3>Stay Humble Eh</h3>
+            <p>Reported the game's memory climbing on a Mac, on Discord.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Code shipped</h2>
+        <div class="lab">Since v1.0.0</div>
+      </div>
+      <section class="stats" aria-label="Code shipped since v1.0.0">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">16</div>
+          <p>merged into main.</p>
+        </div>
+        <div class="tile">
+          <h4>Files changed</h4>
+          <div class="n">550</div>
+          <p>across the engine, the client, the new panels, the cards and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines added</h4>
+          <div class="n c-green">38,759</div>
+          <p>two heroes, faster menus, their translations, their tests and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines removed</h4>
+          <div class="n c-red">9,853</div>
+          <p>across the same pull requests.</p>
+        </div>
+      </section>
+      <div class="credits">
+        The soundtrack is AI-generated with Gemini. The sound effects are royalty-free sounds from assorted websites.
+        Controller art: Xbox One controller by Akshay Kumar (ArtStation), PlayStation controller by Uttam Das
+        (Vecteezy), Switch icon by Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition is a fan-made, non-commercial project. Marvel Champions, its card text,
+          artwork and characters belong to Fantasy Flight Games and Marvel.</span
+        >
+        <span
+          ><a href="../../">Play in your browser ↗</a> ·
+          <a data-history-link href="../index.html#v1.1.0">All releases</a><span data-history-link> ·</span>
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v1.1.0"
+            >Downloads ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>
