@@ -13,7 +13,10 @@ import { communityHeroPackIds, serveCatalog, stageCatalog } from "./pack-catalog
 import { waitForScene } from "./wave6-helpers-a.js";
 import { quietGuide } from "./wave6-helpers-b.js";
 
-/** The text of each count badge drawn now in the Title, by control (`count-badge:<control>`). */
+/**
+ * The text of each count badge drawn now in the Title, by control: the storefront icon's is a Phaser object
+ * (`count-badge:<control>`), the Mod Store row's is in the Title panel (`mc-menu-button`'s `.badge`).
+ */
 const titleBadges = (page: Page): Promise<Record<string, string>> =>
   page.evaluate(() => {
     interface Obj {
@@ -30,6 +33,12 @@ const titleBadges = (page: Page): Promise<Record<string, string>> =>
         badges[child.name.slice("count-badge:".length)] = child.text ?? "";
       }
     }
+    const row = document
+      .querySelector('#mc-ui [data-scene="Title"] mc-title-panel')
+      ?.shadowRoot?.querySelector("mc-menu-grid")
+      ?.shadowRoot?.querySelector('mc-menu-button[data-key="mod-store"]')
+      ?.shadowRoot?.querySelector(".badge");
+    if (row?.textContent) badges["mod-store"] = row.textContent.trim();
     return badges;
   });
 

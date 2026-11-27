@@ -695,9 +695,9 @@ export class TitleScene extends Phaser.Scene {
     const actions = new Map<string, () => void>();
     const scrolls = layout.menuScroll !== null;
     this.#menuScrollRect = layout.menuScroll;
-    const act = (key: string, activate: () => void, rect: Rect, inScroll = scrolls): void => {
+    const act = (key: string, activate: () => void, rect: Rect, inScroll = scrolls, inset = 0): void => {
       actions.set(key, activate);
-      stops.set(key, this.#domStop(key, activate, rect, inScroll));
+      stops.set(key, this.#domStop(key, activate, rect, inScroll, inset));
     };
     const menu: MenuButton[] = [];
     const kindOf = menuKind as MenuButton["kind"];
@@ -931,7 +931,9 @@ export class TitleScene extends Phaser.Scene {
     const banner = this.#bannerSpec(layout.updateBanner);
     for (const button of banner?.buttons ?? []) act(button.id, button.activate, button.rect, false);
     act("rank-badge", openTrophies, layout.rankBadge, false);
-    if (layout.noticeBar) act("release-notice", () => openReleaseReport(this.#noticeVersion), layout.noticeBar, false);
+    // The bar runs edge to edge: its ring is inset, so it is on screen all the way round.
+    if (layout.noticeBar)
+      act("release-notice", () => openReleaseReport(this.#noticeVersion), layout.noticeBar, false, 6);
     this.#holes = holes;
     this.#compose = () => {
       const focused = this.#route?.focused ?? null;
@@ -1278,13 +1280,20 @@ export class TitleScene extends Phaser.Scene {
   /**
    * A focus stop on a control the panel draws: its box is read off the panel when the ring is drawn (so it follows the
    * scroll), `fallback` (the layout's own rect) until the panel has rendered. In a scrolling menu it scrolls itself in.
+   * `inset` keeps the ring that far inside the control (the news bar runs edge to edge, so its ring is on screen all the way round).
    */
-  #domStop(key: string, activate: () => void, fallback: Rect, scrolls: boolean): FocusStop {
+  #domStop(key: string, activate: () => void, fallback: Rect, scrolls: boolean, inset = 0): FocusStop {
     const found = (): HTMLElement | null => this.#region?.element.elementOf(key) ?? null;
+    const inside = (rect: Rect): Rect => ({
+      x: rect.x + inset,
+      y: rect.y + inset,
+      width: rect.width - inset * 2,
+      height: rect.height - inset * 2,
+    });
     return {
       rect: () => {
         const element = found();
-        return element && this.#region ? this.#region.rectOf(element) : fallback;
+        return element && this.#region ? inside(this.#region.rectOf(element)) : inside(fallback);
       },
       activate,
       ...(scrolls
