@@ -63,6 +63,9 @@ export const McPictureRowStyles = css`
     flex-wrap: wrap;
   }
   .stamp {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     padding: 2px 5px;
     font-weight: 800;
     font-size: var(--mc-small-9);
@@ -72,6 +75,7 @@ export const McPictureRowStyles = css`
     white-space: nowrap;
   }
   .words {
+    overflow: hidden;
     position: absolute;
     top: 8px;
     bottom: 6px;
@@ -107,6 +111,9 @@ export const McPictureRowStyles = css`
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
+  }
+  .words.has-footer .meta {
+    -webkit-line-clamp: 1;
   }
   .card.selected .meta {
     opacity: 0.75;

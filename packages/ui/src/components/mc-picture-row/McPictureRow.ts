@@ -57,7 +57,7 @@ export class McPictureRow extends LitElement {
             )}
           </div>
         </div>
-        <div class="words" style=${styleMap({ left: `${wordsLeft}px` })}>
+        <div class=${m.footer ? "words has-footer" : "words"} style=${styleMap({ left: `${wordsLeft}px` })}>
           <div class="title">${m.title}</div>
           <div class="meta">${m.meta}</div>
           ${m.footer ? html`<div class="footer">${m.footer}</div>` : nothing}

@@ -106,6 +106,7 @@ export default defineConfig({
         "how-to-win-lit-panel.spec.ts",
         "extras-lit-panel.spec.ts",
         "extras-reader-lit-panel.spec.ts",
+        "decks-lit-panel.spec.ts",
         "mod-store-play.spec.ts",
         "past-games.spec.ts",
         "power-stone-holder-stats.spec.ts",
