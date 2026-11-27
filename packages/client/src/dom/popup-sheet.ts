@@ -44,6 +44,8 @@ export interface PopupSheetOptions {
    * scene keeps over the panel (`McTextInput.slide`) moves with the box, and the hole it is seen through moves too.
    */
   readonly onSlide?: (dy: number) => void;
+  /** A picture with a `retry` key failed to load (its URL went stale): the owner reads it again (`refreshPackArt`). */
+  readonly onImageError?: (key: string, src: string | null) => void;
 }
 
 interface Drag {
@@ -60,6 +62,7 @@ export class PopupSheet {
   readonly #onHover: ((key: string, over: boolean) => void) | undefined;
   readonly #onDismiss: (() => void) | undefined;
   readonly #onSlide: ((dy: number) => void) | undefined;
+  readonly #onImageError: ((key: string, src: string | null) => void) | undefined;
   #region: DomRegion<McSheet> | null = null;
   #followed: Followed | null = null;
   /** One activation a frame, none once the scene stops or turns its input off (a second Send/Concede/Confirm tap). */
@@ -89,6 +92,7 @@ export class PopupSheet {
     this.#onHover = onHover;
     this.#onDismiss = options.onDismiss;
     this.#onSlide = options.onSlide;
+    this.#onImageError = options.onImageError;
     const m = this.#m;
     ringMotion.set(scene, m);
     this.#anchor = {
@@ -247,6 +251,12 @@ export class PopupSheet {
         if (key === GRAB_KEY || !this.#gate.take()) return;
         this.#onActivate(key);
       });
+      if (this.#onImageError) {
+        element.addEventListener("mc-image-error", (event) => {
+          const { key, src } = (event as CustomEvent<{ key?: string; src: string | null }>).detail;
+          if (key) this.#onImageError?.(key, src);
+        });
+      }
       if (this.#onHover) {
         element.addEventListener("mc-hover", (event) => {
           const { key, over } = (event as CustomEvent<{ key: string; over: boolean }>).detail;

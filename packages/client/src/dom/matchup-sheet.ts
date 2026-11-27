@@ -16,6 +16,7 @@ import {
 } from "../view/matchup-grid.js";
 import { TIER_COLORS, onTierColor } from "../ui/matchup-rows.js";
 import { bangers } from "../ui/campaign-chrome.js";
+import type { LeasedPicture } from "./picture-leases.js";
 import type { SheetBuilder } from "./sheet-builder.js";
 
 const LEGEND_SWATCH = 14;
@@ -122,14 +123,19 @@ export function drawShelfNodes(
   b: SheetBuilder,
   shelf: ShelfView,
   rect: Rect,
-  picture: string | null,
+  picture: LeasedPicture,
   phone: boolean,
 ): void {
   const box: Rect = { x: rect.x, y: rect.y + 3, width: rect.width, height: rect.height - 6 };
   b.box(box, { fill: surface.parchment.hex });
   b.box(box, { stroke: surface.ink.hex, strokeWidth: 2 });
   const thumb = shelfPictureRect(rect, phone);
-  b.image(thumb, { src: picture, fill: surface.parchment.hex, cover: { x: 0.5, y: 0.2 } });
+  b.image(thumb, {
+    src: picture.src,
+    ...(picture.retry !== undefined ? { retry: picture.retry } : {}),
+    fill: surface.parchment.hex,
+    cover: { x: 0.5, y: 0.2 },
+  });
   const left = thumb.x + thumb.width + 10;
   const right = box.x + box.width - 10;
   const nameSize = phone ? 18 : 22;
@@ -198,14 +204,19 @@ export function drawTileNodes(
   b: SheetBuilder,
   tile: MatchupTile,
   box: Rect,
-  picture: string | null,
+  picture: LeasedPicture,
   phone: boolean,
 ): void {
   const won = tile.look.kind === "won";
   const played = tile.look.kind === "played";
   b.box(box, { fill: surface.parchment.hex });
   const art = tilePictureRect(box, phone);
-  b.image(art, { src: picture, fill: surface.parchment.hex, cover: { x: 0.5, y: 0.2 } });
+  b.image(art, {
+    src: picture.src,
+    ...(picture.retry !== undefined ? { retry: picture.retry } : {}),
+    fill: surface.parchment.hex,
+    cover: { x: 0.5, y: 0.2 },
+  });
   // Pairings not beaten stay in view but stand back, so the wins read first.
   if (!won) b.box(art, { fill: surface.parchment.hex, fillAlpha: played ? 0.25 : 0.65 });
   const ribbon: Rect = { x: box.x, y: art.y + art.height, width: box.width, height: TILE_RIBBON_HEIGHT };

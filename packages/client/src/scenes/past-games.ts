@@ -25,7 +25,9 @@ import type { AnyCard } from "@mc/content";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import { onArtChange } from "../language-change.js";
 import { artLanguageNow } from "../art/art-source.js";
-import { heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
+import { heroSourceOf, villainSourceOf } from "../art/matchup-pictures.js";
+import type { ArtSource } from "../art/art-source.js";
+import { PictureLeases } from "../dom/picture-leases.js";
 import { accent, border, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 
 /** A label in the type of `typeRole.label` but written as given: the placeholder's name keeps its own case. */
@@ -162,9 +164,10 @@ const picturedCardRecords = (row: PastGameRow): readonly (AnyCard | undefined)[]
     id ? cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, id) : undefined,
   );
 
-const picturedUrls = (row: PastGameRow): readonly (string | null)[] => [
-  villainPictureOf(row.scenarioId, row.villainCardId, packsOf(row)),
-  ...row.seats.map((seat) => heroPictureOf(seat.identityCardId, packsOf(row))),
+/** The pictures' sources (not just URLs): a pack hero's scan is leased and re-resolved by its key while mounted. */
+const picturedSources = (row: PastGameRow): readonly (ArtSource | null)[] => [
+  villainSourceOf(row.scenarioId, row.villainCardId, packsOf(row)),
+  ...row.seats.map((seat) => heroSourceOf(seat.identityCardId, packsOf(row))),
 ];
 
 /** The names to print on pictures that have no art (a custom hero or villain whose pack is gone), villain first. */
@@ -227,6 +230,8 @@ export class PastGamesScene extends Phaser.Scene {
   /** The game whose details' words the panel last showed: their scroll is kept while the same game shows. */
   #detailsScrollId: string | null = null;
   #alive = false;
+  /** The leases this screen holds on its mounted hero and villain pictures (`dom/picture-leases.ts`). */
+  readonly #pictures = new PictureLeases();
   /**
    * This visit's number. Phaser reuses the scene, so an open still running from an earlier visit (a slow Watch, then
    * Back and in again) checks it after each wait and stands down rather than act on this one.
@@ -314,6 +319,7 @@ export class PastGamesScene extends Phaser.Scene {
       this.#visit += 1;
       offLanguage();
       offArt();
+      this.#pictures.dispose();
       this.#hover?.destroy();
       this.#hover = null;
       this.scale.off("resize", this.#draw, this);
@@ -949,6 +955,9 @@ export class PastGamesScene extends Phaser.Scene {
   #paintPanel(): void {
     const ctx = this.#ctx;
     if (!ctx || !this.#alive) return;
+    // Every path that builds the rows (a full draw, a scroll near the edge, a picture arriving) renews the leases:
+    // the new rows take theirs, and the rows no longer drawn give theirs back once the new parts are mounted.
+    this.#pictures.begin();
     this.#actions = new Map();
     this.#hoverTargets = new Map();
     this.#glyphs.reset();
@@ -990,6 +999,8 @@ export class PastGamesScene extends Phaser.Scene {
   #mount(rect: Rect, b: SheetBuilder): void {
     if (!this.#region) {
       const element = document.createElement("mc-sheet") as McSheet;
+      // A pack scan that fails to load reads its file again (`mc-image-error` from a part with a retry key).
+      this.#pictures.watch(element);
       element.addEventListener("mc-activate", (event) => {
         // Leaving already (the fade runs): a second tap must not act.
         if (this.#leaving) return;
@@ -1012,6 +1023,8 @@ export class PastGamesScene extends Phaser.Scene {
     });
     region.element.nodes = b.nodes;
     renderNow(region.element);
+    // The new parts are mounted: the pictures the last pass held are given back now.
+    this.#pictures.end();
     const scroller = this.#scroller();
     if (scroller) {
       // The list comes back to where it was left (a replay's Exit, a redraw), unless the filter or search reset it.
@@ -1135,7 +1148,7 @@ export class PastGamesScene extends Phaser.Scene {
    * content space, so the hover places them from the list's scroll.
    */
   #drawPictures(b: SheetBuilder, row: PastGameRow, pictures: readonly Rect[], where: string, inList: boolean): void {
-    const urls = picturedUrls(row);
+    const sources = picturedSources(row);
     const names = picturedNames(row);
     const cards = picturedCards(row);
     const records = picturedCardRecords(row);
@@ -1149,10 +1162,11 @@ export class PastGamesScene extends Phaser.Scene {
           inList,
           ...(records[i] ? { card: records[i] } : {}),
         });
-      const url = urls[i] ?? null;
+      const held = this.#pictures.image(sources[i] ?? null);
       // A hero's face sits high in its picture (focusY 0.2), as the baked thumbnails cropped it.
       b.image(pic, {
-        src: url,
+        src: held.src,
+        ...(held.retry !== undefined ? { retry: held.retry } : {}),
         fill: surface.parchment.hex,
         cover: { x: 0.5, y: 0.2 },
         ...(slot ? { hover: slot } : {}),
@@ -1160,7 +1174,7 @@ export class PastGamesScene extends Phaser.Scene {
       b.box(pic, { stroke: surface.ink.hex, strokeWidth: 1.5, alpha: ink.label });
       // The name printed on the placeholder of a picture with no art, so a cover never shows an unnamed blank (#758).
       const name = names[i];
-      if (url === null && name) {
+      if (held.src === null && name) {
         b.text(pic.x + pic.width / 2, pic.y + pic.height / 2, name, AS_WRITTEN_LABEL, {
           size: 10,
           color: surface.ink.hex,

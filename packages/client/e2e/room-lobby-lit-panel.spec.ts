@@ -199,7 +199,7 @@ test("the Epic lobby's Rename and Host pickers are pop-up panels over the lobby,
   await key(page, "host:t1").scrollIntoViewIfNeeded();
   await key(page, "host:t1").click();
   await expect(epicSheet(page)).toBeVisible();
-  await epicSheet(page).locator('[data-key="row1"]').click();
+  await epicSheet(page).locator('[data-key^="row:host:t1:"]').first().click();
   await expect.poll(() => calls(page)).toContainEqual(expect.stringMatching(/^assignTableHost\(t1,/));
   await expect(epicSheet(page)).toHaveCount(0, { timeout: 10000 });
   expect(errors).toEqual([]);

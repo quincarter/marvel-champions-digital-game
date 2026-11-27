@@ -61,6 +61,8 @@ export class CardPoolSearch {
   #text = "";
   #version: string | null = null;
   #destroyed = false;
+  /** Languages whose names did not load: the search runs without them (English only) rather than asking forever. */
+  readonly #namesGaveUp = new Set<CardLanguage>();
 
   constructor(host: CardPoolSearchHost) {
     this.#host = host;
@@ -93,8 +95,9 @@ export class CardPoolSearch {
     }
     // The card language's names load on first use (English needs none); the search runs once they are in.
     const lang = this.#host.language();
-    if (!cardNamesReady(lang)) {
-      void loadCardNames(lang).then(() => {
+    if (!cardNamesReady(lang) && !this.#namesGaveUp.has(lang)) {
+      void loadCardNames(lang).then((loaded) => {
+        if (!loaded) this.#namesGaveUp.add(lang);
         // The field may have changed (or been cleared) while the names loaded: ask for what it holds now.
         if (!this.#destroyed && this.#host.alive()) this.request(this.#text);
       });
@@ -129,6 +132,8 @@ export class CardPoolSearch {
     this.#ranking = null;
     this.#text = "";
     this.#version = null;
+    // The screen is starting over (a new visit): a search ended by `destroy()` answers again.
+    this.#destroyed = false;
   }
 
   /** Ends the worker and forgets the ranking (the screen closed). */

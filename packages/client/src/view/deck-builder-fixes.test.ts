@@ -96,6 +96,9 @@ describe("F6: a per player cost", () => {
   test("Break Time says per player; a plain cost says cost", () => {
     expect(poolTypeLine(card("44046"))).toBe("event · 3 per player");
     expect(poolTypeLine(card("44017"))).toMatch(/^event · cost \d$/);
+    // The card language words it: "evento · coste 2", "evento · 3 por jugador".
+    expect(poolTypeLine(card("44017"), "es")).toMatch(/^evento · coste \d$/);
+    expect(poolTypeLine(card("44046"), "es")).toBe("evento · 3 por jugador");
   });
 });
 

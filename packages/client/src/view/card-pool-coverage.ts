@@ -12,6 +12,7 @@
  * Both sides count printed cards (`printedCodesOfCard`): the app folds a villain's stages into one card and MarvelCDB
  * lists them apart, so counting app cards would compare different units.
  */
+import { formatCount } from "./number-format.js";
 import { CATALOG_CARD_COUNT, CATALOG_REPRINTS, printedCodesOfCard, type AnyCard } from "@mc/content";
 import { abilityRefsOf, type EngineDeps } from "@mc/engine";
 import { t } from "../i18n/translate.js";
@@ -47,11 +48,8 @@ export function cardPoolCoverageOf(
   return { liveCards: live.size, totalCards };
 }
 
-/** One formatter for the counts: `toLocaleString` made a new one each call, 6 ms the first time (issue #722). */
-const countFormat = new Intl.NumberFormat("en-US");
-
-/** "1,065 / 3,678 cards live" — the footer's own wording, so every caller says it the same way. */
+/** "1,065 / 3,678 cards live" (in the language's own grouping) — the footer's own wording, so every caller says it the same way. */
 export function cardPoolCoverageText(coverage: CardPoolCoverage): string {
-  const count = (n: number): string => countFormat.format(n);
+  const count = (n: number): string => formatCount(n);
   return t("title.cardsLive", { live: count(coverage.liveCards), total: count(coverage.totalCards) });
 }

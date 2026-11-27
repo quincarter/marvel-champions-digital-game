@@ -32,6 +32,7 @@ import { McMediaRowStyles } from "./mc-media-row.styles.js";
  * @attr letter - What the picture box says in big faint type while it has no picture (the pack initial).
  * @attr focus-x - Where the subject sits across the picture, 0 to 1 (`fit="cover"`).
  * @attr focus-y - Where the subject sits down the picture, 0 to 1 (`fit="cover"`).
+ * @attr focus-centered - The crop is centered on the focal point (a hero focus.json) instead of a share of the overflow.
  * @attr fit - contain (default in the pack look) | cover (the deck look always crops).
  * @attr look - pack (default) | deck.
  * @attr art-width - The picture width in px (the pack look is 5:7 when 0).
@@ -56,6 +57,7 @@ export class McMediaRow extends LitElement {
     letter: { type: String },
     focusX: { type: Number, attribute: "focus-x" },
     focusY: { type: Number, attribute: "focus-y" },
+    focusCentered: { type: Boolean, attribute: "focus-centered" },
     fit: { type: String },
     look: { type: String, reflect: true },
     artWidth: { type: Number, attribute: "art-width" },
@@ -77,6 +79,7 @@ export class McMediaRow extends LitElement {
   declare letter: string;
   declare focusX: number;
   declare focusY: number;
+  declare focusCentered: boolean;
   declare fit: PictureFit;
   declare look: "pack" | "deck";
   declare artWidth: number;
@@ -99,6 +102,7 @@ export class McMediaRow extends LitElement {
     this.letter = "";
     this.focusX = 0.5;
     this.focusY = 0.3;
+    this.focusCentered = false;
     this.fit = "contain";
     this.look = "pack";
     this.artWidth = 0;
@@ -123,7 +127,7 @@ export class McMediaRow extends LitElement {
         .missing=${this.letter}
         .letter=${true}
         .fit=${deck ? "cover" : this.fit}
-        .subject=${{ x: this.focusX, y: this.focusY }}
+        .subject=${{ x: this.focusX, y: this.focusY, centered: this.focusCentered }}
         .frame=${0}
         .ground=${deck ? "parchment" : "spent"}
       ></mc-picture-tile>

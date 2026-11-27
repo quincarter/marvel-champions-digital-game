@@ -8,7 +8,7 @@ const builder = (): SheetBuilder => new SheetBuilder({} as never, { x: 0, y: 0 }
 
 const card = (id: string, over: Partial<CardPoolCard> = {}): CardPoolCard => ({
   cardId: id,
-  imageUrl: `/art/${id}.png`,
+  image: { src: `/art/${id}.png` },
   missing: id,
   title: `Card ${id}`,
   cost: 2,

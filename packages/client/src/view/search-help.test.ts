@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { POOL_CARDS, POOL_HERO_SHELF_PACKS, POOL_PACKS } from "../content/pool.js";
 import type { PackInfo } from "./deck-builder-model.js";
 import { matchesClauses, parsePoolQuery } from "./pool-query.js";
-import { SEARCH_HELP_ROWS } from "./search-help.js";
+import { SEARCH_HELP_ROWS, searchHelpRows } from "./search-help.js";
 
 const PACKS: readonly PackInfo[] = POOL_PACKS.map((pack) => {
   const shelf = POOL_HERO_SHELF_PACKS.find((p) => p.code === (pack.code as string));
@@ -61,5 +61,37 @@ describe("the search cheat sheet (issue #531)", () => {
         "wild",
       ].sort(),
     );
+  });
+});
+
+describe("the search cheat sheet in Spanish", () => {
+  const es = searchHelpRows("es");
+
+  test("explains the same executable queries in Spanish, never translating the syntax", () => {
+    expect(es.map((row) => (row.kind === "query" ? row.query : null))).toEqual(
+      SEARCH_HELP_ROWS.map((row) => (row.kind === "query" ? row.query : null)),
+    );
+    const meanings = es.flatMap((row, i) => {
+      const english = SEARCH_HELP_ROWS[i]!;
+      return row.kind === "query" && english.kind === "query" ? [[row.meaning, english.meaning]] : [];
+    });
+    expect(meanings.every(([spanish, english]) => spanish !== "" && spanish !== english)).toBe(true);
+    // Two lines fit on a phone row, a little more than English with the longer words.
+    expect(es.every((row) => row.kind !== "query" || row.meaning.length <= 72)).toBe(true);
+    expect(es[0]).toEqual({ kind: "heading", text: "Cómo funciona" });
+  });
+
+  test("a sample query from the Spanish sheet still parses and finds a card", () => {
+    const sample = es.find((row) => row.kind === "query" && row.query === "f:justice");
+    expect(sample).toMatchObject({ meaning: expect.stringContaining("Aspecto") });
+    const { clauses } = parsePoolQuery("f:justice");
+    expect(POOL_CARDS.some((card) => matchesClauses(card, clauses, PACKS))).toBe(true);
+  });
+
+  test("names thwart «intervención» and the Avenger trait «Vengador», and never «frustración»", () => {
+    const text = es.map((row) => (row.kind === "query" ? row.meaning : row.text)).join(" | ");
+    expect(text).toContain("La intervención de un aliado");
+    expect(text).toContain("Aliados con el rasgo Vengador");
+    expect(text).not.toMatch(/frustraci/i);
   });
 });

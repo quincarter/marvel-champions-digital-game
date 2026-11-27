@@ -2,63 +2,80 @@
  * The deck builder's search cheat sheet (issue #531): every search term `pool-query.ts` reads, how they combine, and
  * ready examples a player can use or copy. Plain data, drawn by `scenes/search-help-sheet.ts`; a test runs every query
  * here through the real parser and pool, so the sheet can't drift from what the search does.
+ *
+ * The explanations are translated (`searchHelp.<id>`); the queries are executable syntax and never are: the parser
+ * reads the canonical English values (`ally`, `justice`, `guard`), so the Spanish sheet explains the same tokens.
  */
+import type { CardLanguage } from "../art/card-language.js";
+import { t, type MessageKey } from "../i18n/translate.js";
 
 export type SearchHelpRow =
   | { readonly kind: "heading"; readonly text: string }
   | { readonly kind: "note"; readonly text: string }
   | { readonly kind: "query"; readonly query: string; readonly meaning: string };
 
-const heading = (text: string): SearchHelpRow => ({ kind: "heading", text });
-const note = (text: string): SearchHelpRow => ({ kind: "note", text });
-const query = (text: string, meaning: string): SearchHelpRow => ({ kind: "query", query: text, meaning });
+type SearchHelpSpec =
+  | { readonly kind: "heading" | "note"; readonly id: string }
+  | { readonly kind: "query"; readonly id: string; readonly query: string };
 
-export const SEARCH_HELP_ROWS: readonly SearchHelpRow[] = [
-  heading("How it works"),
-  note("This looks familiar, or it should! We tried to bring in all the filtering you know and love from MarvelCDB."),
-  note("Words search names, traits and card text, and forgive a typo. Terms like o:2 filter exactly."),
-  note("Mix as many of both as you like, split by spaces. A card has to match every one."),
+const heading = (id: string): SearchHelpSpec => ({ kind: "heading", id });
+const note = (id: string): SearchHelpSpec => ({ kind: "note", id });
+const query = (text: string, id: string): SearchHelpSpec => ({ kind: "query", id, query: text });
 
-  heading("Every term"),
-  note("Spelled-out names work too: cost:2 is the same as o:2, and trait:spy the same as k:spy."),
-  query("o:2", "The card's cost"),
-  query("t:ally", "Card type: ally, event, upgrade, side scheme and more"),
-  query("rp:1", "Physical resource icons"),
-  query("rm:1", "Mental resource icons"),
-  query("re:1", "Energy resource icons"),
-  query("rw:1", "Wild resource icons"),
-  query("k:spy", "Trait"),
-  query("kw:retaliate", "Keyword: Guard, Retaliate, Uses, Requirement and more"),
-  query("x:draw", "A word in the rules text"),
-  query("v:spider", "A word in the flavor text"),
-  query("f:justice", "Aspect: justice, pool, basic, hero and more"),
-  query("e:core", "Pack, by name or code"),
-  query("y:core", "Wave, by name"),
-  query("u:1", "Unique cards. u:0 is cards that are not"),
-  query("atk>=2", "An ally's attack"),
-  query("thw>=2", "An ally's thwart"),
-  query("h>=3", "An ally's health"),
-
-  heading("Try these"),
-  query("t:ally o<3", "Allies costing 2 or less"),
-  query("t:event rp>=1", "Events with a physical resource icon"),
-  query("t:support|upgrade o<=1", "Supports and upgrades costing 0 or 1"),
-  query("t:ally thw>=2 o<4", "Cheap allies with 2 or more thwart"),
-  query("kw:uses o<3", "Cheap cards with Uses counters"),
-  query("k:avenger t:ally", "Avenger allies"),
-  query("k:shield t!ally", "S.H.I.E.L.D. cards that are not allies"),
-  query("f:justice t:event o:0", "Free Justice events"),
-  query("x:ready t:event", "Events that mention ready"),
-  query("t:resource rw>=1", "Resource cards with a wild icon"),
-  query("spider t:ally", "Allies matching the word spider"),
-
-  heading("Ways to combine"),
-  query("o:2", "A colon means is, so cost is 2. An = works too"),
-  query("o>1", "> and < compare numbers"),
-  query("o>=4", ">= and <= include the number itself"),
-  query("t!event", "! means is not, so everything but events"),
-  query("t:ally|event", "| means either, so allies or events"),
-  query('x:"draw 1 card"', "Quotes keep spaces in a value"),
-  query("t:ally o<3 k:avenger", "Spaces stack terms: all of them must match"),
-  query("web t:event o<2", "Words and terms mix in any order"),
+const SPECS: readonly SearchHelpSpec[] = [
+  heading("how"),
+  note("looks"),
+  note("words"),
+  note("mix"),
+  heading("every"),
+  note("spelled"),
+  query("o:2", "cost"),
+  query("t:ally", "type"),
+  query("rp:1", "rp"),
+  query("rm:1", "rm"),
+  query("re:1", "re"),
+  query("rw:1", "rw"),
+  query("k:spy", "trait"),
+  query("kw:retaliate", "keyword"),
+  query("x:draw", "rules"),
+  query("v:spider", "flavor"),
+  query("f:justice", "aspect"),
+  query("e:core", "pack"),
+  query("y:core", "wave"),
+  query("u:1", "unique"),
+  query("atk>=2", "atk"),
+  query("thw>=2", "thw"),
+  query("h>=3", "hp"),
+  heading("try"),
+  query("t:ally o<3", "t1"),
+  query("t:event rp>=1", "t2"),
+  query("t:support|upgrade o<=1", "t3"),
+  query("t:ally thw>=2 o<4", "t4"),
+  query("kw:uses o<3", "t5"),
+  query("k:avenger t:ally", "t6"),
+  query("k:shield t!ally", "t7"),
+  query("f:justice t:event o:0", "t8"),
+  query("x:ready t:event", "t9"),
+  query("t:resource rw>=1", "t10"),
+  query("spider t:ally", "t11"),
+  heading("combine"),
+  query("o:2", "c1"),
+  query("o>1", "c2"),
+  query("o>=4", "c3"),
+  query("t!event", "c4"),
+  query("t:ally|event", "c5"),
+  query('x:"draw 1 card"', "c6"),
+  query("t:ally o<3 k:avenger", "c7"),
+  query("web t:event o<2", "c8"),
 ];
+
+/** The sheet's rows with their words in `lang` (the card language: the one the rest of the screen reads in). */
+export function searchHelpRows(lang?: CardLanguage): readonly SearchHelpRow[] {
+  return SPECS.map((spec): SearchHelpRow => {
+    const text = t(`searchHelp.${spec.id}` as MessageKey, undefined, lang);
+    return spec.kind === "query" ? { kind: "query", query: spec.query, meaning: text } : { kind: spec.kind, text };
+  });
+}
+
+/** The rows in English: what the parser test runs. */
+export const SEARCH_HELP_ROWS: readonly SearchHelpRow[] = searchHelpRows("en");

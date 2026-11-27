@@ -13,7 +13,8 @@ import type { SheetBuilder } from "../dom/sheet-builder.js";
 import { hit, ink, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import type { Rect } from "../view/layout.js";
-import { SEARCH_HELP_ROWS } from "../view/search-help.js";
+import { t } from "../i18n/translate.js";
+import { searchHelpRows, type SearchHelpRow } from "../view/search-help.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -128,7 +129,7 @@ export class SearchHelpSheet extends Phaser.Scene {
     b.box(box, { stroke: INK, strokeWidth: 4 });
 
     const inner: Rect = { x: box.x + 16, y: box.y + 16, width: box.width - 32, height: box.height - 32 };
-    const title = b.text(inner.x, inner.y, "Search cheat sheet", typeRole.barTitle, {
+    const title = b.text(inner.x, inner.y, t("searchHelp.title"), typeRole.barTitle, {
       color: INK,
       fitWidth: inner.width,
     });
@@ -154,8 +155,9 @@ export class SearchHelpSheet extends Phaser.Scene {
     };
 
     const rect: Rect = { x: listRect.x, y: listRect.y, width: rowWidth, height: listRect.height };
+    const rows = searchHelpRows();
     b.scrollFit(LIST, rect, (list) => {
-      SEARCH_HELP_ROWS.forEach((row, index) => {
+      rows.forEach((row, index) => {
         const y = index * ROW_HEIGHT;
         this.#drawRow(
           list,
@@ -170,12 +172,12 @@ export class SearchHelpSheet extends Phaser.Scene {
           },
         );
       });
-      return SEARCH_HELP_ROWS.length * ROW_HEIGHT;
+      return rows.length * ROW_HEIGHT;
     });
 
     const closeRect: Rect = { x: inner.x, y: footerY, width: inner.width, height: hit.primary };
     this.#actions.set("back", () => this.#close());
-    b.button({ key: "back", rect: closeRect, label: "Back", look: "secondary", type: BUTTON_TYPE });
+    b.button({ key: "back", rect: closeRect, label: t("searchHelp.back"), look: "secondary", type: BUTTON_TYPE });
     this.#stops.set("back", { rect: closeRect, activate: () => this.#close() });
     this.#order.push("back");
     this.#panel.mount(b, width, height);
@@ -184,7 +186,7 @@ export class SearchHelpSheet extends Phaser.Scene {
 
   #drawRow(
     b: SheetBuilder,
-    row: (typeof SEARCH_HELP_ROWS)[number],
+    row: SearchHelpRow,
     index: number,
     rect: Rect,
     at: { useRect: Rect; copyRect: Rect; textWidth: number; listTop: number },
@@ -217,11 +219,11 @@ export class SearchHelpSheet extends Phaser.Scene {
     });
     const copied = this.#copied?.index === index ? this.#copied : null;
     const buttons: [string, Rect, string, () => void, boolean][] = [
-      [`use:${index}`, at.useRect, "Use", () => this.#use(row.query), false],
+      [`use:${index}`, at.useRect, t("searchHelp.use"), () => this.#use(row.query), false],
       [
         `copy:${index}`,
         at.copyRect,
-        copied ? (copied.ok ? "Copied" : "Failed") : "Copy",
+        copied ? (copied.ok ? t("searchHelp.copied") : t("searchHelp.failed")) : t("searchHelp.copy"),
         () => this.#copy(index, row.query),
         copied?.ok ?? false,
       ],

@@ -792,6 +792,7 @@ export class McSheet extends LitElement {
           .letter=${node.letter ?? ""}
           .focusX=${node.focusX ?? 0.5}
           .focusY=${node.focusY ?? 0.3}
+          .focusCentered=${node.focusCentered ?? false}
           .fit=${node.fit ?? "contain"}
           .look=${node.look ?? "pack"}
           .artWidth=${node.artWidth ?? 0}
