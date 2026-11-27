@@ -67,7 +67,7 @@ Status: building (owner answers 2026-10-24). Tracking issue #398. Branch `featur
 - **Keyboard-only listeners** on the Team-Up splash, the achievement toast (Esc), and the arrow paging in the scenario
   intro, side-story reader, extras viewer and campaign opener.
 - **Text fields** (save/sync codes, deck import, deck names, report issue) have no pad path.
-- **Pads without the "standard" mapping** are ignored.
+- **Pads without the "standard" mapping** are ignored, except an unmapped pad on Android, which Chromium has already laid out in the standard order (`view/pad-mapping.ts`).
 - **Desktop app on Linux / Steam Deck is unverified.** Windows Tauri runs WebView2 (Chromium, Gamepad API works).
   Linux Tauri runs WebKitGTK, whose Gamepad API depends on how it was built (libmanette). Inferred, not yet checked
   on a Deck.

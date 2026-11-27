@@ -1,0 +1,3 @@
+kind: Fixed
+body: Controllers Android has no layout table for, such as a Retroid Pocket's built-in controls, now work in the Android app instead of being detected and ignored.
+time: 2026-11-27T17:36:55.1939001-05:00

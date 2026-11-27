@@ -24,6 +24,11 @@ describe("padInputTestLine", () => {
     expect(padInputTestLine("button 0", "standard")).toBe("Last input: button 0");
   });
   it("says when the pad's layout is not the standard one", () => {
-    expect(padInputTestLine("button 2", "")).toBe('Last input: button 2 · layout "" is not standard');
+    expect(padInputTestLine("button 2", "", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")).toBe(
+      'Last input: button 2 · layout "" is not standard',
+    );
+  });
+  it("adds no note for an unmapped pad on Android, which the game reads as standard", () => {
+    expect(padInputTestLine("button 2", "", "Mozilla/5.0 (Linux; Android 13; wv)")).toBe("Last input: button 2");
   });
 });
