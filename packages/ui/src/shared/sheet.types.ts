@@ -1,6 +1,6 @@
 import type { McArticleModel } from "../components/mc-article/mc-article.types.js";
+import type { McMediaRowModel } from "../components/mc-media-row/mc-media-row.types.js";
 import type { McListRowModel } from "../components/mc-list-row/mc-list-row.types.js";
-import type { McPictureRowModel } from "../components/mc-picture-row/mc-picture-row.types.js";
 import type { McPictureCardModel } from "../components/mc-picture-card/mc-picture-card.types.js";
 import type { SectionHeaderLevel } from "../components/mc-section-header/mc-section-header.types.js";
 import type { McButtonKind } from "./button.types.js";
@@ -439,18 +439,6 @@ export interface SheetFilterBar extends FilterBarModel {
   readonly rect: SheetRect;
 }
 
-/**
- * A framed row (`mc-media-row`): a portrait picture (or a letter), a title, meta lines and a state badge. Its own tap
- * raises `mc-activate` with `key`. A failed load raises `mc-image-error` for `retry`, as `SheetImage.retry`.
- */
-/** A picture row (`mc-picture-row`) filling `rect`: a deck with its hero, stamps on the picture, selected and alert looks. */
-export interface SheetPictureRow {
-  readonly kind: "pictureRow";
-  readonly key?: string;
-  readonly rect: SheetRect;
-  readonly model: McPictureRowModel;
-}
-
 /** A text field (`mc-text-field`) filling `rect`: one line or `multiline`; raises `mc-input` and `mc-field-focus`. */
 export interface SheetTextField {
   readonly kind: "textField";
@@ -461,21 +449,15 @@ export interface SheetTextField {
   readonly multiline?: boolean;
 }
 
-export interface SheetMediaRow {
+/**
+ * A framed row (`mc-media-row`) filling `rect`, in its pack or deck look: a picture (or a letter), a title, meta lines
+ * and a state badge. Its own tap raises `mc-activate` with `key` (the deck look is decorative: put a `tap` over it). A
+ * failed load raises `mc-image-error` for `retry`, as `SheetImage.retry`.
+ */
+export interface SheetMediaRow extends McMediaRowModel {
   readonly kind: "mediaRow";
   readonly key: string;
   readonly rect: SheetRect;
-  readonly heading: string;
-  readonly meta: string;
-  readonly summary: string;
-  readonly foot: string;
-  readonly badge: string;
-  readonly solid?: boolean;
-  readonly src: string | null;
-  readonly letter: string;
-  readonly retry?: string;
-  readonly focusY?: number;
-  readonly fit?: PictureFit;
 }
 
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
@@ -512,5 +494,4 @@ export type SheetNode =
   | SheetFilterBar
   | SheetMediaRow
   | SheetTextField
-  | SheetPictureRow
   | SheetScroll;

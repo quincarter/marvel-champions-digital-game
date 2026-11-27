@@ -10,7 +10,7 @@
  * - Coordinates are the screen's; the builder subtracts the sheet's own origin.
  */
 import type {
-  McPictureRowModel,
+  McMediaRowModel,
   GlyphSpec as UiGlyphSpec,
   FilterChip,
   FilterSort,
@@ -624,23 +624,7 @@ export class SheetBuilder {
   }
 
   /** A framed row (`mc-media-row`): a picture, a title, meta lines and a state badge; a tap raises `mc-activate`. */
-  mediaRow(
-    key: string,
-    rect: Rect,
-    row: {
-      readonly heading: string;
-      readonly meta: string;
-      readonly summary: string;
-      readonly foot: string;
-      readonly badge: string;
-      readonly solid?: boolean;
-      readonly src: string | null;
-      readonly letter: string;
-      readonly retry?: string;
-      readonly focusY?: number;
-      readonly fit?: PictureFit;
-    },
-  ): void {
+  mediaRow(key: string, rect: Rect, row: McMediaRowModel): void {
     this.nodes.push({ kind: "mediaRow", key, rect: this.#rect(rect), ...row });
   }
 
@@ -662,11 +646,6 @@ export class SheetBuilder {
       placeholder: options.placeholder,
       ...(options.multiline ? { multiline: true } : {}),
     });
-  }
-
-  /** A picture row (`mc-picture-row`) filling `rect`; decorative, put a `tap` over it. */
-  pictureRow(rect: Rect, model: McPictureRowModel, key?: string): void {
-    this.nodes.push({ kind: "pictureRow", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
   }
 
   /** A QR code (`uqr`'s rows of dark modules) filling `rect`, a light ground under the modules. */

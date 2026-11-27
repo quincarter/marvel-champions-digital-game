@@ -79,7 +79,7 @@ import type { DeckActionsSheet, DeckActionsSheetData } from "./deck-actions-shee
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import "@mc/ui";
-import type { McInputDetail, McPictureRowModel, McSearchDetail, McSearchField, McSheet, McTextField } from "@mc/ui";
+import type { McInputDetail, McMediaRowModel, McSearchDetail, McSearchField, McSheet, McTextField } from "@mc/ui";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { SheetBuilder } from "../dom/sheet-builder.js";
@@ -1496,7 +1496,7 @@ export class DecksScene extends Phaser.Scene {
         }
         const deckId = row.option.deck.id as string;
         const model = this.#deckRowModel(row, rowRect, hoverFocus);
-        inner.pictureRow(rowRect, model, `row:${deckId}`);
+        inner.mediaRow(`row:${deckId}`, rowRect, model);
         inner.tap(`deck:${deckId}`, rowRect, { inspect: true });
         this.#actions.set(`deck:${deckId}`, () => {
           select(row);
@@ -1548,7 +1548,7 @@ export class DecksScene extends Phaser.Scene {
     row: Extract<DeckRow, { kind: "deck" }>,
     rect: Rect,
     hover: { cardId: string; slot: string; rect: Rect }[],
-  ): McPictureRowModel {
+  ): McMediaRowModel {
     const option = row.option;
     const deckId = option.deck.id as string;
     const selected = deckId === this.#selectedDeckId;
@@ -1581,14 +1581,15 @@ export class DecksScene extends Phaser.Scene {
     });
     return {
       ...(row.groupLabel ? { group: row.groupLabel } : {}),
-      title: cardTitleOf(option),
+      look: "deck",
+      heading: cardTitleOf(option),
       meta,
-      picture: {
-        // The roster-size copy where the picture has one (a hero's tile), else the picture itself.
-        src: art.tileUrl ?? art.url,
-        ...(art.focus ? { focus: { x: art.focus.x ?? 0.5, y: art.focus.y ?? 0.2 } } : {}),
-        width: thumbWidth,
-      },
+      // The roster-size copy where the picture has one (a hero's tile), else the picture itself.
+      src: art.tileUrl ?? art.url,
+      focusX: art.focus?.x ?? 0.5,
+      focusY: art.focus?.y ?? 0.2,
+      fit: "cover",
+      artWidth: thumbWidth,
       stamps: aspectStampsOf(option.deck.aspects, artLanguageNow()).map((stamp) => ({
         label: stamp.label,
         fill: css(stamp.fill),
@@ -1597,7 +1598,7 @@ export class DecksScene extends Phaser.Scene {
       ...(!selected && !row.offer && played ? { badge: `${played.wins}–${played.losses}` } : {}),
       ...(showRecord
         ? {
-            footer:
+            foot:
               record && record.gamesPlayed > 0
                 ? t("decks.record", {
                     date: record.lastPlayedAt ? new Date(record.lastPlayedAt).toLocaleDateString() : "—",

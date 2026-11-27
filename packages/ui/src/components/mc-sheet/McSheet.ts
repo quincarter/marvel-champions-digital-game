@@ -9,7 +9,6 @@ import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
 import "../mc-section-header/mc-section-header.js";
 import "../mc-tab-rail/mc-tab-rail.js";
-import "../mc-picture-row/mc-picture-row.js";
 import "../mc-text-field/mc-text-field.js";
 import "../mc-picture-tile/mc-picture-tile.js";
 import "../mc-picture-card/mc-picture-card.js";
@@ -724,13 +723,6 @@ export class McSheet extends LitElement {
           .placeholder=${node.placeholder}
           ?multiline=${node.multiline ?? false}
         ></mc-text-field>`;
-      case "pictureRow":
-        return html`<mc-picture-row
-          class="part"
-          data-key=${node.key ?? nothing}
-          style=${px(node.rect)}
-          .model=${node.model}
-        ></mc-picture-row>`;
       case "emptyState":
         return html`<mc-empty-state
           class="part"
@@ -765,15 +757,24 @@ export class McSheet extends LitElement {
           data-key=${node.key}
           style=${px(node.rect)}
           .heading=${node.heading}
-          .meta=${node.meta}
-          .summary=${node.summary}
-          .foot=${node.foot}
-          .badge=${node.badge}
+          .meta=${node.meta ?? ""}
+          .summary=${node.summary ?? ""}
+          .foot=${node.foot ?? ""}
+          .badge=${node.badge ?? ""}
           ?solid=${node.solid ?? false}
           .src=${node.src !== null && !this.#failed.has(node.src) ? node.src : ""}
-          .letter=${node.letter}
+          .letter=${node.letter ?? ""}
+          .focusX=${node.focusX ?? 0.5}
           .focusY=${node.focusY ?? 0.3}
           .fit=${node.fit ?? "contain"}
+          .look=${node.look ?? "pack"}
+          .artWidth=${node.artWidth ?? 0}
+          .stamps=${node.stamps ?? []}
+          .group=${node.group ?? ""}
+          .groupHeight=${node.groupHeight ?? 16}
+          ?selected=${node.selected ?? false}
+          ?alert=${node.alert ?? false}
+          ?dim=${node.dim ?? false}
           @mc-image-load=${events.load}
           @mc-image-error=${events.error}
           ${tapped(() => this.#activate(node.key))}
