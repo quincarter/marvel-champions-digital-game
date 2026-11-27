@@ -251,6 +251,8 @@ const GRID_CONTROLS_HEIGHT = hit.target + 8;
 const CARD_TEXT_LINES = 3;
 /** Room left at a scrolling region's right edge for its scrollbar, so no control sits under it. */
 const NARROW_SCROLLBAR_GUTTER = 10;
+/** The small label type in the case it is written in (a type line, a note, rules text): the old Phaser text drew these without capitals. */
+const SENTENCE_LABEL: TypeSpec = { ...typeRole.label, uppercase: false };
 /** Rows built above and below the pool list's viewport, so a scroll shows pictures already in place. */
 const POOL_OVERSCAN_ROWS = 2;
 /**
@@ -920,7 +922,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     b.text(
       rect.x + rect.width / 2,
       rect.y + rect.height / 2,
-      caseOf(options.type ?? typeRole.stamp, `${options.selected ? "✓ " : ""}${text}`),
+      caseOf(options.type ?? typeRole.stamp, text),
       options.type ?? typeRole.stamp,
       {
         color: tint.ink,
@@ -929,6 +931,13 @@ export class DeckBuilderScene extends Phaser.Scene {
         ...(off ? { alpha: 0.5 } : {}),
       },
     );
+    // The tick is its own mark beside the name, so what is chosen is said by the tick and the heavy outline, and the name stays the name.
+    if (options.selected)
+      b.text(rect.x + 10, rect.y + rect.height / 2, "✓", typeRole.rowTitle, {
+        color: tint.ink,
+        origin: [0, 0.5],
+        ...(off ? { alpha: 0.5 } : {}),
+      });
     b.tap(key, rect);
     const press = (): void => {
       if (!off) onClick();
@@ -1757,7 +1766,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const tagline = b.measure(content.tagline, typeRole.body, { wrapWidth: textWidth });
     const tip = b.measure(content.tipLine, typeRole.body, { wrapWidth: textWidth });
     const linkText = content.linkAvailable ? content.linkLabel : `${content.linkLabel} · ${content.linkReason}`;
-    const link = b.measure(linkText, typeRole.label, { wrapWidth: textWidth });
+    const link = b.measure(linkText, SENTENCE_LABEL, { wrapWidth: textWidth });
     const contentHeight = PAD + title.height + 6 + tagline.height + 6 + tip.height + 8 + link.height + PAD;
     const anchorCenterX = anchor.x + anchor.width / 2;
     const panelX = Math.max(
@@ -1807,7 +1816,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     y += tagline.height + 6;
     b.text(rect.x + PAD, y, content.tipLine, typeRole.body, { color: surface.paper.hex, wrapWidth: textWidth });
     y += tip.height + 8;
-    b.text(rect.x + PAD, y, linkText, typeRole.label, {
+    b.text(rect.x + PAD, y, linkText, SENTENCE_LABEL, {
       color: content.linkAvailable ? signal.caution.hex : surface.paper.hex,
       ...(content.linkAvailable ? {} : { alpha: ink.disabled }),
       wrapWidth: textWidth,
@@ -2805,7 +2814,7 @@ export class DeckBuilderScene extends Phaser.Scene {
           const note = noteOf?.(entry) ?? null;
           if (note !== null) {
             // Wrapped, not cut: a campaign note says why a line is pinned or a reward ("... one of your 50."), and the end is the point.
-            const noteLine = this.#text(left, y, note, typeRole.label, body, ink.meta, { wrapWidth: column });
+            const noteLine = this.#text(left, y, note, SENTENCE_LABEL, body, ink.meta, { wrapWidth: column });
             y += Math.max(14, noteLine.height + 2);
           }
           const line: Rect = { x: left, y: rowTop, width: column - removeWidth - 4, height: y - rowTop };
@@ -3404,7 +3413,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const nameH = this.#px(11) * 1.25;
     const labelH = this.#px(9) * 1.2;
     const typeY = row.y + 6 + nameH + 2;
-    b.text(textX, typeY, typeLineText, typeRole.label, {
+    b.text(textX, typeY, typeLineText, SENTENCE_LABEL, {
       color: surface.ink.hex,
       alpha: ink.meta,
       fitWidth: textWidth,
@@ -3413,7 +3422,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Why the card is offered or refused: its own line, so the type line never cuts it off on a narrow row.
     let belowY = typeY + labelH;
     if (note) {
-      b.text(textX, belowY + 1, note, typeRole.label, {
+      b.text(textX, belowY + 1, note, SENTENCE_LABEL, {
         color: surface.ink.hex,
         alpha: ink.label,
         fitWidth: textWidth,
@@ -3423,7 +3432,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
     const rules = cardInspectModel(card, campaignRow?.face ? { kind: "flipSide" } : { kind: "front" }).rulesText;
     if (rules) {
-      b.text(textX, belowY + 4, rules, typeRole.label, {
+      b.text(textX, belowY + 4, rules, SENTENCE_LABEL, {
         color: surface.ink.hex,
         wrapWidth: textWidth,
         maxLines: note ? CARD_TEXT_LINES - 1 : CARD_TEXT_LINES,

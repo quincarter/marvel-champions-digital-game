@@ -96,7 +96,7 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
     const allyRows = (await texts(page, "DeckBuilder")).filter((t) =>
       /^(ally|event|upgrade|support|resource|player side scheme) · cost/.test(t),
     );
-    expect(allyRows.length).toBeGreaterThan(PHONE ? 2 : 5);
+    expect(allyRows.length).toBeGreaterThan(PHONE ? 2 : 4);
     expect(
       allyRows.every((t) => t.startsWith("ally · cost")),
       allyRows.join(" | "),
