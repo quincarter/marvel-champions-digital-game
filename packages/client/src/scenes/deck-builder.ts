@@ -120,7 +120,7 @@ import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { poolCellRect, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
 import { accent, hit, ink, signal, surface, typeRole, dotGrid, type TypeSpec } from "../tokens.js";
-import { cssOf } from "../ui/theme.js";
+import { caseOf, cssOf } from "../ui/theme.js";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { SheetBuilder, type Measured, type TextOptions } from "../dom/sheet-builder.js";
@@ -569,6 +569,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   #glyphs!: SheetGlyphs;
   /** What a press on each key does, this draw. */
   readonly #actions = new Map<string, () => void>();
+  /** What a hold or a right-click on a key does when it is not what a press does (a hero tile: Inspect, not pick). */
+  readonly #holds = new Map<string, () => void>();
   /** The scrolling region being drawn, if any: stops, hovers and the tip anchor in it are in its content space. */
   #scope: Scope | null = null;
   /** The scrolling regions this draw made, by element key (their scroll listeners and remembered offsets). */
@@ -780,7 +782,11 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** A press on a part of the panel (a button or a tap area). */
   #press(key: string): void {
     if (this.#overlayUp()) return;
+    // A press anywhere but on the open aspect tip closes it.
+    const closesTip = this.#aspectTipOpen !== null && !key.startsWith("aspect-");
+    if (closesTip) this.#aspectTipOpen = null;
     this.#actions.get(key)?.();
+    if (closesTip) this.#rebuild();
   }
 
   /** Every plain card the popover may open on: the lists' (clipped to their windows) and the "Your deck" lines. */
@@ -813,7 +819,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     alpha = 1,
     options: Omit<TextOptions, "color" | "alpha"> = {},
   ): Measured {
-    return this.#b.text(x, y, text, spec, { color, ...(alpha < 1 ? { alpha } : {}), ...options });
+    return this.#b.text(x, y, caseOf(spec, text), spec, { color, ...(alpha < 1 ? { alpha } : {}), ...options });
   }
 
   /** The small capital label above a control group. */
@@ -876,7 +882,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#b.button({
       key,
       rect,
-      label,
+      label: caseOf(options.type ?? typeRole.label, label),
       look: options.look ?? "secondary",
       type: options.type ?? typeRole.label,
       ...(options.selected ? { selected: true } : {}),
@@ -914,7 +920,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     b.text(
       rect.x + rect.width / 2,
       rect.y + rect.height / 2,
-      `${options.selected ? "✓ " : ""}${text}`,
+      caseOf(options.type ?? typeRole.stamp, `${options.selected ? "✓ " : ""}${text}`),
       options.type ?? typeRole.stamp,
       {
         color: tint.ink,
@@ -960,6 +966,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#glyphs.reset();
     this.#stops = new Map();
     this.#actions.clear();
+    this.#holds.clear();
     this.#openAspectTip = null;
     this.#scope = null;
     const { width, height } = this.scale.gameSize;
@@ -1114,7 +1121,12 @@ export class DeckBuilderScene extends Phaser.Scene {
       const element = document.createElement("mc-sheet") as McSheet;
       const keyOf = (event: Event): string => (event as CustomEvent<{ key: string }>).detail.key;
       element.addEventListener("mc-activate", (event) => this.#press(keyOf(event)));
-      element.addEventListener("mc-inspect", (event) => this.#press(keyOf(event)));
+      element.addEventListener("mc-inspect", (event) => {
+        const key = keyOf(event);
+        const hold = this.#holds.get(key);
+        if (hold && !this.#overlayUp()) hold();
+        else this.#press(key);
+      });
       element.addEventListener("mc-hover", (event) => {
         const { key, over } = (event as CustomEvent<{ key: string; over: boolean }>).detail;
         this.#onTrack(key, over);
@@ -1503,7 +1515,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         this.#glyphs.button(this.#b, {
           key,
           rect,
-          label: labels[index]!,
+          label: caseOf(typeRole.label, labels[index]!),
           look: selected ? "primary" : "secondary",
           type: typeRole.label,
           ids: [glyph],
@@ -1703,7 +1715,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const cx = rect.x + rect.width / 2 + 1;
     const cy = rect.y + rect.height / 2;
     b.box({ x: cx - 10, y: cy - 10, width: 20, height: 20 }, { stroke: glyph, strokeWidth: 2, round: true });
-    b.text(cx, cy, "i", typeRole.label, { color: glyph, size: 14, origin: [0.5, 0.5] });
+    b.text(cx, cy, "i", typeRole.rowTitle, { color: glyph, size: 14, origin: [0.5, 0.5] });
     const key = `aspect-info:${aspect}`;
     b.tap(key, rect, { track: true });
     this.#actions.set(key, () => {
@@ -2364,7 +2376,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         this.#glyphs.button(this.#b, {
           key,
           rect,
-          label: tab.label,
+          label: caseOf(typeRole.label, tab.label),
           look,
           type: typeRole.label,
           ids: [tab.glyph],
@@ -2642,7 +2654,7 @@ export class DeckBuilderScene extends Phaser.Scene {
           this.#b.button({
             key: "games:share",
             rect: shareRect,
-            label: shareLabel(),
+            label: caseOf(typeRole.label, shareLabel()),
             look: onDark ? "onInk" : "secondary",
             type: typeRole.label,
           });
@@ -3513,6 +3525,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         // The art is a tap that picks the hero (a hold inspects it); the name bar under it is the labelled button.
         this.#b.tap(`identity:${cardId}`, artRect, { inspect: true });
         this.#actions.set(`identity:${cardId}`, () => chooseAt(index));
+        this.#holds.set(`identity:${cardId}`, () => this.#inspect(identity));
         this.#b.button({
           key: `identity-name:${cardId}`,
           rect: { x: tile.x, y: tile.y + artHeight, width: tile.width, height: hit.target },
