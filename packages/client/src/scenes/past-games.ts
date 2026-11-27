@@ -27,6 +27,9 @@ import { onArtChange } from "../language-change.js";
 import { artLanguageNow } from "../art/art-source.js";
 import { heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
 import { accent, border, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
+
+/** A label in the type of `typeRole.label` but written as given: the placeholder's name keeps its own case. */
+const AS_WRITTEN_LABEL: TypeSpec = { ...typeRole.label, uppercase: false };
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -1159,7 +1162,7 @@ export class PastGamesScene extends Phaser.Scene {
       // The name printed on the placeholder of a picture with no art, so a cover never shows an unnamed blank (#758).
       const name = names[i];
       if (url === null && name) {
-        b.text(pic.x + pic.width / 2, pic.y + pic.height / 2, name, typeRole.label, {
+        b.text(pic.x + pic.width / 2, pic.y + pic.height / 2, name, AS_WRITTEN_LABEL, {
           size: 10,
           color: surface.ink.hex,
           alpha: 0.85,
