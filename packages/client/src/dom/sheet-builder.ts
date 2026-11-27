@@ -13,6 +13,7 @@ import type {
   GlyphSpec as UiGlyphSpec,
   McGlyphGround,
   McArticleModel,
+  McFilterBarModel,
   McListRowModel,
   McPictureTileModel,
   McTabRailTab,
@@ -522,6 +523,11 @@ export class SheetBuilder {
     },
   ): void {
     this.nodes.push({ ...options, kind: "article", rect: this.#rect(rect) });
+  }
+
+  /** A filter bar (`mc-filter-bar`) filling `rect`; presses arrive as `mc-activate` keys `chip:<id>`, `filters`, `sort`. */
+  filterBar(rect: Rect, key: string, model: McFilterBarModel, row: number): void {
+    this.nodes.push({ kind: "filterBar", key, rect: this.#rect(rect), model, row });
   }
 
   /** The quiet empty-list line (`mc-empty-state`) at `x`, `y`. */

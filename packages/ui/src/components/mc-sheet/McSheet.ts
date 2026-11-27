@@ -13,6 +13,7 @@ import "../mc-list-row/mc-list-row.js";
 import "../mc-empty-state/mc-empty-state.js";
 import "../mc-search-field/mc-search-field.js";
 import "../mc-article/mc-article.js";
+import "../mc-filter-bar/mc-filter-bar.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
@@ -450,6 +451,18 @@ export class McSheet extends LitElement {
           .pictureMax=${node.pictureMax}
           .pad=${node.pad}
         ></mc-article>`;
+      case "filterBar":
+        return html`<mc-filter-bar
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .model=${node.model}
+          .row=${node.row}
+          @mc-activate=${(event: CustomEvent<{ key: string }>) => {
+            event.stopPropagation();
+            this.#activate(event.detail.key);
+          }}
+        ></mc-filter-bar>`;
       case "emptyState":
         return html`<mc-empty-state
           class="part"

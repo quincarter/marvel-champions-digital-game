@@ -1,4 +1,5 @@
 import type { McArticleModel } from "../components/mc-article/mc-article.types.js";
+import type { McFilterBarModel } from "../components/mc-filter-bar/mc-filter-bar.types.js";
 import type { McListRowModel } from "../components/mc-list-row/mc-list-row.types.js";
 import type { McPictureTileModel } from "../components/mc-picture-tile/mc-picture-tile.types.js";
 import type { McTabRailTab } from "../components/mc-tab-rail/mc-tab-rail.types.js";
@@ -339,6 +340,16 @@ export interface SheetArticle {
   readonly pad: number;
 }
 
+/** A filter bar (`mc-filter-bar`) filling `rect`: presses raise `mc-activate` with the keys `chip:<id>`, `filters`, `sort`. */
+export interface SheetFilterBar {
+  readonly kind: "filterBar";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly model: McFilterBarModel;
+  /** The row height of the chips in px. */
+  readonly row: number;
+}
+
 /** The quiet line of an empty list (`mc-empty-state`) at `x`, `y`. */
 export interface SheetEmptyState {
   readonly kind: "emptyState";
@@ -376,5 +387,6 @@ export type SheetNode =
   | SheetListRow
   | SheetEmptyState
   | SheetSearch
+  | SheetFilterBar
   | SheetArticle
   | SheetScroll;
