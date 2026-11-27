@@ -1,0 +1,3 @@
+kind: Changed
+body: 'The deck builder is now a panel over the canvas with the same layout: the search and deck name are real text fields, every list scrolls natively, and the card pool only builds the rows on screen, so it opens and scrolls faster with thousands of cards.'
+time: 2026-11-27T02:21:42.389778-05:00

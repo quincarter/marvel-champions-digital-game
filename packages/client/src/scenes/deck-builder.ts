@@ -1,55 +1,38 @@
 /**
- * The minimal deck builder (PLAN.md Phase 9): pick an identity and its
- * aspect(s), name the deck, search/filter the pool, add and remove cards, and
- * save — with live legality from the same `validateDeck` the Decks screen and
- * `createGame` use (`view/deck-builder-model.ts`'s `legalityOf`). This scene
- * decides nothing about what's legal; it only shows what the engine already
- * said.
+ * The deck builder (PLAN.md Phase 9): pick an identity and its aspect(s), name the deck, search/filter the pool, add and
+ * remove cards, and save — with live legality from the same `validateDeck` the Decks screen and `createGame` use
+ * (`view/deck-builder-model.ts`'s `legalityOf`). This scene decides nothing about what's legal; it only shows what the
+ * engine already said.
  *
- * Two entries: `{ deck }` edits a saved deck (its identity is already fixed);
- * `{}` starts fresh, showing only the identity picker until one is chosen —
- * `Deck.identityCardId` is required, so there is no `Deck` to build against
- * until then (`view/deck-builder-model.ts`'s `newDeck` needs an identity).
+ * Two entries: `{ deck }` edits a saved deck (its identity is already fixed); `{}` starts fresh, showing only the
+ * identity picker until one is chosen — `Deck.identityCardId` is required, so there is no `Deck` to build against until
+ * then (`view/deck-builder-model.ts`'s `newDeck` needs an identity).
  *
- * The pool browser is a long, filterable list — wave 1 more than doubles the
- * pool — so it is a `McVirtualList` (`ui/virtual-list.ts`), the same widget
- * the Decks screen's deck list uses: recreated fresh every `#rebuild()` (like
- * every other non-DOM control this scene draws), with only its scroll
- * position (`#listScroll`) surviving that.
+ * **A Lit panel over the canvas (Lit panels, phase 4).** The whole screen is one `mc-sheet` (`@mc/ui`), drawn with the
+ * same layout this scene always computed (`SheetBuilder`'s boxes, text, buttons and picture parts at the layout's own
+ * rects) and the same look; Phaser draws nothing here but the ground it shows through the chrome buttons' holes. What
+ * the panel changes:
+ * - the search, deck name and hero search are real `<input>`s (`mc-search-field`), so the caret, IME and the phone's
+ *   keyboard are the browser's own;
+ * - every list scrolls natively (a swipe on a list presses nothing: the tap rule is in `@mc/ui`), with the scroll
+ *   gutter the sheet adds;
+ * - the pool list (Card or List view) is windowed: only the rows near the viewport are parts, so a pool of thousands of
+ *   cards costs what a screen of them does, and a card's picture is a lazy `<img>` that loads when its row is built, so
+ *   art arriving never rebuilds the screen;
+ * - hover (the card popover), hold / right-click Inspect and the pad's focus stops keep their keys and rects.
  *
- * **Composition (fidelity pass, 2026-09-17), against D04.** D04 is a
- * three-column desktop layout — an aspect/filter rail (ending in the cost
- * curve) on the left, the card pool in the middle, "Your deck" on an ink
- * ground on the right — over one legality chip in the header. From
- * `WIDE_MIN_WIDTH` up this scene now draws exactly that split
- * (`#rebuildWide`); below it, every control still stacks in the one column
- * this scene always drew (`#rebuildNarrow`), unchanged. **What stayed a
- * deviation, deliberately:** D04 has no visible deck-name field or Save
- * button — its mockup deck is already named by identity+aspect and "saving"
- * reads as the next setup step ("Table setup ▸"), which doesn't exist yet
- * (W2). This build still needs to name and persist a deck with no setup flow
- * to hand it to, so the name field and a real Save button live at the top of
- * the right (ink) column instead of being dropped — the closest real
- * equivalent of "the deck's own identity" the mockup shows there. Every
- * number and legality string is still `view/deck-stats.ts`/`legalityOf`'s
- * own; this pass only rearranges where they're drawn.
+ * Composition, against D04: three columns on a desktop (an aspect/filter rail ending in the cost curve, the card pool,
+ * "Your deck" on an ink ground), one column of tabs below `WIDE_MIN_WIDTH`.
  *
  * **Issue #217 (2026-10-17).** A precon handed to this scene is never edited in place (`editableDeckOf`): the player
- * edits their own copy, which Save adds to their decks. The pool shows as card pictures by default (Card view, the
- * Decks screen's own grid geometry, each cell with its own −/+), with List view keeping the old text rows. The search
- * matches every word against name, traits, type and rules text. Back warns once about unsaved changes, a saved deck
- * can be deleted here, and New deck picks a hero from searchable tiles, then starts from an empty deck or a copy of
- * one of that hero's precons.
- *
- * Unlike the other four W1/W4 screens in this fidelity pass, this scene has
- * no dedicated `view/*-layout.ts` pure layout module — every rect is computed
- * inline against a running `y` cursor per column, the same shape this file
- * already had. A future pass extracting that into a tested pure function
- * (the way `deck-check-layout.ts` already does for Deck check) is real,
- * unstarted work; this pass keeps the existing architecture rather than
- * introducing a new one under time pressure.
+ * edits their own copy, which Save adds to their decks. The pool shows as card pictures by default (Card view, each cell
+ * with its own −/+), with List view keeping the text rows. The search matches every word against name, traits, type and
+ * rules text. Back warns once about unsaved changes, a saved deck can be deleted here, and New deck picks a hero from
+ * searchable tiles, then starts from an empty deck or a copy of one of that hero's precons.
  */
 
+import "@mc/ui";
+import type { McSearchDetail, McSearchFocusDetail, McSearchField, McSheet } from "@mc/ui";
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
@@ -72,9 +55,7 @@ import { cardDisplayName, qualifiedHeroName } from "../view/hero-names.js";
 import { artFor, artLanguageNow } from "../art/art-source.js";
 import { packPictureFor } from "../art/pack-art.js";
 import { customCardBadgeOf, isCustomCard } from "../view/custom-content.js";
-import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import { renderArtThumb, renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { cardInspectModel } from "../view/inspect-model.js";
 import {
   SELECTABLE_ASPECTS,
@@ -128,7 +109,6 @@ import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import {
   activeDeckFilterCount,
   deckBuilderNarrowFocusOrder,
-  deckBuilderTabLabel,
   deckBuilderTabRects,
   DECK_BUILDER_TABS,
   startTab,
@@ -136,36 +116,16 @@ import {
   type DeckBuilderTab,
 } from "../view/deck-builder-tabs.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
-import { ListScroll } from "../view/list-scroll.js";
-import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { McScrollRegion } from "../ui/scroll-region.js";
-import {
-  HoverPreview,
-  hoverCardIdsOf,
-  noteHoverCardId,
-  resetHoverCards,
-  screenHoverArea,
-} from "../ui/card-hover-preview.js";
-import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../view/card-hover.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { onTap } from "../ui/tap.js";
-import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
-import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
-import { cssOf, textStyle } from "../ui/theme.js";
-import {
-  McButton,
-  McTextInput,
-  STAMP_CHIP_TYPE,
-  clampLines,
-  fitText,
-  fitWrapped,
-  label,
-  paintDotGrid,
-  paintPanel,
-} from "../ui/widgets.js";
-import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
-import { cardArt, drawArt } from "../art/card-art.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
+import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import { poolCellRect, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
+import { accent, hit, ink, signal, surface, typeRole, dotGrid, type TypeSpec } from "../tokens.js";
+import { caseOf, cssOf } from "../ui/theme.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder, type Measured, type TextOptions } from "../dom/sheet-builder.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import {
   NOTHING_STANDS_OUT,
   againstVillainOf,
@@ -222,14 +182,11 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { inputDevice } from "../platform/input-device.js";
 import { SCENES } from "./keys.js";
-import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-model.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import { parsePoolQuery } from "../view/pool-query.js";
-import { isDesktopType } from "../ui/desktop-type.js";
 import type { SearchHelpSheetData } from "./search-help-sheet.js";
 import type { PoolPickSheetData } from "./pool-pick-sheet.js";
 import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from "../view/deck-odds.js";
@@ -240,7 +197,9 @@ import type { CardLanguage } from "../art/card-language.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-names.js";
 import { localizedLabelOf } from "../view/card-text.js";
-import { t } from "../i18n/translate.js";
+import { onArtChange } from "../language-change.js";
+import { t, type MessageKey } from "../i18n/translate.js";
+import type { AspectLessonSceneData } from "./aspect-lesson.js";
 import { choicesWithPicks as withPicks } from "../view/pool-pick-rows.js";
 
 /** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept between visits. */
@@ -290,8 +249,12 @@ const POOL_ROW_CONTROLS_WIDTH = 146;
 const GRID_CONTROLS_HEIGHT = hit.target + 8;
 /** Lines of rules text a pool row shows before the ellipsis; Inspect has the rest. */
 const CARD_TEXT_LINES = 3;
-/** Room left at the narrow region's right edge for its scrollbar (`ui/scroll-region.ts`), so no control sits under it. */
+/** Room left at a scrolling region's right edge for its scrollbar, so no control sits under it. */
 const NARROW_SCROLLBAR_GUTTER = 10;
+/** The small label type in the case it is written in (a type line, a note, rules text): the old Phaser text drew these without capitals. */
+const SENTENCE_LABEL: TypeSpec = { ...typeRole.label, uppercase: false };
+/** Rows built above and below the pool list's viewport, so a scroll shows pictures already in place. */
+const POOL_OVERSCAN_ROWS = 2;
 /**
  * The pool this screen builds against: the base pool plus every loaded custom pack's cards (`currentPool()`). Each
  * derived list below is kept until the loaded packs change, so a pack installed or removed shows on the next visit
@@ -478,6 +441,35 @@ const CHART_TAB_HEIGHT = 30;
 const QUICK_ONE_ROW_MIN = 720;
 const QUICK_TRAIT_WIDTH = 200;
 
+/** How long the mouse rests on an aspect's "i" before its tip opens (issue #911: too eager on fast sweeps). */
+const ASPECT_TIP_HOVER_DELAY_MS = 350;
+
+/** `color` scaled toward black by `factor` (0 to 1), channel by channel. */
+function shade(color: number, factor: number): number {
+  const r = Math.round(((color >> 16) & 0xff) * factor);
+  const g = Math.round(((color >> 8) & 0xff) * factor);
+  const b = Math.round((color & 0xff) * factor);
+  return (r << 16) | (g << 8) | b;
+}
+
+/** What the panel's scrolling region the parts being built sit in is: its element key and where it shows on screen. */
+interface Scope {
+  readonly key: string;
+  readonly view: Rect;
+}
+
+/** One place a card is drawn in a list, for the hover popover: `rect` is in the region's content space when `scope` is set. */
+interface DeckLine {
+  readonly cardId: string;
+  readonly rect: Rect;
+  readonly scope: Scope | null;
+  /** The face to show when it is not the card's default (the identity row's hero side). */
+  readonly face?: HoverCardIdRect["face"];
+}
+
+/** The pool list's element key. */
+const POOL_LIST = "list:pool";
+
 export class DeckBuilderScene extends Phaser.Scene {
   /** Row sizes for the global Card size setting, read in `create()`. */
   #rows: DeckBuilderRowSizes = deckBuilderRowSizes(1);
@@ -512,15 +504,12 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** New deck's "Start from" step: the hero picked, while the player chooses an empty deck or one of its precons. */
   #startFor: HeroIdentityCard | null = null;
   #identitySearch = "";
-  #identityInput: McTextInput | null = null;
   /** The pool search and the hero search, ranked off the main thread (`view/deck-search-client.ts`); new per visit. */
   #poolSearch: DeckSearchClient | null = null;
   #heroSearch: DeckSearchClient | null = null;
   /** The newest answer to the pool search (card id → score); null with no search text. */
   #poolRanking: ReadonlyMap<string, number> | null = null;
   #heroRanking: ReadonlyMap<string, number> | null = null;
-  /** Unsubscribes the Start from step's wait for its hero picture. */
-  #bannerBaked: (() => void) | null = null;
   #busy = false;
   #returnTo: CampaignReturn | null = null;
   #campaign: DeckBuilderCampaignData | null = null;
@@ -528,36 +517,16 @@ export class DeckBuilderScene extends Phaser.Scene {
   #campaignModel: CampaignDeckEditModel | null = null;
   /** `#campaignModel`'s rows by card id: a pool row reads one each time it scrolls in. */
   #campaignRows: ReadonlyMap<string, CampaignDeckEditRow> = new Map();
-  #nameInput: McTextInput | null = null;
-  #filterInput: McTextInput | null = null;
-  #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
   /** `#identityArtUrl`, per visit, so a redraw never reshuffles a hero with several pictures. */
   readonly #identityArt = new Map<string, { url: string | null; focus?: PictureFocus }>();
-  /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
-  #list: McVirtualList | null = null;
-  #listScroll = new ListScroll();
-  /** The narrow layout's one scrolling region (`#drawNarrowRegion`), recreated every rebuild; each tab's offset persists. */
-  #deckRegion: McScrollRegion | null = null;
-  /** The narrow region's on-screen rect, and what else follows its scroll (the open aspect tip). */
-  #deckRegionRect: Rect | null = null;
-  #onDeckScroll: (() => void) | null = null;
-  /** The Deck tab's, the From your games tab's and the open Filters panel's scroll offsets (the pool list keeps `#listScroll`). */
-  #deckScroll = new VariableListScroll();
-  #gamesScroll = new VariableListScroll();
-  #filtersScroll = new VariableListScroll();
-  /** Which of those the drawn narrow region follows (hover rects and the aspect tip read its offset). */
-  #narrowScroll = this.#deckScroll;
   /** The narrow layout's tab (issue #544). The wide layout's rail tab is `#railTab`; `#setTab` keeps the two in step. */
   #tab: DeckBuilderTab = "pool";
   /** A phone folds the pool's filters behind a Filters chip; whether it is open. */
   #filtersOpen = false;
   /** The last narrow draw's tab-row facts the focus order reads. */
   #narrowFolded = false;
-  /** The wide rail's "Your deck" list scrolls in its own region once it outgrows the rail; its offset persists. */
-  #yourDeckRegion: McScrollRegion | null = null;
-  #yourDeckScroll = new VariableListScroll();
   /** The desktop hover popover over the pool rows, the identity picker and the "Your deck" lines. */
   #hover: HoverPreview | null = null;
   /**
@@ -582,32 +551,60 @@ export class DeckBuilderScene extends Phaser.Scene {
   #railTab: "deck" | "games" = "deck";
   /** The rail tabs' and the From your games rows' stops, in the order drawn, for the focus route. */
   #railStops: string[] = [];
-  #hints: GlyphHints | null = null;
-  /** From your games' card scans not loaded at its last draw: an arrival redraws the builder only while one is. */
-  #railArtMissing = 0;
-  /** Each scrolling list's on-screen card rects, computed on demand from its scroll (a scroll draws nothing). */
-  #hoverLists: (() => readonly (readonly [string, HoverCardIdRect])[])[] = [];
-  /** The "Your deck" lines as drawn at zero scroll, and the scroll region (if any) that moves them. */
-  #deckLines: { readonly cardId: string; readonly rect: Rect; readonly region: "none" | "narrow" | "rail" }[] = [];
-  #yourDeckRect: Rect | null = null;
-  /** Where `#drawNameField` last placed the name field, at zero scroll. */
-  #nameFieldRect: Rect | null = null;
-  /** Which aspect button's inline tip (G10b) is open, if any. */
+  /** Which aspect button's inline tip (G10b) is open, if any, and the timers of its hover open / close. */
   #aspectTipOpen: CoreAspect | null = null;
+  #tipTimer: ReturnType<typeof setTimeout> | null = null;
   /**
    * The open tip's anchor and content, recorded by `#drawAspectPicker` and drawn by `#drawOpenAspectTip` once the
-   * whole screen is down. Drawn inline, the panel went under the aspect buttons drawn after it, and on the narrow
-   * layout it was moved into the deck region with the rest of the deck half, where its depth no longer applied.
-   * `scrolls` marks an anchor inside that region, given in the region's unscrolled coordinates.
+   * whole screen is down, so it sits over everything. `scope` marks an anchor inside a scrolling region, given in the
+   * region's content space.
    */
-  #openAspectTip: { readonly anchor: Rect; readonly content: AspectTipContent; readonly scrolls: boolean } | null =
+  #openAspectTip: { readonly anchor: Rect; readonly content: AspectTipContent; readonly scope: Scope | null } | null =
     null;
+
+  // ---- The panel ------------------------------------------------------------------------------------------------
+
+  /** The panel: the whole screen, one Lit sheet made once a visit. */
+  #region: DomRegion<McSheet> | null = null;
+  /** The parts being built (the panel's top level, or a scrolling region's own while one is drawn). */
+  #b!: SheetBuilder;
+  #glyphs!: SheetGlyphs;
+  /** What a press on each key does, this draw. */
+  readonly #actions = new Map<string, () => void>();
+  /** What a hold or a right-click on a key does when it is not what a press does (a hero tile: Inspect, not pick). */
+  readonly #holds = new Map<string, () => void>();
+  /** The scrolling region being drawn, if any: stops, hovers and the tip anchor in it are in its content space. */
+  #scope: Scope | null = null;
+  /** The scrolling regions this draw made, by element key (their scroll listeners and remembered offsets). */
+  #scrollKeys: string[] = [];
+  /** Where each scrolling region was scrolled to, kept across redraws and tab changes. */
+  readonly #scrollMem = new Map<string, number>();
+  /** Regions that go back to their top at the next mount (a new search or filter). */
+  readonly #scrollReset = new Set<string>();
+  readonly #hooked = new WeakSet<Element>();
+  /** The field the caret is in (its key), or null: the route and the pad stand aside while one has it. */
+  #focusedField: string | null = null;
+  /** The pool list's rows drawn last (`start-end-count`): a scroll rebuilds only when the window moves. */
+  #poolWindow = "";
+  /** Each scrolling list's on-screen card rects, computed on demand from its scroll (a scroll draws nothing). */
+  #hoverLists: (() => readonly (readonly [string, HoverCardIdRect])[])[] = [];
+  /** The "Your deck" lines and From your games pictures, for the popover. */
+  #deckLines: DeckLine[] = [];
+  #alive = false;
+  #artRedraw = false;
 
   constructor() {
     super(SCENES.deckBuilder);
   }
 
   create(data: DeckBuilderSceneData = {}): void {
+    this.#alive = true;
+    this.#region = null;
+    this.#scrollMem.clear();
+    this.#scrollReset.clear();
+    this.#focusedField = null;
+    this.#poolWindow = "";
+    this.#aspectTipOpen = null;
     rebuildOnPackChange(this, () => this.#rebuild());
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#rows = deckBuilderRowSizes(cardSizeFactor(appSession().settings.cardSize));
@@ -637,13 +634,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#poolView = view.poolView;
     this.#deckSort = view.deckSort;
     this.#filterText = "";
-    this.#status =
-      given && this.#deck !== given
-        ? "Editing your own copy of this precon. The published precon stays as it is; Save adds this deck to your decks."
-        : null;
+    this.#status = given && this.#deck !== given ? t("deckBuilder.editingCopy") : null;
     this.#savedDeckId = null;
     this.#busy = false;
-    this.#listScroll = new ListScroll();
     // Whether this deck is already stored decides "unsaved changes" and Delete; a deck handed over unsaved (a copy) is not.
     if (given && this.#deck === given && !this.#campaign) {
       const id = given.id;
@@ -655,10 +648,6 @@ export class DeckBuilderScene extends Phaser.Scene {
           this.#rebuild();
         });
     }
-    this.#deckScroll = new VariableListScroll();
-    this.#gamesScroll = new VariableListScroll();
-    this.#filtersScroll = new VariableListScroll();
-    this.#narrowScroll = this.#deckScroll;
     this.#filtersOpen = false;
     this.#insights = null;
     // Each visit starts on your own decks: a remembered Everyone, or a remembered "unavailable", does not outlive it.
@@ -671,7 +660,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#stepTimer = null;
     this.#railTab = data.railTab === "games" ? "games" : "deck";
     this.#tab = data.tab ?? startTab(data.railTab);
-    this.#hints = new GlyphHints(this);
+    this.#glyphs = new SheetGlyphs(this, () => this.#rebuild());
     void appSession()
       .store.listSaves()
       .then((saves) => loadDeckInsights(saves))
@@ -684,133 +673,318 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
-    // From your games draws card scans; they arrive after its first draw (in batches, `art/card-art.ts`).
-    const redrawForArt = (): void => {
-      if (!this.#showsGames() || this.#railArtMissing === 0 || !this.scene.isActive()) return;
-      // A redraw replaces the scrolling region under a finger, which would end the swipe: wait for the lift.
-      if (this.#deckRegion?.isDragSuppressingClick) this.time.delayedCall(250, redrawForArt);
-      else this.#rebuild();
-    };
-    const offArt = cardArt(this).onArrived(redrawForArt);
-    resetHoverCards(this);
+    // A picture whose source changed (the card language, a pack's art arriving) is a new URL on the same part: one
+    // redraw, batched; a picture that merely loads never calls this (an `<img>` loads on its own).
+    const offArt = onArtChange(() => {
+      if (this.#artRedraw) return;
+      this.#artRedraw = true;
+      queueMicrotask(() => {
+        this.#artRedraw = false;
+        if (this.#alive && this.scene.isActive()) this.#rebuild();
+      });
+    });
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCardIds(),
       area: (pointer) => screenHoverArea(this, pointer),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#alive = false;
       this.#stepTimer?.remove();
       this.#stepTimer = null;
+      if (this.#tipTimer) clearTimeout(this.#tipTimer);
       this.scale.off("resize", onResize, this);
       offArt();
       this.#hover?.destroy();
       this.#hover = null;
-      this.#hints?.dispose();
-      this.#hints = null;
-      this.#nameInput?.destroy();
-      this.#nameInput = null;
-      this.#filterInput?.destroy();
-      this.#filterInput = null;
-      this.#identityInput?.destroy();
-      this.#identityInput = null;
-      this.#bannerBaked?.();
-      this.#bannerBaked = null;
+      this.#glyphs.dispose();
       this.#poolSearch?.destroy();
       this.#poolSearch = null;
       this.#heroSearch?.destroy();
       this.#heroSearch = null;
-      this.#list?.destroy();
-      this.#list = null;
-      this.#deckRegion?.destroy();
-      this.#deckRegion = null;
     });
-    // A pad that put the caret in a field can take it out again (B, A or Start).
-    for (const field of [() => this.#nameInput, () => this.#filterInput, () => this.#identityInput])
-      bindTextFieldEscape(this, field, () => this.scene.isActive(SCENES.inspect));
+    // A pad that put the caret in a field can take it out again (B, A or Start). Bound before the route, so the A that
+    // focuses the field is not also read as the press that leaves it (`text-field-escape.ts`).
+    bindTextFieldEscape(
+      this,
+      () => ({
+        focused: this.#focusedField !== null,
+        blur: () => this.#fieldElement(this.#focusedField)?.blurInput(),
+      }),
+      () => this.#overlayUp(),
+    );
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       // B is the Back button (which asks to confirm when there are unsaved changes).
       onCancel: () => this.#stops.get("back")?.activate(),
-      blocked: () =>
-        this.scene.isActive(SCENES.inspect) ||
-        this.scene.isActive(SCENES.searchHelp) ||
-        this.scene.isActive(SCENES.poolPick) ||
-        (this.#nameInput?.focused ?? false) ||
-        (this.#filterInput?.focused ?? false) ||
-        (this.#identityInput?.focused ?? false),
-      onPage: (direction) => {
-        if (this.#deckRegion) this.#deckRegion.scrollByPx(direction * this.#deckRegion.rect.height * 0.9);
-        else this.#list?.scrollByPage(direction);
-      },
+      blocked: () => this.#overlayUp() || this.#focusedField !== null,
+      onPage: (direction) => this.#scrollMain(direction * this.#mainHeight() * 0.9),
       // LB / RB: the narrow layout's tabs (Pool, Deck, From your games); the wide layout's deck rail has two.
       onTab: (direction) => {
         if (!this.#identity) return;
         if (!this.#isWide()) this.#setTab(stepDeckBuilderTab(DECK_BUILDER_TABS, this.#tab, direction));
         else this.#setRailTab(direction > 0 ? "games" : "deck");
       },
-      onScroll: (_dx, dy) => (this.#deckRegion ? this.#deckRegion.scrollByPx(dy) : this.#list?.scrollByPx(dy)),
-      onHomeEnd: (edge) => {
-        if (this.#deckRegion) this.#deckRegion.scrollByPx(edge === "home" ? -1e9 : 1e9);
-        else if (edge === "home") this.#list?.scrollToStart();
-        else this.#list?.scrollToEnd();
-      },
+      onScroll: (_dx, dy) => this.#scrollMain(dy),
+      onHomeEnd: (edge) => this.#scrollMain(edge === "home" ? -1e9 : 1e9),
     });
     this.#rebuild();
     fadeScreenIn(this);
   }
 
+  /** Something drawn over the builder owns the keys and the pad: Inspect, the cheat sheet or the pack picker. */
+  #overlayUp(): boolean {
+    return (
+      this.scene.isActive(SCENES.inspect) ||
+      this.scene.isActive(SCENES.searchHelp) ||
+      this.scene.isActive(SCENES.poolPick) ||
+      this.scene.isActive(SCENES.aspectLesson)
+    );
+  }
+
+  /** The field (`mc-search-field`) for a key, while it is drawn. */
+  #fieldElement(key: string | null): McSearchField | null {
+    return key ? ((this.#region?.element.elementOf(key) as McSearchField | null) ?? null) : null;
+  }
+
+  /** The scroller of a region, while it is drawn. */
+  #scroller(key: string): HTMLElement | null {
+    return this.#region?.element.elementOf(key) ?? null;
+  }
+
+  /** Where a region is scrolled to now: its element's offset, or what was remembered while it is not drawn. */
+  #scrollTop(key: string): number {
+    if (this.#scrollReset.has(key)) return 0;
+    return this.#scroller(key)?.scrollTop ?? this.#scrollMem.get(key) ?? 0;
+  }
+
+  /** The region that takes the pad's paging and right stick: the first scrolling list on screen. */
+  #mainScroller(): HTMLElement | null {
+    for (const key of [POOL_LIST, "list:identity", ...this.#scrollKeys]) {
+      const element = this.#scroller(key);
+      if (element) return element;
+    }
+    return null;
+  }
+
+  #mainHeight(): number {
+    return this.#mainScroller()?.clientHeight ?? 400;
+  }
+
+  #scrollMain(pixels: number): void {
+    this.#mainScroller()?.scrollBy({ top: pixels });
+  }
+
+  /** The pool list goes back to its top (a new search, filter or sort). */
+  #resetPool(): void {
+    this.#scrollMem.set(POOL_LIST, 0);
+    this.#scrollReset.add(POOL_LIST);
+    this.#scrollReset.add("list:identity");
+  }
+
+  /** A press on a part of the panel (a button or a tap area). */
+  #press(key: string): void {
+    if (this.#overlayUp()) return;
+    // A press anywhere but on the open aspect tip closes it.
+    const closesTip = this.#aspectTipOpen !== null && !key.startsWith("aspect-");
+    if (closesTip) this.#aspectTipOpen = null;
+    this.#actions.get(key)?.();
+    if (closesTip) this.#rebuild();
+  }
+
   /** Every plain card the popover may open on: the lists' (clipped to their windows) and the "Your deck" lines. */
   #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
-    const all = new Map(hoverCardIdsOf(this));
+    const all = new Map<string, HoverCardIdRect>();
     for (const provider of this.#hoverLists) for (const [slot, rect] of provider()) all.set(slot, rect);
-    this.#deckLines.forEach(({ cardId, rect, region }, index) => {
-      const view = region === "narrow" ? this.#deckRegionRect : region === "rail" ? this.#yourDeckRect : null;
-      const offset =
-        region === "narrow" ? this.#narrowScroll.offsetPx : region === "rail" ? this.#yourDeckScroll.offsetPx : 0;
-      const at = { ...rect, y: rect.y - offset };
-      const shown = view ? clipHoverRect(at, view) : at;
-      if (shown) all.set(hoverSlotOf(cardId, `line${index}`), { ...shown, cardId, through: true });
+    this.#deckLines.forEach(({ cardId, rect, scope, face }, index) => {
+      const at = scope ? this.#inScope(scope, rect) : rect;
+      const shown = scope ? clipHoverRect(at, scope.view) : at;
+      if (shown)
+        all.set(hoverSlotOf(cardId, `line${index}`), { ...shown, cardId, through: true, ...(face ? { face } : {}) });
     });
     return all;
   }
 
+  /** A rect given in a region's content space, on the screen now. */
+  #inScope(scope: Scope, rect: Rect): Rect {
+    return { ...rect, y: scope.view.y + rect.y - this.#scrollTop(scope.key) };
+  }
+
+  // ---- Drawing helpers --------------------------------------------------------------------------------------------
+
+  /** A text, top left at (`x`, `y`) unless `origin`: `label` of the Phaser scene. */
+  #text(
+    x: number,
+    y: number,
+    text: string,
+    spec: TypeSpec,
+    color: number,
+    alpha = 1,
+    options: Omit<TextOptions, "color" | "alpha"> = {},
+  ): Measured {
+    return this.#b.text(x, y, caseOf(spec, text), spec, { color, ...(alpha < 1 ? { alpha } : {}), ...options });
+  }
+
+  /** The small capital label above a control group. */
+  #label(x: number, y: number, text: string, onDark = false, options: Omit<TextOptions, "color" | "alpha"> = {}): void {
+    this.#text(
+      x,
+      y,
+      text,
+      typeRole.label,
+      onDark ? surface.paper.hex : surface.ink.hex,
+      onDark ? ink.secondary : ink.label,
+      options,
+    );
+  }
+
+  /** A focus stop. In a scrolling region its rect follows the scroll, and taking focus scrolls it into view. */
+  #stop(key: string, rect: Rect, activate: () => void, extra: Partial<FocusStop> = {}): void {
+    const scope = this.#scope;
+    if (!scope) {
+      this.#stops.set(key, { rect, activate, ...extra });
+      return;
+    }
+    this.#stops.set(key, {
+      rect: () => this.#inScope(scope, rect),
+      view: scope.view,
+      activate,
+      ensureVisible: () => this.#reveal(scope, rect),
+      ...extra,
+    });
+  }
+
+  /** Scrolls a region so `rect` (in its content space) is wholly in view. */
+  #reveal(scope: Scope, rect: Rect): void {
+    const element = this.#scroller(scope.key);
+    if (!element) return;
+    const top = element.scrollTop;
+    if (rect.y < top) element.scrollTop = rect.y;
+    else if (rect.y + rect.height > top + scope.view.height)
+      element.scrollTop = rect.y + rect.height - scope.view.height;
+  }
+
+  /**
+   * A button: its part, its press and its focus stop at once. `disabled` (a string says why) keeps it in place and dim;
+   * the stop stays, as the old Phaser button's did, but its press does nothing.
+   */
+  #button(
+    key: string,
+    rect: Rect,
+    label: string,
+    onClick: () => void,
+    options: {
+      readonly look?: "primary" | "secondary" | "onInk" | "quiet" | "rail";
+      readonly selected?: boolean;
+      readonly disabled?: string | true;
+      readonly type?: TypeSpec;
+      readonly aria?: string;
+      readonly stop?: boolean;
+    } = {},
+  ): void {
+    this.#b.button({
+      key,
+      rect,
+      label: caseOf(options.type ?? typeRole.label, label),
+      look: options.look ?? "secondary",
+      type: options.type ?? typeRole.label,
+      ...(options.selected ? { selected: true } : {}),
+      ...(options.disabled !== undefined ? { disabled: options.disabled } : {}),
+      ...(options.aria ? { aria: options.aria } : {}),
+    });
+    const press = (): void => {
+      if (options.disabled === undefined) onClick();
+    };
+    this.#actions.set(key, press);
+    if (options.stop !== false) this.#stop(key, rect, press);
+  }
+
+  /**
+   * A button in an aspect's own colors (the aspect chips, the precon rows): a box in the stamp's fill, its name in the
+   * stamp's ink, a heavier outline while chosen, and a tap area over it. A tint is a fill, so what is chosen is also
+   * said by the outline and a tick, never by the color alone.
+   */
+  #tintButton(
+    key: string,
+    rect: Rect,
+    text: string,
+    tint: { readonly fill: number; readonly ink: number },
+    onClick: () => void,
+    options: { readonly selected?: boolean; readonly disabled?: string | true; readonly type?: TypeSpec } = {},
+  ): void {
+    const b = this.#b;
+    const off = options.disabled !== undefined;
+    b.box(rect, {
+      fill: tint.fill,
+      stroke: surface.ink.hex,
+      strokeWidth: options.selected ? 5 : 2,
+      ...(off ? { alpha: 0.5 } : {}),
+    });
+    b.text(
+      rect.x + rect.width / 2,
+      rect.y + rect.height / 2,
+      caseOf(options.type ?? typeRole.stamp, text),
+      options.type ?? typeRole.stamp,
+      {
+        color: tint.ink,
+        origin: [0.5, 0.5],
+        fitWidth: rect.width - 12,
+        ...(off ? { alpha: 0.5 } : {}),
+      },
+    );
+    // The tick is its own mark beside the name, so what is chosen is said by the tick and the heavy outline, and the name stays the name.
+    if (options.selected)
+      b.text(rect.x + 10, rect.y + rect.height / 2, "✓", typeRole.rowTitle, {
+        color: tint.ink,
+        origin: [0, 0.5],
+        ...(off ? { alpha: 0.5 } : {}),
+      });
+    b.tap(key, rect);
+    const press = (): void => {
+      if (!off) onClick();
+    };
+    this.#actions.set(key, press);
+    this.#stop(key, rect, press);
+  }
+
+  /**
+   * A scrolling region at `rect`: `draw` puts the content down from y 0 at its natural height (x is the screen's), and
+   * the panel scrolls it natively. Stops and card hovers drawn in it follow the scroll.
+   */
+  #scrolled(key: string, rect: Rect, draw: (top: number) => number): void {
+    const outer = this.#b;
+    const before = this.#scope;
+    this.#scrollKeys.push(key);
+    outer.scrollFit(key, rect, (inner) => {
+      this.#b = inner;
+      this.#scope = { key, view: rect };
+      const bottom = draw(0);
+      this.#b = outer;
+      this.#scope = before;
+      return bottom;
+    });
+  }
+
+  // ---- The screen ---------------------------------------------------------------------------------------------------
+
   #rebuild(): void {
-    resetHoverCards(this);
-    // A picture waiting to bake belongs to the draw being replaced.
-    this.#bannerBaked?.();
-    this.#bannerBaked = null;
+    if (!this.#alive) return;
     this.#hoverLists = [];
     this.#deckLines = [];
-    this.#yourDeckRect = null;
     this.#railStops = [];
-    this.#hints?.reset();
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
+    this.#scrollKeys = [];
+    this.#glyphs.reset();
     this.#stops = new Map();
-    // The list is recreated fresh every rebuild, in the normal draw order
-    // (`ui/virtual-list.ts` — reattaching it across a sweep put it ahead of
-    // whatever the scene drew afterward). Its scroll position lives in
-    // `#listScroll`, which survives this regardless.
-    this.#list?.destroy();
-    this.#list = null;
-    this.#deckRegion?.destroy();
-    this.#deckRegion = null;
-    this.#yourDeckRegion?.destroy();
-    this.#yourDeckRegion = null;
-    this.#deckRegionRect = null;
-    this.#onDeckScroll = null;
-    this.#nameFieldRect = null;
+    this.#actions.clear();
+    this.#holds.clear();
     this.#openAspectTip = null;
-    this.#nameInput?.setVisible(true);
-
-    const kept = [
-      ...(this.#nameInput ? [this.#nameInput.gameObject] : []),
-      ...(this.#filterInput ? [this.#filterInput.gameObject] : []),
-      ...(this.#identityInput ? [this.#identityInput.gameObject] : []),
-    ];
-    for (const node of kept) this.children.remove(node);
-    destroyChildren(this);
-    for (const node of kept) this.children.add(node);
-
+    this.#scope = null;
     const { width, height } = this.scale.gameSize;
+    const area: Rect = { x: 0, y: 0, width, height };
+    this.#b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+    const b = this.#b;
+    b.box(area, { fill: surface.paper.hex });
+    b.dots(area, "paper", dotGrid.onPaper.spacing, dotGrid.onPaper.radius, dotGrid.onPaper.alpha);
+
     const phone = formFactorFor(width, height) === "phone";
     const wide = !phone && width >= WIDE_MIN_WIDTH;
     const pad = phone ? 16 : 40;
@@ -818,21 +992,19 @@ export class DeckBuilderScene extends Phaser.Scene {
     // adding columns as it grows (`POOL_MAX_COLUMNS`).
     const column = wide ? width - pad * 2 : Math.min(width - pad * 2, 720);
     const left = (width - column) / 2;
-    paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper);
 
     let y = pad;
-    // Campaign mode's title (the run's own name plus the seat and its identity, `scenes/campaign/deck-edit.ts`)
-    // can run to two lines on a narrow layout, unlike the standalone builder's fixed "DECK BUILDER" — so the next
-    // row is placed from the title's own measured height, not a hardcoded single-line one, or the identity label
-    // below it would sit under the title's wrapped second line.
-    const titleText = this.#campaign ? this.#campaign.title.toUpperCase() : "DECK BUILDER";
-    const titleObj = this.add
-      .text(left, y, titleText, {
-        ...textStyle(typeRole.screenTitle, surface.ink.hex),
-        fontSize: phone ? "28px" : "38px",
-      })
-      .setWordWrapWidth(column - 108)
-      .setLetterSpacing(2);
+    // Campaign mode's title (the run's own name plus the seat and its identity, `scenes/campaign/deck-edit.ts`) can
+    // run to two lines on a narrow layout, so the next row is placed from the title's own measured height.
+    const titleText = this.#campaign ? this.#campaign.title.toUpperCase() : t("deckBuilder.title").toUpperCase();
+    const title = b.text(left, y, titleText, typeRole.screenTitle, {
+      color: surface.ink.hex,
+      size: phone ? 28 : 38,
+      wrapWidth: column - 108,
+      letterSpacing: 2,
+      // The title type is set tight (line height 0.86); the sheet's default is 1.2.
+      lineSpacing: (phone ? 28 : 38) * (typeRole.screenTitle.lineHeight - 1.2),
+    });
     const backRect: Rect = { x: left + column - 100, y: y + 2, width: 100, height: hit.target };
     const campaign = this.#campaign;
     const dirty = this.#isDirty();
@@ -840,8 +1012,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       // Unsaved changes: the first Back says so, the second leaves without saving.
       if (this.#isDirty() && !this.#leaveArmed) {
         this.#leaveArmed = true;
-        const again = inputDevice().mode === "pad" ? "press Leave (B) again" : "press Leave again";
-        this.#status = `You have unsaved changes. Save the deck, or ${again} to leave without saving.`;
+        this.#status = t(inputDevice().mode === "pad" ? "deckBuilder.unsavedLeavePad" : "deckBuilder.unsavedLeave");
         this.#rebuild();
         return;
       }
@@ -850,23 +1021,15 @@ export class DeckBuilderScene extends Phaser.Scene {
       // After a Save, Decks opens on the deck just saved (its row selected and in view).
       else goToScreen(this, SCENES.decks, this.#savedDeckId ? { focusDeckId: this.#savedDeckId } : undefined);
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: dirty && this.#leaveArmed ? "Leave" : "Back",
-        type: typeRole.rowTitle,
-        rect: backRect,
-        onClick: goBack,
-      }),
-    );
-    this.#stops.set("back", { rect: backRect, activate: goBack });
+    this.#button("back", backRect, dirty && this.#leaveArmed ? t("deckBuilder.leave") : t("deckBuilder.back"), goBack, {
+      type: typeRole.rowTitle,
+    });
     // Below the taller of the title and Back, so nothing drawn next sits against Back (issue #920).
-    y += Math.max(titleObj.height, phone ? 28 : 38, backRect.height + 2) + 16;
+    y += Math.max(title.height, phone ? 28 : 38, backRect.height + 2) + 16;
 
     if (!this.#identity && this.#startFor) {
-      this.#identityInput?.destroy();
-      this.#identityInput = null;
       const startIds = this.#drawStartFrom(left, y, column, this.#startFor);
+      this.#finish(area);
       this.#route?.set(
         deckBuilderFocusOrder({
           identityChosen: false,
@@ -883,6 +1046,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
     if (!this.#identity) {
       const shown = this.#drawIdentityPicker(left, y, column);
+      this.#finish(area);
       this.#route?.set(
         deckBuilderFocusOrder({
           identityChosen: false,
@@ -898,8 +1062,6 @@ export class DeckBuilderScene extends Phaser.Scene {
       return;
     }
 
-    this.#identityInput?.destroy();
-    this.#identityInput = null;
     const deck = this.#deck!;
     this.#campaignModel = this.#campaign
       ? campaignDeckEditModel(deck, this.#pool(), this.#campaign.context, this.#campaign.grants)
@@ -908,7 +1070,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     y = this.#drawIdentityRow(left, y, column, this.#identity);
 
     const pool = wide ? this.#rebuildWide(left, y, column, deck) : this.#rebuildNarrow(left, y, column, deck);
-    this.#drawOpenAspectTip();
+    this.#drawOpenAspectTip(area);
+    this.#finish(area);
 
     if (!wide) {
       this.#route?.set(
@@ -963,6 +1126,128 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#hover?.onDraw();
   }
 
+  /** Hands the built parts to the panel (made once, so a list's scroll survives a redraw) and renders them now. */
+  #finish(area: Rect): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      const keyOf = (event: Event): string => (event as CustomEvent<{ key: string }>).detail.key;
+      element.addEventListener("mc-activate", (event) => this.#press(keyOf(event)));
+      element.addEventListener("mc-inspect", (event) => {
+        const key = keyOf(event);
+        const hold = this.#holds.get(key);
+        if (hold && !this.#overlayUp()) hold();
+        else this.#press(key);
+      });
+      element.addEventListener("mc-hover", (event) => {
+        const { key, over } = (event as CustomEvent<{ key: string; over: boolean }>).detail;
+        this.#onTrack(key, over);
+      });
+      element.addEventListener("mc-search", (event) => {
+        const field = (event.composedPath()[0] as HTMLElement | undefined)?.dataset?.key;
+        this.#onSearch(field ?? "", (event as CustomEvent<McSearchDetail>).detail.value);
+      });
+      element.addEventListener("mc-search-focus", (event) => {
+        const field = (event.composedPath()[0] as HTMLElement | undefined)?.dataset?.key ?? null;
+        const focused = (event as CustomEvent<McSearchFocusDetail>).detail.focused;
+        if (focused) this.#focusedField = field;
+        else if (this.#focusedField === field) this.#focusedField = null;
+      });
+      this.#region = new DomRegion(this, element, area);
+      // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas; the popover itself
+      // is drawn in the canvas, so it is left out of the panel to be seen through it.
+      this.#region.forwardMouseMoves();
+      // Only while the pointer rests on a card: a press that follows a quick move onto a control must not land in the
+      // hole of a popover that is still closing.
+      this.#region.setHoles(() => {
+        const popover = this.#hover?.shownRect;
+        if (!popover) return [];
+        const pointer = this.input.activePointer;
+        for (const rect of this.#hoverCardIds().values())
+          if (
+            pointer.x >= rect.x &&
+            pointer.x <= rect.x + rect.width &&
+            pointer.y >= rect.y &&
+            pointer.y <= rect.y + rect.height
+          )
+            return [popover];
+        return [];
+      });
+    }
+    this.#region.setRect(area);
+    this.#region.element.nodes = this.#b.nodes;
+    renderNow(this.#region.element);
+    this.#afterMount();
+  }
+
+  /** A scrolling region just rendered: new ones go to where they were left, and every one tells the scene when it moves. */
+  #afterMount(): void {
+    for (const key of this.#scrollKeys.concat(this.#poolListKeys())) {
+      const element = this.#scroller(key);
+      if (!element) continue;
+      const forced = this.#scrollReset.has(key);
+      if (!this.#hooked.has(element)) {
+        this.#hooked.add(element);
+        element.addEventListener("scroll", () => this.#onScroll(key, element.scrollTop), { passive: true });
+        const kept = this.#scrollMem.get(key) ?? 0;
+        if (kept > 0 && !forced) element.scrollTop = kept;
+      }
+      if (forced) {
+        element.scrollTop = 0;
+        this.#scrollMem.set(key, 0);
+      }
+    }
+    this.#scrollReset.clear();
+  }
+
+  #poolListKeys(): string[] {
+    return [POOL_LIST, "list:identity"];
+  }
+
+  /** A region scrolled: it is remembered, the pool list builds the rows the new offset shows, an open tip follows. */
+  #onScroll(key: string, top: number): void {
+    this.#scrollMem.set(key, top);
+    if (key === POOL_LIST && this.#poolWindowNow() !== this.#poolWindow) this.#rebuild();
+    else if (this.#aspectTipOpen && key !== POOL_LIST) this.#rebuild();
+  }
+
+  #onSearch(field: string, value: string): void {
+    if (field === "filter-text") {
+      if (value !== this.#filterText) this.#applyFilterText(value);
+    } else if (field === "name") {
+      if (this.#deck && value !== this.#deck.name) this.#setDeck(setName(this.#deck, value), false);
+    } else if (field === "identity-search") {
+      if (value !== this.#identitySearch) {
+        this.#identitySearch = value;
+        this.#resetPool();
+        this.#requestHeroSearch(value);
+      }
+    }
+  }
+
+  /** The search box's text changed: the pool is ranked for it and redrawn from its top. */
+  #applyFilterText(value: string): void {
+    this.#filterText = value;
+    this.#resetPool();
+    this.#requestPoolSearch(value);
+  }
+
+  /** The rows the pool list would build now: `start-end-count`, or "" when there is no list. */
+  #poolWindowNow(): string {
+    return this.#poolWindowFor(this.#scrollTop(POOL_LIST));
+  }
+
+  #poolWindowFor(top: number): string {
+    const rowHeight = this.#poolRowHeight;
+    if (rowHeight <= 0 || this.#poolRowCount <= 0) return "";
+    const start = Math.max(0, Math.floor(top / rowHeight) - POOL_OVERSCAN_ROWS);
+    const end = Math.min(this.#poolRowCount, Math.ceil((top + this.#poolViewHeight) / rowHeight) + POOL_OVERSCAN_ROWS);
+    return `${start}-${end}-${this.#poolRowCount}`;
+  }
+
+  /** What the pool list last drew (`#drawPoolList`): its row height, row count and window height. */
+  #poolRowHeight = 0;
+  #poolRowCount = 0;
+  #poolViewHeight = 0;
   /** Cards this screen must never offer to *add*: RRG 1.8 p. 29 removals from the campaign this deck belongs to. A line already in the deck from before a removal still shows (in "your deck" and, so a player can remove it, in the pool list) via `#campaignModel`'s own `refused` mark — this only narrows what browsing turns up. `null` outside campaign mode. */
   #removedFromCampaignIds(): ReadonlySet<string> | null {
     return this.#campaign ? new Set([...removedFromCampaignCardIds(this.#campaign.context)].map(String)) : null;
@@ -1081,6 +1366,39 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#route?.focusKey(`tab:${tab}`);
   }
 
+  /** A mouse resting on, or leaving, an aspect's "i" or its open tip: the tip opens after a pause and closes on leaving both. */
+  #onTrack(key: string, over: boolean): void {
+    const clear = (): void => {
+      if (this.#tipTimer) clearTimeout(this.#tipTimer);
+      this.#tipTimer = null;
+    };
+    if (key.startsWith("aspect-info:")) {
+      const aspect = key.slice("aspect-info:".length) as CoreAspect;
+      clear();
+      if (over) {
+        if (this.#aspectTipOpen === aspect) return;
+        this.#tipTimer = setTimeout(() => {
+          this.#tipTimer = null;
+          this.#aspectTipOpen = aspect;
+          this.#rebuild();
+        }, ASPECT_TIP_HOVER_DELAY_MS);
+      } else if (this.#aspectTipOpen === aspect) this.#closeTipSoon();
+    } else if (key === "aspect-tip") {
+      clear();
+      if (!over) this.#closeTipSoon();
+    }
+  }
+
+  #closeTipSoon(): void {
+    if (this.#tipTimer) clearTimeout(this.#tipTimer);
+    this.#tipTimer = setTimeout(() => {
+      this.#tipTimer = null;
+      if (this.#aspectTipOpen === null) return;
+      this.#aspectTipOpen = null;
+      this.#rebuild();
+    }, 140);
+  }
+
   /**
    * The narrow (phone and tablet portrait) layout (issue #544): a fixed tab row under the header — Pool, Deck, From
    * your games — and one tab's content filling the rest of the screen, so only one thing ever scrolls. Returns the
@@ -1091,13 +1409,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     const pad = 16;
     let y = this.#drawTabRow(left, top, column, DECK_BUILDER_TABS, deck);
 
-    // A DOM field is not clipped by the canvas: only the tab that shows it leaves it visible.
-    if (this.#tab !== "deck") this.#nameInput?.setVisible(false);
-    if (this.#tab !== "pool") this.#filterInput?.setVisible(false);
-
     if (this.#tab === "games") {
       const rect: Rect = { x: left, y, width: column, height: Math.max(hit.target * 2, height - y - pad) };
-      this.#drawNarrowRegion(rect, this.#gamesScroll, (at) =>
+      this.#scrolled("list:games", rect, (at) =>
         this.#drawFromYourGames(left, at, column - NARROW_SCROLLBAR_GUTTER, deck, false),
       );
       return [];
@@ -1113,15 +1427,15 @@ export class DeckBuilderScene extends Phaser.Scene {
         height: Math.max(hit.target * 2, height - y - pad - saveHeight),
       };
       const inner = column - NARROW_SCROLLBAR_GUTTER;
-      this.#drawNarrowRegion(rect, this.#deckScroll, (at) => {
+      this.#scrolled("list:deck", rect, (at) => {
         let next = at;
-        next = this.#drawAspectPicker(left, next, inner, deck, true);
+        next = this.#drawAspectPicker(left, next, inner, deck);
         if (!this.#campaign) next = this.#drawNameField(left, next, inner, deck);
         next = this.#drawLegalityLine(left, next, inner, deck);
         next = this.#drawRewardsStrip(left, next, inner, false);
-        label(this, left, next, "cost curve — cards at each cost", typeRole.label, surface.ink.hex, ink.label);
+        this.#label(left, next, t("deckBuilder.costCurveLabel"));
         next = this.#drawCostCurve(left, next + 16, inner, deck, false);
-        label(this, left, next, "odds", typeRole.label, surface.ink.hex, ink.label);
+        this.#label(left, next, t("deckBuilder.oddsLabel"));
         next = this.#drawOdds(left, next + 16, inner, deck, hit.target);
         next = this.#drawYourDeckList(left, next, inner, deck, false);
         return this.#drawPreconClearSave(left, next, inner, deck, false, "actions");
@@ -1135,19 +1449,18 @@ export class DeckBuilderScene extends Phaser.Scene {
     const pool = this.#browsablePool(deck);
     const folded = this.#filtersFold();
     this.#narrowFolded = folded;
-    const countText = `${pool.length} card${pool.length === 1 ? "" : "s"}`;
+    const countText = this.#countText(pool.length);
     if (folded) {
       this.#drawFiltersToggle({ x: left, y, width: Math.min(column * 0.55, 200), height: hit.target });
-      label(this, left + column, y + hit.target / 2, countText, typeRole.label, surface.ink.hex, ink.meta).setOrigin(
-        1,
-        0.5,
-      );
+      this.#text(left + column, y + hit.target / 2, countText, typeRole.label, surface.ink.hex, ink.meta, {
+        origin: [1, 0.5],
+      });
       y += hit.target + 12;
       if (this.#filtersOpen) {
         // The panel takes the list's place; the count above updates as the chips are pressed.
         const rect: Rect = { x: left, y, width: column, height: Math.max(hit.target * 2, height - y - pad) };
         const inner = column - NARROW_SCROLLBAR_GUTTER;
-        this.#drawNarrowRegion(rect, this.#filtersScroll, (at) => {
+        this.#scrolled("list:filters", rect, (at) => {
           let next = this.#drawTypeFilters(left, at, inner);
           next = this.#drawQuickFilters(left, next, inner, deck);
           return this.#drawPackAndSort(left, next, inner, deck);
@@ -1158,12 +1471,17 @@ export class DeckBuilderScene extends Phaser.Scene {
       y = this.#drawTypeFilters(left, y, column);
       y = this.#drawQuickFilters(left, y, column, deck);
       y = this.#drawPackAndSort(left, y, column, deck);
-      label(this, left, y, `pool — ${countText}`, typeRole.label, surface.ink.hex, ink.label);
+      this.#label(left, y, `${t("deckBuilder.poolLabel")} — ${countText}`);
       y += 16;
     }
     const listRect: Rect = { x: left, y, width: column, height: Math.max(this.#rows.cardRowHeight, height - y - pad) };
     this.#drawPoolList(listRect, deck, pool);
     return pool;
+  }
+
+  /** "N cards" in the player's language. */
+  #countText(count: number): string {
+    return t(count === 1 ? "deckBuilder.cardCountOne" : "deckBuilder.cardCount", { count });
   }
 
   /**
@@ -1184,17 +1502,13 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#rebuild();
       if (inputDevice().mode === "keyboard" || inputDevice().mode === "pad") this.#route?.focusKey("filters-toggle");
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: `${this.#filtersOpen ? "▾" : "▸"} Filters${active > 0 ? ` · ${active}` : ""}`,
-        type: typeRole.label,
-        rect,
-        selected: active > 0,
-        onClick: toggle,
-      }),
+    this.#button(
+      "filters-toggle",
+      rect,
+      `${this.#filtersOpen ? "▾" : "▸"} ${t("deckBuilder.filters")}${active > 0 ? ` · ${active}` : ""}`,
+      toggle,
+      { selected: active > 0 },
     );
-    this.#stops.set("filters-toggle", { rect, activate: toggle });
   }
 
   /** The fixed tab row: Pool, Deck with its live count, and From your games. Returns the y below it. */
@@ -1202,92 +1516,44 @@ export class DeckBuilderScene extends Phaser.Scene {
     const counted = this.#campaignModel
       ? campaignDeckSizeSplit(this.#campaignModel).counted
       : deckStatsOf(deck, this.#pool()).countedCards;
-    const labels = tabs.map((tab) => deckBuilderTabLabel(tab, counted, DECK_MIN_CARDS));
+    const labels = tabs.map((tab) =>
+      tab === "pool"
+        ? t("deckBuilder.tabPool")
+        : tab === "games"
+          ? t("deckBuilder.tabGames")
+          : counted < DECK_MIN_CARDS
+            ? t("deckBuilder.tabDeckOf", { count: counted, min: DECK_MIN_CARDS })
+            : t("deckBuilder.tabDeck", { count: counted }),
+    );
     const rects = deckBuilderTabRects(labels, { x: left, y: top, width: column, height: hit.target }, 6);
     const current = tabs.indexOf(this.#tab);
     tabs.forEach((tab, index) => {
       const rect = rects[index]!;
       const selected = tab === this.#tab;
       const open = (): void => this.#setTab(tab);
-      const button = new McButton(this, {
-        kind: selected ? "primary" : "secondary",
-        label: labels[index]!,
-        type: typeRole.label,
-        rect,
-        onClick: open,
-      });
-      this.#buttons.push(button);
+      const key = `tab:${tab}`;
       // LB / RB reach the neighbouring tab: its glyph sits on that tab.
-      if (index === current - 1) this.#hints?.button(button, ["zonePrevious"], "paper");
-      if (index === current + 1) this.#hints?.button(button, ["zoneNext"], "paper");
-      this.#stops.set(`tab:${tab}`, { rect, activate: open });
+      const glyph = index === current - 1 ? "zonePrevious" : index === current + 1 ? "zoneNext" : null;
+      if (glyph) {
+        this.#glyphs.button(this.#b, {
+          key,
+          rect,
+          label: caseOf(typeRole.label, labels[index]!),
+          look: selected ? "primary" : "secondary",
+          type: typeRole.label,
+          ids: [glyph],
+          ground: "paper",
+        });
+        this.#actions.set(key, open);
+        this.#stop(key, rect, open);
+      } else this.#button(key, rect, labels[index]!, open, { look: selected ? "primary" : "secondary" });
     });
     return top + hit.target + 12;
   }
 
   /**
-   * The narrow layout's one scrolling region: `draw` puts the tab's content down from the region's top at its natural
-   * height, and it is then moved into a `McScrollRegion` the size of `rect`. Its controls are clipped to the region
-   * (`clipInteractive`), its focus stops follow the scroll, and the DOM name field (which a Phaser mask can't hide) is
-   * placed and shown by hand.
-   */
-  #drawNarrowRegion(rect: Rect, scroll: VariableListScroll, draw: (top: number) => number): void {
-    const before = this.children.list.length;
-    const stopsBefore = new Set(this.#stops.keys());
-    const bottom = draw(rect.y);
-    const nameNode = this.#nameInput?.gameObject;
-    const added = this.children.list.slice(before).filter((node) => node !== nameNode);
-
-    const heights = [bottom - rect.y];
-    // The wide layout's name field sits in the deck rail, outside any region this draws.
-    const nameRect = this.#isWide() ? null : this.#nameFieldRect;
-    const syncName = (): void => {
-      if (!this.#nameInput || !nameRect) return;
-      const screenY = nameRect.y - scroll.offsetPx;
-      this.#nameInput.layout({ ...nameRect, y: screenY });
-      // The aspect tip opens over the name field, and a DOM field would draw on top of it.
-      const inView = screenY >= rect.y && screenY + nameRect.height <= rect.y + rect.height;
-      this.#nameInput.setVisible(inView && this.#aspectTipOpen === null);
-    };
-    this.#narrowScroll = scroll;
-    this.#deckRegion = new McScrollRegion(this, {
-      rect,
-      heights,
-      scroll,
-      clipInteractive: true,
-      onScroll: () => {
-        syncName();
-        this.#onDeckScroll?.();
-      },
-    });
-    this.#deckRegionRect = rect;
-    const region = this.#deckRegion;
-    region.content.add(added);
-    region.syncInteractivity();
-    syncName();
-
-    for (const [key, stop] of this.#stops) {
-      if (stopsBefore.has(key) || typeof stop.rect === "function") continue;
-      const at = stop.rect;
-      this.#stops.set(key, {
-        ...stop,
-        rect: () => ({ ...at, y: at.y - scroll.offsetPx }),
-        view: rect,
-        ensureVisible: () => {
-          const rowTop = at.y - rect.y;
-          const offset = scroll.offsetPx;
-          if (rowTop < offset) region.scrollByPx(rowTop - offset);
-          else if (rowTop + at.height > offset + rect.height)
-            region.scrollByPx(rowTop + at.height - offset - rect.height);
-        },
-      });
-    }
-  }
-
-  /**
-   * The wide (desktop) layout (D04): a left aspect/filter/cost-curve rail, the
-   * card pool in the middle, "Your deck" on its own ink ground on the right.
-   * Returns the browsable pool, for the caller's focus order.
+   * The wide (desktop) layout (D04): a left aspect/filter/cost-curve rail, the card pool in the middle, "Your deck" on
+   * its own ink ground on the right. Returns the browsable pool, for the caller's focus order.
    */
   #rebuildWide(left: number, top: number, column: number, deck: Deck): readonly AnyCard[] {
     const { height } = this.scale.gameSize;
@@ -1303,7 +1569,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     // Left rail: aspect, filter, cost curve.
     let leftY = top;
-    leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck, false);
+    leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck);
     if (!folded) {
       // The Hero and Basic toggles go in the middle, on the card count's row: the rail has no height to spare, and they
       // pushed the cost curve off a 900-high screen (PR #980 review).
@@ -1318,29 +1584,24 @@ export class DeckBuilderScene extends Phaser.Scene {
         this.#chartTab = tab;
         this.#rebuild();
       };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: tab === "curve" ? "Cost curve" : "Odds",
-          type: typeRole.label,
-          rect,
+      this.#button(
+        `chart:${tab}`,
+        rect,
+        tab === "curve" ? t("deckBuilder.chartCurve") : t("deckBuilder.chartOdds"),
+        pick,
+        {
           selected: this.#chartTab === tab,
-          onClick: pick,
-        }),
+        },
       );
-      this.#stops.set(`chart:${tab}`, { rect, activate: pick });
     }
     leftY += CHART_TAB_HEIGHT + CHIP_GAP;
     if (this.#chartTab === "curve") this.#drawCostCurve(leftX, leftY, LEFT_RAIL_WIDTH, deck, true);
     else this.#drawOdds(leftX, leftY, LEFT_RAIL_WIDTH, deck, CHART_TAB_HEIGHT);
 
     // Right rail: name, legality, Your deck, Preconstructed/Clear, Save — one ink ground panel behind all of it.
-    const rightPanel = this.add.graphics();
-    paintPanel(
-      rightPanel,
+    this.#b.box(
       { x: rightX, y: top - 8, width: RIGHT_RAIL_WIDTH, height: bottom - top + 8 },
-      "onInk",
-      "rest",
+      { fill: surface.ink.hex, stroke: surface.ink.hex, strokeWidth: 2 },
     );
     let rightY = top + 8;
     if (!this.#campaign) rightY = this.#drawNameField(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
@@ -1357,16 +1618,12 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     // Middle: the pool, search field above it.
     const pool = this.#browsablePool(deck);
-    const countText = `${pool.length} card${pool.length === 1 ? "" : "s"}`;
+    const countText = this.#countText(pool.length);
     let midY = top;
-    label(
-      this,
+    this.#label(
       midX,
       midY,
-      folded ? `card pool — ${countText}` : "card pool",
-      typeRole.label,
-      surface.ink.hex,
-      ink.label,
+      folded ? `${t("deckBuilder.cardPoolLabel")} — ${countText}` : t("deckBuilder.cardPoolLabel"),
     );
     midY += 16;
     if (folded) {
@@ -1385,7 +1642,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       if (this.#filtersOpen) {
         const rect: Rect = { x: midX, y: midY, width: midWidth, height: Math.max(hit.target * 2, bottom - midY) };
         const inner = midWidth - NARROW_SCROLLBAR_GUTTER;
-        this.#drawNarrowRegion(rect, this.#filtersScroll, (at) => {
+        this.#scrolled("list:filters", rect, (at) => {
           let next = this.#drawTypeFilters(midX, at, inner);
           next = this.#drawQuickFilters(midX, next, inner, deck);
           return this.#drawPackAndSort(midX, next, inner, deck);
@@ -1397,15 +1654,9 @@ export class DeckBuilderScene extends Phaser.Scene {
       // The quick filters sit under the search here: the left rail has no room left for them.
       midY = this.#drawQuickFilters(midX, midY - 4, midWidth, deck) - 4;
       const next = this.#drawShowToggles(midX, midY, midWidth, true);
-      label(
-        this,
-        midX + midWidth,
-        midY + hit.target / 2,
-        countText,
-        typeRole.label,
-        surface.ink.hex,
-        ink.meta,
-      ).setOrigin(1, 0.5);
+      this.#text(midX + midWidth, midY + hit.target / 2, countText, typeRole.label, surface.ink.hex, ink.meta, {
+        origin: [1, 0.5],
+      });
       midY = next;
     }
     const listRect: Rect = {
@@ -1418,11 +1669,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     return pool;
   }
 
-  #drawAspectPicker(left: number, top: number, column: number, deck: Deck, scrolls: boolean): number {
+  #drawAspectPicker(left: number, top: number, column: number, deck: Deck): number {
     let y = top;
     const maxAspects = aspectCountFor(this.#identity!);
     const frozen = this.#campaignModel?.editingDisabled ?? false;
-    label(this, left, y, `aspect (choose ${maxAspects})`, typeRole.label, surface.ink.hex, ink.label);
+    this.#label(left, y, t("deckBuilder.aspectLabel", { count: maxAspects }));
     y += 16;
     // One row of five on a wide column, two-up on a phone's, one per row on the desktop rail, where two-up cells left
     // "AGGRESSION" no room beside its "i" segment and cut it short.
@@ -1438,14 +1689,13 @@ export class DeckBuilderScene extends Phaser.Scene {
         width: aspectCellWidth,
         height: hit.target,
       };
-      // G10b's tip: a split "i" segment at the cell's right-hand end (`ui/aspect-tip.ts`), independent of `toggle`.
+      // G10b's tip: a split "i" segment at the cell's right-hand end, independent of `toggle`.
       const content = aspectTipContentOf(aspect);
       const split = content ? splitInfoSegment(cellRect) : null;
       const rect = split?.main ?? cellRect;
       const selected = deck.aspects.includes(aspect);
       // The aspect's own card-frame color, the same stamp Seats' aspect chips and the hero cards wear.
-      const stamp = aspectStampOf(aspect);
-      const tint = { fill: stamp.fill, ink: stamp.ink };
+      const stamp = aspectStampOf(aspect, artLanguageNow());
       const toggle = (): void => {
         if (frozen) return;
         if (selected)
@@ -1458,73 +1708,138 @@ export class DeckBuilderScene extends Phaser.Scene {
         else if (deck.aspects.length < maxAspects) this.#setDeck(setAspects(deck, [...deck.aspects, aspect]));
         else this.#setDeck(setAspects(deck, [...deck.aspects.slice(1), aspect]));
       };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: stamp.label,
-          type: STAMP_CHIP_TYPE,
-          rect,
-          selected,
-          tint,
-          enabled: !frozen,
-          ...(frozen && this.#campaignModel?.editingDisabledReason
-            ? { reason: this.#campaignModel.editingDisabledReason }
-            : {}),
-          onClick: toggle,
-        }),
-      );
-      this.#stops.set(`aspect:${aspect}`, { rect, activate: toggle });
+      this.#tintButton(`aspect:${aspect}`, rect, stamp.label, { fill: stamp.fill, ink: stamp.ink }, toggle, {
+        selected,
+        ...(frozen ? { disabled: this.#campaignModel?.editingDisabledReason ?? true } : {}),
+      });
 
       if (content && split) {
         const isOpen = this.#aspectTipOpen === aspect;
-        const infoRect = drawAspectInfoSegment(
-          this,
-          split.info,
-          isOpen,
-          () => {
-            this.#aspectTipOpen = aspect;
-            this.#rebuild();
-          },
-          () => {
-            this.#aspectTipOpen = null;
-            this.#rebuild();
-          },
-          { tint },
-        );
-        if (isOpen) this.#openAspectTip = { anchor: infoRect, content, scrolls };
+        this.#drawInfoSegment(aspect, split.info, isOpen, { fill: stamp.fill, ink: stamp.ink });
+        if (isOpen) this.#openAspectTip = { anchor: split.info, content, scope: this.#scope };
       }
     });
     return y + aspectRows * (hit.target + 6) + 10;
   }
 
+  /** The split chip's "i" segment: a darker shade of the chip, an ink divider and ring; open, it inverts to ink. */
+  #drawInfoSegment(
+    aspect: CoreAspect,
+    rect: Rect,
+    isOpen: boolean,
+    tint: { readonly fill: number; readonly ink: number },
+  ): void {
+    const b = this.#b;
+    const ground = isOpen ? surface.ink.hex : shade(tint.fill, 0.78);
+    const glyph = isOpen ? surface.paper.hex : tint.ink;
+    b.box(rect, { fill: ground, stroke: surface.ink.hex, strokeWidth: 1.5 });
+    // The divider: heavier than the outline, so the chip reads as two buttons side by side.
+    b.box({ x: rect.x, y: rect.y, width: 2.5, height: rect.height }, { fill: surface.ink.hex });
+    const cx = rect.x + rect.width / 2 + 1;
+    const cy = rect.y + rect.height / 2;
+    b.box({ x: cx - 10, y: cy - 10, width: 20, height: 20 }, { stroke: glyph, strokeWidth: 2, round: true });
+    b.text(cx, cy, "i", typeRole.rowTitle, { color: glyph, size: 14, origin: [0.5, 0.5] });
+    const key = `aspect-info:${aspect}`;
+    b.tap(key, rect, { track: true });
+    this.#actions.set(key, () => {
+      this.#aspectTipOpen = isOpen ? null : aspect;
+      this.#rebuild();
+    });
+  }
+
   /**
-   * The open aspect tip (`#openAspectTip`), drawn last so it sits over everything else on the screen. One anchored in
-   * the narrow deck region follows that region's scroll and hides once its "i" segment leaves the region.
+   * The open aspect tip (`#openAspectTip`), drawn last so it sits over everything else on the screen: the aspect's
+   * name, tagline and tip line, and an "Aspects ▸" link to its lesson. One anchored in a scrolling region follows that
+   * region's scroll (a scroll redraws it) and is left out once its "i" segment leaves the region.
    */
-  #drawOpenAspectTip(): void {
+  #drawOpenAspectTip(area: Rect): void {
     const open = this.#openAspectTip;
     if (!open) return;
-    const { width, height } = this.scale.gameSize;
-    const region = open.scrolls ? this.#deckRegionRect : null;
-    const drawnAt = open.scrolls ? this.#narrowScroll.offsetPx : 0;
-    const anchor = { ...open.anchor, y: open.anchor.y - drawnAt };
-    const panel = drawAspectTipPanel(this, anchor, open.content, { x: 0, y: 0, width, height });
-    if (!region) return;
-    const place = (): void => {
-      const shift = drawnAt - this.#narrowScroll.offsetPx;
-      const top = anchor.y + shift;
-      panel.setY(shift).setVisible(top >= region.y && top + anchor.height <= region.y + region.height);
-    };
-    place();
-    this.#onDeckScroll = place;
+    const b = this.#b;
+    const { content, scope } = open;
+    const anchor = scope ? this.#inScope(scope, open.anchor) : open.anchor;
+    if (scope && (anchor.y < scope.view.y || anchor.y + anchor.height > scope.view.y + scope.view.height)) return;
+    const PANEL_WIDTH = 220;
+    const PAD = 10;
+    const GAP = 8;
+    const ARROW = 7;
+    const textWidth = PANEL_WIDTH - PAD * 2;
+    const title = b.measure(content.title, typeRole.sectionHeader, { size: 16, wrapWidth: textWidth });
+    const tagline = b.measure(content.tagline, typeRole.body, { wrapWidth: textWidth });
+    const tip = b.measure(content.tipLine, typeRole.body, { wrapWidth: textWidth });
+    const linkText = content.linkAvailable ? content.linkLabel : `${content.linkLabel} · ${content.linkReason}`;
+    const link = b.measure(linkText, SENTENCE_LABEL, { wrapWidth: textWidth });
+    const contentHeight = PAD + title.height + 6 + tagline.height + 6 + tip.height + 8 + link.height + PAD;
+    const anchorCenterX = anchor.x + anchor.width / 2;
+    const panelX = Math.max(
+      area.x + 4,
+      Math.min(anchorCenterX - PANEL_WIDTH / 2, area.x + area.width - PANEL_WIDTH - 4),
+    );
+    // Opens below the segment unless the screen has no room there.
+    const clearBelow = anchor.y + anchor.height;
+    const flipAbove = area.y + area.height - clearBelow < contentHeight + GAP + ARROW;
+    const panelY = flipAbove ? anchor.y - GAP - ARROW - contentHeight : clearBelow + GAP + ARROW;
+    const rect: Rect = { x: panelX, y: panelY, width: PANEL_WIDTH, height: contentHeight };
+    b.box(rect, { fill: surface.ink.hex, stroke: surface.ink.hex, strokeWidth: 2, key: "aspect-tip-box" });
+    b.box({ x: rect.x, y: rect.y + rect.height - 3, width: rect.width, height: 3 }, { fill: signal.caution.hex });
+    const tipX = Math.max(rect.x + ARROW, Math.min(anchorCenterX, rect.x + rect.width - ARROW));
+    if (flipAbove)
+      b.poly(
+        [
+          [tipX - ARROW, rect.y + rect.height],
+          [tipX + ARROW, rect.y + rect.height],
+          [tipX, rect.y + rect.height + ARROW],
+        ],
+        { fill: surface.ink.hex },
+      );
+    else
+      b.poly(
+        [
+          [tipX - ARROW, rect.y],
+          [tipX + ARROW, rect.y],
+          [tipX, rect.y - ARROW],
+        ],
+        { fill: surface.ink.hex },
+      );
+    b.tap("aspect-tip", rect, { track: true });
+    this.#actions.set("aspect-tip", () => undefined);
+    let y = rect.y + PAD;
+    b.text(rect.x + PAD, y, content.title, typeRole.sectionHeader, {
+      color: surface.paper.hex,
+      size: 16,
+      wrapWidth: textWidth,
+    });
+    y += title.height + 6;
+    b.text(rect.x + PAD, y, content.tagline, typeRole.body, {
+      color: surface.paper.hex,
+      alpha: ink.secondary,
+      wrapWidth: textWidth,
+    });
+    y += tagline.height + 6;
+    b.text(rect.x + PAD, y, content.tipLine, typeRole.body, { color: surface.paper.hex, wrapWidth: textWidth });
+    y += tip.height + 8;
+    b.text(rect.x + PAD, y, linkText, SENTENCE_LABEL, {
+      color: content.linkAvailable ? signal.caution.hex : surface.paper.hex,
+      ...(content.linkAvailable ? {} : { alpha: ink.disabled }),
+      wrapWidth: textWidth,
+    });
+    if (content.linkAvailable) {
+      b.tap("aspect-lesson", { x: rect.x + PAD, y, width: textWidth, height: Math.max(link.height, 18) });
+      this.#actions.set("aspect-lesson", () => {
+        this.scene.launch(SCENES.aspectLesson, {
+          aspect: content.aspect,
+          backTo: "previous",
+        } satisfies AspectLessonSceneData);
+      });
+    }
   }
 
   #drawTypeFilters(left: number, top: number, column: number, withShow = true): number {
     let y = withShow ? this.#drawShowToggles(left, top, column) : top;
-    label(this, left, y, "filter", typeRole.label, surface.ink.hex, ink.label);
+    this.#label(left, y, t("deckBuilder.filterLabel"));
     y += 16;
-    const ground = this.add.graphics();
-    const typeChipRows = wrapChipsToRows(TYPE_FILTERS, column);
+    const chips = TYPE_FILTERS.map((chip) => ({ ...chip, text: t(`deckBuilder.type.${chip.id}` as MessageKey) }));
+    const typeChipRows = wrapChipsToRows(chips, column);
     const activeTypeFilterId = TYPE_FILTERS.find((f) => f.type === (this.#filter.type ?? null))?.id ?? "all";
     typeChipRows.forEach((row, rowIndex) => {
       const cellWidth = (column - (row.length - 1) * CHIP_GAP) / row.length;
@@ -1539,21 +1854,10 @@ export class DeckBuilderScene extends Phaser.Scene {
         const applyFilter = (): void => {
           this.#filter = { ...this.#filter, type: chip.type };
           this.#rememberView();
-          this.#listScroll.reset();
+          this.#resetPool();
           this.#rebuild();
         };
-        this.#buttons.push(
-          new McButton(this, {
-            kind: "secondary",
-            label: chip.label,
-            type: typeRole.label,
-            rect,
-            selected,
-            underlay: ground,
-            onClick: applyFilter,
-          }),
-        );
-        this.#stops.set(`type:${chip.id}`, { rect, activate: applyFilter });
+        this.#button(`type:${chip.id}`, rect, chip.text, applyFilter, { selected });
       });
     });
     return y + chipStripHeight(typeChipRows.length) + 16;
@@ -1568,26 +1872,17 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     // Inline (the desktop's pool column), a "show" word and two chips share one row with the card count at its end.
     const word = inline ? 48 : 0;
-    if (inline) {
-      label(
-        this,
-        left,
-        y + hit.target / 2,
-        t("deckBuilder.show"),
-        typeRole.label,
-        surface.ink.hex,
-        ink.label,
-      ).setOrigin(0, 0.5);
-    } else {
-      label(this, left, y, t("deckBuilder.show"), typeRole.label, surface.ink.hex, ink.label);
+    if (inline)
+      this.#label(left, y + hit.target / 2, t("deckBuilder.show"), false, { origin: [0, 0.5], fitWidth: word - 6 });
+    else {
+      this.#label(left, y, t("deckBuilder.show"));
       y += 16;
     }
-    const ground = this.add.graphics();
     const width = inline ? Math.min(130, (column - word - CHIP_GAP) / 4) : (column - CHIP_GAP) / 2;
     // Plain chips, filled while on with a tick: a tinted Basic chip read as "on" either way.
     const toggles = [
       { id: "show-hero", text: t("deckBuilder.showHero"), key: "hideHero" },
-      { id: "show-basic", text: aspectStampOf("basic").label, key: "hideBasic" },
+      { id: "show-basic", text: aspectStampOf("basic", artLanguageNow()).label, key: "hideBasic" },
     ] as const;
     toggles.forEach((toggle, index) => {
       const rect: Rect = { x: left + word + index * (width + CHIP_GAP), y, width, height: hit.target };
@@ -1595,21 +1890,10 @@ export class DeckBuilderScene extends Phaser.Scene {
       const flip = (): void => {
         this.#filter = { ...this.#filter, [toggle.key]: shown };
         this.#rememberView();
-        this.#listScroll.reset();
+        this.#resetPool();
         this.#rebuild();
       };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: `${shown ? "✓ " : ""}${toggle.text}`,
-          type: typeRole.label,
-          rect,
-          selected: shown,
-          underlay: ground,
-          onClick: flip,
-        }),
-      );
-      this.#stops.set(`type:${toggle.id}`, { rect, activate: flip });
+      this.#button(`type:${toggle.id}`, rect, `${shown ? "✓ " : ""}${toggle.text}`, flip, { selected: shown });
     });
     return y + hit.target + (inline ? 8 : 16);
   }
@@ -1621,29 +1905,16 @@ export class DeckBuilderScene extends Phaser.Scene {
    */
   #drawQuickFilters(left: number, top: number, column: number, deck: Deck): number {
     let y = top;
-    label(this, left, y, "cost · icon · trait", typeRole.label, surface.ink.hex, ink.label);
+    this.#label(left, y, t("deckBuilder.quickLabel"));
     y += 16;
-    const ground = this.add.graphics();
     const apply = (next: PoolFilter): void => {
       this.#filter = next;
       this.#rememberView();
-      this.#listScroll.reset();
+      this.#resetPool();
       this.#rebuild();
     };
-    const add = (id: string, rect: Rect, text: string, onClick: () => void, selected = false): void => {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: text,
-          type: typeRole.label,
-          rect,
-          selected,
-          underlay: ground,
-          onClick,
-        }),
-      );
-      this.#stops.set(id, { rect, activate: onClick });
-    };
+    const add = (id: string, rect: Rect, text: string, onClick: () => void, selected = false): void =>
+      this.#button(id, rect, text, onClick, { selected });
     // A wide column takes every chip on one row with the trait stepper at its end; a narrow one stacks cost, icons
     // and the stepper.
     const oneRow = column >= QUICK_ONE_ROW_MIN;
@@ -1652,6 +1923,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       ? [QUICK_FILTERS]
       : [QUICK_FILTERS.filter((f) => f.id.startsWith("cost:")), QUICK_FILTERS.filter((f) => f.id.startsWith("icon:"))];
     const chipsWidth = oneRow ? column - stepperWidth - CHIP_GAP : column;
+    const textOf = (chip: (typeof QUICK_FILTERS)[number]): string =>
+      chip.id.startsWith("icon:") ? t(`deckBuilder.${chip.id.replace(":", ".")}` as MessageKey) : chip.text;
     rows.forEach((row, rowIndex) => {
       // On one row the cost chips ("0" to "5+") take a square each and the icon names share what is left; elsewhere
       // a row's chips share it evenly.
@@ -1660,7 +1933,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       const named = row.filter((chip) => !isCost(chip));
       const nameSpace = chipsWidth - costs * hit.target - (row.length - 1) * CHIP_GAP;
       // Names share their space by length, so "Physical" gets more than "Wild".
-      const weight = (chip: (typeof row)[number]): number => (oneRow ? chip.text.length + 3 : 1);
+      const weight = (chip: (typeof row)[number]): number => (oneRow ? textOf(chip).length + 4 : 1);
       const totalWeight = named.reduce((sum, chip) => sum + weight(chip), 0);
       let x = left;
       row.forEach((chip) => {
@@ -1668,7 +1941,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         const rect: Rect = { x, y: y + rowIndex * (hit.target + CHIP_GAP), width, height: hit.target };
         x += width + CHIP_GAP;
         const on = chip.isOn(this.#filter);
-        add(`quick:${chip.id}`, rect, chip.text, () => apply(chip.apply(this.#filter, !on)), on);
+        add(`quick:${chip.id}`, rect, textOf(chip), () => apply(chip.apply(this.#filter, !on)), on);
       });
     });
     if (!oneRow) y += chipStripHeight(rows.length) + CHIP_GAP;
@@ -1683,7 +1956,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     );
     const arrow = hit.target;
     // A kept trait no card shows under the other filters still names itself, so an empty pool says why.
-    const traitName = this.#filter.trait ? traitLabelOf(this.#filter.trait) : "All traits";
+    const traitName = this.#filter.trait ? traitLabelOf(this.#filter.trait) : t("deckBuilder.allTraits");
     const stepTrait = (dir: 1 | -1) => (): void =>
       apply({ ...this.#filter, trait: stepChoice(traits, this.#filter.trait, dir) as Trait | null });
     add("trait:prev", { x: stepperLeft, y, width: arrow, height: hit.target }, "<", stepTrait(-1));
@@ -1708,9 +1981,8 @@ export class DeckBuilderScene extends Phaser.Scene {
    */
   #drawPackAndSort(left: number, top: number, column: number, deck: Deck): number {
     let y = top;
-    label(this, left, y, "pack", typeRole.label, surface.ink.hex, ink.label);
+    this.#label(left, y, t("deckBuilder.packLabel"));
     y += 16;
-    const ground = this.add.graphics();
     const choices = packFilterChoices(
       this.#pool(),
       this.#identity!,
@@ -1721,7 +1993,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const apply = (next: PoolFilter): void => {
       this.#filter = next;
       this.#rememberView();
-      this.#listScroll.reset();
+      this.#resetPool();
       this.#rebuild();
     };
     const arrow = hit.target;
@@ -1744,31 +2016,17 @@ export class DeckBuilderScene extends Phaser.Scene {
         this.#filter.packCodes,
         (chosen) => apply({ ...this.#filter, packCodes: chosen.length ? chosen : null }),
       );
-    const prevRect: Rect = { x: left, y, width: arrow, height: hit.target };
-    const nameRect: Rect = {
-      x: left + arrow + CHIP_GAP,
-      y,
-      width: column - 2 * (arrow + CHIP_GAP),
-      height: hit.target,
-    };
-    const nextRect: Rect = { x: left + column - arrow, y, width: arrow, height: hit.target };
-    const add = (id: string, rect: Rect, text: string, onClick: () => void, selected = false): void => {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: text,
-          type: typeRole.label,
-          rect,
-          selected,
-          underlay: ground,
-          onClick,
-        }),
-      );
-      this.#stops.set(id, { rect, activate: onClick });
-    };
-    add("pack:prev", prevRect, "<", stepPack(-1));
-    add("pack:name", nameRect, `${packLabel} ▾`, pickPacks, Boolean(this.#filter.packCodes?.length));
-    add("pack:next", nextRect, ">", stepPack(1));
+    const add = (id: string, rect: Rect, text: string, onClick: () => void, selected = false): void =>
+      this.#button(id, rect, text, onClick, { selected });
+    add("pack:prev", { x: left, y, width: arrow, height: hit.target }, "<", stepPack(-1));
+    add(
+      "pack:name",
+      { x: left + arrow + CHIP_GAP, y, width: column - 2 * (arrow + CHIP_GAP), height: hit.target },
+      `${packLabel} ▾`,
+      pickPacks,
+      Boolean(this.#filter.packCodes?.length),
+    );
+    add("pack:next", { x: left + column - arrow, y, width: arrow, height: hit.target }, ">", stepPack(1));
     y += hit.target + CHIP_GAP;
 
     // Every wave's name, so a picked wave the other filters have emptied still reads by name (PR #980 review).
@@ -1797,9 +2055,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     const resort = (next: PoolSort): void => {
       this.#sort = next;
       this.#rememberView();
-      this.#listScroll.reset();
+      this.#resetPool();
       this.#rebuild();
     };
+    const sortName = (key: PoolSortKey | null): string => t(`deckBuilder.sort.${key ?? "none"}` as MessageKey);
     const { primary, secondary } = this.#sort;
     const sortAt = Math.max(
       0,
@@ -1808,7 +2067,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     add(
       "pack:sort",
       { x: left, y, width: half, height: hit.target },
-      `Sort: ${SORT_CYCLE[sortAt]!.label}`,
+      t("deckBuilder.sortBy", { name: sortName(primary) }),
       () => {
         const next = SORT_CYCLE[(sortAt + 1) % SORT_CYCLE.length]!.sort;
         resort({ primary: next, secondary: secondary === next ? null : secondary });
@@ -1820,7 +2079,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     add(
       "pack:then",
       { x: left + half + CHIP_GAP, y, width: half, height: hit.target },
-      `Then: ${SORT_CYCLE.find((o) => o.sort === secondary)?.label ?? "None"}`,
+      t("deckBuilder.thenBy", { name: sortName(secondary) }),
       () => resort({ primary, secondary: thenChoices[(thenAt + 1) % thenChoices.length] ?? null }),
       secondary !== null,
     );
@@ -1829,28 +2088,18 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   #drawNameField(left: number, top: number, column: number, deck: Deck, onDark = false): number {
     let y = top;
-    label(
-      this,
-      left,
-      y,
-      "deck name",
-      typeRole.label,
-      onDark ? surface.paper.hex : surface.ink.hex,
-      onDark ? ink.secondary : ink.label,
-    );
+    this.#label(left, y, t("deckBuilder.deckName"), onDark);
     y += 16;
     const nameRect: Rect = { x: left, y, width: column, height: hit.target };
-    this.#nameFieldRect = nameRect;
-    if (this.#nameInput) this.#nameInput.layout(nameRect);
-    else {
-      this.#nameInput = new McTextInput(this, {
-        rect: nameRect,
-        value: deck.name,
-        type: typeRole.rowTitle,
-        onChange: (value) => this.#setDeck(setName(this.#deck!, value), false),
-      });
-    }
-    this.#stops.set("name", { rect: nameRect, activate: () => this.#nameInput?.focus() });
+    // The name is kept as it is typed (a short pause), so Save never holds an older one.
+    this.#b.search(nameRect, {
+      key: "name",
+      value: deck.name,
+      placeholder: t("deckBuilder.deckName"),
+      clearLabel: t("deckBuilder.clearSearch"),
+      debounce: 60,
+    });
+    this.#stop("name", nameRect, () => this.#fieldElement("name")?.focusInput());
     return y + hit.target + 16;
   }
 
@@ -1864,23 +2113,32 @@ export class DeckBuilderScene extends Phaser.Scene {
     if (rewards.length === 0) return top;
     const frozen = this.#campaignModel?.editingDisabled ?? false;
     const ground = onDark ? surface.paper.hex : surface.ink.hex;
-    label(this, left, top, "campaign rewards", typeRole.label, ground, onDark ? ink.secondary : ink.label);
+    this.#label(left, top, t("deckBuilder.rewardsLabel"), onDark);
     let y = top + 18;
     const buttonWidth = Math.min(132, Math.floor(column * 0.4));
     rewards.forEach((reward, at) => {
       const card = this.#pool().find((candidate) => candidate.id === reward.cardId);
       const textWidth = column - buttonWidth - 8;
-      const name = this.add
-        .text(left, y, card ? cardDisplayName(card) : (reward.cardId as string), textStyle(typeRole.rowTitle, ground))
-        .setWordWrapWidth(textWidth);
-      const status = this.add
-        .text(
-          left,
-          y + name.height + 2,
-          `${reward.included ? "✓" : "–"} ${reward.status}`,
-          textStyle(typeRole.body, ground, onDark ? ink.secondary : ink.label),
-        )
-        .setWordWrapWidth(textWidth);
+      const name = this.#text(
+        left,
+        y,
+        card ? cardDisplayName(card) : (reward.cardId as string),
+        typeRole.rowTitle,
+        ground,
+        1,
+        {
+          wrapWidth: textWidth,
+        },
+      );
+      const status = this.#text(
+        left,
+        y + name.height + 2,
+        `${reward.included ? "✓" : "–"} ${reward.status}`,
+        typeRole.body,
+        ground,
+        onDark ? ink.secondary : ink.label,
+        { wrapWidth: textWidth },
+      );
       const textHeight = name.height + 2 + status.height;
       const rowHeight = Math.max(hit.target, textHeight);
       const rect: Rect = {
@@ -1890,20 +2148,11 @@ export class DeckBuilderScene extends Phaser.Scene {
         height: hit.target,
       };
       const toggle = (): void => void this.#toggleReward(reward.cardId, !reward.included);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: onDark ? "onInk" : "secondary",
-          label: reward.toggleLabel,
-          type: typeRole.label,
-          rect,
-          enabled: !this.#busy && !frozen,
-          ...(frozen && this.#campaignModel?.editingDisabledReason
-            ? { reason: this.#campaignModel.editingDisabledReason }
-            : {}),
-          onClick: toggle,
-        }),
-      );
-      this.#stops.set(`reward:${at}:${reward.cardId as string}`, { rect, activate: toggle });
+      this.#button(`reward:${at}:${reward.cardId as string}`, rect, reward.toggleLabel, toggle, {
+        look: onDark ? "onInk" : "secondary",
+        ...(this.#busy ? { disabled: true as const } : {}),
+        ...(frozen ? { disabled: this.#campaignModel?.editingDisabledReason ?? true } : {}),
+      });
       y += rowHeight + 8;
     });
     return y + 4;
@@ -1953,66 +2202,70 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Campaign mode's own count (the Briefing's "N cards + M pinned", MC10 p. 3): granted lines don't count toward
     // deck size, so the legal-count line says so rather than reading a plain total that includes them.
     const cardCountText = this.#campaignModel
-      ? (() => {
-          // A reward is counted apart too (MC45 p. 24): "40 cards + 1 reward".
-          return campaignDeckSizeLabel(campaignDeckSizeSplit(this.#campaignModel!));
-        })()
-      : deckCountText(deckStatsOf(deck, this.#pool()));
+      ? campaignDeckSizeLabel(campaignDeckSizeSplit(this.#campaignModel))
+      : deckCountText(deckStatsOf(deck, this.#pool()), artLanguageNow());
     const legalityText = verdict.ok
-      ? `Legal — ${cardCountText}.`
-      : `${verdict.problems.length} problem${verdict.problems.length === 1 ? "" : "s"}: ${verdict.problems.map((p) => p.message).join(" ")}`;
+      ? t("deckBuilder.legal", { count: cardCountText })
+      : t(verdict.problems.length === 1 ? "deckBuilder.problemOne" : "deckBuilder.problems", {
+          count: verdict.problems.length,
+          list: verdict.problems.map((p) => p.message).join(" "),
+        });
     const color = verdict.ok ? signal.heal.hex : accent.redDeep.hex;
-    const legalityLine = this.add
-      .text(left, y, legalityText, textStyle(typeRole.body, onDark ? surface.paper.hex : color))
-      .setWordWrapWidth(column);
-    if (onDark && verdict.ok) legalityLine.setColor(cssOf(signal.heal.hex));
+    const legalityLine = this.#text(
+      left,
+      y,
+      legalityText,
+      typeRole.body,
+      onDark && !verdict.ok ? surface.paper.hex : color,
+      1,
+      {
+        wrapWidth: column,
+        key: "legality",
+      },
+    );
     y += legalityLine.height + 12;
 
     if (this.#campaignModel?.editingDisabledReason) {
-      const frozenLine = this.add
-        .text(
-          left,
-          y,
-          this.#campaignModel.editingDisabledReason,
-          textStyle(typeRole.body, onDark ? surface.paper.hex : accent.redDeep.hex),
-        )
-        .setWordWrapWidth(column);
+      const frozenLine = this.#text(
+        left,
+        y,
+        this.#campaignModel.editingDisabledReason,
+        typeRole.body,
+        onDark ? surface.paper.hex : accent.redDeep.hex,
+        1,
+        { wrapWidth: column },
+      );
       y += frozenLine.height + 12;
     }
 
     if (!this.#status && !this.#campaign && this.#isDirty()) {
-      const dirtyLine = this.add
-        .text(
-          left,
-          y,
-          this.#savedDeck ? "Unsaved changes." : "Not saved yet.",
-          textStyle(typeRole.body, onDark ? surface.paper.hex : surface.ink.hex, ink.secondary),
-        )
-        .setWordWrapWidth(column);
+      const dirtyLine = this.#text(
+        left,
+        y,
+        this.#savedDeck ? t("deckBuilder.unsaved") : t("deckBuilder.notSaved"),
+        typeRole.body,
+        onDark ? surface.paper.hex : surface.ink.hex,
+        ink.secondary,
+        { wrapWidth: column },
+      );
       y += dirtyLine.height + 8;
     }
 
     if (this.#status) {
-      const statusLine = this.add
-        .text(
-          left,
-          y,
-          this.#status,
-          textStyle(typeRole.body, onDark ? surface.paper.hex : surface.ink.hex, ink.secondary),
-        )
-        .setWordWrapWidth(column);
+      const statusLine = this.#text(
+        left,
+        y,
+        this.#status,
+        typeRole.body,
+        onDark ? surface.paper.hex : surface.ink.hex,
+        ink.secondary,
+        { wrapWidth: column, key: "status" },
+      );
       y += statusLine.height + 8;
     }
     return y;
   }
 
-  /**
-   * The cost curve chart alone (D04's own left-rail placement, wide layout) —
-   * split out of what used to be one combined "stats panel" so the wide
-   * layout can put it in the left rail while "Your deck" (`#drawYourDeckList`)
-   * goes in the right one; the narrow layout still calls both back to back,
-   * in the same order as before.
-   */
   /**
    * The draw odds (issue #531, `view/deck-odds.ts`): a group stepper (◂ Gives physical ▸, Resource cards, a trait, a
    * title ...), a draw count stepper starting at the alter ego's hand size (the opening hand), then the chance of
@@ -2022,14 +2275,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     const copies = deckCopiesOf(deck, (id) => cardById().get(id));
     const groups = oddsGroupsOf(copies);
-    const add = (id: string, rect: Rect, text: string, onClick: () => void, enabled = true): void => {
-      this.#buttons.push(
-        new McButton(this, { kind: "secondary", label: text, type: typeRole.label, rect, enabled, onClick }),
-      );
-      this.#stops.set(id, { rect, activate: () => enabled && onClick() });
-    };
+    const add = (id: string, rect: Rect, text: string, onClick: () => void, enabled = true): void =>
+      this.#button(id, rect, text, onClick, enabled ? {} : { disabled: true });
     if (groups.length === 0) {
-      label(this, left, y, "Add cards to see their odds.", typeRole.body, surface.ink.hex, ink.meta);
+      this.#text(left, y, t("deckBuilder.oddsEmpty"), typeRole.body, surface.ink.hex, ink.meta);
       return y + 24;
     }
     const at = Math.max(
@@ -2062,7 +2311,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     add(
       "odds:draws",
       { x: left + arrow + CHIP_GAP, y, width: column - 2 * (arrow + CHIP_GAP), height: rowHeight },
-      draws === hand ? `Draw ${draws} (opening hand)` : `Draw ${draws}`,
+      draws === hand ? t("deckBuilder.oddsDrawOpening", { count: draws }) : t("deckBuilder.oddsDraw", { count: draws }),
       setDraws(hand),
     );
     add(
@@ -2076,28 +2325,53 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     const { rows, atLeastOne } = oddsRowsOf(drawOdds(copies.length, group.count, draws));
     const line = rows.map((row) => `${row.label}: ${percentText(row.p)}`).join("   ");
-    label(this, left, y, line, typeRole.body, surface.ink.hex, ink.label);
+    this.#text(left, y, line, typeRole.body, surface.ink.hex, ink.label, { key: "odds-line" });
     y += 18;
-    label(this, left, y, `At least one: ${percentText(atLeastOne)}`, typeRole.body, surface.ink.hex, ink.label);
+    this.#text(
+      left,
+      y,
+      t("deckBuilder.oddsAtLeast", { p: percentText(atLeastOne) }),
+      typeRole.body,
+      surface.ink.hex,
+      ink.label,
+    );
     return y + 26;
   }
 
+  /** The cost curve: a bar per cost (the last "N+"), blue (spent colour for the last), the count above it on a phone. */
   #drawCostCurve(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
     const stats = deckStatsOf(deck, this.#pool());
     // On a phone each bar carries its count above it (the cost is on the axis), so the chart reads as numbers, not
     // buttons. The desktop rail (`onDark`) has no room for it.
     const chartHeight = onDark ? 74 : 90;
-    drawCostCurveBars(
-      this,
-      { x: left, y: top, width: column, height: chartHeight },
-      costCurveBars(stats),
-      onDark,
-      !onDark,
-    );
+    const bars = costCurveBars(stats);
+    const gap = 6;
+    const barWidth = (column - gap * (bars.length - 1)) / bars.length;
+    const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
+    const axisColor = onDark ? surface.paper.hex : surface.ink.hex;
+    const countRoom = onDark ? 0 : 16;
+    bars.forEach((bar, index) => {
+      const barHeight = Math.max(2, Math.round((bar.count / maxCount) * (chartHeight - 18 - countRoom)));
+      const x = left + index * (barWidth + gap);
+      const barTop = top + (chartHeight - 18 - barHeight);
+      this.#b.box(
+        { x, y: barTop, width: barWidth, height: barHeight },
+        {
+          fill: index === bars.length - 1 ? signal.spent.hex : signal.cost.hex,
+          ...(onDark ? {} : { stroke: surface.ink.hex, strokeWidth: 2 }),
+        },
+      );
+      if (!onDark)
+        this.#text(x + barWidth / 2, barTop - 2, String(bar.count), typeRole.rowTitle, axisColor, 1, {
+          origin: [0.5, 1],
+        });
+      this.#text(x + barWidth / 2, top + chartHeight - 10, bar.label, typeRole.label, axisColor, ink.label, {
+        origin: [0.5, 0],
+      });
+    });
     return top + chartHeight + 16;
   }
 
-  /** "Your deck", grouped Hero / aspect / Basic with a "+ N more" overflow (D04's right rail; the narrow layout's own stats panel). */
   #setRailTab(tab: "deck" | "games"): void {
     if (this.#railTab === tab) return;
     this.#railTab = tab;
@@ -2111,25 +2385,31 @@ export class DeckBuilderScene extends Phaser.Scene {
     const gap = 6;
     const width = (column - gap) / 2;
     const tabs = [
-      { id: "deck" as const, label: "Your deck", glyph: "zonePrevious" as const },
-      { id: "games" as const, label: "From your games", glyph: "zoneNext" as const },
+      { id: "deck" as const, label: t("deckBuilder.railDeck"), glyph: "zonePrevious" as const },
+      { id: "games" as const, label: t("deckBuilder.railGames"), glyph: "zoneNext" as const },
     ];
     tabs.forEach((tab, index) => {
       const rect: Rect = { x: left + index * (width + gap), y: top, width, height: hit.target };
       const selected = this.#railTab === tab.id;
       const open = (): void => this.#setRailTab(tab.id);
-      const button = new McButton(this, {
-        kind: selected ? "primary" : onDark ? "onInk" : "secondary",
-        label: tab.label,
-        type: typeRole.label,
-        rect,
-        onClick: open,
-      });
-      this.#buttons.push(button);
-      // The bumper that reaches the other tab, on the tab it reaches.
-      if (!selected) this.#hints?.button(button, [tab.glyph], onDark ? "ink" : "paper");
-      this.#stops.set(`rail:${tab.id}`, { rect, activate: open });
-      this.#railStops.push(`rail:${tab.id}`);
+      const key = `rail:${tab.id}`;
+      const look = selected ? "primary" : onDark ? "onInk" : "secondary";
+      if (selected) this.#button(key, rect, tab.label, open, { look });
+      else {
+        // The bumper that reaches the other tab, on the tab it reaches.
+        this.#glyphs.button(this.#b, {
+          key,
+          rect,
+          label: caseOf(typeRole.label, tab.label),
+          look,
+          type: typeRole.label,
+          ids: [tab.glyph],
+          ground: onDark ? "ink" : "paper",
+        });
+        this.#actions.set(key, open);
+        this.#stop(key, rect, open);
+      }
+      this.#railStops.push(key);
     });
     return top + hit.target + 10;
   }
@@ -2147,13 +2427,14 @@ export class DeckBuilderScene extends Phaser.Scene {
     onDark: boolean,
     bottom = Number.POSITIVE_INFINITY,
   ): number {
+    const b = this.#b;
     const fg = onDark ? surface.paper.hex : surface.ink.hex;
+    const soft = onDark ? ink.secondary : ink.label;
     let y = top;
     if (!this.#insights) {
-      label(this, left, y, "Reading your games…", typeRole.label, fg, ink.meta);
+      this.#text(left, y, t("deckBuilder.gamesReading"), typeRole.label, fg, ink.meta);
       return y + 24;
     }
-    this.#railArtMissing = 0;
     const pool = new Set(this.#browsablePool(deck).map((card) => card.id as string));
     // The same refusals the pool's −/+ read: a suggestion never cuts a campaign's granted card, or adds a refused one.
     const frozen = this.#campaignModel?.editingDisabled ?? false;
@@ -2173,18 +2454,19 @@ export class DeckBuilderScene extends Phaser.Scene {
       POOL_STATS_NAMES,
     );
     if (view.headline) {
-      const headType = { ...typeRole.label, size: type.label };
-      label(this, left, y, view.headline.toUpperCase(), headType, onDark ? signal.caution.hex : fg, 1);
+      this.#text(left, y, view.headline.toUpperCase(), typeRole.label, onDark ? signal.caution.hex : fg, 1, {
+        size: type.label,
+      });
       y += type.label + 9;
     }
     if (view.insight) {
-      const text = this.add
-        .text(left + 8, y + 6, view.insight, textStyle(typeRole.body, surface.ink.hex, 1))
-        .setFontSize(type.note)
-        .setWordWrapWidth(column - 16);
-      const box = this.add.graphics();
-      box.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, text.height + 12);
-      this.children.bringToTop(text);
+      const text = b.measure(view.insight, typeRole.body, { size: type.note, wrapWidth: column - 16 });
+      b.box({ x: left, y, width: column, height: text.height + 12 }, { fill: surface.paper.hex });
+      b.text(left + 8, y + 6, view.insight, typeRole.body, {
+        color: surface.ink.hex,
+        size: type.note,
+        wrapWidth: column - 16,
+      });
       y += text.height + 20;
     }
     const { thumb } = type;
@@ -2200,66 +2482,56 @@ export class DeckBuilderScene extends Phaser.Scene {
     // The room is the stepper's, the You / Everyone toggle's under it, and a first card. It is kept even with no villain
     // faced yet, so the switch is always there.
     // On Everyone with sharing off, Share and its line take room too (measured, at most two lines).
-    const shareLineText = (): Phaser.GameObjects.Text => {
-      const text = this.add.text(
-        left,
-        y,
-        this.#shareFailed ? `${globalRowFailed()} ${shareLine()}` : shareLine(),
-        textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label),
+    const shareLineOf = (): string => (this.#shareFailed ? `${globalRowFailed()} ${shareLine()}` : shareLine());
+    const shareLineHeight = (): number =>
+      Math.min(
+        b.measure(shareLineOf(), typeRole.body, { size: type.note, wrapWidth: column }).height,
+        Math.ceil(type.note * 1.5 * 2),
       );
-      fitWrapped(text, column, 2, type.note);
-      return text;
-    };
     let shareRoom = 0;
-    if (this.#againstSource === "everyone" && readConsent() !== "on" && Number.isFinite(bottom)) {
-      const probe = shareLineText();
-      shareRoom = hit.target + 6 + probe.height + 8;
-      probe.destroy();
-    }
+    if (this.#againstSource === "everyone" && readConsent() !== "on" && Number.isFinite(bottom))
+      shareRoom = hit.target + 6 + shareLineHeight() + 8;
     // Touch sizes enlarge both controls, so the slack under the first card is kept small: a rail that cannot show its
     // Cut row at desktop size on a touch-reporting machine is a rail with a guess too many pixels reserved.
     let limit = bottom - (hit.target + 8) * 2 - shareRoom - thumb.height - 8;
     const section = (
+      id: string,
       title: string,
       cards: readonly SuggestedCard[],
       action: { readonly label: string; readonly run: (cardId: string) => void } | null,
     ): void => {
       if (cards.length === 0) return;
-      const head = this.add.text(left, y, title.toUpperCase(), {
-        ...textStyle(typeRole.barTitle, fg),
-        fontSize: "17px",
-      });
-      fitText(head, column, 17);
+      const head = b.measure(title.toUpperCase(), typeRole.barTitle, { size: 17, fitWidth: column });
       // The heading advances y by its measured height + 10, so test that, not a guessed 20: a heading with no
       // card row under it is never drawn.
-      if (y + head.height + 10 + thumb.height > limit) {
-        head.destroy();
-        return;
-      }
-      const rule = this.add.graphics();
-      rule.fillStyle(fg, 1).fillRect(left, y + head.height + 2, column, 2);
+      if (y + head.height + 10 + thumb.height > limit) return;
+      b.text(left, y, title.toUpperCase(), typeRole.barTitle, { color: fg, size: 17, fitWidth: column });
+      b.box({ x: left, y: y + head.height + 2, width: column, height: 2 }, { fill: fg });
       y += head.height + 10;
       for (const entry of cards) {
         if (y + thumb.height > limit) return;
         const card = cardById().get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
-        const frame = this.add.graphics();
-        frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-        if (!drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic)) this.#railArtMissing++;
-        // With the deck lines, so the narrow layout's pictures follow its scrolling deck region.
-        this.#deckLines.push({ cardId: entry.cardId, rect: pic, region: onDark ? "none" : "narrow" });
+        b.image(pic, {
+          src: card ? (artFor(card, { kind: "front" })?.url ?? null) : null,
+          fill: surface.parchment.hex,
+          key: `games-art:${id}:${entry.cardId}`,
+        });
+        // With the deck lines, so the pictures open the card popover and follow a scrolling region.
+        this.#deckLines.push({ cardId: entry.cardId, rect: pic, scope: this.#scope });
+        if (card) {
+          const key = `games-open:${id}:${entry.cardId}`;
+          b.tap(key, pic, { inspect: true });
+          this.#actions.set(key, () => this.#inspect(card));
+        }
         const buttonWidth = action ? 70 : 0;
-        const text = this.add
-          .text(
-            left + thumb.width + 8,
-            y + 2,
-            `${card?.name ?? entry.cardId}
-${entry.detail}`,
-            textStyle(typeRole.body, fg, onDark ? ink.body : 1),
-          )
-          .setFontSize(type.text)
-          .setWordWrapWidth(column - thumb.width - 16 - buttonWidth);
-        clampLines(text, type.lines);
+        b.text(left + thumb.width + 8, y + 2, `${card?.name ?? entry.cardId}\n${entry.detail}`, typeRole.body, {
+          color: fg,
+          ...(onDark ? { alpha: ink.body } : {}),
+          size: type.text,
+          wrapWidth: column - thumb.width - 16 - buttonWidth,
+          maxLines: type.lines,
+        });
         if (action) {
           const rect: Rect = {
             x: left + column - buttonWidth,
@@ -2268,29 +2540,23 @@ ${entry.detail}`,
             height: hit.target,
           };
           const key = `games:${action.label}:${entry.cardId}`;
-          const run = (): void => action.run(entry.cardId);
-          this.#buttons.push(
-            new McButton(this, {
-              kind: onDark ? "onInk" : "secondary",
-              label: action.label,
-              type: typeRole.label,
-              rect,
-              onClick: run,
-            }),
-          );
-          this.#stops.set(key, { rect, activate: run });
+          this.#button(key, rect, action.label, () => action.run(entry.cardId), {
+            look: onDark ? "onInk" : "secondary",
+          });
           this.#railStops.push(key);
         }
         y += Math.max(thumb.height, hit.target) + 6;
       }
       y += 6;
     };
-    section("Cut? Sits in your deck", view.cut.filter(canCut), {
-      label: "− Cut",
+    const cutLabel = t("deckBuilder.gamesCutLabel");
+    const addLabel = t("deckBuilder.gamesAddLabel");
+    section("cut", t("deckBuilder.gamesCutTitle"), view.cut.filter(canCut), {
+      label: cutLabel,
       run: (cardId) => this.#setDeck(removeCard(this.#deck!, cardId as CardId)),
     });
-    section("Try: cards you won with", view.tryCards.filter(canAdd), {
-      label: "+ Add",
+    section("try", t("deckBuilder.gamesTryTitle"), view.tryCards.filter(canAdd), {
+      label: addLabel,
       run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)),
     });
     limit = bottom;
@@ -2334,34 +2600,23 @@ ${entry.detail}`,
           this.#route?.focusKey(delta < 0 ? "games:previous" : "games:against");
         };
         const step = (): void => stepBy(1);
+        const look = onDark ? "onInk" : "secondary";
         if (prevWidth > 0) {
           const prevRect: Rect = { x: left, y, width: prevWidth - 8, height: hit.target };
-          this.#buttons.push(
-            new McButton(this, {
-              kind: onDark ? "onInk" : "secondary",
-              label: "◂",
-              type: typeRole.label,
-              rect: prevRect,
-              onClick: () => stepBy(-1),
-            }),
-          );
-          this.#stops.set("games:previous", { rect: prevRect, activate: () => stepBy(-1) });
+          this.#button("games:previous", prevRect, "◂", () => stepBy(-1), {
+            look,
+            aria: t("deckBuilder.gamesPreviousVillain"),
+          });
           this.#railStops.push("games:previous");
         }
-        this.#buttons.push(
-          new McButton(this, {
-            kind: onDark ? "onInk" : "secondary",
-            label: `${against?.headline ?? `Against ${villain}`}${faced.length > 1 ? " ▸" : ""}`,
-            type: typeRole.label,
-            rect,
-            onClick: step,
-            enabled: faced.length > 1,
-          }),
+        this.#button(
+          "games:against",
+          rect,
+          `${against?.headline ?? t("deckBuilder.gamesAgainst", { villain })}${faced.length > 1 ? " ▸" : ""}`,
+          step,
+          { look, ...(faced.length > 1 ? {} : { disabled: true as const }), stop: faced.length > 1 },
         );
-        if (faced.length > 1) {
-          this.#stops.set("games:against", { rect, activate: step });
-          this.#railStops.push("games:against");
-        }
+        if (faced.length > 1) this.#railStops.push("games:against");
         y += hit.target + 8;
       }
       // Whose decks: yours, or everyone's. Two equal buttons; the chosen one is filled and ticked.
@@ -2381,16 +2636,9 @@ ${entry.detail}`,
           this.#rebuild();
           this.#route?.focusKey(`games:source:${source}`);
         };
-        this.#buttons.push(
-          new McButton(this, {
-            kind: chosen ? "primary" : onDark ? "onInk" : "secondary",
-            label: `${chosen ? "✓ " : ""}${AGAINST_LABELS[source]}`,
-            type: typeRole.label,
-            rect: sourceRect,
-            onClick: choose,
-          }),
-        );
-        this.#stops.set(`games:source:${source}`, { rect: sourceRect, activate: choose });
+        this.#button(`games:source:${source}`, sourceRect, `${chosen ? "✓ " : ""}${AGAINST_LABELS[source]}`, choose, {
+          look: chosen ? "primary" : onDark ? "onInk" : "secondary",
+        });
         this.#railStops.push(`games:source:${source}`);
       }
       y += hit.target + 8;
@@ -2406,13 +2654,11 @@ ${entry.detail}`,
             : theirs?.kind === "ready" && theirs.stale
               ? AGAINST_NOTE_STALE
               : null;
-      if (sourceNote && y + 30 < bottom) {
-        const note = this.add
-          .text(left, y, sourceNote, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
-          .setFontSize(type.note)
-          .setWordWrapWidth(column);
-        y += note.height + 8;
-      }
+      const note = (text: string): void => {
+        const m = this.#text(left, y, text, typeRole.body, fg, soft, { size: type.note, wrapWidth: column });
+        y += m.height + 8;
+      };
+      if (sourceNote && y + 30 < bottom) note(sourceNote);
       // Sharing is off: one press turns it on (the games finished so far are never sent), where the block has room.
       // Without room, a note says where Settings has it. Turning it off stays in Settings.
       if (everyone && readConsent() !== "on") {
@@ -2434,63 +2680,47 @@ ${entry.detail}`,
               if (saved && byFocus) this.#route?.focusKey("games:source:everyone");
             });
           };
-          this.#buttons.push(
-            new McButton(this, {
-              kind: onDark ? "onInk" : "secondary",
-              label: shareLabel(),
-              type: typeRole.label,
-              rect: shareRect,
-              onClick: () => share(false),
-            }),
-          );
-          this.#stops.set("games:share", { rect: shareRect, activate: () => share(true) });
+          this.#b.button({
+            key: "games:share",
+            rect: shareRect,
+            label: caseOf(typeRole.label, shareLabel()),
+            look: onDark ? "onInk" : "secondary",
+            type: typeRole.label,
+          });
+          this.#actions.set("games:share", () => share(false));
+          this.#stop("games:share", shareRect, () => share(true));
           this.#railStops.push("games:share");
           y += hit.target + 6;
-          y += shareLineText().height + 8;
-        } else if (bottom - y >= 30) {
-          const line = this.add
-            .text(
-              left,
-              y,
-              AGAINST_NOTE_SHARE_IN_SETTINGS,
-              textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label),
-            )
-            .setFontSize(type.note)
-            .setWordWrapWidth(column);
-          y += line.height + 8;
-        }
+          y +=
+            this.#text(left, y, shareLineOf(), typeRole.body, fg, soft, {
+              size: type.note,
+              wrapWidth: column,
+              maxLines: 2,
+            }).height + 8;
+        } else if (bottom - y >= 30) note(AGAINST_NOTE_SHARE_IN_SETTINGS);
       }
       if (against) {
         // A card the lists above already offer keeps its one button (and its one stop).
         const offered = new Set([...view.cut, ...view.tryCards].map((entry) => entry.cardId));
         const wins = against.tryCards.filter((entry) => canAdd(entry) && !offered.has(entry.cardId));
         const losses = against.cutCards.filter((entry) => canCut(entry) && !offered.has(entry.cardId));
-        section(everyone ? "Try: in everyone's wins here" : "Try: in your wins here", wins, {
-          label: "+ Add",
+        section("wins", everyone ? t("deckBuilder.gamesTryEveryone") : t("deckBuilder.gamesTryYours"), wins, {
+          label: addLabel,
           run: (cardId) => this.#setDeck(addCard(this.#deck!, cardId as CardId)),
         });
-        section(everyone ? "Cut? In everyone's losses here" : "Cut? In your losses here", losses, {
-          label: "− Cut",
+        section("losses", everyone ? t("deckBuilder.gamesCutEveryone") : t("deckBuilder.gamesCutYours"), losses, {
+          label: cutLabel,
           run: (cardId) => this.#setDeck(removeCard(this.#deck!, cardId as CardId)),
         });
         const nothing = against.note ?? (wins.length + losses.length === 0 ? NOTHING_STANDS_OUT : null);
-        if (nothing && y + 30 < bottom) {
-          const note = this.add
-            .text(left, y, nothing, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
-            .setFontSize(type.note)
-            .setWordWrapWidth(column);
-          y += note.height + 8;
-        }
+        if (nothing && y + 30 < bottom) note(nothing);
       }
     }
     if (!shareDrawn) this.#shareShownAt = null;
-    section("Keep: your staples", view.keep, null);
+    section("keep", t("deckBuilder.gamesKeepTitle"), view.keep, null);
     if (view.note && y + 30 < bottom) {
-      const note = this.add
-        .text(left, y, view.note, textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label))
-        .setFontSize(type.note)
-        .setWordWrapWidth(column);
-      y += note.height + 8;
+      const m = this.#text(left, y, view.note, typeRole.body, fg, soft, { size: type.note, wrapWidth: column });
+      y += m.height + 8;
     }
     return y;
   }
@@ -2515,15 +2745,7 @@ ${entry.detail}`,
     /** The wide rail's room for the list: when it is taller than that, the list scrolls inside it. Absent: it flows (the narrow layout's own region scrolls). */
     maxHeight?: number,
   ): number {
-    label(
-      this,
-      left,
-      top,
-      "your deck",
-      typeRole.label,
-      onDark ? surface.paper.hex : surface.ink.hex,
-      onDark ? ink.secondary : ink.label,
-    );
+    this.#label(left, top, t("deckBuilder.yourDeck"), onDark);
     const listTop = this.#drawDeckListControls(left, top + 16, column, onDark);
     const groups = deckListGroupsOf(deck, this.#pool(), this.#deckSort);
     const noteOf = this.#campaign
@@ -2535,80 +2757,95 @@ ${entry.detail}`,
         }
       : undefined;
     // A campaign-granted line is otherwise a dead end for "what does this card actually do" — the pool grid never
-    // lists it (nothing to add), so its "your deck" line here is the only place Deck Edit shows it at all. Tapping
-    // it opens the same Inspect overlay the pool grid's own cards use, on its granted face (`#inspect`'s own
-    // `flipSide` handling) — not just the ordinary deck's cards, which stay plain text as before.
-    const onInspectOf = this.#campaign
-      ? (entry: DeckListEntry): (() => void) | null => {
-          const row = this.#campaignRowFor(entry.cardId as string);
-          if (!row?.locked) return null;
-          const card = this.#pool().find((candidate) => candidate.id === entry.cardId);
-          return card ? () => this.#inspect(card, row.face ?? null) : null;
-        }
-      : undefined;
+    // lists it (nothing to add), so its "your deck" line here is the only place Deck Edit shows it at all. A press on it
+    // opens the same Inspect overlay the pool grid's own cards use, on its granted face.
+    const inspectable = (entry: DeckListEntry): { readonly card: AnyCard; readonly face: string | null } | null => {
+      if (!this.#campaign) return null;
+      const row = this.#campaignRowFor(entry.cardId as string);
+      if (!row?.locked) return null;
+      const card = this.#pool().find((candidate) => candidate.id === entry.cardId);
+      return card ? { card, face: row.face ?? null } : null;
+    };
     // Every line is listed (none folded into "+ N more") and each has its own "-" while the deck can be edited.
     const frozen = this.#campaignModel?.editingDisabled ?? false;
-    const before = this.children.list.length;
-    const ground = this.add.graphics();
-    const drawRemove = (entry: DeckListEntry, rect: Rect): void => {
-      const row = this.#campaignRowFor(entry.cardId as string);
-      const locked = row?.locked ?? false;
-      const refused = this.#ruleRefusal(deck, entry.cardId, -1);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: onDark ? "onInk" : "secondary",
-          label: "−",
-          type: typeRole.rowTitle,
-          rect,
-          underlay: ground,
-          enabled: !locked && !frozen && refused === null,
-          ...(frozen
-            ? { reason: this.#campaignModel?.editingDisabledReason ?? "" }
-            : locked && row?.lockedReason
-              ? { reason: row.lockedReason }
-              : refused
-                ? { reason: refused }
-                : {}),
-          onClick: () => this.#setDeck(removeCard(deck, entry.cardId)),
-        }),
-      );
+    const drawList = (at: number): number => {
+      const b = this.#b;
+      const body = onDark ? surface.paper.hex : surface.ink.hex;
+      let y = at;
+      for (const group of groups) {
+        if (group.entries.length === 0) continue;
+        this.#text(left, y, `${group.label} · ${group.count}`, typeRole.label, body, ink.meta);
+        y += 14;
+        for (const entry of group.entries) {
+          const rowTop = y;
+          const removeWidth = 44;
+          const cardId = entry.cardId as string;
+          b.text(left, y, entry.name, typeRole.body, {
+            color: body,
+            fitWidth: column - 40 - removeWidth,
+            key: `deck-name:${cardId}`,
+          });
+          this.#text(left + column - 10 - removeWidth, y, String(entry.quantity), typeRole.label, body, ink.secondary, {
+            origin: [1, 0],
+            key: `deck-qty:${cardId}`,
+          });
+          const rect: Rect = { x: left + column - removeWidth, y: y - 5, width: removeWidth, height: 26 };
+          const row = this.#campaignRowFor(cardId);
+          const locked = row?.locked ?? false;
+          const refused = this.#ruleRefusal(deck, entry.cardId, -1);
+          const off = locked || frozen || refused !== null;
+          this.#b.button({
+            key: `deck-minus:${cardId}`,
+            rect,
+            label: "−",
+            look: onDark ? "onInk" : "secondary",
+            type: typeRole.rowTitle,
+            aria: t("deckBuilder.removeCopy", { name: entry.name }),
+            ...(off
+              ? {
+                  disabled: frozen
+                    ? (this.#campaignModel?.editingDisabledReason ?? true)
+                    : (row?.lockedReason ?? refused ?? true),
+                }
+              : {}),
+          });
+          this.#actions.set(`deck-minus:${cardId}`, () => {
+            if (!off) this.#setDeck(removeCard(deck, entry.cardId));
+          });
+          y += 29;
+          const note = noteOf?.(entry) ?? null;
+          if (note !== null) {
+            // Wrapped, not cut: a campaign note says why a line is pinned or a reward ("... one of your 50."), and the end is the point.
+            const noteLine = this.#text(left, y, note, SENTENCE_LABEL, body, ink.meta, { wrapWidth: column });
+            y += Math.max(14, noteLine.height + 2);
+          }
+          const line: Rect = { x: left, y: rowTop, width: column - removeWidth - 4, height: y - rowTop };
+          this.#deckLines.push({ cardId, rect: line, scope: this.#scope });
+          // A hold or a right-click on any line opens Inspect; a plain press does too where the line is a
+          // campaign grant (its only place to read it), and nothing elsewhere.
+          const open = inspectable(entry);
+          const card = open?.card ?? this.#pool().find((candidate) => candidate.id === entry.cardId);
+          if (card) {
+            const key = `deck-line:${cardId}`;
+            b.tap(key, { x: left, y: rowTop, width: column - removeWidth - 4, height: y - rowTop }, { inspect: true });
+            const show = (): void => this.#inspect(card, open?.face ?? null);
+            this.#actions.set(key, open ? show : () => undefined);
+            this.#holds.set(key, show);
+          }
+        }
+        y += 4;
+      }
+      return y + 8;
     };
-    const bottom = drawGroupedCardList(
-      this,
-      left,
-      listTop,
-      column,
-      groups,
-      Infinity,
-      onDark,
-      noteOf,
-      onInspectOf,
-      drawRemove,
-      (entry, lineRect) =>
-        this.#deckLines.push({
-          cardId: entry.cardId as string,
-          rect: lineRect,
-          region: maxHeight === undefined ? "narrow" : "rail",
-        }),
-    );
-    if (maxHeight === undefined || bottom - top <= maxHeight) return bottom;
+    if (maxHeight === undefined) return drawList(listTop);
+    // The wide rail: the list scrolls in its own region once it outgrows the rail.
     const rect: Rect = {
       x: left,
       y: listTop,
       width: column,
       height: Math.max(hit.target * 2, maxHeight - (listTop - top)),
     };
-    const added = this.children.list.slice(before);
-    this.#yourDeckRect = rect;
-    const region = new McScrollRegion(this, {
-      rect,
-      heights: [bottom - rect.y],
-      scroll: this.#yourDeckScroll,
-      clipInteractive: true,
-    });
-    this.#yourDeckRegion = region;
-    region.content.add(added);
-    region.syncInteractivity();
+    this.#scrolled("list:yourdeck", rect, (at) => drawList(at));
     return rect.y + rect.height + 8;
   }
 
@@ -2617,36 +2854,20 @@ ${entry.detail}`,
     const gap = 8;
     const width = (column - gap) / 2;
     const sortRect: Rect = { x: left, y: top, width, height: hit.target };
-    const kind = onDark ? "onInk" : "secondary";
+    const look = onDark ? "onInk" : "secondary";
     const sort = (): void => {
       this.#deckSort = nextDeckListSort(this.#deckSort);
       this.#rememberView();
       this.#rebuild();
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind,
-        label: deckListSortLabel(this.#deckSort),
-        type: typeRole.label,
-        rect: sortRect,
-        onClick: sort,
-      }),
-    );
-    this.#stops.set("deck-sort", { rect: sortRect, activate: sort });
+    this.#button("deck-sort", sortRect, deckListSortLabel(this.#deckSort), sort, { look });
     const reviewRect: Rect = { x: left + width + gap, y: top, width, height: hit.target };
     // `this.#deck`, not the drawn `deck`: typing a name changes the deck without a redraw.
     const review = (): void => this.#reviewDeck(this.#deck!);
-    this.#buttons.push(
-      new McButton(this, {
-        kind,
-        label: "Review",
-        type: typeRole.label,
-        rect: reviewRect,
-        enabled: !this.#busy,
-        onClick: review,
-      }),
-    );
-    this.#stops.set("deck-review", { rect: reviewRect, activate: review });
+    this.#button("deck-review", reviewRect, t("deckBuilder.review"), review, {
+      look,
+      ...(this.#busy ? { disabled: true as const } : {}),
+    });
     return top + hit.target + gap;
   }
 
@@ -2681,10 +2902,11 @@ ${entry.detail}`,
   ): number {
     let y = top;
     if (part === "save") return this.#drawSaveButton(left, y, column);
+    const look = onDark ? "onInk" : "secondary";
     // Campaign mode (MC10 p. 3): Preconstructed and Clear both replace `deck.cards` wholesale, which would drop
     // the campaign's own granted lines — a player can never remove those by hand, so the screen never offers a
     // control that would do it as a side effect. `showPreconClear: false` already keeps them out of the focus
-    // route; this keeps them off the canvas too.
+    // route; this keeps them off the screen too.
     if (!this.#campaign) {
       const resetRowGap = 8;
       const canDelete = this.#savedDeck !== null;
@@ -2704,48 +2926,33 @@ ${entry.detail}`,
           width: resetCellWidth,
           height: hit.target,
         };
-        const doDelete = (): void => void this.#delete();
-        this.#buttons.push(
-          new McButton(this, {
-            kind: onDark ? "onInk" : "secondary",
-            label: this.#deleteArmed ? "Confirm delete" : "Delete",
-            type: typeRole.label,
-            rect: deleteRect,
-            selected: this.#deleteArmed,
-            enabled: !this.#busy,
-            onClick: doDelete,
-          }),
+        this.#button(
+          "delete",
+          deleteRect,
+          this.#deleteArmed ? t("deckBuilder.confirmDelete") : t("deckBuilder.delete"),
+          () => void this.#delete(),
+          { look, selected: this.#deleteArmed, ...(this.#busy ? { disabled: true as const } : {}) },
         );
-        this.#stops.set("delete", { rect: deleteRect, activate: doDelete });
       }
       const precon = resetToPrecon(deck, this.#identity!, currentStarterDecks());
       const doPrecon = (): void => {
         const fresh = resetToPrecon(this.#deck!, this.#identity!, currentStarterDecks());
         if (fresh) this.#setDeck(fresh);
       };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: onDark ? "onInk" : "secondary",
-          label: canDelete ? "Precon" : "Preconstructed",
-          type: typeRole.label,
-          rect: preconRect,
-          enabled: precon !== null,
-          ...(precon === null ? { reason: "This hero has no published precon to reset to." } : {}),
-          onClick: doPrecon,
-        }),
+      this.#button(
+        "preconstructed",
+        preconRect,
+        canDelete ? t("deckBuilder.preconShort") : t("deckBuilder.precon"),
+        doPrecon,
+        { look, ...(precon === null ? { disabled: t("deckBuilder.noPrecon") } : {}) },
       );
-      this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
-      const doClear = (): void => this.#setDeck(resetToIdentitySet(this.#deck!, this.#identity!, this.#pool()));
-      this.#buttons.push(
-        new McButton(this, {
-          kind: onDark ? "onInk" : "secondary",
-          label: "Clear",
-          type: typeRole.label,
-          rect: clearRect,
-          onClick: doClear,
-        }),
+      this.#button(
+        "clear",
+        clearRect,
+        t("deckBuilder.clear"),
+        () => this.#setDeck(resetToIdentitySet(this.#deck!, this.#identity!, this.#pool())),
+        { look },
       );
-      this.#stops.set("clear", { rect: clearRect, activate: doClear });
       y += hit.target + 16;
     }
 
@@ -2758,8 +2965,8 @@ ${entry.detail}`,
       const freezeRect: Rect = { x: left, y, width: column, height: hit.target };
       const campaign = this.#campaign;
       // The opt-in itself is a small read-modify-write on the run record (`campaign-service.ts`'s
-      // `optIntoDeckFreeze`) rather than a synchronous `localStorage` write, so this scene's `onClick` fires the
-      // async round trip and navigates once it settles — the same shape `#save` already uses for `setSeatDeck`.
+      // `optIntoDeckFreeze`), so this fires the async round trip and navigates once it settles — the same shape
+      // `#save` already uses for `setSeatDeck`.
       const doFreeze = async (): Promise<void> => {
         const record = await campaignService().load(campaign.runId);
         if (record) await campaignService().optIntoDeckFreeze(record, campaign.seatNumber);
@@ -2770,16 +2977,7 @@ ${entry.detail}`,
           title: campaign.title,
         });
       };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: onDark ? "onInk" : "secondary",
-          label: "Freeze deck for the rest of the campaign (optional, MC27 p. 6)",
-          type: typeRole.label,
-          rect: freezeRect,
-          onClick: () => void doFreeze(),
-        }),
-      );
-      this.#stops.set("freeze-deck", { rect: freezeRect, activate: doFreeze });
+      this.#button("freeze-deck", freezeRect, t("deckBuilder.freeze"), () => void doFreeze(), { look });
       y += hit.target + 16;
     }
 
@@ -2790,62 +2988,51 @@ ${entry.detail}`,
   #drawSaveButton(left: number, y: number, column: number): number {
     const frozen = this.#campaignModel?.editingDisabled ?? false;
     const saveRect: Rect = { x: left, y, width: column, height: hit.primary };
-    const doSave = (): void => void this.#save();
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: this.#busy ? "Saving…" : this.#campaign ? "Save changes" : this.#isDirty() ? "Save deck" : "Saved ✓",
+    this.#button(
+      "save",
+      saveRect,
+      this.#busy
+        ? t("deckBuilder.saving")
+        : this.#campaign
+          ? t("deckBuilder.saveChanges")
+          : this.#isDirty()
+            ? t("deckBuilder.saveDeck")
+            : t("deckBuilder.saved"),
+      () => void this.#save(),
+      {
+        look: "primary",
         type: typeRole.barTitle,
-        rect: saveRect,
-        enabled: !this.#busy && !frozen,
-        ...(frozen && this.#campaignModel?.editingDisabledReason
-          ? { reason: this.#campaignModel.editingDisabledReason }
-          : {}),
-        onClick: doSave,
-      }),
+        ...(this.#busy ? { disabled: true as const } : {}),
+        ...(frozen ? { disabled: this.#campaignModel?.editingDisabledReason ?? true } : {}),
+      },
     );
-    this.#stops.set("save", { rect: saveRect, activate: doSave });
     return y + hit.primary + 16;
   }
 
   /**
-   * The pool search row: the field, a clear button while it holds text, and the Cards/List view toggle. The search
-   * matches every word against a card's name, traits, type and rules text (`browsablePool`).
+   * The pool search row: the field (a real input with its own clear button), the ? that opens the cheat sheet, and the
+   * Cards/List view toggle. The search matches every word against a card's name, traits, type and rules text
+   * (`browsablePool`).
    */
   #drawFilterInput(left: number, top: number, column: number): number {
     const toggleWidth = 92;
     const helpWidth = hit.target;
-    const clearWidth = this.#filterText ? hit.target : 0;
-    const fieldWidth =
-      column - toggleWidth - CHIP_GAP - helpWidth - CHIP_GAP - (clearWidth ? clearWidth + CHIP_GAP : 0);
+    const fieldWidth = column - toggleWidth - CHIP_GAP - helpWidth - CHIP_GAP;
     const filterRect: Rect = { x: left, y: top, width: fieldWidth, height: hit.target };
-    const applyText = (value: string): void => {
-      this.#filterText = value;
-      this.#listScroll.reset();
-      this.#requestPoolSearch(value);
-    };
-    if (this.#filterInput) {
-      this.#filterInput.layout(filterRect);
-      this.#filterInput.setVisible(true);
-    } else {
-      this.#filterInput = new McTextInput(this, {
-        rect: filterRect,
-        value: this.#filterText,
-        placeholder: "Search, or o:2 t:ally",
-        onChange: applyText,
+    this.#b.search(filterRect, {
+      key: "filter-text",
+      value: this.#filterText,
+      placeholder: t("deckBuilder.searchPlaceholder"),
+      clearLabel: t("deckBuilder.clearSearch"),
+    });
+    this.#stop("filter-text", filterRect, () => this.#fieldElement("filter-text")?.focusInput());
+    if (this.#filterText) {
+      // The field's own clear button, as a stop for the keyboard and the pad.
+      const clearRect: Rect = { x: left + fieldWidth - hit.target, y: top, width: hit.target, height: hit.target };
+      this.#stop("filter-clear", clearRect, () => {
+        this.#applyFilterText("");
+        this.#rebuild();
       });
-    }
-    this.#stops.set("filter-text", { rect: filterRect, activate: () => this.#filterInput?.focus() });
-    if (clearWidth) {
-      const clearRect: Rect = { x: left + fieldWidth + CHIP_GAP, y: top, width: clearWidth, height: hit.target };
-      const clear = (): void => {
-        this.#filterInput?.setValue("");
-        applyText("");
-      };
-      this.#buttons.push(
-        new McButton(this, { kind: "secondary", label: "×", type: typeRole.rowTitle, rect: clearRect, onClick: clear }),
-      );
-      this.#stops.set("filter-clear", { rect: clearRect, activate: clear });
     }
     const helpRect: Rect = {
       x: left + column - toggleWidth - CHIP_GAP - helpWidth,
@@ -2853,35 +3040,27 @@ ${entry.detail}`,
       width: helpWidth,
       height: hit.target,
     };
-    const openHelp = (): void => this.#openSearchHelp(applyText);
-    this.#buttons.push(
-      new McButton(this, { kind: "secondary", label: "?", type: typeRole.rowTitle, rect: helpRect, onClick: openHelp }),
-    );
-    this.#stops.set("filter-help", { rect: helpRect, activate: openHelp });
+    this.#button("filter-help", helpRect, "?", () => this.#openSearchHelp((value) => this.#applyFilterText(value)), {
+      type: typeRole.rowTitle,
+      aria: t("deckBuilder.searchHelp"),
+    });
     const toggleRect: Rect = { x: left + column - toggleWidth, y: top, width: toggleWidth, height: hit.target };
     const toggle = (): void => {
       this.#poolView = this.#poolView === "grid" ? "list" : "grid";
       this.#rememberView();
-      this.#listScroll.reset();
+      this.#resetPool();
       this.#rebuild();
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: this.#poolView === "grid" ? "List view" : "Card view",
-        type: typeRole.label,
-        rect: toggleRect,
-        onClick: toggle,
-      }),
+    this.#button(
+      "pool-view",
+      toggleRect,
+      this.#poolView === "grid" ? t("deckBuilder.listView") : t("deckBuilder.cardView"),
+      toggle,
     );
-    this.#stops.set("pool-view", { rect: toggleRect, activate: toggle });
     return top + hit.target + 16;
   }
 
-  /**
-   * The pack or wave picker (issue #977): every press applies at once, so the pool behind it updates. The DOM text
-   * fields sit over the canvas, so they hide while it is up, as they do for the search cheat sheet.
-   */
+  /** The pack or wave picker (issue #977): every press applies at once, so the pool behind it updates. */
   #openPoolPick(
     title: string,
     choices: readonly FilterChoice[],
@@ -2889,8 +3068,6 @@ ${entry.detail}`,
     onChange: (chosen: readonly string[]) => void,
   ): void {
     if (this.scene.isActive(SCENES.poolPick)) return;
-    this.#filterInput?.setVisible(false);
-    this.#nameInput?.setVisible(false);
     this.scene.launch(SCENES.poolPick, {
       from: this.scene.key,
       title,
@@ -2899,8 +3076,6 @@ ${entry.detail}`,
       onChange: (next) => {
         if (!this.sys.isActive()) return;
         onChange(next);
-        this.#filterInput?.setVisible(false);
-        this.#nameInput?.setVisible(false);
       },
       onClose: () => {
         if (!this.sys.isActive()) return;
@@ -2909,94 +3084,121 @@ ${entry.detail}`,
     } satisfies PoolPickSheetData);
   }
 
-  /** The search cheat sheet (issue #531). The DOM text fields sit over the canvas, so they hide while it is up. */
+  /** The search cheat sheet (issue #531): Use puts an example in the search and closes it. */
   #openSearchHelp(applyText: (value: string) => void): void {
     if (this.scene.isActive(SCENES.searchHelp)) return;
-    this.#filterInput?.setVisible(false);
-    this.#nameInput?.setVisible(false);
     this.scene.launch(SCENES.searchHelp, {
       from: this.scene.key,
-      onUse: (query) => {
-        this.#filterInput?.setValue(query);
-        applyText(query);
-      },
+      onUse: (query) => applyText(query),
       onClose: () => {
         if (!this.sys.isActive()) return;
-        this.#filterInput?.setVisible(true);
         this.#rebuild();
       },
     } satisfies SearchHelpSheetData);
   }
 
-  /** The pool, virtualized: `McVirtualList` owns which rows are live game objects; every card still gets a focus stop regardless of whether it's currently drawn. */
+  /**
+   * The pool, windowed: the list is one native scroller as tall as every row, and only the rows near the viewport are
+   * parts (`POOL_OVERSCAN_ROWS` above and below); a scroll that moves the window rebuilds them (`#onScroll`). Every
+   * card still gets a focus stop, whether or not its row is built, since a stop's rect comes from the layout, not the DOM.
+   */
   #drawPoolList(listRect: Rect, deck: Deck, pool: readonly AnyCard[]): void {
+    const b = this.#b;
     if (pool.length === 0) {
       const searched = this.#filterText.trim();
-      this.add
-        .text(
-          listRect.x + 10,
-          listRect.y + 10,
-          searched ? `No cards match “${searched}”.` : "No cards match this filter.",
-          textStyle(typeRole.body, surface.ink.hex, ink.meta),
-        )
-        .setWordWrapWidth(listRect.width - 20);
-    }
-    if (this.#poolView === "grid") {
-      this.#drawPoolGrid(listRect, deck, pool);
+      this.#text(
+        listRect.x + 10,
+        listRect.y + 10,
+        searched ? t("deckBuilder.noMatchSearch", { text: searched }) : t("deckBuilder.noMatch"),
+        typeRole.body,
+        surface.ink.hex,
+        ink.meta,
+        { wrapWidth: listRect.width - 20, key: "pool-empty" },
+      );
+      this.#poolRowCount = 0;
+      this.#poolWindow = "";
       return;
     }
-    const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderCardRow(rect, deck, pool[index]!);
-    this.#list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight: this.#rows.cardRowHeight,
-      count: pool.length,
-      renderRow,
-      scroll: this.#listScroll,
-      // A tap on the card's picture or text (not its −/+) opens Inspect, the full card with its keywords explained.
-      onRowActivate: (index, pointer) => {
-        const card = pool[index];
-        const list = this.#list;
-        if (!card || !list || pointer.x >= list.rect.x + list.rect.width - 4 - POOL_ROW_CONTROLS_WIDTH) return;
-        this.#inspect(card, this.#campaignRowFor(card.id as string)?.face ?? null);
-      },
+    const grid = this.#poolView === "grid";
+    const geometry = grid ? this.#gridGeometry(listRect.width, pool.length) : null;
+    const rowHeight = geometry ? geometry.cellHeight : this.#rows.cardRowHeight;
+    const rowCount = geometry ? geometry.rows : pool.length;
+    this.#poolRowHeight = rowHeight;
+    this.#poolRowCount = rowCount;
+    this.#poolViewHeight = listRect.height;
+    const window = this.#poolWindowFor(this.#scrollTop(POOL_LIST));
+    this.#poolWindow = window;
+    const [start, end] = window.split("-").map(Number) as [number, number];
+    const scope: Scope = { key: POOL_LIST, view: listRect };
+    const rowRectOf = (index: number): Rect => ({
+      x: listRect.x,
+      y: index * rowHeight,
+      width: listRect.width,
+      height: rowHeight,
     });
-    const list = this.#list;
-    list.onDestroy(cardFaces(this).onBaked(() => list.refreshRows()));
-    // A pool row is hovered over its picture and text, not its -/+ column. The rows have no zone of their own, so the
-    // cards are `through`, and only the part inside the list's window counts.
+    if (!grid) b.box(listRect, { stroke: surface.ink.hex, strokeWidth: 2 });
+    b.scroll(POOL_LIST, listRect, rowCount * rowHeight, (inner) => {
+      this.#b = inner;
+      for (let index = start; index < end; index++) {
+        if (geometry) this.#gridRow(rowRectOf(index), geometry, deck, pool, index);
+        else this.#listRow(rowRectOf(index), deck, pool[index]!);
+      }
+      this.#b = b;
+    });
+    // A card is hovered over its picture and text, not its -/+ strip; only the part inside the list's window counts.
     this.#hoverLists.push(() => {
       const found: (readonly [string, HoverCardIdRect])[] = [];
-      const view = list.rect;
-      const height = this.#rows.cardRowHeight;
-      const { start, end } = visibleRowRange(view.y - list.rectFor(0).y, height, view.height, pool.length);
-      for (let index = start; index < end; index++) {
-        const at = list.rectFor(index);
-        const rect = clipHoverRect(
-          { x: at.x + 4, y: at.y, width: at.width - 8 - POOL_ROW_CONTROLS_WIDTH, height: height - 6 },
-          view,
-        );
-        const cardId = pool[index]!.id as string;
-        if (rect) found.push([hoverSlotOf(cardId, `row${index}`), { ...rect, cardId, through: true }]);
+      const top = this.#scrollTop(POOL_LIST);
+      const first = Math.max(0, Math.floor(top / rowHeight));
+      const last = Math.min(rowCount, Math.ceil((top + listRect.height) / rowHeight));
+      for (let index = first; index < last; index++) {
+        const at = rowRectOf(index);
+        const cells = geometry ? Math.min(geometry.columns, pool.length - index * geometry.columns) : 1;
+        for (let col = 0; col < cells; col++) {
+          const card = pool[geometry ? index * geometry.columns + col : index]!;
+          const cell = geometry ? poolCellRect(geometry, at, col) : at;
+          const area: Rect = geometry
+            ? {
+                x: cell.x + 4,
+                y: cell.y + 2,
+                width: cell.width - 8,
+                height: geometry.cellHeight - GRID_CONTROLS_HEIGHT - 4,
+              }
+            : { x: cell.x + 4, y: cell.y, width: cell.width - 8 - POOL_ROW_CONTROLS_WIDTH, height: rowHeight - 6 };
+          const rect = clipHoverRect(this.#inScope(scope, area), listRect);
+          const cardId = card.id as string;
+          if (rect) found.push([hoverSlotOf(cardId, `pool${index}.${col}`), { ...rect, cardId, through: true }]);
+        }
       }
       return found;
     });
+    const before = this.#scope;
+    this.#scope = scope;
     pool.forEach((card, index) => {
       const cardId = card.id as string;
-      this.#stops.set(`card:${cardId}`, {
-        rect: () => list.rectFor(index),
-        // Keyboard/pad activation mirrors the row's own "+" button, including its campaign refusals: a stop still
-        // exists for every browsable card (so its reason reads with `I`), but pressing it on a refused or frozen
-        // row is a no-op, exactly like clicking a disabled "+".
-        activate: () => {
+      const rowIndex = geometry ? Math.floor(index / geometry.columns) : index;
+      const at = rowRectOf(rowIndex);
+      const rect = geometry ? poolCellRect(geometry, at, index % geometry.columns) : at;
+      this.#stop(
+        `card:${cardId}`,
+        rect,
+        // Keyboard/pad activation mirrors the card's own "+" button, including its campaign refusals: a stop still
+        // exists for every browsable card (so its reason reads), but pressing it on a refused or frozen row is a no-op,
+        // exactly like pressing a disabled "+".
+        () => {
           const row = this.#campaignRowFor(cardId);
-          const frozen = this.#campaignModel?.editingDisabled ?? false;
-          if (frozen || (row?.refused ?? false) || this.#ruleRefusal(deck, card.id, 1)) return;
+          if (
+            (this.#campaignModel?.editingDisabled ?? false) ||
+            (row?.refused ?? false) ||
+            this.#ruleRefusal(deck, card.id, 1)
+          )
+            return;
           this.#setDeck(addCard(deck, card.id));
         },
-        inspect: () => this.#inspect(card, this.#campaignRowFor(cardId)?.face ?? null),
-        ensureVisible: () => list.scrollIntoView(index),
-      });
+        { inspect: () => this.#inspect(card, this.#campaignRowFor(cardId)?.face ?? null) },
+      );
     });
+    this.#scope = before;
   }
 
   /** Card view's geometry: `view/deck-pool-grid.ts`'s cells (the Decks screen's own), each with a −/qty/+ strip under its caption. */
@@ -3014,145 +3216,135 @@ ${entry.detail}`,
     return { ...geometry, cellHeight: geometry.cellHeight + GRID_CONTROLS_HEIGHT };
   }
 
-  /**
-   * Card view (issue #217): the pool as card pictures, a row of the virtual list per grid row. A tap on a picture
-   * opens Inspect, hovering it on desktop opens the card popover, and each cell's own −/+ edits the deck.
-   */
-  #drawPoolGrid(listRect: Rect, deck: Deck, pool: readonly AnyCard[]): void {
-    const geometry = this.#gridGeometry(listRect.width, pool.length);
-    const controlsTop = (rowRect: Rect): number => rowRect.y + geometry.cellHeight - GRID_CONTROLS_HEIGHT;
-    this.#list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight: geometry.cellHeight,
-      count: pool.length === 0 ? 0 : geometry.rows,
-      renderRow: (rowIndex, rowRect) => this.#renderGridRow(rowRect, geometry, deck, pool, rowIndex),
-      scroll: this.#listScroll,
-      background: false,
-      onRowActivate: (rowIndex, pointer) => {
-        const list = this.#list;
-        if (!list) return;
-        const rowRect = list.rectFor(rowIndex);
-        if (pointer.y >= controlsTop(rowRect)) return;
-        const start = rowIndex * geometry.columns;
-        const col = poolColumnAt(geometry, rowRect, pointer.x, Math.min(geometry.columns, pool.length - start));
-        const card = col === null ? undefined : pool[start + col];
-        if (card) this.#inspect(card, this.#campaignRowFor(card.id as string)?.face ?? null);
-      },
+  /** The rendered px size of a text spec on this screen (the desktop bump for sizes up to 12). */
+  #px(size: number): number {
+    return isDesktopType() && size <= 12 ? Math.min(13, size + 2) : size;
+  }
+
+  /** The card's title for a pool tile and the line below it that carries a subtitle the tile had no room for. */
+  #titleOf(card: AnyCard, width: number): { readonly shown: string; readonly cut: string | null } {
+    const full = localizedLabelOf(card, artLanguageNow());
+    const subtitle = "subtitle" in card ? card.subtitle : null;
+    const fits = full.length * this.#px(11) * 0.58 <= width;
+    const short =
+      subtitle && full.endsWith(`(${subtitle})`) ? full.slice(0, full.length - subtitle.length - 2).trim() : full;
+    const shown = fits ? full : short;
+    return { shown, cut: subtitleCutFrom(card, shown) };
+  }
+
+  /** A card's "−" and "+" as parts, with the refusals the campaign and the rule settings give. */
+  #quantityButtons(deck: Deck, card: AnyCard, minusRect: Rect, plusRect: Rect, quantity: number, name: string): void {
+    const cardId = card.id as string;
+    const campaignRow = this.#campaignRowFor(cardId);
+    const frozen = this.#campaignModel?.editingDisabled ?? false;
+    // The rule settings (issue #531) only matter where nothing else already disables the button.
+    const minusRefused = quantity > 0 ? this.#ruleRefusal(deck, card.id, -1) : null;
+    const plusRefused = this.#ruleRefusal(deck, card.id, 1);
+    const minusOff = !(quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null);
+    const minusReason = frozen
+      ? (this.#campaignModel?.editingDisabledReason ?? undefined)
+      : (campaignRow?.lockedReason ?? minusRefused ?? undefined);
+    const plusOff = (campaignRow?.refused ?? false) || frozen || plusRefused !== null;
+    const plusReason = frozen
+      ? (this.#campaignModel?.editingDisabledReason ?? undefined)
+      : (campaignRow?.refusedReason ?? plusRefused ?? undefined);
+    this.#b.button({
+      key: `minus:${cardId}`,
+      rect: minusRect,
+      label: "−",
+      look: "secondary",
+      type: typeRole.rowTitle,
+      aria: t("deckBuilder.removeCopy", { name }),
+      ...(minusOff ? { disabled: minusReason ?? true } : {}),
     });
-    const list = this.#list;
-    list.onDestroy(cardFaces(this).onBaked(() => list.refreshRows()));
-    // A cell is hovered over its picture and caption, not its −/+ strip; only the part inside the list's window counts.
-    this.#hoverLists.push(() => {
-      const found: (readonly [string, HoverCardIdRect])[] = [];
-      const view = list.rect;
-      const rows = visibleRowRange(view.y - list.rectFor(0).y, geometry.cellHeight, view.height, geometry.rows);
-      for (let rowIndex = rows.start; rowIndex < rows.end; rowIndex++) {
-        const at = list.rectFor(rowIndex);
-        const inRow = Math.min(geometry.columns, pool.length - rowIndex * geometry.columns);
-        for (let col = 0; col < inRow; col++) {
-          const cardId = pool[rowIndex * geometry.columns + col]!.id as string;
-          const cell = poolCellRect(geometry, at, col);
-          const rect = clipHoverRect(
-            { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: controlsTop(at) - cell.y - 4 },
-            view,
-          );
-          if (rect) found.push([hoverSlotOf(cardId, `cell${rowIndex}.${col}`), { ...rect, cardId, through: true }]);
-        }
-      }
-      return found;
+    this.#actions.set(`minus:${cardId}`, () => {
+      if (!minusOff) this.#setDeck(removeCard(deck, card.id));
     });
-    pool.forEach((card, index) => {
-      const cardId = card.id as string;
-      const rowIndex = Math.floor(index / geometry.columns);
-      const col = index % geometry.columns;
-      this.#stops.set(`card:${cardId}`, {
-        rect: () => poolCellRect(geometry, list.rectFor(rowIndex), col),
-        activate: () => {
-          const row = this.#campaignRowFor(cardId);
-          if ((this.#campaignModel?.editingDisabled ?? false) || (row?.refused ?? false)) return;
-          if (this.#ruleRefusal(deck, card.id, 1)) return;
-          this.#setDeck(addCard(deck, card.id));
-        },
-        inspect: () => this.#inspect(card, this.#campaignRowFor(cardId)?.face ?? null),
-        ensureVisible: () => list.scrollIntoView(rowIndex),
-      });
+    this.#b.button({
+      key: `plus:${cardId}`,
+      rect: plusRect,
+      label: "+",
+      look: "secondary",
+      type: typeRole.rowTitle,
+      aria: t("deckBuilder.addCopy", { name }),
+      ...(plusOff ? { disabled: plusReason ?? true } : {}),
+    });
+    this.#actions.set(`plus:${cardId}`, () => {
+      if (!plusOff) this.#setDeck(addCard(deck, card.id));
     });
   }
 
-  #renderGridRow(
-    rowRect: Rect,
-    geometry: PoolGridGeometry,
-    deck: Deck,
-    pool: readonly AnyCard[],
-    rowIndex: number,
-  ): VirtualListRow {
-    // Drawn in layers, not card by card: the panels, the pictures, the cost tabs over them, then all the words. A
-    // Graphics between two labels ends the GPU's batch, and a whole grid of those is what a scroll pays for (#631).
-    const panels = this.add.graphics();
-    const costTabs = this.add.graphics();
-    const pictures: Phaser.GameObjects.GameObject[] = [];
-    const words: Phaser.GameObjects.GameObject[] = [];
-    const thumbs: LiveArtThumb[] = [];
+  /** One row of Card view (a row of cells), in the list's content space. */
+  #gridRow(rowRect: Rect, geometry: PoolGridGeometry, deck: Deck, pool: readonly AnyCard[], rowIndex: number): void {
+    const b = this.#b;
     const start = rowIndex * geometry.columns;
     const inRow = Math.min(geometry.columns, pool.length - start);
-    const clip = (): Rect | null => this.#list?.rect ?? null;
-    const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
-    const frozen = this.#campaignModel?.editingDisabled ?? false;
+    const lang = artLanguageNow();
     for (let col = 0; col < inRow; col++) {
       const card = pool[start + col]!;
+      const cardId = card.id as string;
       const cell = poolCellRect(geometry, rowRect, col);
       const cardRect: Rect = { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 6 };
       const quantity = deck.cards.find((line) => line.cardId === card.id)?.quantity ?? 0;
-      const campaignRow = this.#campaignRowFor(card.id as string);
-      paintPanel(panels, cardRect, "card", quantity > 0 ? "selected" : "rest");
-
+      const campaignRow = this.#campaignRowFor(cardId);
+      b.box(cardRect, {
+        fill: surface.card.hex,
+        stroke: quantity > 0 ? accent.heroRed.hex : surface.ink.hex,
+        strokeWidth: quantity > 0 ? 4 : 2,
+        key: `cell:${cardId}`,
+      });
       const artRect: Rect = {
         x: cardRect.x + 3,
         y: cardRect.y + 3,
         width: cardRect.width - 6,
         height: geometry.artHeight - 6,
       };
-      const thumb = renderLiveArtThumb(this, artRect, artFor(card, { kind: "front" })?.url ?? null, 0);
-      thumbs.push(thumb);
-      pictures.push(thumb.object);
+      const { shown, cut } = this.#titleOf(card, cardRect.width - 12);
+      b.image(artRect, {
+        src: artFor(card, { kind: "front" })?.url ?? null,
+        fill: surface.parchment.hex,
+        missing: localizedLabelOf(card, lang),
+        key: `art:${cardId}`,
+      });
       if ("cost" in card && typeof card.cost === "number") {
-        const pip = label(this, 0, 0, String(card.cost), typeRole.label, surface.paper.hex, 1);
-        const pipWidth = Math.ceil(pip.width) + 12;
-        costTabs.fillStyle(surface.ink.hex, 1).fillRect(artRect.x, artRect.y, pipWidth, 18);
-        pip.setPosition(artRect.x + 6, artRect.y + 9).setOrigin(0, 0.5);
-        words.push(pip);
+        const pipWidth = String(card.cost).length * 7 + 12;
+        b.box(
+          { x: artRect.x, y: artRect.y, width: pipWidth, height: 18 },
+          { fill: surface.ink.hex, key: `cost-tab:${cardId}` },
+        );
+        b.text(artRect.x + 6, artRect.y + 9, String(card.cost), typeRole.label, {
+          color: surface.paper.hex,
+          origin: [0, 0.5],
+          key: `cost:${cardId}`,
+        });
       }
-
       const captionY = cardRect.y + geometry.artHeight;
-      const name = this.add.text(
-        cardRect.x + 6,
-        captionY,
-        localizedLabelOf(card, artLanguageNow()),
-        textStyle(typeRole.rowTitle, surface.ink.hex),
-      );
-      fitText(name, cardRect.width - 12);
-      words.push(name);
-      // A narrow tile drops the subtitle from the title line; it moves to the line below, to tell the card apart.
-      const subtitleCut = subtitleCutFrom(card, name.text);
+      b.text(cardRect.x + 6, captionY, shown, typeRole.rowTitle, {
+        color: surface.ink.hex,
+        fitWidth: cardRect.width - 12,
+        key: `name:${cardId}`,
+      });
       const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
       const captionText = campaignRow?.locked
-        ? "campaign grant"
+        ? t("deckBuilder.campaignGrant")
         : campaignRow?.refused
-          ? "removed from campaign"
-          : subtitleCut && note
-            ? `${subtitleCut} · ${note}`
-            : (note ?? subtitleCut ?? poolTypeLine(card));
-      const caption = label(
-        this,
-        cardRect.x + 6,
-        captionY + name.height + 2,
-        captionText,
-        typeRole.label,
-        surface.ink.hex,
-        note || campaignRow ? ink.label : ink.meta,
+          ? t("deckBuilder.removedFromCampaign")
+          : cut && note
+            ? `${cut} · ${note}`
+            : (note ?? cut ?? poolTypeLine(card));
+      b.text(cardRect.x + 6, captionY + this.#px(11) * 1.25 + 2, captionText, typeRole.label, {
+        color: surface.ink.hex,
+        ...(note || campaignRow ? { alpha: ink.label } : { alpha: ink.meta }),
+        fitWidth: cardRect.width - 12,
+        key: `caption:${cardId}`,
+      });
+      // A tap on the picture or caption opens Inspect (a hold or a right-click does too), the full card with its keywords explained.
+      b.tap(
+        `open:${cardId}`,
+        { x: cardRect.x, y: cardRect.y, width: cardRect.width, height: geometry.cellHeight - GRID_CONTROLS_HEIGHT - 4 },
+        { inspect: true },
       );
-      fitText(caption, cardRect.width - 12);
-      words.push(caption);
+      this.#actions.set(`open:${cardId}`, () => this.#inspect(card, campaignRow?.face ?? null));
 
       // The −, quantity and + strip along the cell's foot.
       const stripY = cell.y + geometry.cellHeight - GRID_CONTROLS_HEIGHT;
@@ -3164,102 +3356,160 @@ ${entry.detail}`,
         width: buttonWidth,
         height: hit.target,
       };
-      // The rule settings (issue #531) only matter where nothing else already disables the button.
-      const minusRefused = quantity > 0 ? this.#ruleRefusal(deck, card.id, -1) : null;
-      const plusRefused = this.#ruleRefusal(deck, card.id, 1);
-      const minusReason = frozen
-        ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-        : (campaignRow?.lockedReason ?? minusRefused ?? undefined);
-      const minus = new McButton(this, {
-        kind: "secondary",
-        label: "−",
-        type: typeRole.rowTitle,
-        rect: minusRect,
-        underlay: panels,
-        enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null,
-        ...(minusReason ? { reason: minusReason } : {}),
-        onClick: () => this.#setDeck(removeCard(deck, card.id)),
-        clip,
-        suppressClick,
-      });
-      const plusReason = frozen
-        ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-        : (campaignRow?.refusedReason ?? plusRefused ?? undefined);
-      const plus = new McButton(this, {
-        kind: "secondary",
-        label: "+",
-        type: typeRole.rowTitle,
-        rect: plusRect,
-        underlay: panels,
-        enabled: !(campaignRow?.refused ?? false) && !frozen && plusRefused === null,
-        ...(plusReason ? { reason: plusReason } : {}),
-        onClick: () => this.#setDeck(addCard(deck, card.id)),
-        clip,
-        suppressClick,
-      });
-      const qty = label(
-        this,
+      this.#quantityButtons(deck, card, minusRect, plusRect, quantity, shown);
+      b.text(
         cardRect.x + cardRect.width / 2,
         stripY + hit.target / 2,
         quantity > 0 ? `×${quantity}` : "",
         typeRole.rowTitle,
-        surface.ink.hex,
-        quantity > 0 ? 1 : ink.meta,
-      ).setOrigin(0.5);
-      fitText(qty, plusRect.x - (minusRect.x + minusRect.width) - 4);
-      words.push(minus.container, plus.container, qty);
+        {
+          color: surface.ink.hex,
+          ...(quantity > 0 ? {} : { alpha: ink.meta }),
+          origin: [0.5, 0.5],
+          key: `qty:${cardId}`,
+        },
+      );
     }
-    const objects = [panels, ...pictures, costTabs, ...words];
-    return { objects, refresh: () => thumbs.forEach((thumb) => thumb.refresh()) };
+  }
+
+  /** One row of List view: the picture, name, type line, why it is offered, its rules text, and the −, quantity and +. */
+  #listRow(rect: Rect, deck: Deck, card: AnyCard): void {
+    const b = this.#b;
+    const cardId = card.id as string;
+    const row: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: this.#rows.cardRowHeight - 6 };
+    b.box(row, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2, key: `row:${cardId}` });
+    const quantity = deck.cards.find((c) => c.cardId === card.id)?.quantity ?? 0;
+    const campaignRow = this.#campaignRowFor(cardId);
+    // The card's own picture, then its name, type line and what it does; a tap anywhere left of −/+ inspects it.
+    b.image(
+      { x: row.x + 6, y: row.y + 6, width: this.#rows.cardThumbWidth, height: row.height - 12 },
+      {
+        src: artFor(card, { kind: "front" })?.url ?? null,
+        fill: surface.parchment.hex,
+        missing: localizedLabelOf(card, artLanguageNow()),
+        key: `art:${cardId}`,
+      },
+    );
+    const textX = row.x + 6 + this.#rows.cardThumbWidth + 10;
+    const textWidth = row.x + row.width - POOL_ROW_CONTROLS_WIDTH - textX;
+    const { shown, cut } = this.#titleOf(card, textWidth);
+    b.text(textX, row.y + 6, shown, typeRole.rowTitle, {
+      color: surface.ink.hex,
+      fitWidth: textWidth,
+      key: `name:${cardId}`,
+    });
+    const typeBase = cut ? `${cut} · ${poolTypeLine(card)}` : poolTypeLine(card);
+    // A card from an installed custom pack says so in words.
+    const customBadge = customCardBadgeOf(cardId);
+    const typeText = customBadge ? `${typeBase} · ${customBadge}` : typeBase;
+    // Why a card is listed when the chosen aspect would not allow it, or why it is refused (held, but not allowed).
+    const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
+    // MC27 p. 22's Enhanced side (`CampaignDeckEditRow.face`): named on its own, in front of "campaign grant", so
+    // the row never reads as an ordinary grant when the printed card in play is actually the flipped side.
+    const faceLabel = campaignRow?.face ? ` · ${campaignRow.face} (Enhanced)` : "";
+    const typeLineText = campaignRow?.locked
+      ? `${typeText} · ${t("deckBuilder.campaignGrant")}${faceLabel}`
+      : campaignRow?.refused
+        ? `${typeText} · ${t("deckBuilder.removedFromCampaign")}`
+        : typeText;
+    const nameH = this.#px(11) * 1.25;
+    const labelH = this.#px(9) * 1.2;
+    const typeY = row.y + 6 + nameH + 2;
+    b.text(textX, typeY, typeLineText, SENTENCE_LABEL, {
+      color: surface.ink.hex,
+      alpha: ink.meta,
+      fitWidth: textWidth,
+      key: `type:${cardId}`,
+    });
+    // Why the card is offered or refused: its own line, so the type line never cuts it off on a narrow row.
+    let belowY = typeY + labelH;
+    if (note) {
+      b.text(textX, belowY + 1, note, SENTENCE_LABEL, {
+        color: surface.ink.hex,
+        alpha: ink.label,
+        fitWidth: textWidth,
+        key: `note:${cardId}`,
+      });
+      belowY += labelH + 1;
+    }
+    const rules = cardInspectModel(card, campaignRow?.face ? { kind: "flipSide" } : { kind: "front" }).rulesText;
+    if (rules) {
+      b.text(textX, belowY + 4, rules, SENTENCE_LABEL, {
+        color: surface.ink.hex,
+        wrapWidth: textWidth,
+        maxLines: note ? CARD_TEXT_LINES - 1 : CARD_TEXT_LINES,
+        key: `rules:${cardId}`,
+      });
+    }
+    b.text(row.x + row.width - 128, row.y + row.height / 2, String(quantity), typeRole.rowTitle, {
+      color: surface.ink.hex,
+      origin: [0.5, 0.5],
+      key: `qty:${cardId}`,
+    });
+    b.tap(
+      `open:${cardId}`,
+      { x: row.x, y: row.y, width: row.width - POOL_ROW_CONTROLS_WIDTH - 4, height: row.height },
+      { inspect: true },
+    );
+    this.#actions.set(`open:${cardId}`, () => this.#inspect(card, campaignRow?.face ?? null));
+    const minusRect: Rect = {
+      x: row.x + row.width - 106,
+      y: row.y + (row.height - hit.target) / 2,
+      width: 40,
+      height: hit.target,
+    };
+    const plusRect: Rect = { x: row.x + row.width - 46, y: minusRect.y, width: 40, height: hit.target };
+    this.#quantityButtons(deck, card, minusRect, plusRect, quantity, shown);
+  }
+
+  /** The focal point to crop a hero's picture around: its `focus.json`, else the face-and-shoulders default. */
+  #focusOf(identity: HeroIdentityCard): { readonly x: number; readonly y: number } {
+    const focus = this.#identityArtFocus(identity);
+    return { x: focus?.x ?? 0.5, y: focus?.y ?? 0.25 };
   }
 
   /**
-   * The identity picker: a `McVirtualList` like the pool, so it scrolls by drag, wheel and paging. Every playable
-   * identity drawn as a plain column of buttons ran far below a phone's screen with no way to reach the rest, and a
-   * drag over it only moved the hover highlight. Rows are `McButton`s wired to the list's `clip`/`suppressClick`,
-   * so a drag that scrolls never also picks the identity it lifts over.
+   * The identity picker: a grid of hero tiles in one native scroller, so it scrolls by drag, wheel and paging, and a
+   * swipe over it never picks the hero it lifts over. Every tile is the hero's own art (the picture Take your seats
+   * shows, else the identity card's scan, loaded lazily) over a name bar; a tap on either picks the hero, a hold or a
+   * right-click on the art inspects it.
    */
   #drawIdentityPicker(left: number, y: number, column: number): readonly HeroIdentityCard[] {
-    label(this, left, y, "pick a hero", typeRole.label, surface.ink.hex, ink.label);
+    const b = this.#b;
+    this.#label(left, y, t("deckBuilder.pickHero"));
     y += 16;
     // The hero search: every word must appear in the hero's name, alter-ego name or traits.
     const searchRect: Rect = { x: left, y, width: column, height: hit.target };
-    if (this.#identityInput) this.#identityInput.layout(searchRect);
-    else {
-      this.#identityInput = new McTextInput(this, {
-        rect: searchRect,
-        value: this.#identitySearch,
-        placeholder: "Search heroes",
-        onChange: (value) => {
-          this.#identitySearch = value;
-          this.#listScroll.reset();
-          this.#requestHeroSearch(value);
-        },
-      });
-    }
-    this.#stops.set("identity-search", { rect: searchRect, activate: () => this.#identityInput?.focus() });
+    b.search(searchRect, {
+      key: "identity-search",
+      value: this.#identitySearch,
+      placeholder: t("deckBuilder.searchHeroes"),
+      clearLabel: t("deckBuilder.clearSearch"),
+    });
+    this.#stop("identity-search", searchRect, () => this.#fieldElement("identity-search")?.focusInput());
     y += hit.target + 12;
     const heroRanking = this.#identitySearch.trim() ? this.#heroRanking : null;
     const shown = heroRanking
       ? identities()
           .filter((identity) => heroRanking.has(identity.id as string))
-          .sort((a, b) => heroRanking.get(b.id as string)! - heroRanking.get(a.id as string)!)
+          .sort((a, c) => heroRanking.get(c.id as string)! - heroRanking.get(a.id as string)!)
       : identities();
     if (shown.length === 0) {
-      this.add
-        .text(
-          left,
-          y,
-          `No hero matches “${this.#identitySearch.trim()}”.`,
-          textStyle(typeRole.body, surface.ink.hex, ink.meta),
-        )
-        .setWordWrapWidth(column);
+      this.#text(
+        left,
+        y,
+        t("deckBuilder.noHero", { text: this.#identitySearch.trim() }),
+        typeRole.body,
+        surface.ink.hex,
+        ink.meta,
+        {
+          wrapWidth: column,
+        },
+      );
       return shown;
     }
     const { height } = this.scale.gameSize;
     const pad = formFactorFor(this.scale.gameSize.width, height) === "phone" ? 16 : 40;
-    // A grid of hero tiles: the hero's own art (the picture Take your seats shows, else the identity card's scan),
-    // baked small off the main thread, over a name bar that takes the tap; a tap on the art picks the hero too.
     const gap = 12;
     const cols = Math.max(
       2,
@@ -3275,8 +3525,6 @@ ${entry.detail}`,
       width: column,
       height: Math.min(rows * rowHeight, Math.max(rowHeight, height - y - pad)),
     };
-    const clip = (): Rect | null => this.#list?.rect ?? null;
-    const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
     const chooseAt = (index: number): void => {
       const identity = shown[index]!;
       // A hero with a published precon gets the "Start from" step; one without starts from its own cards.
@@ -3285,91 +3533,54 @@ ${entry.detail}`,
         this.#rebuild();
       } else this.#startWith(identity, null);
     };
-    const tileRect = (rowRect: Rect, col: number): Rect => ({
-      x: rowRect.x + col * (tileWidth + gap),
-      y: rowRect.y,
+    const tileRect = (index: number): Rect => ({
+      x: left + (index % cols) * (tileWidth + gap),
+      y: Math.floor(index / cols) * rowHeight,
       width: tileWidth,
       height: artHeight + hit.target,
     });
-    const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow => {
-      const objects: Phaser.GameObjects.GameObject[] = [];
-      for (let col = 0; col < cols; col++) {
-        const index = rowIndex * cols + col;
-        const identity = shown[index];
-        if (!identity) break;
-        const tile = tileRect(rowRect, col);
-        const frame = this.add.graphics();
-        paintPanel(frame, tile, "card", "rest");
-        objects.push(frame);
-        objects.push(
-          renderArtThumb(
-            this,
-            { x: tile.x + 3, y: tile.y + 3, width: tile.width - 6, height: artHeight - 3 },
-            this.#identityArtUrl(identity),
-            0.2,
-            this.#identityArtFocus(identity),
-          ),
+    this.#scrolled("list:identity", listRect, () => {
+      shown.forEach((identity, index) => {
+        const cardId = identity.id as string;
+        const tile = tileRect(index);
+        const artRect: Rect = { x: tile.x, y: tile.y, width: tile.width, height: artHeight };
+        this.#b.box(tile, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2, key: `tile:${cardId}` });
+        this.#b.pictureTile(
+          { x: tile.x + 3, y: tile.y + 3, width: tile.width - 6, height: artHeight - 3 },
+          {
+            src: this.#identityArtUrl(identity),
+            fit: "cover",
+            focus: this.#focusOf(identity),
+            frame: 0,
+            missing: qualifiedHeroName(identity),
+            key: `hero-art:${cardId}`,
+          },
         );
-        const button = new McButton(this, {
-          kind: "secondary",
-          label: qualifiedHeroName(identity),
-          type: typeRole.rowTitle,
+        // The art is a tap that picks the hero (a hold inspects it); the name bar under it is the labelled button.
+        this.#b.tap(`identity:${cardId}`, artRect, { inspect: true });
+        this.#actions.set(`identity:${cardId}`, () => chooseAt(index));
+        this.#holds.set(`identity:${cardId}`, () => this.#inspect(identity));
+        this.#b.button({
+          key: `identity-name:${cardId}`,
           rect: { x: tile.x, y: tile.y + artHeight, width: tile.width, height: hit.target },
-          onClick: () => chooseAt(index),
-          clip,
-          suppressClick,
+          label: qualifiedHeroName(identity),
+          look: "secondary",
+          type: typeRole.rowTitle,
         });
-        objects.push(button.container);
-      }
-      return { objects };
-    };
-    this.#list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight,
-      count: rows,
-      renderRow,
-      scroll: this.#listScroll,
-      background: false,
-      onRowActivate: (rowIndex, pointer) => {
-        const list = this.#list;
-        if (!list) return;
-        const rowRect = list.rectFor(rowIndex);
-        if (pointer.y >= rowRect.y + artHeight) return;
-        const col = Math.floor((pointer.x - rowRect.x) / (tileWidth + gap));
-        const index = rowIndex * cols + col;
-        if (col >= 0 && col < cols && pointer.x - tileRect(rowRect, col).x <= tileWidth && shown[index])
-          chooseAt(index);
-      },
+        this.#actions.set(`identity-name:${cardId}`, () => chooseAt(index));
+        this.#deckLines.push({ cardId, rect: artRect, scope: this.#scope });
+      });
+      return Math.ceil(shown.length / cols) * rowHeight;
     });
-    const list = this.#list;
-    list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
-    // Each tile's art opens the hero's card popover; only the part inside the list's window counts.
-    this.#hoverLists.push(() => {
-      const found: (readonly [string, HoverCardIdRect])[] = [];
-      const view = list.rect;
-      const { start, end } = visibleRowRange(view.y - list.rectFor(0).y, rowHeight, view.height, rows);
-      for (let rowIndex = start; rowIndex < end; rowIndex++) {
-        const at = list.rectFor(rowIndex);
-        for (let col = 0; col < cols; col++) {
-          const identity = shown[rowIndex * cols + col];
-          if (!identity) break;
-          const tile = tileRect(at, col);
-          const rect = clipHoverRect({ x: tile.x, y: tile.y, width: tile.width, height: artHeight }, view);
-          const cardId = identity.id as string;
-          if (rect) found.push([hoverSlotOf(cardId, `identity${rowIndex}.${col}`), { ...rect, cardId, through: true }]);
-        }
-      }
-      return found;
-    });
+    const scope: Scope = { key: "list:identity", view: listRect };
+    const before = this.#scope;
+    this.#scope = scope;
     shown.forEach((identity, index) => {
-      const rowIndex = Math.floor(index / cols);
-      this.#stops.set(`identity:${identity.id as string}`, {
-        rect: () => tileRect(list.rectFor(rowIndex), index % cols),
-        activate: () => chooseAt(index),
+      this.#stop(`identity:${identity.id as string}`, tileRect(index), () => chooseAt(index), {
         inspect: () => this.#inspect(identity),
-        ensureVisible: () => list.scrollIntoView(rowIndex),
       });
     });
+    this.#scope = before;
     return shown;
   }
 
@@ -3401,7 +3612,7 @@ ${entry.detail}`,
     search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
       this.#poolRanking = new Map(ranked.map((r) => [r.id, r.score]));
-      this.#listScroll.reset();
+      this.#resetPool();
       this.#rebuild();
     });
     this.#rebuild();
@@ -3421,7 +3632,7 @@ ${entry.detail}`,
     search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
       this.#heroRanking = new Map(ranked.map((r) => [r.id, r.score]));
-      this.#listScroll.reset();
+      this.#resetPool();
       this.#rebuild();
     });
   }
@@ -3439,7 +3650,7 @@ ${entry.detail}`,
       new Date().toISOString(),
     );
     this.#savedDeck = null;
-    this.#listScroll.reset();
+    this.#resetPool();
     this.#rebuild();
   }
 
@@ -3450,64 +3661,41 @@ ${entry.detail}`,
   #drawStartFrom(left: number, top: number, column: number, identity: HeroIdentityCard): readonly string[] {
     const ids: string[] = [];
     let y = top;
-    label(
-      this,
-      left,
-      y,
-      `start a ${qualifiedHeroName(identity)} deck from`,
-      typeRole.label,
-      surface.ink.hex,
-      ink.label,
-    );
+    this.#label(left, y, t("deckBuilder.startFrom", { hero: qualifiedHeroName(identity) }));
     y += 20;
     const width = Math.min(column, 560);
     const bannerHeight = Math.round(width / 2.4);
-    renderArtThumb(
-      this,
-      { x: left, y, width, height: bannerHeight },
-      this.#identityArtUrl(identity),
-      0.2,
-      this.#identityArtFocus(identity),
-    );
-    // The picture is baked off the main thread: once it lands, redraw this step (once) to show it.
-    this.#bannerBaked?.();
-    this.#bannerBaked = cardFaces(this).onBaked(() => {
-      this.#bannerBaked?.();
-      this.#bannerBaked = null;
-      if (this.#startFor === identity) this.#rebuild();
-    });
     const bannerRect: Rect = { x: left, y, width, height: bannerHeight };
-    noteHoverCardId(this, identity.id as string, bannerRect, true);
+    this.#b.pictureTile(bannerRect, {
+      src: this.#identityArtUrl(identity),
+      fit: "cover",
+      focus: this.#focusOf(identity),
+      frame: 2,
+      missing: qualifiedHeroName(identity),
+      key: "start-banner",
+    });
+    this.#deckLines.push({ cardId: identity.id as string, rect: bannerRect, scope: null });
     y += bannerHeight + 16;
     const add = (id: string, text: string, onClick: () => void, tint?: { fill: number; ink: number }): void => {
       const rect: Rect = { x: left, y, width, height: hit.primary };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: text,
-          type: typeRole.rowTitle,
-          rect,
-          ...(tint ? { tint } : {}),
-          onClick,
-        }),
-      );
-      this.#stops.set(id, { rect, activate: onClick });
+      if (tint) this.#tintButton(id, rect, text, tint, onClick, { type: typeRole.rowTitle });
+      else this.#button(id, rect, text, onClick, { type: typeRole.rowTitle });
       ids.push(id);
       y += hit.primary + 10;
     };
-    add("start:empty", "Empty deck: hero cards only", () => this.#startWith(identity, null));
+    add("start:empty", t("deckBuilder.startEmpty"), () => this.#startWith(identity, null));
     for (const starter of preconsFor(identity, currentStarterDecks())) {
-      const aspects = starter.aspects.map((aspect) => aspectStampOf(aspect).label).join(" + ");
-      const stamp = starter.aspects[0] ? aspectStampOf(starter.aspects[0]) : null;
+      const aspects = starter.aspects.map((aspect) => aspectStampOf(aspect, artLanguageNow()).label).join(" + ");
+      const stamp = starter.aspects[0] ? aspectStampOf(starter.aspects[0], artLanguageNow()) : null;
       add(
         `start:${starter.id as string}`,
-        `Copy of the ${aspects} precon`,
+        t("deckBuilder.startPrecon", { aspects }),
         () => this.#startWith(identity, starter),
         stamp ? { fill: stamp.fill, ink: stamp.ink } : undefined,
       );
     }
     y += 6;
-    add("start:back", "Pick another hero", () => {
+    add("start:back", t("deckBuilder.startBack"), () => {
       this.#startFor = null;
       this.#rebuild();
     });
@@ -3516,19 +3704,19 @@ ${entry.detail}`,
 
   /**
    * The chosen identity above the builder (issue #920): one card-like row with the hero's picture, its name and a
-   * "Read card" cue. A press on the row (`ui/tap.ts`: press and release on it, never a lift) and the pad's stop open
-   * Inspect on the hero side, whose toggle flips to the alter-ego (and any other forms), so a player can read what the
-   * hero does while building. On desktop the picture opens the card popover too. Returns the y below the row.
+   * "Read card" cue. A press on the row (a tap, never a lift) and the pad's stop open Inspect on the hero side, whose
+   * toggle flips to the alter-ego (and any other forms), so a player can read what the hero does while building. On
+   * desktop the picture opens the card popover too. Returns the y below the row.
    */
   #drawIdentityRow(left: number, top: number, column: number, identity: HeroIdentityCard): number {
+    const b = this.#b;
     const phone = formFactorFor(this.scale.gameSize.width, this.scale.gameSize.height) === "phone";
     const inset = 4;
     const rowRect: Rect = { x: left, y: top, width: phone ? column : Math.min(column, 460), height: hit.target + 8 };
     const open = (): void => {
       this.scene.launch(SCENES.inspect, { card: { cardId: identity.id, face: { kind: "hero" } } });
     };
-    const frame = this.add.graphics();
-    paintPanel(frame, rowRect, "card", "rest");
+    b.box(rowRect, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2 });
     const thumbHeight = rowRect.height - inset * 2;
     const thumbRect: Rect = {
       x: rowRect.x + inset,
@@ -3536,44 +3724,36 @@ ${entry.detail}`,
       width: Math.round(thumbHeight * IDENTITY_THUMB_ASPECT),
       height: thumbHeight,
     };
-    const thumb = renderLiveArtThumb(
-      this,
-      thumbRect,
-      this.#identityArtUrl(identity),
-      0.2,
-      "cover",
-      this.#identityArtFocus(identity),
-    );
-    // The picture is baked off the main thread: swap it in when it lands, without redrawing the screen.
-    // An image already baked needs no listener; a placeholder listens until its picture is in.
-    if (thumb.object.type !== "Image") {
-      const holder = thumb.object as Phaser.GameObjects.Container;
-      this.#bannerBaked = cardFaces(this).onBaked(() => {
-        thumb.refresh();
-        if (holder.list[0]?.type === "Image") {
-          this.#bannerBaked?.();
-          this.#bannerBaked = null;
-        }
-      });
-    }
-    noteHoverCardId(this, identity.id as string, thumbRect, true, { kind: "hero" });
+    b.pictureTile(thumbRect, {
+      src: this.#identityArtUrl(identity),
+      fit: "cover",
+      focus: this.#focusOf(identity),
+      frame: 0,
+      key: "identity-art",
+    });
+    this.#deckLines.push({ cardId: identity.id as string, rect: thumbRect, scope: null, face: { kind: "hero" } });
 
     const right = rowRect.x + rowRect.width - 12;
-    const cue = label(this, right, rowRect.y + rowRect.height / 2, "Read card ›", typeRole.label, surface.ink.hex);
-    cue.setOrigin(1, 0.5);
+    const cue = this.#text(
+      right,
+      rowRect.y + rowRect.height / 2,
+      t("deckBuilder.readCard"),
+      typeRole.label,
+      surface.ink.hex,
+      1,
+      {
+        origin: [1, 0.5],
+      },
+    );
     const textX = thumbRect.x + thumbRect.width + 10;
-    label(this, textX, rowRect.y + 6, "identity", typeRole.label, surface.ink.hex, ink.label);
-    const name = this.add.text(textX, rowRect.y + rowRect.height - 6, qualifiedHeroName(identity), {
-      ...textStyle(typeRole.rowTitle, surface.ink.hex),
+    this.#label(textX, rowRect.y + 6, t("deckBuilder.identity"));
+    b.text(textX, rowRect.y + rowRect.height - 6, qualifiedHeroName(identity), typeRole.rowTitle, {
+      color: surface.ink.hex,
+      origin: [0, 1],
+      fitWidth: Math.max(40, right - cue.width - 12 - textX),
     });
-    name.setOrigin(0, 1);
-    fitText(name, Math.max(40, cue.x - cue.width - 12 - textX));
-
-    const zone = this.add
-      .zone(rowRect.x, rowRect.y, rowRect.width, rowRect.height)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true });
-    onTap(zone, open, "identity-card-row");
+    b.tap("identity-card", rowRect, { inspect: true });
+    this.#actions.set("identity-card", open);
     this.#stops.set("identity-card", { rect: rowRect, activate: open, inspect: open });
     return rowRect.y + rowRect.height + 12;
   }
@@ -3603,145 +3783,6 @@ ${entry.detail}`,
       this.#identityArt.set(id, art);
     }
     return art;
-  }
-
-  #renderCardRow(rect: Rect, deck: Deck, card: AnyCard): VirtualListRow {
-    const row: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: this.#rows.cardRowHeight - 6 };
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const g = this.add.graphics();
-    paintPanel(g, row, "card", "rest");
-    objects.push(g);
-    const quantity = deck.cards.find((c) => c.cardId === card.id)?.quantity ?? 0;
-    const campaignRow = this.#campaignRowFor(card.id as string);
-    const frozen = this.#campaignModel?.editingDisabled ?? false;
-
-    // The card's own picture, then its name, type line and what it does; a tap anywhere left of −/+ inspects it
-    // (`#drawPoolList`'s `onRowActivate`).
-    const thumb = renderLiveArtThumb(
-      this,
-      { x: row.x + 6, y: row.y + 6, width: this.#rows.cardThumbWidth, height: row.height - 12 },
-      artFor(card, { kind: "front" })?.url ?? null,
-      0,
-    );
-    objects.push(thumb.object);
-    const textX = row.x + 6 + this.#rows.cardThumbWidth + 10;
-    const textWidth = row.x + row.width - POOL_ROW_CONTROLS_WIDTH - textX;
-    const name = this.add.text(
-      textX,
-      row.y + 6,
-      localizedLabelOf(card, artLanguageNow()),
-      textStyle(typeRole.rowTitle, surface.ink.hex),
-    );
-    fitText(name, textWidth);
-    objects.push(name);
-    const subtitleCut = subtitleCutFrom(card, name.text);
-    const typeBase = subtitleCut ? `${subtitleCut} · ${poolTypeLine(card)}` : poolTypeLine(card);
-    // A card from an installed custom pack says so in words.
-    const customBadge = customCardBadgeOf(card.id as string);
-    const typeText = customBadge ? `${typeBase} · ${customBadge}` : typeBase;
-    // Why a card is listed when the chosen aspect would not allow it, or why it is refused (held, but not allowed).
-    const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
-    // MC27 p. 22's Enhanced side (`CampaignDeckEditRow.face`): named on its own, in front of "campaign grant", so
-    // the row never reads as an ordinary grant when the printed card in play is actually the flipped side.
-    const faceLabel = campaignRow?.face ? ` · ${campaignRow.face} (Enhanced)` : "";
-    const typeLineText = campaignRow?.locked
-      ? `${typeText} · campaign grant${faceLabel}`
-      : campaignRow?.refused
-        ? `${typeText} · removed from campaign`
-        : typeText;
-    const typeLine = this.add.text(
-      textX,
-      row.y + 6 + name.height + 2,
-      typeLineText,
-      textStyle(typeRole.label, surface.ink.hex, ink.meta),
-    );
-    fitText(typeLine, textWidth);
-    objects.push(typeLine);
-    // Why the card is offered or refused (an identity's off-aspect rule, a card the deck holds but may not): its own
-    // line, so the type line never cuts it off on a narrow row.
-    let belowY = typeLine.y + typeLine.height;
-    if (note) {
-      const noteLine = this.add.text(textX, belowY + 1, note, textStyle(typeRole.label, surface.ink.hex, ink.label));
-      fitText(noteLine, textWidth);
-      objects.push(noteLine);
-      belowY = noteLine.y + noteLine.height;
-    }
-    const rules = cardInspectModel(card, campaignRow?.face ? { kind: "flipSide" } : { kind: "front" }).rulesText;
-    if (rules) {
-      const rulesText = this.add
-        .text(textX, belowY + 4, rules, textStyle(typeRole.label, surface.ink.hex))
-        .setWordWrapWidth(textWidth, true);
-      clampLines(rulesText, note ? CARD_TEXT_LINES - 1 : CARD_TEXT_LINES);
-      objects.push(rulesText);
-    }
-
-    const qtyText = label(
-      this,
-      row.x + row.width - 128,
-      row.y + row.height / 2,
-      String(quantity),
-      typeRole.rowTitle,
-      surface.ink.hex,
-    ).setOrigin(0.5);
-    objects.push(qtyText);
-
-    // `clip`/`suppressClick` read `this.#list` lazily (see decks.ts's
-    // `#renderRow` for why it can't be a value captured up front): a row
-    // reparented into the list's masked layer is still fully hit-testable
-    // outside the mask, and a drag that just scrolled the list must not also
-    // add or remove a card it happened to end over.
-    const clip = (): Rect | null => this.#list?.rect ?? null;
-    const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
-
-    const minusRect: Rect = {
-      x: row.x + row.width - 106,
-      y: row.y + (row.height - hit.target) / 2,
-      width: 40,
-      height: hit.target,
-    };
-    // Campaign mode: a granted line can't be removed by the player (MC10 p. 3) and nothing is added while the
-    // deck is frozen (MC16 p. 5 / MC27 p. 6) — both disable with the row's own reason, read the same way any
-    // other unavailable control's reason reads (`McButton.reason`).
-    const minusRefused = quantity > 0 ? this.#ruleRefusal(deck, card.id, -1) : null;
-    const plusRefused = this.#ruleRefusal(deck, card.id, 1);
-    const minusDisabledReason = frozen
-      ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-      : (campaignRow?.lockedReason ?? minusRefused ?? undefined);
-    const doRemove = (): void => this.#setDeck(removeCard(deck, card.id));
-    const minusButton = new McButton(this, {
-      kind: "secondary",
-      label: "−",
-      type: typeRole.rowTitle,
-      rect: minusRect,
-      underlay: g,
-      enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null,
-      ...(minusDisabledReason ? { reason: minusDisabledReason } : {}),
-      onClick: doRemove,
-      clip,
-      suppressClick,
-    });
-    objects.push(minusButton.container);
-
-    const plusDisabledReason = frozen
-      ? (this.#campaignModel?.editingDisabledReason ?? undefined)
-      : (campaignRow?.refusedReason ?? plusRefused ?? undefined);
-    const plusRect: Rect = { x: row.x + row.width - 46, y: minusRect.y, width: 40, height: hit.target };
-    const doAdd = (): void => this.#setDeck(addCard(deck, card.id));
-    const plusButton = new McButton(this, {
-      kind: "secondary",
-      label: "+",
-      type: typeRole.rowTitle,
-      rect: plusRect,
-      underlay: g,
-      enabled: !(campaignRow?.refused ?? false) && !frozen && plusRefused === null,
-      ...(plusDisabledReason ? { reason: plusDisabledReason } : {}),
-      onClick: doAdd,
-      clip,
-      suppressClick,
-    });
-    objects.push(plusButton.container);
-
-    return { objects, refresh: thumb.refresh };
   }
 
   /**

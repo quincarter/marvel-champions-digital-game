@@ -214,6 +214,7 @@ export default defineConfig({
         "room-lobby-swipe.spec.ts",
         "room-deck-picker-lit-panel.spec.ts",
         "room-lobby-lit-panel.spec.ts",
+        "deck-builder-lit-panel.spec.ts",
         "mod-store-lit-panel.spec.ts",
         "offline-single-player.spec.ts",
       ],

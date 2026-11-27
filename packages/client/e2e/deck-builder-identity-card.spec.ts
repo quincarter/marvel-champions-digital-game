@@ -238,7 +238,12 @@ test("a community pack's hero opens the same way, both sides", async ({ page, ba
       "the Start from step or the builder",
       15_000,
     );
-    if (empty !== "chosen") await page.mouse.click(empty.x + empty.width / 2, empty.y + empty.height / 2);
+    if (empty !== "chosen") {
+      // The mouse still rests on the hero picture, whose card popover is up; rest on the button a frame before the press, as a hand does.
+      await page.mouse.move(empty.x + empty.width / 2, empty.y + empty.height / 2);
+      await page.waitForTimeout(250);
+      await page.mouse.click(empty.x + empty.width / 2, empty.y + empty.height / 2);
+    }
     const row = await waitFor(() => stopRect(page, "DeckBuilder", "identity-card"), "the identity row", 15_000);
     await settle(page);
     const rowText = (await visibleTexts(page))
