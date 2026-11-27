@@ -83,8 +83,12 @@ test.describe("deck builder tabs on a phone", () => {
     // Start the deck small so the count is visibly short of the minimum, then add from the pool.
     await tapStop(page, "tab:deck");
     // Clear sits at the end of the scrolling deck region: swipe to it.
-    await swipe(page, { x: viewport.width / 2, y: viewport.height - 200 }, { x: viewport.width / 2, y: 150 });
-    await swipe(page, { x: viewport.width / 2, y: viewport.height - 200 }, { x: viewport.width / 2, y: 150 });
+    // The panel scrolls natively by the finger's own distance (no fling): swipe until Clear is on screen above Save.
+    for (let i = 0; i < 10; i++) {
+      const at = await stop(page, "clear");
+      if (at && at.rect.y + at.rect.height < viewport.height - 80) break;
+      await swipe(page, { x: viewport.width / 2, y: viewport.height - 200 }, { x: viewport.width / 2, y: 150 });
+    }
     await tapStop(page, "clear");
     await waitFor(
       async () => (/deck \d+\/40/i.test(await deckTabText(page)) ? true : null),

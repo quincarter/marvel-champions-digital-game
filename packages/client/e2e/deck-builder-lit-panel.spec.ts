@@ -185,9 +185,9 @@ test("a card's plus and minus edit the deck, and a right-click on its picture op
   await builderSheet(page).locator(`[data-key="minus:${firstId}"]`).click();
   await expect(quantity).toHaveText("");
   await builderSheet(page).locator(`[data-key="open:${firstId}"]`).click({ button: "right" });
-  await waitFor(async () => ((await activeScenes(page)).includes("Inspect") ? true : null), "Inspect opens");
+  await waitFor(async () => ((await activeScenes(page)).includes("InspectOverlay") ? true : null), "Inspect opens");
   await pressKey(page, "Escape");
-  await waitFor(async () => (!(await activeScenes(page)).includes("Inspect") ? true : null), "Inspect closes");
+  await waitFor(async () => (!(await activeScenes(page)).includes("InspectOverlay") ? true : null), "Inspect closes");
 });
 
 test("the keyboard walks the builder's stops with the DOM focus ring", async ({ page }, info) => {
