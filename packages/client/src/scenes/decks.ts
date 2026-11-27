@@ -449,6 +449,8 @@ export class DecksScene extends Phaser.Scene {
   #searchFocused = false;
   /** The Phaser-drawn panes (pool, stats, Import/Export), cut out of the panel to be seen through it. */
   #holes: Rect[] = [];
+  /** The card pictures of the From your games view, for the hover popover (on screen: the view does not scroll). */
+  #paneThumbs: { readonly cardId: string; readonly slot: string; readonly rect: Rect }[] = [];
   /** The deck rows pictures in the list content space, for the hover popover. */
   #thumbTargets: { readonly cardId: string; readonly slot: string; readonly rect: Rect }[] = [];
   /** The deck list starts from its top (a new tab or list) or reveals a deck on the next draw. */
@@ -860,6 +862,7 @@ export class DecksScene extends Phaser.Scene {
   #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
     const all = new Map(hoverCardIdsOf(this));
     for (const provider of this.#hoverLists) for (const [slot, rect] of provider()) all.set(slot, rect);
+    for (const thumb of this.#paneThumbs) all.set(thumb.slot, { ...thumb.rect, cardId: thumb.cardId, through: true });
     return all;
   }
 
@@ -909,6 +912,7 @@ export class DecksScene extends Phaser.Scene {
     resetHoverCards(this);
     this.#hoverLists = [];
     this.#thumbTargets = [];
+    this.#paneThumbs = [];
     this.#holes = [];
     this.#actions = new Map();
     this.#inspects = new Map();
@@ -1227,10 +1231,13 @@ export class DecksScene extends Phaser.Scene {
    * to read. Changing the deck happens in the builder, which the one button at the bottom opens on the same tab: a
    * precon as a new deck of your own, one of your decks as itself.
    */
-  #drawPaneGames(left: number, top: number, column: number, bottom: number, deck: Deck): void {
+  #drawPaneGames(b: SheetBuilder, left: number, top: number, column: number, bottom: number, deck: Deck): void {
     let y = top;
     if (!this.#insights) {
-      label(this, left, y, "Reading your games…", typeRole.label, surface.paper.hex, ink.meta);
+      b.text(left, y, t("decks.games.reading").toUpperCase(), typeRole.label, {
+        color: surface.paper.hex,
+        alpha: ink.meta,
+      });
       return;
     }
     const type = fromYourGamesType(isDesktopType());
@@ -1243,18 +1250,22 @@ export class DecksScene extends Phaser.Scene {
     );
     const buttonTop = bottom - this.#row;
     if (view.headline) {
-      label(this, left, y, view.headline.toUpperCase(), { ...typeRole.label, size: type.label }, signal.caution.hex, 1);
+      b.text(left, y, view.headline.toUpperCase(), typeRole.label, {
+        size: type.label,
+        color: signal.caution.hex,
+        wrapWidth: column,
+      });
       y += type.label + 9;
     }
     if (view.insight) {
-      const text = this.add
-        .text(left + 8, y + 6, view.insight, textStyle(typeRole.body, surface.ink.hex, 1))
-        .setFontSize(type.note)
-        .setWordWrapWidth(column - 16);
-      const box = this.add.graphics();
-      box.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, text.height + 12);
-      this.children.bringToTop(text);
-      y += text.height + 20;
+      const height = b.measure(view.insight, typeRole.body, { size: type.note, wrapWidth: column - 16 }).height;
+      b.box({ x: left, y, width: column, height: height + 12 }, { fill: surface.paper.hex });
+      b.text(left + 8, y + 6, view.insight, typeRole.body, {
+        size: type.note,
+        color: surface.ink.hex,
+        wrapWidth: column - 16,
+      });
+      y += height + 20;
     }
     const { thumb } = type;
     const faced = villainsFacedOf(this.#insights);
@@ -1262,44 +1273,48 @@ export class DecksScene extends Phaser.Scene {
     let limit = buttonTop - 8 - (faced.length > 0 ? this.#row + 8 + 20 + thumb.height + 16 : 0);
     const section = (title: string, cards: readonly SuggestedCard[]): void => {
       if (cards.length === 0 || y + 20 + thumb.height > limit) return;
-      const head = this.add.text(left, y, title.toUpperCase(), {
-        ...textStyle(typeRole.barTitle, surface.paper.hex),
-        fontSize: "17px",
+      const head = b.text(left, y, title.toUpperCase(), typeRole.barTitle, {
+        size: 17,
+        color: surface.paper.hex,
+        fitWidth: column,
       });
-      fitText(head, column, 17);
-      this.add
-        .graphics()
-        .fillStyle(surface.paper.hex, 1)
-        .fillRect(left, y + head.height + 2, column, 2);
+      b.box({ x: left, y: y + head.height + 2, width: column, height: 2 }, { fill: surface.paper.hex });
       y += head.height + 10;
       for (const entry of cards) {
         if (y + thumb.height > limit) return;
         const card = currentCardsById().get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
-        this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-        this.#drawPaneArt(artFor(card, { kind: "front" }), pic);
-        noteHoverCardId(this, entry.cardId, pic, true);
-        const text = this.add
-          .text(
-            left + thumb.width + 8,
-            y + 4,
-            `${card?.name ?? entry.cardId}\n${entry.detail}`,
-            textStyle(typeRole.body, surface.paper.hex, ink.body),
-          )
-          .setFontSize(type.text);
-        fitWrapped(text, column - thumb.width - 8, type.lines, type.text);
+        // The card scan, fitted whole in a lazy `<img>`; the hover popover shows the card from it.
+        b.image(pic, {
+          src: artFor(card, { kind: "front" })?.url ?? null,
+          fill: surface.parchment.hex,
+          cover: { x: 0.5, y: 0.2 },
+          key: `games-card:${entry.cardId}`,
+        });
+        this.#paneThumbs.push({
+          cardId: entry.cardId,
+          slot: hoverSlotOf(entry.cardId, `games${this.#paneThumbs.length}`),
+          rect: pic,
+        });
+        b.text(left + thumb.width + 8, y + 4, `${card?.name ?? entry.cardId}\n${entry.detail}`, typeRole.body, {
+          size: type.text,
+          color: surface.paper.hex,
+          alpha: ink.body,
+          wrapWidth: column - thumb.width - 8,
+          maxLines: type.lines,
+        });
         y += thumb.height + 6;
       }
       y += 6;
     };
-    section(deck.source.kind === "precon" ? "Rarely comes out" : "Cut? Sits in your deck", view.cut);
+    section(deck.source.kind === "precon" ? t("decks.games.rarely") : t("decks.games.cut"), view.cut);
     // Only cards this deck's pool lists, as the builder's rail shows them.
     const identity = this.#identityOf(deck);
     const listed = identity
       ? new Set(browsablePool(currentPool(), identity, deck.aspects, {}).map((card) => card.id as string))
       : new Set<string>();
     section(
-      "Try: cards you won with",
+      t("decks.games.try"),
       view.tryCards.filter((entry) => listed.has(entry.cardId)),
     );
     limit = buttonTop - 8;
@@ -1319,55 +1334,59 @@ export class DecksScene extends Phaser.Scene {
         this.#rebuild();
         this.#route?.focusKey("games-against");
       };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "onInk",
-          label: `${against?.headline ?? villain}${faced.length > 1 ? " ▸" : ""}`,
-          type: typeRole.label,
-          rect: stepRect,
-          onClick: step,
-          enabled: faced.length > 1,
-        }),
-      );
-      if (faced.length > 1) this.#stops.set("games-against", { rect: stepRect, activate: step });
+      b.button({
+        key: "games-against",
+        rect: stepRect,
+        label: `${against?.headline ?? villain}${faced.length > 1 ? " ▸" : ""}`,
+        look: "onInk",
+        type: typeRole.label,
+        ...(faced.length > 1 ? {} : { disabled: true as const }),
+      });
+      if (faced.length > 1) {
+        this.#actions.set("games-against", step);
+        this.#stops.set("games-against", { rect: stepRect, activate: step });
+      }
       y += this.#row + 8;
       if (against) {
         const shown = new Set([...view.cut, ...view.tryCards].map((entry) => entry.cardId));
         const wins = against.tryCards.filter((entry) => listed.has(entry.cardId) && !shown.has(entry.cardId));
         const losses = against.cutCards.filter((entry) => !shown.has(entry.cardId));
-        section("Try: in your wins here", wins);
-        section("Cut? In your losses here", losses);
+        section(t("decks.games.tryWins"), wins);
+        section(t("decks.games.cutLosses"), losses);
         const nothing = against.note ?? (wins.length + losses.length === 0 ? NOTHING_STANDS_OUT : null);
         if (nothing && y + 30 < buttonTop) {
-          const note = this.add
-            .text(left, y, nothing, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
-            .setFontSize(type.note)
-            .setWordWrapWidth(column);
+          const note = b.text(left, y, nothing, typeRole.body, {
+            size: type.note,
+            color: surface.paper.hex,
+            alpha: ink.secondary,
+            wrapWidth: column,
+          });
           y += note.height + 8;
         }
       }
     }
-    section("Keep: your staples", view.keep);
+    section(t("decks.games.keep"), view.keep);
     if (view.note && y + 30 < buttonTop) {
-      this.add
-        .text(left, y, view.note, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
-        .setFontSize(type.note)
-        .setWordWrapWidth(column);
+      b.text(left, y, view.note, typeRole.body, {
+        size: type.note,
+        color: surface.paper.hex,
+        alpha: ink.secondary,
+        wrapWidth: column,
+      });
     }
     // Decks reads; the builder changes. A precon is never changed in place: it starts a deck of your own.
     const precon = deck.source.kind === "precon";
     const rect: Rect = { x: left, y: buttonTop, width: column, height: this.#row };
     const open = (): void =>
       goToScreen(this, SCENES.deckBuilder, { deck, railTab: "games" } satisfies DeckBuilderSceneData);
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: precon ? "Build my own from this ▸" : "Edit with these ▸",
-        type: typeRole.label,
-        rect,
-        onClick: open,
-      }),
-    );
+    b.button({
+      key: "games-open",
+      rect,
+      label: precon ? t("decks.games.buildOwn") : t("decks.games.editWith"),
+      look: "onInk",
+      type: typeRole.label,
+    });
+    this.#actions.set("games-open", open);
     this.#stops.set("games-open", { rect, activate: open });
   }
 
@@ -2695,8 +2714,7 @@ export class DecksScene extends Phaser.Scene {
     y += this.#row + 14;
 
     if (this.#paneTab === "games") {
-      this.#holes.push({ x: rect.x, y, width: rect.width, height: footerTop - y });
-      this.#drawPaneGames(left, y, column, rect.y + rect.height - hit.primary - 16 - 13 - 12, deck);
+      this.#drawPaneGames(b, left, y, column, rect.y + rect.height - hit.primary - 16 - 13 - 12, deck);
       return;
     }
 
