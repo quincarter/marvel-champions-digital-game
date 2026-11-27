@@ -258,8 +258,9 @@ export function releasePackArt(key: string): void {
   if (!info) return;
   // A DOM picture still holds a lease on this URL (`leasePackUrl`): the revoke waits for the last release, so a
   // lazy `<img>` that has not loaded yet is not left with a dead URL by a Phaser texture eviction.
-  if ((leaseCounts.get(key) ?? 0) > 0) {
-    revokeOnRelease.add(key);
+  const held = urls.get(key);
+  if (held !== undefined && (leaseCounts.get(held) ?? 0) > 0) {
+    revokeOnRelease.set(held, key);
     return;
   }
   store?.revoke(info.id, info.path);
@@ -267,15 +268,18 @@ export function releasePackArt(key: string): void {
   urls.delete(key);
 }
 
-/** How many DOM consumers hold each key's URL (`leasePackUrl`). */
+// Lease bookkeeping is per blob URL, not per key: a refresh can leave two generations of one key's URL alive at once,
+// and each is revoked when its own last lease lets go, whatever the release order.
+
+/** How many consumers hold each blob URL (`leasePackUrl`). */
 const leaseCounts = new Map<string, number>();
-/** Keys whose eviction asked for a revoke while leased: done when the last lease is released. */
-const revokeOnRelease = new Set<string>();
+/** URLs whose eviction asked for a revoke while leased (url to its key): done when the last lease is released. */
+const revokeOnRelease = new Map<string, string>();
 
-/** Blob URLs `refreshPackArt` detached from the store while a decode read them: revoked when the last decode settles. */
-const detachedUrls = new Map<string, string[]>();
+/** Blob URLs `refreshPackArt` detached from the store while a decode read them: revoked when their last decode settles. */
+const detachedUrls = new Set<string>();
 
-/** How many `CardArt` decodes read each key's URL (a subset of `leaseCounts`). */
+/** How many `CardArt` decodes read each blob URL (a subset of `leaseCounts`). */
 const decodeCounts = new Map<string, number>();
 
 export interface PackLeaseOptions {
@@ -300,10 +304,10 @@ export interface PackUrlLease {
 export function leasePackUrl(key: string, opts: PackLeaseOptions = {}): PackUrlLease | null {
   const url = urls.get(key);
   if (url === undefined || !isPackArtKey(key)) return null;
-  leaseCounts.set(key, (leaseCounts.get(key) ?? 0) + 1);
-  if (opts.decode) decodeCounts.set(key, (decodeCounts.get(key) ?? 0) + 1);
+  leaseCounts.set(url, (leaseCounts.get(url) ?? 0) + 1);
+  if (opts.decode) decodeCounts.set(url, (decodeCounts.get(url) ?? 0) + 1);
   // A new texture is being made from this URL: an eviction's pending revoke is moot, the texture's own eviction asks again.
-  if (opts.takesTexture) revokeOnRelease.delete(key);
+  if (opts.takesTexture) revokeOnRelease.delete(url);
   let released = false;
   return {
     url,
@@ -311,21 +315,23 @@ export function leasePackUrl(key: string, opts: PackLeaseOptions = {}): PackUrlL
       if (released) return;
       released = true;
       if (opts.decode) {
-        const decodes = (decodeCounts.get(key) ?? 1) - 1;
-        if (decodes > 0) decodeCounts.set(key, decodes);
+        const decodes = (decodeCounts.get(url) ?? 1) - 1;
+        if (decodes > 0) decodeCounts.set(url, decodes);
         else {
-          decodeCounts.delete(key);
-          for (const old of detachedUrls.get(key) ?? []) URL.revokeObjectURL(old);
-          detachedUrls.delete(key);
+          decodeCounts.delete(url);
+          if (detachedUrls.delete(url)) URL.revokeObjectURL(url);
         }
       }
-      const left = (leaseCounts.get(key) ?? 1) - 1;
+      const left = (leaseCounts.get(url) ?? 1) - 1;
       if (left > 0) {
-        leaseCounts.set(key, left);
+        leaseCounts.set(url, left);
         return;
       }
-      leaseCounts.delete(key);
-      if (revokeOnRelease.delete(key) && urls.get(key) === url) releasePackArt(key);
+      leaseCounts.delete(url);
+      if (revokeOnRelease.get(url) === key) {
+        revokeOnRelease.delete(url);
+        if (urls.get(key) === url) releasePackArt(key);
+      }
     },
   };
 }
@@ -380,13 +386,13 @@ export function refreshPackArt(key: string, failedUrl: string | undefined): void
     // A decode still reads this URL: revoking now would fail it. The URL stops being current at once (so that decode's
     // failure is a retry, not a missing scan, and a fresh URL is read and announced now); only the revoke of the old
     // blob waits for the last decode to settle. A store that cannot detach keeps the defer-and-keep behavior.
-    if ((decodeCounts.get(key) ?? 0) > 0) {
+    if ((decodeCounts.get(current) ?? 0) > 0) {
       const old = store?.detach?.(info.id, info.path);
       if (old === undefined) {
-        revokeOnRelease.add(key);
+        revokeOnRelease.set(current, key);
         return;
       }
-      detachedUrls.set(key, [...(detachedUrls.get(key) ?? []), old]);
+      detachedUrls.add(old);
       urls.delete(key);
       const pack = packs.get(info.id);
       if (pack && key === packArtKey(pack.id, pack.version, info.path)) ensure(pack, info.path);
