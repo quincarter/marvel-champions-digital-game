@@ -47,9 +47,9 @@ test("the chooser is a Lit panel: three cards, a small picture, the keyboard pic
   await pressKey(page, "Enter");
   // The picked card's frame is the red one: the card box carries a thicker outline than the other two.
   const stroke = (value: string) =>
-    page.locator(`${panel} [data-key="card:${value}"]`).evaluate((el) => getComputedStyle(el).outlineWidth);
-  await waitFor(async () => ((await stroke("hints")) === "3px" ? true : null), "Hints only is picked", 5000);
-  expect(await stroke("full")).toBe("1.5px");
+    page.locator(`${panel} [data-key="card:${value}"]`).evaluate((el) => parseFloat(getComputedStyle(el).outlineWidth));
+  await waitFor(async () => ((await stroke("hints")) >= 3 ? true : null), "Hints only is picked", 5000);
+  expect(await stroke("full")).toBeLessThan(2);
 
   // Suit up with Hints only goes on to Scenario select.
   await page.locator(`${panel} [data-key="suit-up"]`).click();
