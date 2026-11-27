@@ -1897,17 +1897,17 @@ export class DeckBuilderScene extends Phaser.Scene {
     const textOf = (chip: (typeof QUICK_FILTERS)[number]): string =>
       chip.id.startsWith("icon:") ? t(`deckBuilder.${chip.id.replace(":", ".")}` as MessageKey) : chip.text;
     // The icon names (longer in Spanish: Universal, Energía) get the room they need before anything is cut short: the
-    // cost squares narrow first (down to 32px), then the trait stepper gives up some of its width (down to a floor).
+    // cost squares narrow first (down to 30px), then the trait stepper gives up some of its width (down to a floor).
     const iconNeed = QUICK_FILTERS.filter((f) => f.id.startsWith("icon:")).reduce(
-      (sum, chip) => sum + textOf(chip).length * 7.5 + 16,
+      (sum, chip) => sum + textOf(chip).length * 9 + 20,
       0,
     );
     const costCount = QUICK_FILTERS.filter((f) => f.id.startsWith("cost:")).length;
     const gapsWidth = QUICK_FILTERS.length * CHIP_GAP;
     const costRoom = (stepper: number): number => (column - stepper - iconNeed - gapsWidth) / costCount;
-    const costSide = oneRow ? Math.max(32, Math.min(hit.target, costRoom(QUICK_TRAIT_WIDTH))) : hit.target;
+    const costSide = oneRow ? Math.max(30, Math.min(hit.target, costRoom(QUICK_TRAIT_WIDTH))) : hit.target;
     const stepperWidth = oneRow
-      ? Math.max(170, Math.min(QUICK_TRAIT_WIDTH, column - costSide * costCount - iconNeed - gapsWidth))
+      ? Math.max(150, Math.min(QUICK_TRAIT_WIDTH, column - costSide * costCount - iconNeed - gapsWidth))
       : column;
     const rows = oneRow
       ? [QUICK_FILTERS]
