@@ -105,6 +105,7 @@ export default defineConfig({
         "guide-chooser-lit-panel.spec.ts",
         "how-to-win-lit-panel.spec.ts",
         "extras-lit-panel.spec.ts",
+        "extras-reader-lit-panel.spec.ts",
         "mod-store-play.spec.ts",
         "past-games.spec.ts",
         "power-stone-holder-stats.spec.ts",
