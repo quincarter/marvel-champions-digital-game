@@ -79,7 +79,7 @@ import type { DeckActionsSheet, DeckActionsSheetData } from "./deck-actions-shee
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import "@mc/ui";
-import type { McPictureRowModel, McSearchDetail, McSearchField, McSheet } from "@mc/ui";
+import type { McInputDetail, McPictureRowModel, McSearchDetail, McSearchField, McSheet, McTextField } from "@mc/ui";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { SheetBuilder } from "../dom/sheet-builder.js";
@@ -219,7 +219,6 @@ import { accent, border, hit, ink, minType, signal, surface, typeRole } from "..
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import {
   McButton,
-  McMultilineInput,
   McTextInput,
   fitText,
   label,
@@ -262,8 +261,7 @@ const DECK_THUMB_ASPECT = 1.25;
 /** How much of a group-starting row's own top is given to its small group label instead of the card. */
 const GROUP_LABEL_HEIGHT = 16;
 
-const IMPORT_EXPORT_DESCRIPTION =
-  "Paste a decklist or drop a .txt from MarvelCDB. Exports carry the aspect and hero set.";
+const importExportDescription = (): string => t("decks.io.description");
 
 /** A compact chip/button row's own height — smaller than `hit.target`'s 44px touch target, matching D14's small filter/action controls (point 2/3/5 of the 2026-09-18 fidelity pass). Still comfortably tappable. */
 const COMPACT_ROW = 28;
@@ -364,7 +362,7 @@ const readingSize = (px: number): number => (isDesktopType() ? px + 2 : px);
 /** How tall the compact Import/Export box needs to be at `column` px wide, in its current accordion state — used both to reserve room above it and to draw it, so the two can't drift apart. */
 function importExportBoxHeight(column: number, open: "paste" | "marvelcdb" | null, row: number): number {
   const pad = 12;
-  const descLines = estimateWrappedLines(IMPORT_EXPORT_DESCRIPTION, column - pad * 2, isDesktopType() ? 6.4 : 4.6);
+  const descLines = estimateWrappedLines(importExportDescription(), column - pad * 2, isDesktopType() ? 6.4 : 4.6);
   const lineHeight = isDesktopType() ? 17 : 13;
   let height = pad * 2 + 16 + descLines * lineHeight + 8 + row + 8; // padding + heading + description + button row
   if (open === "paste") height += 64 + 8 + row + 8; // textarea + its own Import button
@@ -386,8 +384,8 @@ export class DecksScene extends Phaser.Scene {
   #busy = false;
   #pasteText = "";
   #marvelcdbText = "";
-  #pasteInput: McMultilineInput | null = null;
-  #marvelcdbInput: McTextInput | null = null;
+  /** True while the caret is in the paste or MarvelCDB field (the route stands aside). */
+  #fieldFocused = false;
   /** The card pool pane's own text search (name, traits, type, rules text), kept across rebuilds like `#searchInput`. */
   #poolSearchInput: McTextInput | null = null;
   #poolSearchText = "";
@@ -524,6 +522,7 @@ export class DecksScene extends Phaser.Scene {
     this.#listFromTop = true;
     this.#region = null;
     this.#searchFocused = false;
+    this.#fieldFocused = false;
     this.#holes = [];
     this.#poolListScroll = new ListScroll();
     // A deck asked for by id (just saved, or sent here) is looked for in every list, so it is never filtered away.
@@ -559,10 +558,6 @@ export class DecksScene extends Phaser.Scene {
       this.#rebuildTimer = null;
       this.#deckSearch.destroy();
       this.#poolSearch.destroy();
-      this.#pasteInput?.destroy();
-      this.#pasteInput = null;
-      this.#marvelcdbInput?.destroy();
-      this.#marvelcdbInput = null;
       this.#poolSearchInput?.destroy();
       this.#poolSearchInput = null;
       this.#hints.dispose();
@@ -586,8 +581,18 @@ export class DecksScene extends Phaser.Scene {
       () => ({ focused: this.#searchFocused, blur: () => this.#searchField()?.blurInput() }),
       covered,
     );
-    for (const field of [() => this.#poolSearchInput, () => this.#pasteInput, () => this.#marvelcdbInput])
-      bindTextFieldEscape(this, field, covered);
+    bindTextFieldEscape(this, () => this.#poolSearchInput, covered);
+    bindTextFieldEscape(
+      this,
+      () => ({
+        focused: this.#fieldFocused,
+        blur: () => {
+          this.#importField("paste-field")?.blurInput();
+          this.#importField("marvelcdb-field")?.blurInput();
+        },
+      }),
+      covered,
+    );
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
       // B leaves for Title, as the Back button does (a field being typed in owns the keys, so this is not reached then).
@@ -612,8 +617,7 @@ export class DecksScene extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.deckActions) ||
-        (this.#pasteInput?.focused ?? false) ||
-        (this.#marvelcdbInput?.focused ?? false) ||
+        this.#fieldFocused ||
         this.#searchFocused ||
         (this.#poolSearchInput?.focused ?? false),
       onPage: (direction) =>
@@ -699,6 +703,15 @@ export class DecksScene extends Phaser.Scene {
         if (value === this.#filter.text) return;
         this.#filter = { ...this.#filter, text: value };
         this.#requestDeckSearch(value);
+      });
+      element.addEventListener("mc-input", (event) => {
+        const key = (event.composedPath()[0] as HTMLElement | undefined)?.dataset?.key;
+        const { value } = (event as CustomEvent<McInputDetail>).detail;
+        if (key === "paste-field") this.#pasteText = value;
+        else if (key === "marvelcdb-field") this.#marvelcdbText = value;
+      });
+      element.addEventListener("mc-field-focus", (event) => {
+        this.#fieldFocused = (event as CustomEvent<{ focused: boolean }>).detail.focused;
       });
       element.addEventListener("mc-search-focus", (event) => {
         this.#searchFocused = (event as CustomEvent<{ focused: boolean }>).detail.focused;
@@ -922,13 +935,6 @@ export class DecksScene extends Phaser.Scene {
     // display-list objects (`McTextInput`/`McMultilineInput` are DOM-backed rexUI), so switching tabs and never
     // destroying them would leave them floating over another pane forever, invisible to
     // `destroyChildren(scene)` below — found in the browser switching tabs at a narrow width.
-    const showListFields = layout.wide || this.#activeTab === "decks";
-    if (!showListFields) {
-      this.#pasteInput?.destroy();
-      this.#pasteInput = null;
-      this.#marvelcdbInput?.destroy();
-      this.#marvelcdbInput = null;
-    }
 
     // The surviving DOM text fields survive the sweep: every object they draw with is detached first and handed
     // back after, in the same order. The paste field is a rexUI sizer with children of its own in the display
@@ -938,11 +944,7 @@ export class DecksScene extends Phaser.Scene {
       this.#poolSearchInput?.destroy();
       this.#poolSearchInput = null;
     }
-    const kept = [
-      ...(this.#pasteInput?.gameObjects ?? []),
-      ...(this.#poolSearchInput ? [this.#poolSearchInput.gameObject] : []),
-      ...(this.#marvelcdbInput ? [this.#marvelcdbInput.gameObject] : []),
-    ];
+    const kept = [...(this.#poolSearchInput ? [this.#poolSearchInput.gameObject] : [])];
     for (const node of kept) this.children.remove(node);
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
@@ -1536,10 +1538,7 @@ export class DecksScene extends Phaser.Scene {
     }
     y = listRect.y + listRect.height + 12;
 
-    // The Import/Export box is still drawn in the canvas (its text fields are Phaser's), seen through a hole.
-    const boxRect: Rect = { x: left, y, width: column, height: boxHeight };
-    this.#holes.push(boxRect);
-    this.#drawImportExportBox(boxRect, selected);
+    this.#drawImportExportBox(b, { x: left, y, width: column, height: boxHeight }, selected);
 
     return deckIds;
   }
@@ -1885,36 +1884,30 @@ export class DecksScene extends Phaser.Scene {
   }
 
   /**
-   * The Import/Export box (2026-09-18 fidelity pass, point 2): a compact parchment box pinned to the column's
-   * bottom, matching D14's own footprint — a heading, two lines of description, and one row of small "Paste" /
-   * "MarvelCDB" / "Export" buttons. Paste and MarvelCDB are an accordion: clicking one opens its own field (and
-   * closes the other, so the box never shows both at once); Export always acts immediately on the selected deck.
+   * The Import/Export box: a compact parchment box pinned to the column's bottom, a heading, two lines of description and
+   * one row of small "Paste" / "CDB link" / "Export" buttons. Paste and CDB link are an accordion: pressing one opens its
+   * own field (and closes the other); Export always acts immediately on the selected deck. The fields are real
+   * `<textarea>` / `<input>` elements in the panel (`mc-text-field`), their text kept in `#pasteText` / `#marvelcdbText`.
    */
-  #drawImportExportBox(rect: Rect, selected: DeckOption | null): void {
-    const g = this.add.graphics();
-    g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    g.lineStyle(border.object, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  #drawImportExportBox(b: SheetBuilder, rect: Rect, selected: DeckOption | null): void {
+    b.box(rect, { fill: surface.parchment.hex, stroke: surface.ink.hex, strokeWidth: border.object });
 
     const left = rect.x + 12;
     const column = rect.width - 24;
     let y = rect.y + 12;
 
-    label(
-      this,
-      left,
-      y,
-      "import / export",
-      { ...typeRole.label, size: readingSize(typeRole.label.size) },
-      surface.ink.hex,
-      ink.label,
-    );
+    b.text(left, y, t("decks.io.heading").toUpperCase(), typeRole.label, {
+      size: readingSize(typeRole.label.size),
+      color: surface.ink.hex,
+      alpha: ink.label,
+    });
     y += 16;
-    const desc = this.add
-      .text(left, y, IMPORT_EXPORT_DESCRIPTION, {
-        ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-        fontSize: `${isDesktopType() ? 13 : 10}px`,
-      })
-      .setWordWrapWidth(column);
+    const desc = b.text(left, y, t("decks.io.description"), typeRole.body, {
+      size: isDesktopType() ? 13 : 10,
+      color: surface.ink.hex,
+      alpha: ink.secondary,
+      wrapWidth: column,
+    });
     y += desc.height + 8;
 
     const toggle = (which: "paste" | "marvelcdb"): void => {
@@ -1926,120 +1919,100 @@ export class DecksScene extends Phaser.Scene {
     const pasteToggleRect: Rect = { x: left, y, width: buttonWidth, height: this.#row };
     const mcdbToggleRect: Rect = { x: left + buttonWidth + buttonGap, y, width: buttonWidth, height: this.#row };
     const exportRect: Rect = { x: left + (buttonWidth + buttonGap) * 2, y, width: buttonWidth, height: this.#row };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "Paste",
-        type: typeRole.label,
-        rect: pasteToggleRect,
-        selected: this.#importExportOpen === "paste",
-        onClick: () => toggle("paste"),
-      }),
-    );
+    b.button({
+      key: "ie-paste-toggle",
+      rect: pasteToggleRect,
+      label: t("decks.io.paste"),
+      look: "secondary",
+      type: typeRole.label,
+      selected: this.#importExportOpen === "paste",
+    });
+    this.#actions.set("ie-paste-toggle", () => toggle("paste"));
     this.#stops.set("ie-paste-toggle", { rect: pasteToggleRect, activate: () => toggle("paste") });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "CDB link",
-        type: typeRole.label,
-        rect: mcdbToggleRect,
-        selected: this.#importExportOpen === "marvelcdb",
-        onClick: () => toggle("marvelcdb"),
-      }),
-    );
+    b.button({
+      key: "ie-marvelcdb-toggle",
+      rect: mcdbToggleRect,
+      label: t("decks.io.cdbLink"),
+      look: "secondary",
+      type: typeRole.label,
+      selected: this.#importExportOpen === "marvelcdb",
+    });
+    this.#actions.set("ie-marvelcdb-toggle", () => toggle("marvelcdb"));
     this.#stops.set("ie-marvelcdb-toggle", { rect: mcdbToggleRect, activate: () => toggle("marvelcdb") });
+    const canExport = selected !== null && canExportToMarvelCdb(selected.deck);
     const doExport = (): void => {
-      if (selected && canExportToMarvelCdb(selected.deck)) this.#exportToClipboard(selected.deck);
+      if (selected && canExport) this.#exportToClipboard(selected.deck);
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "Export",
-        type: typeRole.label,
-        rect: exportRect,
-        enabled: selected !== null && canExportToMarvelCdb(selected.deck),
-        ...(!selected
-          ? { reason: "Select a deck first." }
-          : canExportToMarvelCdb(selected.deck)
-            ? {}
-            : { reason: CUSTOM_EXPORT_REASON }),
-        onClick: doExport,
-      }),
-    );
+    b.button({
+      key: "ie-export",
+      rect: exportRect,
+      label: t("decks.io.export"),
+      look: "secondary",
+      type: typeRole.label,
+      ...(canExport ? {} : { disabled: !selected ? t("decks.io.selectFirst") : CUSTOM_EXPORT_REASON }),
+    });
+    this.#actions.set("ie-export", doExport);
     this.#stops.set("ie-export", { rect: exportRect, activate: doExport });
     y += this.#row + 8;
 
     if (this.#importExportOpen === "paste") {
       const pasteRect: Rect = { x: left, y, width: column, height: 64 };
-      if (this.#pasteInput) {
-        this.#pasteInput.layout(pasteRect);
-        // The sweep re-added the field first, so the import box's panel, painted since, covers it: lift it back on top.
-        for (const node of this.#pasteInput.gameObjects) this.children.bringToTop(node);
-      } else {
-        this.#pasteInput = new McMultilineInput(this, {
-          rect: pasteRect,
-          value: this.#pasteText,
-          placeholder: "Hero: Spider-Man\nAspect: Justice\n2x Web-Shooter\n...",
-          onChange: (value) => {
-            this.#pasteText = value;
-          },
-        });
-      }
-      this.#stops.set("paste-field", { rect: pasteRect, activate: () => this.#pasteInput?.focus() });
+      b.textField(pasteRect, {
+        key: "paste-field",
+        value: this.#pasteText,
+        placeholder: "Hero: Spider-Man\nAspect: Justice\n2x Web-Shooter\n...",
+        multiline: true,
+      });
+      this.#stops.set("paste-field", {
+        rect: pasteRect,
+        activate: () => this.#importField("paste-field")?.focusInput(),
+      });
       y += 64 + 8;
       const pasteImportRect: Rect = { x: left, y, width: column, height: this.#row };
       const doPasteImport = (): void => void this.#importPaste();
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: this.#busy ? "Importing…" : "Import this decklist",
-          type: typeRole.label,
-          rect: pasteImportRect,
-          enabled: !this.#busy,
-          onClick: doPasteImport,
-        }),
-      );
+      b.button({
+        key: "paste-import",
+        rect: pasteImportRect,
+        label: this.#busy ? t("decks.io.importing") : t("decks.io.importList"),
+        look: "secondary",
+        type: typeRole.label,
+        ...(this.#busy ? { disabled: true as const } : {}),
+      });
+      this.#actions.set("paste-import", doPasteImport);
       this.#stops.set("paste-import", { rect: pasteImportRect, activate: doPasteImport });
-    } else {
-      this.#pasteInput?.destroy();
-      this.#pasteInput = null;
     }
 
     if (this.#importExportOpen === "marvelcdb") {
-      // Always offered, not gated on `import.meta.env.DEV`: `vite preview` serves the same production bundle a
-      // real deploy would (a genuine production deploy 404s instead — see `vite-marvelcdb-import.ts`).
+      // Always offered, not gated on `import.meta.env.DEV`: `vite preview` serves the same production bundle a real deploy
+      // would (a genuine production deploy 404s instead, see `vite-marvelcdb-import.ts`).
       const mcdbFieldRect: Rect = { x: left, y, width: column, height: this.#row };
-      if (this.#marvelcdbInput) this.#marvelcdbInput.layout(mcdbFieldRect);
-      else {
-        this.#marvelcdbInput = new McTextInput(this, {
-          rect: mcdbFieldRect,
-          value: this.#marvelcdbText,
-          type: typeRole.mono,
-          placeholder: MARVELCDB_FIELD_PLACEHOLDER,
-          onChange: (value) => {
-            this.#marvelcdbText = value;
-          },
-        });
-      }
-      this.#stops.set("marvelcdb-field", { rect: mcdbFieldRect, activate: () => this.#marvelcdbInput?.focus() });
+      b.textField(mcdbFieldRect, {
+        key: "marvelcdb-field",
+        value: this.#marvelcdbText,
+        placeholder: MARVELCDB_FIELD_PLACEHOLDER,
+      });
+      this.#stops.set("marvelcdb-field", {
+        rect: mcdbFieldRect,
+        activate: () => this.#importField("marvelcdb-field")?.focusInput(),
+      });
       y += this.#row + 8;
       const mcdbImportRect: Rect = { x: left, y, width: column, height: this.#row };
       const doMcdbImport = (): void => void this.#importMarvelCdb();
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: this.#busy ? "Importing…" : "Import from MarvelCDB",
-          type: typeRole.label,
-          rect: mcdbImportRect,
-          enabled: !this.#busy,
-          onClick: doMcdbImport,
-        }),
-      );
+      b.button({
+        key: "marvelcdb-import",
+        rect: mcdbImportRect,
+        label: this.#busy ? t("decks.io.importing") : t("decks.io.importCdb"),
+        look: "secondary",
+        type: typeRole.label,
+        ...(this.#busy ? { disabled: true as const } : {}),
+      });
+      this.#actions.set("marvelcdb-import", doMcdbImport);
       this.#stops.set("marvelcdb-import", { rect: mcdbImportRect, activate: doMcdbImport });
-    } else {
-      this.#marvelcdbInput?.destroy();
-      this.#marvelcdbInput = null;
     }
+  }
+
+  #importField(key: "paste-field" | "marvelcdb-field"): McTextField | null {
+    return (this.#region?.element.elementOf(key) as McTextField | null) ?? null;
   }
 
   // ------------------------------------------------------------------------------------------------------------
@@ -3369,9 +3342,7 @@ export class DecksScene extends Phaser.Scene {
     }
     await deckStorage().put(outcome.deck);
     this.#pasteText = "";
-    this.#pasteInput?.setValue("");
     this.#marvelcdbText = "";
-    this.#marvelcdbInput?.setValue("");
     // Unreadable pasted lines are skipped but never silently: each is named by line number under the success line.
     this.#status = { text: importedDeckNote(outcome.deck.name, outcome.warnings), tone: "success" };
     this.#savedDecks = await deckStorage().list();
