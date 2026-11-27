@@ -946,7 +946,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.picker.notReady": "No se puede usar: {reason}",
   "room.picker.mods": "Necesita: {mods}",
   "room.picker.back": "Volver a la sala",
-  "room.picker.viewGrid": "Cuadrícula",
+  "room.picker.viewGrid": "Rejilla",
   "room.picker.viewList": "Lista",
   "room.picker.checking": "Comprobando este mazo…",
   "room.picker.stillChecking": "Todavía se está comprobando este mazo. Inténtalo de nuevo en un momento.",
