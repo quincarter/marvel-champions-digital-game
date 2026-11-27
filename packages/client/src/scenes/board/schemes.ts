@@ -548,7 +548,7 @@ export function drawScheme(
   // `onUpdate` (below) can slide the fill and count the number together the same way `McHpPlate.update()` re-runs
   // its own `redraw()`.
   const paintMeter = (threat: number): void =>
-    paintThreatMeter(mg, meterText, meter, scheme, threat, dim, null, compact ? 10 : undefined);
+    paintThreatMeter(mg, meterText, meter, scheme, threat, dim, null, compact ? 10 : undefined, ctx.threatMeterStyle);
 
   const tick = ctx.motion.threatTick(scheme.instanceId);
   if (tick) {

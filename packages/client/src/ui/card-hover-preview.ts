@@ -607,9 +607,9 @@ export class HoverPreview {
     if (scheme && instance) {
       const meter: Rect = { x: 10, y: bandTop + 7, width: size.width - 20, height: METER_HEIGHT };
       const mg = this.scene.add.graphics();
-      const meterText = this.scene.add.text(0, 0, "", textStyle(typeRole.threatCount, surface.ink.hex));
-      paintThreatMeter(mg, meterText, meter, scheme, instance.threat);
-      meterText.setOrigin(0.5).setPosition(meter.x + meter.width / 2, meter.y + meter.height / 2);
+      const meterText = this.scene.add.text(0, 0, "", textStyle(typeRole.threatCount, surface.ink.hex)).setOrigin(0.5);
+      const style = appSession().settings.threatMeterStyle;
+      paintThreatMeter(mg, meterText, meter, scheme, instance.threat, 1, null, undefined, style);
       container.add([mg, meterText]);
     }
     if (hp) {

@@ -17,6 +17,7 @@ describe("settingsSectionsOf", () => {
       "card-size",
       "play-area-order",
       "scheme-fan-background",
+      "threat-meter-style",
       "hero-art",
       "online-name",
       "card-hover",

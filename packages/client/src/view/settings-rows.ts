@@ -47,6 +47,8 @@ import {
   PLAY_AREA_ORDER_VALUES,
   SCHEME_FAN_BACKGROUND_VALUES,
   type SchemeFanBackground,
+  THREAT_METER_STYLE_VALUES,
+  type ThreatMeterStyle,
   DECK_LIST_ON_OPEN_VALUES,
   type DeckListOnOpen,
   type PlayAreaOrder,
@@ -891,6 +893,28 @@ export function schemeFanBackgroundRowInfoOf(settings: Settings): AchievementPop
     options: SCHEME_FAN_BACKGROUND_VALUES.map((value) => ({ value, label: schemeFanBackgroundLabels()[value] })),
     selected: settings.schemeFanBackground,
   };
+}
+
+const threatMeterStyleLabels = (): Readonly<Record<ThreatMeterStyle, string>> => ({
+  box: t("settings.threatMeterStyle.box"),
+  tall: t("settings.threatMeterStyle.tall"),
+  beside: t("settings.threatMeterStyle.beside"),
+  outline: t("settings.threatMeterStyle.outline"),
+});
+
+/** "Threat bar" under Cards: how a scheme's threat meter shows its count (`Settings.threatMeterStyle`). */
+export function threatMeterStyleRowInfoOf(settings: Settings): AchievementPopupRowInfo<ThreatMeterStyle> {
+  return {
+    title: t("settings.threatMeterStyle.title"),
+    detail: t("settings.threatMeterStyle.detail"),
+    options: THREAT_METER_STYLE_VALUES.map((value) => ({ value, label: threatMeterStyleLabels()[value] })),
+    selected: settings.threatMeterStyle,
+  };
+}
+
+/** `settings` with the threat meter's style set; a value that is not one of the four changes nothing. */
+export function nextSettingsAfterThreatMeterStyle(settings: Settings, value: ThreatMeterStyle): Settings {
+  return THREAT_METER_STYLE_VALUES.includes(value) ? { ...settings, threatMeterStyle: value } : settings;
 }
 
 /** `settings` with the scheme fan's background set; a value that is not one of the five changes nothing. */

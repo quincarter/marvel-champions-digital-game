@@ -42,6 +42,8 @@ import {
   playAreaOrderRowInfoOf,
   schemeFanBackgroundRowInfoOf,
   nextSettingsAfterSchemeFanBackground,
+  nextSettingsAfterThreatMeterStyle,
+  threatMeterStyleRowInfoOf,
   nextSettingsAfterPlayAreaOrder,
   cardLanguageRowInfoOf,
   nextSettingsAfterCardLanguage,
@@ -1006,6 +1008,10 @@ export class SettingsOverlay extends Phaser.Scene {
     segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));
     segmented("scheme-fan-background", schemeFanBackgroundRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => {
       appSession().settings = nextSettingsAfterSchemeFanBackground(appSession().settings, v);
+      this.#draw();
+    });
+    segmented("threat-meter-style", threatMeterStyleRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => {
+      appSession().settings = nextSettingsAfterThreatMeterStyle(appSession().settings, v);
       this.#draw();
     });
     segmented("play-area-order", playAreaOrderRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => {
