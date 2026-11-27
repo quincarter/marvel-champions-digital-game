@@ -105,6 +105,8 @@ export default defineConfig({
         "mod-store-play.spec.ts",
         "past-games.spec.ts",
         "past-games-lit-panel.spec.ts",
+        "trophy-room-lit-panel.spec.ts",
+        "player-stats-lit-panel.spec.ts",
         "power-stone-holder-stats.spec.ts",
         "crushing-blow-mixed-hand.spec.ts",
         "miles-morales-alter-ego-shuffle.spec.ts",
