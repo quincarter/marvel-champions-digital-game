@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Settings ▸ Controls is now a Lit panel over the canvas: the controller drawing is an inline SVG and the Hint size slider is a sheet part'
+time: 2026-11-26T17:36:12.6614045-05:00

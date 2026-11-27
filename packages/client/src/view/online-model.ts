@@ -55,6 +55,12 @@ export interface LiveRow {
 export const liveActionFor = (entry: Pick<LiveRoomEntry, "started" | "seatsTaken" | "seatsTotal">): "join" | "watch" =>
   !entry.started && entry.seatsTaken < entry.seatsTotal ? "join" : "watch";
 
+/**
+ * The key of a row's button, focus stop and action: the room's code plus the action kind, never its position in the
+ * list. A refresh that inserts or drops a room ahead of a held press must not hand the release to another room's button.
+ */
+export const liveRowKey = (row: Pick<LiveRow, "target" | "action">): string => `live:${row.target}:${row.action}`;
+
 export function liveRowsOf(recent: readonly RecentRoom[], live: readonly LiveRoomEntry[] = []): LiveRow[] {
   const mine = recent.map((room): LiveRow => ({
     id: room.code,

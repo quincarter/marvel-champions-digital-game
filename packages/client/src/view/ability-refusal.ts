@@ -33,7 +33,30 @@ import {
   type ValueSpec,
 } from "@mc/engine";
 import type { AbilityId } from "@mc/content";
-import { cardName } from "./names.js";
+import { t, type MessageKey } from "../i18n/translate.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { localizedFaceOf } from "./card-text.js";
+import { cardName as englishCardName } from "./names.js";
+import { localizedTraitOf } from "./trait-names.js";
+
+/**
+ * A card's name as this notice shows it: in Spanish when the card language is Spanish and the table's text has the card's
+ * printed name, and the card reads as that printed name (a facedown card, a flipped side or an identity form keeps the
+ * name the table shows), else as `cardName` gives it. Display only: nothing matches on it.
+ */
+export function cardName(state: GameState, id: InstanceId): string {
+  const shown = englishCardName(state, id);
+  const card = state.instances[id] ? state.cardPool[state.instances[id]!.cardId as string] : undefined;
+  if (!card || card.name !== shown) return shown;
+  return localizedFaceOf(card.id as string, artLanguageNow())?.n ?? shown;
+}
+
+/** A card named in a query, by its English name, as this notice shows it (Spanish when the table has it). */
+function namedCard(state: GameState, name: string): string {
+  const lang = artLanguageNow();
+  const card = Object.values(state.cardPool).find((c) => c.name === name);
+  return (card && localizedFaceOf(card.id as string, lang)?.n) || name;
+}
 
 /** The engine's refusal sentence for any ability whose condition is unmet: what a reason falls back to. */
 export const CONDITION_UNMET = "its condition is not met";
@@ -42,12 +65,31 @@ type Query = { readonly trait?: string; readonly name?: string };
 
 const titleCase = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 
-/** "a Labor card" for a trait query, "Appeal to Athena" for a named one, null for a query it cannot word. */
-function queryNoun(query: Query): string | null {
-  if (query.name) return query.name;
-  if (query.trait) return `${traitWord(query.trait)} card`;
+/** The article English puts before a word ("a Labor card", "an Avenger card"); the key suffix picks it (Spanish has one wording for both). */
+const articleOf = (word: string): "a" | "an" => (/^[AEIOU]/i.test(word) ? "an" : "a");
+
+/** A query's card as the sentences below word it: its displayed name or trait, and the key suffix of its shape. */
+function queryCard(
+  state: GameState,
+  query: Query,
+): { kind: "named" | "trait"; shown: string; article: "a" | "an" } | null {
+  if (query.name) {
+    const shown = namedCard(state, query.name);
+    return { kind: "named", shown, article: articleOf(shown) };
+  }
+  if (query.trait) {
+    const shown = traitWord(query.trait);
+    return { kind: "trait", shown, article: articleOf(shown) };
+  }
   return null;
 }
+
+/** A separate deck's name as the sentence shows it ("Labor" is "Trabajos" on the Spanish cards); unlisted ones stay as is. */
+const DECK_WORDS: Readonly<Record<string, MessageKey>> = {
+  Labor: "refusal.deck.Labor",
+  Gift: "refusal.deck.Gift",
+};
+const deckWord = (deck: string): string => (DECK_WORDS[deck] ? t(DECK_WORDS[deck]!) : deck);
 
 /** The clauses of a `while`: an `and` is its parts, anything else is one clause. */
 function clausesOf(predicate: Predicate): readonly Predicate[] {
@@ -63,15 +105,17 @@ function failedClause(
   const read = (value: ValueSpec): number =>
     resolveValue(state, value, { ...context, event: null, bindings: {} }, context.deps);
   if (clause.kind === "not" && clause.of.kind === "exists") {
-    const noun = queryNoun(clause.of.query as Query);
-    if (!noun) return null;
+    const card = queryCard(state, clause.of.query as Query);
+    if (!card) return null;
     const present = read({ kind: "count", query: clause.of.query });
-    return present > 0 ? `${/^[AEIOU]/.test(noun) ? "an" : "a"} ${noun} is in play` : null;
+    return present > 0 ? t(`refusal.inPlay.${card.kind}.${card.article}` as MessageKey, { shown: card.shown }) : null;
   }
   if (clause.kind === "exists") {
-    const noun = queryNoun(clause.query as Query);
-    if (!noun) return null;
-    return read({ kind: "count", query: clause.query }) > 0 ? null : `no ${noun} is in play`;
+    const card = queryCard(state, clause.query as Query);
+    if (!card) return null;
+    return read({ kind: "count", query: clause.query }) > 0
+      ? null
+      : t(card.kind === "named" ? "refusal.noneNamed" : "refusal.noneTrait", { shown: card.shown });
   }
   if (clause.kind === "compare" && clause.op === "atLeast" && clause.right.kind === "const") {
     const have = read(clause.left);
@@ -79,7 +123,8 @@ function failedClause(
     if (have >= need) return null;
     const left = clause.left;
     if (left.kind === "deckCount" && left.separateDeck) {
-      return have === 0 ? `the ${left.separateDeck} deck is empty` : `only ${have} in the ${left.separateDeck} deck`;
+      const deck = deckWord(left.separateDeck);
+      return have === 0 ? t("refusal.deckEmpty", { deck }) : t("refusal.deckOnly", { have, deck });
     }
   }
   return null;
@@ -95,15 +140,17 @@ export function abilityRefusalReason(
   controllerId: PlayerId,
   abilityId: AbilityId,
   deps: EngineDeps,
-  fallback: string = CONDITION_UNMET,
+  fallback?: string,
 ): string {
+  // Absent: the display default, in the player's language. A supplied sentence (the engine's own) is shown as given.
+  const otherwise = fallback ?? t("refusal.reason.condition");
   const trigger = deps.abilities[abilityId]?.trigger as { readonly while?: Predicate } | undefined;
-  if (!trigger?.while) return fallback;
+  if (!trigger?.while) return otherwise;
   for (const clause of clausesOf(trigger.while)) {
     const reason = failedClause(state, clause, { selfInstanceId: instanceId, controllerId, deps });
     if (reason) return reason;
   }
-  return fallback;
+  return otherwise;
 }
 
 /** The noun for a query of one category the target wording knows ("ally"); any other query is not worded. */
@@ -128,21 +175,30 @@ function noTargetClause(state: GameState, query: TargetQuery, context: TargetCon
     if (candidates.length !== 1) return null;
     const blocked = candidates[0]!;
     const name = cardName(state, blocked);
-    if (hasKeyword(state, blocked, "stalwart", context.deps)) return `${name} is stalwart and cannot be ${status}`;
+    if (hasKeyword(state, blocked, "stalwart", context.deps)) return stalwartWords(name, status);
     // Said only when the card holds one: another rule ("cannot be stunned", `cannotHaveStatus`) is not worded here.
-    if ((state.instances[blocked]?.statuses[status] ?? 0) > 0) return `${name} is already ${status}`;
+    if ((state.instances[blocked]?.statuses[status] ?? 0) > 0) return alreadyWords(name, status);
     return null;
   }
   return noMatchClause(query);
 }
 
+/** "Jessica Jones is stalwart and cannot be confused" (RRG 1.8 "Stalwart", p. 40). */
+const stalwartWords = (name: string, status: "confused" | "stunned"): string =>
+  t("refusal.stalwart", { name, status: t(`refusal.status.${status}` as MessageKey) });
+
+/** "Jessica Jones is already confused". */
+const alreadyWords = (name: string, status: "confused" | "stunned"): string =>
+  t("refusal.already", { name, status: t(`refusal.status.${status}` as MessageKey) });
+
 /** A trait as cards print it in a sentence: "Avenger", "X-Men", and an acronym ("S.H.I.E.L.D.") as it is. */
 const traitWord = (trait: string): string =>
-  trait.includes(".")
+  localizedTraitOf(trait, artLanguageNow()) ??
+  (trait.includes(".")
     ? trait
     : trait.replace(/[A-Za-z]+/g, (word, at: number) =>
         at > 0 && SMALL_WORDS.has(word.toLowerCase()) ? word.toLowerCase() : titleCase(word),
-      );
+      ));
 
 /** Words a printed trait keeps lower case after its first ("Hero for Hire"). */
 const SMALL_WORDS: ReadonlySet<string> = new Set(["for", "of", "the", "and"]);
@@ -150,6 +206,9 @@ const SMALL_WORDS: ReadonlySet<string> = new Set(["for", "of", "the", "and"]);
 /** A query's worded kind: "Avenger ally", whether it leaves out the ability's own card, and whose cards it reads. */
 export interface QueryNoun {
   readonly noun: string;
+  /** The noun with no trait ("ally") and the trait alone ("Avenger"; null for none), for a caller that words qualifiers. */
+  readonly base: string;
+  readonly trait: string | null;
   /** "Another Dora Milaje ally" (`not: { self: true }`, `self: false`, `excluding` the card itself). */
   readonly other: boolean;
   /** Any player's cards (no `controller`, or `"any"`), not only the payer's. */
@@ -193,22 +252,35 @@ export function queryNounOf(query: TargetQuery, payer = false): QueryNoun | null
   const controller = query.controller;
   if (!noun || !known || (controller !== undefined && controller !== "you" && controller !== "any")) return null;
   const anyone = controller === "any" || (controller === undefined && !payer);
-  return { noun: query.trait ? `${traitWord(query.trait)} ${noun}` : noun, other, anyone };
+  const word = t(`refusal.noun.${noun}` as MessageKey);
+  return {
+    noun: query.trait ? t("refusal.noun.withTrait", { trait: traitWord(query.trait), noun: word }) : word,
+    base: word,
+    trait: query.trait ? traitWord(query.trait) : null,
+    other,
+    anyone,
+  };
 }
 
 /**
  * "You control no ally", "you control no other Avenger ally", "there is no other Dora Milaje ally in play": what is
  * missing, from a query's shape alone (`queryNounOf`); null otherwise.
  */
-function noMatchClause(
+export function noMatchClause(
   query: TargetQuery,
   /** A cost's pick: its cards are the payer's (`queryNounOf`), "ready" ones (`readiness`), "other" than the card. */
-  pick: { readonly other: boolean; readonly readiness: string } | null = null,
+  pick: { readonly other: boolean; readonly readiness: "ready" | "exhausted" | "" } | null = null,
 ): string | null {
   const kind = queryNounOf(query, pick !== null);
   if (!kind) return null;
-  const noun = `${kind.other || pick?.other ? "other " : ""}${pick?.readiness ?? ""}${kind.noun}`;
-  return kind.anyone ? `there is no ${noun} in play` : `you control no ${noun}`;
+  // English puts the trait before the qualifiers ("other ready Avenger ally"); Spanish after ("otro aliado preparado
+  // con el rasgo Vengador"), so the trait goes on last when the language's wording asks (`refusal.noun.traitLast`).
+  const traitLast = kind.trait !== null && t("refusal.noun.traitLast") === "1";
+  let noun = traitLast ? kind.base : kind.noun;
+  if (pick?.readiness) noun = t(`refusal.noun.${pick.readiness}` as MessageKey, { noun });
+  if (kind.other || pick?.other) noun = t("refusal.noun.other", { noun });
+  if (traitLast) noun = t("refusal.noun.withTrait", { trait: kind.trait!, noun });
+  return t(kind.anyone ? "refusal.noneInPlay" : "refusal.youControlNone", { noun });
 }
 
 /**
@@ -246,7 +318,7 @@ export function targetRefusalReason(
       : [firstTargetQuery(effects)];
   const clauses = queries.map((query) => (query ? noTargetClause(state, query, context) : null));
   if (clauses.length === 0 || clauses.some((clause) => clause === null)) return null;
-  return clauses.join(", and ");
+  return clauses.join(t("refusal.and"));
 }
 
 type ChooseOneOption = Extract<EffectSpec, { kind: "chooseOne" }>["options"][number];
@@ -267,7 +339,7 @@ function optionAt(node: unknown, index: number, label: string): ChooseOneOption 
  * An option's own unmet condition, in words, for the shapes printed conditions use; null for any other. "Remove 2 threat
  * from a scheme" while no scheme holds threat (Nick Fury `core` 01084) is "no scheme has threat on it".
  */
-function conditionClause(condition: Predicate | undefined): string | null {
+function conditionClause(state: GameState, condition: Predicate | undefined): string | null {
   // "At least 1 card attached here" (Plot Convenience `deadpool` 44050: "Add 1 card attached here to your hand").
   if (
     condition?.kind === "compare" &&
@@ -278,13 +350,14 @@ function conditionClause(condition: Predicate | undefined): string | null {
   ) {
     const counted = condition.left.query as TargetQuery & { readonly host?: { readonly kind?: string } };
     if (counted.host?.kind === "self" && Object.keys(counted).every((key) => key === "host" || key === "facedown"))
-      return "no card is attached here";
+      return t("refusal.noAttached");
   }
   if (condition?.kind !== "exists") return null;
   const query = condition.query as TargetQuery;
   // An option offered only while a named card is in play (`inPlay(name)`): "Place 2 infamy counters on Criminal
   // Enterprise" once that card has flipped (Hired Gun `gob` 02007, #967).
-  if (typeof query.name === "string" && Object.keys(query).length === 1) return `${query.name} is not in play`;
+  if (typeof query.name === "string" && Object.keys(query).length === 1)
+    return t("refusal.notInPlay", { name: namedCard(state, query.name) });
   const categories = query.categories ?? [];
   if (
     categories.length === 1 &&
@@ -292,16 +365,16 @@ function conditionClause(condition: Predicate | undefined): string | null {
     query.hasThreat === true &&
     Object.keys(query).length === 2
   )
-    return "no scheme has threat on it";
+    return t("refusal.noSchemeThreat");
   return null;
 }
 
 /** What each engine reason means, when nothing more specific can be said. */
-const OPTION_REASON_WORDS: Readonly<Record<OptionUnavailableReason, string>> = {
-  condition: "its condition is not met",
-  cannotChoose: "a card in play says you cannot choose it",
-  cannotPay: "you cannot pay its cost",
-  noTarget: "it has no valid target",
+const OPTION_REASON_WORDS: Readonly<Record<OptionUnavailableReason, MessageKey>> = {
+  condition: "refusal.reason.condition",
+  cannotChoose: "refusal.reason.cannotChoose",
+  cannotPay: "refusal.reason.cannotPay",
+  noTarget: "refusal.reason.noTarget",
 };
 
 /**
@@ -320,16 +393,16 @@ export function unavailableOptionReasons(
     // A condition is worded from its own shape; a missing target from what the engine recorded when it barred the
     // option. Neither is re-judged against the state now, which a resumed game's log may read long after (#414 review).
     if (reason === "condition") {
-      why = conditionClause(definition ? optionAt(definition.effects, index, label)?.condition : undefined);
+      why = conditionClause(state, definition ? optionAt(definition.effects, index, label)?.condition : undefined);
     }
     if (reason === "noTarget" && missing?.blocked) {
       const { instanceId, status, cause } = missing.blocked;
       const name = cardName(state, instanceId);
-      why = cause === "stalwart" ? `${name} is stalwart and cannot be ${status}` : `${name} is already ${status}`;
+      why = cause === "stalwart" ? stalwartWords(name, status) : alreadyWords(name, status);
     } else if (reason === "noTarget" && missing) {
       why = missing.target.canTakeStatus === undefined ? noMatchClause(missing.target) : null;
     }
-    return { index, label, why: why ?? OPTION_REASON_WORDS[reason] };
+    return { index, label, why: why ?? t(OPTION_REASON_WORDS[reason]) };
   });
 }
 
@@ -338,9 +411,9 @@ export const unavailableOptionLines = (state: GameState, unavailable: Unavailabl
   unavailableOptionReasons(state, unavailable, deps).map(({ label, why }) => `${label}: ${why}`);
 
 /** How each kind of in-play cost pick words the card it needs ("no other ready Avenger ally"). */
-const PICK_WORD: Partial<Record<InPlayCostMode, string>> = {
-  exhaust: "ready ",
-  ready: "exhausted ",
+const PICK_WORD: Partial<Record<InPlayCostMode, "ready" | "exhausted" | "">> = {
+  exhaust: "ready",
+  ready: "exhausted",
   return: "",
   discard: "",
 };
@@ -407,7 +480,14 @@ export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps:
         ? [missing]
         : [];
     const clauses = [...short.map(({ clause }) => clause), ...targetless];
-    return clauses.length > 0 ? [`${titleCase(trigger.kind)} can't be used right now: ${clauses.join(", and ")}`] : [];
+    return clauses.length > 0
+      ? [
+          t("refusal.idle", {
+            kind: t(`notice.timingCap.${trigger.kind}` as MessageKey),
+            why: clauses.join(t("refusal.and")),
+          }),
+        ]
+      : [];
   });
 }
 
@@ -415,11 +495,11 @@ export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps:
 const ENTERING: ReadonlySet<string> = new Set(["cardEntersPlay", "cardPlayed", "cardBeingPlayed"]);
 
 /** What each `abilityNotOffered` reason means, when nothing more specific can be said. */
-const UNOFFERED_WORDS: Readonly<Record<"noTarget" | "cannotPay" | "period", string>> = {
-  noTarget: "it has no valid target",
+const UNOFFERED_WORDS: Readonly<Record<"noTarget" | "cannotPay" | "period", MessageKey>> = {
+  noTarget: "refusal.reason.noTarget",
   // RRG 1.8 "Lasting Effects" (p. 26), #970: all it gives would last to the end of a turn or player phase not under way.
-  period: "it only lasts to the end of a turn or player phase, so it can only be used during one",
-  cannotPay: "you cannot pay its cost",
+  period: "refusal.reason.period",
+  cannotPay: "refusal.reason.cannotPay",
 };
 
 /**
@@ -441,12 +521,17 @@ export function unofferedReason(
       : reason === "cannotPay"
         ? exhaustCostClause(deps.abilities[abilityId]?.cost, state, instanceId, deps)
         : null;
-  return specific ?? UNOFFERED_WORDS[reason];
+  return specific ?? t(UNOFFERED_WORDS[reason]);
 }
 
 /** The ability's printed name ("New Labors of Hercules"), or "This ability" when the card does not print one. */
 export function abilityNameOf(state: GameState, instanceId: InstanceId, abilityId: AbilityId): string {
-  return activeAbilityRefs(state, instanceId).find((ref) => ref.id === abilityId)?.label ?? "This ability";
+  return printedAbilityLabel(state, instanceId, abilityId) ?? t("refusal.thisAbility");
+}
+
+/** The ability's printed name, or null when the card prints none (the model keeps the absence; display words it). */
+export function printedAbilityLabel(state: GameState, instanceId: InstanceId, abilityId: AbilityId): string | null {
+  return activeAbilityRefs(state, instanceId).find((ref) => ref.id === abilityId)?.label ?? null;
 }
 
 /**
@@ -462,5 +547,5 @@ export function refusedAbilityLine(
   named = false,
 ): string {
   const reason = abilityRefusalReason(state, instanceId, controllerId, abilityId, deps);
-  return named ? `${abilityNameOf(state, instanceId, abilityId)}: ${reason}` : `Can't use: ${reason}`;
+  return named ? `${abilityNameOf(state, instanceId, abilityId)}: ${reason}` : t("refusal.cantUse", { why: reason });
 }

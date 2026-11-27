@@ -24,10 +24,11 @@
  * flips fields on that one shared object, it never re-implements what reading
  * them does.
  */
+import { hitRectAround } from "../view/hit-rect.js";
 import Phaser from "phaser";
 import type { OnlineNameData } from "./online-name.js";
 import {
-  GUIDE_LEVEL_SEARCH_DETAIL,
+  guideLevelSearchDetail,
   guideRowInfoOf,
   guideRowDetailOf,
   nextGuidePrefsAfterRow,
@@ -143,20 +144,15 @@ import {
   readMixerVolume,
   writeMixerVolume,
 } from "../platform/app-volume.js";
-import { ink, signal, surface, typeRole } from "../tokens.js";
+import { hit, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
-import {
-  McButton,
-  McTabs,
-  addRowTapZone,
-  fitText,
-  label,
-  paintOnFrame,
-  sectionHeader,
-  type McTextInput,
-} from "../ui/widgets.js";
+import { McButton, McTabs, type McTextInput } from "../ui/widgets.js";
+import { onTap } from "../ui/tap.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
-import { McScrollRegion } from "../ui/scroll-region.js";
+import "@mc/ui";
+import type { BodyControl, BodyList, BodyRect, BodyRow, McSettingsBody } from "@mc/ui";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
 import {
   settingsLayout,
   type SettingsContentLayout,
@@ -164,7 +160,6 @@ import {
   type SettingsItemSpec,
 } from "../view/settings-layout.js";
 import type { Rect } from "../view/layout.js";
-import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
 import { onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
@@ -185,14 +180,14 @@ import { askToConfirm } from "./end-turn-confirm.js";
 import { SCENES } from "./keys.js";
 import {
   CONTROLS_ROW,
-  CONTROLS_ROW_DETAIL,
+  controlsRowDetail,
   RULES_ROW,
-  RULES_ROW_DETAIL,
-  RULES_ROW_TITLE,
+  rulesRowDetail,
+  rulesRowTitle,
   SAVE_DATA_ROW,
   STATS_ROW,
-  STATS_ROW_DETAIL,
-  STEAM_DECK_DETAIL,
+  statsRowDetail,
+  steamDeckDetail,
   UNLOCKS_ROW,
   controlsShown,
   couchBaseOf,
@@ -205,14 +200,16 @@ import type { PlayerStatsData } from "./player-stats.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
 import type { RulesSceneData } from "./rules.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { onLanguageChange } from "../language-change.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { applyEarnedItems, earnedItems, earnedPromoSets, unlocks } from "../progression/progression.js";
 import { heroPromoShown } from "../view/hero-art-choice.js";
 import { unlocksSummaryOf } from "../view/unlocks-model.js";
 import type { TransferCode } from "@mc/sync-worker/protocol";
 import type { SaveDataSceneData } from "./save-data.js";
-import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
-import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE, STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
+import { saveDataRowDetail, saveDataRowTitle } from "../view/save-data-model.js";
+import { steamInstallRowDetail, steamInstallRowTitle, STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
 import { t } from "../i18n/translate.js";
 import { knownSteamAdd, steamAdd } from "../platform/steam-add.js";
 import { DOWNLOADS_URL } from "../view/language-button.js";
@@ -291,15 +288,22 @@ export class SettingsOverlay extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
   /** The active tab's own scroll region (docs/guided-mode.md §4 G2b): its sections all draw into it. */
-  #bodyRegion: McScrollRegion | null = null;
-  #bodyScroll = new VariableListScroll();
+  /** The body: a Lit panel over the canvas (`@mc/ui`'s `mc-settings-body`), kept across redraws so its scroll stays. */
+  #body: DomRegion<McSettingsBody> | null = null;
+  /** The next draw starts the body from its top (another tab, a search result). */
+  #bodyFromTop = false;
+  /** What each key in the body does this draw, for the panel's `mc-activate`. */
+  #bodyActions = new Map<string, () => void>();
+  /** The rows the body is given this draw. */
+  #bodyRows: BodyRow[] = [];
+  /** The open Resolution list this draw, drawn by the body over its rows. */
+  #bodyList: BodyList | null = null;
+  /** Where the body sits this draw, so rows can be placed relative to it. */
+  #bodyOrigin = { x: 0, y: 0 };
   /** The Resolution the player picked in the dropdown, not yet applied; null when nothing is pending. */
   #pendingResolution: Resolution | null = null;
   #resolutionListOpen = false;
-  #resolutionListScroll = new VariableListScroll();
-  #listRegion: McScrollRegion | null = null;
-  /** Where the Resolution field was last drawn (screen space) and what it lists, for the open list. */
-  #resolutionField: Rect | null = null;
+  /** What the Resolution field lists, for the open list. */
   #resolutionInfo: SegmentedInfo<Resolution> | null = null;
   /** The search (#576): shown in the tab rail's place while open, with the results in place of the rows. */
   #searchOpen = false;
@@ -332,7 +336,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#searchResults = null;
     if (data.focus) {
       lastTab = data.focus.tab;
-      this.#bodyScroll = new VariableListScroll();
+      this.#bodyFromTop = true;
     }
     // Before the route: A, B or Start takes the caret out of the search field.
     bindTextFieldEscape(
@@ -341,7 +345,11 @@ export class SettingsOverlay extends Phaser.Scene {
       () => this.#covered(),
     );
     this.#route = new FocusRoute(this, {
-      onScroll: (_dx, dy) => (this.#resultsList ?? this.#bodyRegion)?.scrollByPx(dy),
+      onScroll: (_dx, dy) => {
+        if (this.#resultsList) this.#resultsList.scrollByPx(dy);
+        else this.#body?.element.scroller?.scrollBy({ top: dy });
+      },
+      ring: domFocusRing,
       // Y opens and shuts the search where a controller is in use; the keyboard's Inspect key stays Inspect.
       onInspect: (source) => {
         if (source === "key" || inputDevice().mode !== "pad" || this.#resolutionListOpen) return false;
@@ -385,7 +393,10 @@ export class SettingsOverlay extends Phaser.Scene {
     }
     // The top-of-screen dark mode toggle (#459) flips the same setting as the Dark mode row: the row follows it.
     const unsubscribeScheme = onColorSchemeChange(() => this.#redrawIfOpen());
+    // A language switch rewords the pages the search indexes: index them again.
+    const offSearchLanguage = onLanguageChange(() => this.#refreshSearch());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offSearchLanguage();
       this.scale.off("resize", onResize, this);
       unsubscribeGuide();
       unsubscribePowerSaving();
@@ -396,8 +407,7 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#buttons = [];
       this.#tabs?.destroy();
       this.#tabs = null;
-      this.#bodyRegion?.destroy();
-      this.#bodyRegion = null;
+      this.#body = null;
       this.#resultsList?.destroy();
       this.#resultsList = null;
       this.#searchInput?.destroy();
@@ -500,6 +510,7 @@ export class SettingsOverlay extends Phaser.Scene {
       unlocks: { progress, prefs, devUnlockAll, achievementPoints },
       globalConsent: readConsent(),
       controls: controlsShown(),
+      language: artLanguageNow(),
     });
   }
 
@@ -524,7 +535,7 @@ export class SettingsOverlay extends Phaser.Scene {
     switch (target.kind) {
       case "setting":
         lastTab = target.tab;
-        this.#bodyScroll = new VariableListScroll();
+        this.#bodyFromTop = true;
         this.#closeSearch(null);
         this.#route?.focusKey(`row:${this.#firstStopOf.get(target.item) ?? target.item}`);
         return;
@@ -696,7 +707,7 @@ export class SettingsOverlay extends Phaser.Scene {
   #setTab(id: SettingsTabId): void {
     if (id === lastTab) return;
     lastTab = id;
-    this.#bodyScroll = new VariableListScroll();
+    this.#bodyFromTop = true;
     this.#draw();
   }
 
@@ -708,10 +719,6 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#buttons = [];
     this.#tabs?.destroy();
     this.#tabs = null;
-    this.#bodyRegion?.destroy();
-    this.#bodyRegion = null;
-    this.#listRegion?.destroy();
-    this.#listRegion = null;
     this.#resultsList?.destroy();
     this.#resultsList = null;
     // The field outlives a redraw: rebuilding a DOM <input> mid-keystroke would drop the caret.
@@ -768,17 +775,21 @@ export class SettingsOverlay extends Phaser.Scene {
       width: closeSize,
       height: closeSize,
     };
+    const searchRect: Rect = { ...closeRect, x: closeRect.x - SEARCH_GAP - closeSize };
+    // Both are small drawn squares: each gets a 44px press area inside the header, splitting the gap between them.
+    const closeHit = hitRectAround(closeRect, hit.target, layout.header, [searchRect]);
+    const searchHit = hitRectAround(searchRect, hit.target, layout.header, [closeRect]);
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
         label: "✕",
         type: typeRole.rowTitle,
         rect: closeRect,
+        hit: closeHit,
         onClick: () => this.#close(),
       }),
     );
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
-    const searchRect: Rect = { ...closeRect, x: closeRect.x - SEARCH_GAP - closeSize };
     drawSearchToggle(
       this,
       searchRect,
@@ -787,12 +798,18 @@ export class SettingsOverlay extends Phaser.Scene {
       () => this.#toggleSearch(),
       this.#buttons,
       stops,
+      searchHit,
     );
     const title = this.add
-      .text(layout.header.x + 16, layout.header.y + layout.header.height / 2, caseOf(typeRole.barTitle, "Settings"), {
-        ...textStyle(typeRole.barTitle, surface.paper.hex),
-        fontSize: "24px",
-      })
+      .text(
+        layout.header.x + 16,
+        layout.header.y + layout.header.height / 2,
+        caseOf(typeRole.barTitle, t("settings.title")),
+        {
+          ...textStyle(typeRole.barTitle, surface.paper.hex),
+          fontSize: "24px",
+        },
+      )
       .setOrigin(0, 0.5);
     // The dark mode toggle (#459) sits in the header's middle, clear of the title on the left and the pad hints and
     // the search and close buttons on the right, rather than floating over the panel's top border. Past the title
@@ -821,7 +838,7 @@ export class SettingsOverlay extends Phaser.Scene {
         layout.tabs,
         "search-field",
         "",
-        "Search settings, rules, unlocks…",
+        t("settings.searchPlaceholder"),
         (value) => this.#onSearchChange(value),
         this.#searchInput,
         stops,
@@ -882,13 +899,16 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#route?.set(["back", "search-toggle", ...head, ...stopIds], stops);
     }
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+    this.#body?.follow(panel);
+    // The search's results are still drawn in Phaser, under the DOM: the body steps aside while they show.
+    this.#body?.setHidden(results !== null);
   }
 
   /** The ranked results, in the room the rows had, or a line saying there are none. Returns their stops in order. */
   #drawResults(room: Rect, results: readonly SettingsSearchResult[], stops: Map<string, FocusStop>): readonly string[] {
     if (results.length === 0) {
       this.add
-        .text(room.x, room.y + 14, "Nothing matches that search.", textStyle(typeRole.body, surface.paper.hex, 0.8))
+        .text(room.x, room.y + 14, t("settings.noResults"), textStyle(typeRole.body, surface.paper.hex, 0.8))
         .setFontSize(12);
       return [];
     }
@@ -1131,7 +1151,7 @@ export class SettingsOverlay extends Phaser.Scene {
       if (row.kind === "segmented") {
         items.set(row.id, {
           title: row.title,
-          detail: GUIDE_LEVEL_SEARCH_DETAIL,
+          detail: guideLevelSearchDetail(),
           spec: { kind: "level", id: row.id },
           draw: (item, stops) => {
             this.#drawGuideLevelRow(item.row, row, item.slot, stops);
@@ -1162,12 +1182,12 @@ export class SettingsOverlay extends Phaser.Scene {
         },
       });
     };
-    door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
-    door(STATS_ROW, "Your stats", STATS_ROW_DETAIL, () => this.#openStats());
-    door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
-    door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
-    door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
-    door("steam-install", STEAM_INSTALL_ROW_TITLE, STEAM_INSTALL_ROW_DETAIL, () => this.#openSteamUpdate());
+    door(UNLOCKS_ROW, t("settings.unlocks.title"), unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
+    door(STATS_ROW, t("settings.stats.title"), statsRowDetail(), () => this.#openStats());
+    door(SAVE_DATA_ROW, saveDataRowTitle(), saveDataRowDetail(), () => this.#openSaveData());
+    door(CONTROLS_ROW, t("settings.controls.title"), controlsRowDetail(), () => this.#openControls());
+    door(RULES_ROW, rulesRowTitle(), rulesRowDetail(), () => this.#openRules());
+    door("steam-install", steamInstallRowTitle(), steamInstallRowDetail(), () => this.#openSteamUpdate());
     items.set("steam-add", {
       title: t("steamAdd.row.title"),
       detail: t("steamAdd.row.detail"),
@@ -1190,39 +1210,46 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     items.set("steam-deck", {
       title: "Steam Deck",
-      detail: STEAM_DECK_DETAIL,
-      spec: { kind: "toggle", id: "steam-deck", detail: STEAM_DECK_DETAIL },
+      detail: steamDeckDetail(),
+      spec: { kind: "toggle", id: "steam-deck", detail: steamDeckDetail() },
       draw: (item, stops) => {
         const use = (): void => {
           this.#pendingResolution = null;
           this.#setWindow({ ...appSession().settings, ...HANDHELD_DISPLAY });
         };
-        this.#drawDoorRow(item.row, "steam-deck", "Steam Deck", STEAM_DECK_DETAIL, item.slot, stops, use, "Use");
+        this.#drawDoorRow(
+          item.row,
+          "steam-deck",
+          "Steam Deck",
+          steamDeckDetail(),
+          item.slot,
+          stops,
+          use,
+          t("settings.use"),
+        );
         return ["steam-deck"];
       },
     });
     return items;
   }
 
-  /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container` — the "eagerly draw, then move into the scrolled/masked layer" trick `McScrollRegion` relies on (its own doc comment), same as `scenes/table-setup.ts`'s own `#captureInto`. */
-  #captureInto(container: Phaser.GameObjects.Container, draw: () => void): void {
-    const before = this.children.list.length;
-    draw();
-    const added = this.children.list.slice(before);
-    if (added.length > 0) container.add(added);
-  }
-
   /** A stop inside the body scroll region: its rect tracks the current scroll offset, and taking focus scrolls it into view. */
-  #bodyStop(rect: Rect, index: number, activate: () => void): FocusStop {
+  #bodyStop(elementKey: string, activate: () => void, rowKey?: string): FocusStop {
+    const element = (): HTMLElement | null => this.#body?.element.elementOf(elementKey) ?? null;
     return {
-      rect: () => ({ ...rect, y: rect.y - this.#bodyScroll.offsetPx }),
+      rect: () => {
+        const found = element();
+        return found && this.#body ? this.#body.rectOf(found) : { x: 0, y: 0, width: 0, height: 0 };
+      },
+      view: () => this.#body?.rect ?? { x: 0, y: 0, width: 0, height: 0 },
       activate,
-      ensureVisible: () => this.#bodyRegion?.scrollIntoView(index),
+      ensureVisible: () => {
+        if (rowKey && rowKey !== elementKey)
+          this.#body?.element.elementOf(rowKey)?.scrollIntoView({ block: "nearest" });
+        element()?.scrollIntoView({ block: "nearest" });
+      },
     };
   }
-
-  #bodyClip = (): Rect | null => this.#bodyRegion?.rect ?? null;
-  #bodySuppressClick = (): boolean => this.#bodyRegion?.isDragSuppressingClick ?? false;
 
   /**
    * The whole body — every section's heading and rows (`view/settings-sections.ts`) — inside one scroll region
@@ -1235,113 +1262,126 @@ export class SettingsOverlay extends Phaser.Scene {
     items: ReadonlyMap<SettingsItemId, SettingsItem>,
     stops: Map<string, FocusStop>,
   ): readonly string[] {
-    // `clipInteractive`: a mask hides pixels, not hit areas, so a row scrolled up under the title bar would still
-    // win the press on the ✕ above it (its own `clip` then drops the click, so nothing happened at all).
-    this.#bodyRegion = new McScrollRegion(this, {
-      rect: viewport,
-      heights: content.slotHeights,
-      scroll: this.#bodyScroll,
-      clipInteractive: true,
-      // The open Resolution list scrolls on its own.
-      enabled: () => !this.#resolutionListOpen,
-    });
-    const container = this.#bodyRegion.content;
-    const toScreen = (rect: Rect): Rect => ({ ...rect, y: viewport.y + rect.y });
+    if (!this.#body) {
+      const element = document.createElement("mc-settings-body");
+      element.addEventListener("mc-activate", (event) => {
+        // Closing already (its exit is playing): a second tap must not change a setting or open another screen.
+        if (this.#motion.leaving) return;
+        this.#bodyActions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#body = new DomRegion(this, element, viewport);
+    }
+    const body = this.#body;
+    body.setRect(viewport);
+    this.#bodyActions = new Map();
+    this.#bodyRows = [];
+    this.#bodyList = null;
+    this.#bodyOrigin = { x: viewport.x, y: viewport.y };
 
     const stopIds: string[] = [];
+    const headings: { rect: BodyRect; title: string }[] = [];
     for (const section of content.sections) {
-      const heading = section.heading;
-      if (heading) {
-        this.#captureInto(container, () =>
-          sectionHeader(this, viewport.x, viewport.y + heading.y, viewport.width - 2, section.title, surface.paper.hex),
-        );
-      }
+      if (section.heading) headings.push({ rect: this.#bodyRect(section.heading), title: section.title });
       for (const item of section.items) {
         const entry = items.get(item.id as SettingsItemId);
         if (!entry) continue;
-        const onScreen: SettingsItemLayout = {
-          ...item,
-          row: toScreen(item.row),
-          control: item.control ? toScreen(item.control) : null,
-          tiles: item.tiles.map(toScreen),
-        };
-        this.#captureInto(container, () => {
-          const ids = entry.draw(onScreen, stops);
-          if (ids[0] !== undefined) this.#firstStopOf.set(item.id, ids[0]);
-          stopIds.push(...ids);
-        });
+        const ids = entry.draw(item, stops);
+        if (ids[0] !== undefined) this.#firstStopOf.set(item.id, ids[0]);
+        stopIds.push(...ids);
       }
     }
-    this.#bodyRegion?.syncInteractivity();
+    body.element.model = {
+      height: content.totalHeight,
+      headings,
+      rows: this.#bodyRows,
+      ...(this.#bodyList ? { list: this.#bodyList } : {}),
+    };
+    renderNow(body.element);
+    const scroller = body.element.scroller;
+    if (this.#bodyFromTop && scroller) scroller.scrollTop = 0;
+    this.#bodyFromTop = false;
+    if (this.#bodyList)
+      body.element.elementOf(`list:${this.#resolutionPickedIndex()}`)?.scrollIntoView({ block: "nearest" });
     return stopIds;
+  }
+
+  /** A layout rect (content space, screen `x`) as the body places it: `x` from the body's own left edge. */
+  #bodyRect(rect: Rect): BodyRect {
+    return { x: rect.x - this.#bodyOrigin.x, y: rect.y, width: rect.width, height: rect.height };
+  }
+
+  /** Adds a row to the body: what each of its keys does, and its focus stops (`stops`: stop key to element key). */
+  #addBodyRow(
+    row: BodyRow,
+    actions: Readonly<Record<string, () => void>>,
+    stops: Map<string, FocusStop>,
+    stopKeys: Readonly<Record<string, string>>,
+  ): void {
+    this.#bodyRows.push(row);
+    for (const [key, action] of Object.entries(actions)) this.#bodyActions.set(key, action);
+    for (const [stop, elementKey] of Object.entries(stopKeys)) {
+      const action = actions[elementKey] ?? actions[row.rowKey ?? ""] ?? Object.values(actions)[0];
+      stops.set(
+        stop,
+        this.#bodyStop(elementKey, () => action?.(), row.key),
+      );
+    }
+  }
+
+  /** A row's text: its title and a detail wrapping `width` wide (dimmer when it says why the row is unavailable). */
+  #rowText(title: string | undefined, detail: string | undefined, width: number, dim = false) {
+    return {
+      ...(title !== undefined ? { title } : {}),
+      ...(detail !== undefined ? { detail, detailWidth: width, detailDim: dim } : {}),
+    };
+  }
+
+  /** A switch or door button in a row's 84px control slot. */
+  #rowButton(
+    key: string,
+    row: Rect,
+    look: { readonly label: string; readonly on?: boolean; readonly door?: boolean; readonly unavailable?: string },
+  ): BodyControl {
+    const on = look.on === true;
+    return {
+      kind: "button",
+      key,
+      rect: this.#bodyRect(controlRectOf(row)),
+      label: look.label,
+      look: look.door ? "secondary" : on ? "secondary" : "quiet",
+      selected: on,
+      framed: on && look.unavailable === undefined,
+      ...(look.unavailable !== undefined ? { disabled: look.unavailable } : {}),
+    };
   }
 
   #drawGuideLevelRow(
     rect: Rect,
     row: Extract<GuideRowInfo, { kind: "segmented" }>,
-    index: number,
+    _index: number,
     stops: Map<string, FocusStop>,
   ): void {
     const gap = 4;
-    // `EDGE_INSET`: the rightmost cell's own border used to land exactly on this row's own right edge — which,
-    // once this group draws inside a masked scroll region, is also the mask's own right edge, so the border's
-    // last pixel or two got clipped away entirely (found in browser verification, 2026-09-26, at 390 and 1440
-    // widths). A couple of spare pixels keeps every cell's own border inside the content width the mask allows.
+    // A couple of spare pixels at the right, as the Phaser body kept clear of its mask edge.
     const EDGE_INSET = 2;
     const cellWidth = (rect.width - EDGE_INSET - gap * (row.options.length - 1)) / row.options.length;
-    row.options.forEach((option, i) => {
-      const cellRect: Rect = { x: rect.x + i * (cellWidth + gap), y: rect.y, width: cellWidth, height: rect.height };
-      const selected = row.selected === option.value;
-      const activate = (): void => this.#setGuideLevel(option.value);
-      // The button lands first (its own "quiet" skin paints an opaque paper fill), so the cell's own fill/stroke/
-      // text — added after — draw on top of it rather than being hidden under it (`McButton`'s own z-order).
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "quiet",
-          label: "",
-          type: typeRole.label,
-          rect: cellRect,
-          onClick: activate,
-          clip: this.#bodyClip,
-          suppressClick: this.#bodySuppressClick,
-        }),
-      );
-      // Selected reads as guide yellow (`signal.caution`, ink text) rather than ink-on-ink, which — against this
-      // overlay's own dark ground — used to read as *less* "on" than the bright-paper unselected cells beside it
-      // (found in browser verification, 2026-09-26: the selected cell looked unselected at a glance). Unselected
-      // is ink fill with a paper border and paper text, the readable-on-dark pairing the rest of this sheet uses.
-      const g = this.add.graphics();
-      g.fillStyle(selected ? signal.caution.hex : surface.ink.hex, 1).fillRect(
-        cellRect.x,
-        cellRect.y,
-        cellRect.width,
-        cellRect.height,
-      );
-      g.lineStyle(2, selected ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
-        cellRect.x + 1,
-        cellRect.y + 1,
-        cellRect.width - 2,
-        cellRect.height - 2,
-      );
-      this.add
-        .text(
-          cellRect.x + 10,
-          cellRect.y + 8,
-          option.label,
-          textStyle(typeRole.rowTitle, selected ? surface.inkOnHue.hex : surface.paper.hex),
-        )
-        .setFontSize(12);
-      this.add
-        .text(
-          cellRect.x + 10,
-          cellRect.y + 26,
-          option.detail,
-          textStyle(typeRole.body, selected ? surface.inkOnHue.hex : surface.paper.hex, selected ? 0.85 : 0.7),
-        )
-        .setFontSize(9)
-        .setWordWrapWidth(cellWidth - 16);
-      stops.set(`row:guide-level:${option.value}`, this.#bodyStop(cellRect, index, activate));
+    const actions: Record<string, () => void> = {};
+    const stopKeys: Record<string, string> = {};
+    const controls: BodyControl[] = row.options.map((option, i) => {
+      const key = `guide-level:${option.value}`;
+      actions[key] = () => this.#setGuideLevel(option.value);
+      stopKeys[`row:${key}`] = key;
+      return {
+        kind: "cell",
+        key,
+        rect: this.#bodyRect({ x: rect.x + i * (cellWidth + gap), y: rect.y, width: cellWidth, height: rect.height }),
+        label: option.label,
+        detail: option.detail,
+        selected: row.selected === option.value,
+        fill: "caution",
+      };
     });
+    this.#addBodyRow({ key: `row:${row.id}`, rect: this.#bodyRect(rect), controls }, actions, stops, stopKeys);
   }
 
   /** "Lighter play in power saving": the session tells `platform/power-saving.ts`, and this redraws from its change. */
@@ -1356,84 +1396,36 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  /** One selectable tile/segment: the button first (its quiet skin is opaque paper), then fill, border and text over it. Selected is filled accent (tile) or paper (segment) with ink text, never colour alone: the border weight and fill both change. */
-  #drawChoiceCell(
-    cell: Rect,
-    selected: boolean,
-    index: number,
-    stopId: string,
-    stops: Map<string, FocusStop>,
-    activate: () => void,
-    texts: { readonly label: string; readonly detail?: string; readonly fill: number },
-  ): void {
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "quiet",
-        label: "",
-        type: typeRole.label,
-        rect: cell,
-        onClick: activate,
-        clip: this.#bodyClip,
-        suppressClick: this.#bodySuppressClick,
-      }),
-    );
-    const g = this.add.graphics();
-    g.fillStyle(selected ? texts.fill : surface.ink.hex, 1).fillRect(cell.x, cell.y, cell.width, cell.height);
-    g.lineStyle(2, selected ? texts.fill : surface.paper.hex, 1).strokeRect(
-      cell.x + 1,
-      cell.y + 1,
-      cell.width - 2,
-      cell.height - 2,
-    );
-    // Ink on a hue (the caution-filled auto-advance pick) stays ink in dark mode; ink on paper follows the scheme.
-    const ink_ = selected
-      ? texts.fill === surface.paper.hex
-        ? surface.ink.hex
-        : surface.inkOnHue.hex
-      : surface.paper.hex;
-    if (texts.detail === undefined) {
-      const cellLabel = this.add
-        .text(
-          cell.x + cell.width / 2,
-          cell.y + cell.height / 2,
-          texts.label.toUpperCase(),
-          textStyle(typeRole.label, ink_),
-        )
-        .setFontSize(11)
-        .setOrigin(0.5);
-      // A long label ("Extra large") on a narrow phone segment shrinks to fit rather than running past its cell.
-      fitText(cellLabel, cell.width - 8, 11);
-    } else {
-      this.add.text(cell.x + 10, cell.y + 8, texts.label, textStyle(typeRole.rowTitle, ink_)).setFontSize(12);
-      this.add
-        .text(cell.x + 10, cell.y + 26, texts.detail, textStyle(typeRole.body, ink_, selected ? 0.85 : 0.7))
-        .setFontSize(9)
-        .setWordWrapWidth(cell.width - 16);
-    }
-    stops.set(`row:${stopId}`, this.#bodyStop(cell, index, activate));
-  }
-
   #drawVillainAuto(item: SettingsItemLayout, villain: VillainRowsInfo, stops: Map<string, FocusStop>): void {
     const { autoAdvance } = villain;
     const rect = item.row;
-    label(this, rect.x, rect.y + 2, autoAdvance.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(
-      12,
-    );
-    this.add
-      .text(rect.x, rect.y + 20, autoAdvance.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width);
-    autoAdvance.options.forEach((option, i) => {
-      this.#drawChoiceCell(
-        item.tiles[i]!,
-        autoAdvance.selected === option.value,
-        item.slot,
-        `villain-auto:${option.value}`,
-        stops,
-        () => this.#setVillain("villain-auto", option.value),
-        { label: option.label, detail: option.detail, fill: signal.caution.hex },
-      );
+    const actions: Record<string, () => void> = {};
+    const stopKeys: Record<string, string> = {};
+    const controls: BodyControl[] = autoAdvance.options.map((option, i) => {
+      const key = `villain-auto:${option.value}`;
+      actions[key] = () => this.#setVillain("villain-auto", option.value);
+      stopKeys[`row:${key}`] = key;
+      return {
+        kind: "cell",
+        key,
+        rect: this.#bodyRect(item.tiles[i]!),
+        label: option.label,
+        detail: option.detail,
+        selected: autoAdvance.selected === option.value,
+        fill: "caution",
+      };
     });
+    this.#addBodyRow(
+      {
+        key: "row:villain-auto",
+        rect: this.#bodyRect(rect),
+        ...this.#rowText(autoAdvance.title, autoAdvance.detail, rect.width),
+        controls,
+      },
+      actions,
+      stops,
+      stopKeys,
+    );
   }
 
   #setCardHover(value: CardHoverScale): void {
@@ -1467,23 +1459,33 @@ export class SettingsOverlay extends Phaser.Scene {
   ): void {
     const rect = item.row;
     const control = item.control!;
-    label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(item.stacked ? rect.width : rect.width - control.width - 16);
     const cellWidth = control.width / info.options.length;
-    info.options.forEach((option, i) => {
-      this.#drawChoiceCell(
-        { x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height },
-        info.selected === option.value,
-        item.slot,
-        `${stopPrefix}:${option.value}`,
-        stops,
-        () => choose(option.value),
-        { label: option.label, fill: surface.paper.hex },
-      );
+    const actions: Record<string, () => void> = {};
+    const stopKeys: Record<string, string> = {};
+    const controls: BodyControl[] = info.options.map((option, i) => {
+      const key = `${stopPrefix}:${option.value}`;
+      actions[key] = () => choose(option.value);
+      stopKeys[`row:${key}`] = key;
+      return {
+        kind: "cell",
+        key,
+        rect: this.#bodyRect({ x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height }),
+        label: option.label,
+        selected: info.selected === option.value,
+        fill: "paper",
+      };
     });
+    this.#addBodyRow(
+      {
+        key: `row:${stopPrefix}`,
+        rect: this.#bodyRect(rect),
+        ...this.#rowText(info.title, info.detail, item.stacked ? rect.width : rect.width - control.width - 16),
+        controls,
+      },
+      actions,
+      stops,
+      stopKeys,
+    );
   }
 
   /** Saves a Window mode or size change and puts the window into it; redraws again once it lands (a new monitor). */
@@ -1501,57 +1503,16 @@ export class SettingsOverlay extends Phaser.Scene {
   #drawResolutionRow(item: SettingsItemLayout, info: SegmentedInfo<Resolution>, stops: Map<string, FocusStop>): void {
     const rect = item.row;
     const control = item.control!;
-    label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(item.stacked ? rect.width : rect.width - control.width - 16);
     const picked = this.#pendingResolution ?? info.selected;
     const field: Rect = { x: control.x, y: control.y, width: control.width - APPLY_WIDTH - 8, height: control.height };
     const apply: Rect = { x: field.x + field.width + 8, y: control.y, width: APPLY_WIDTH, height: control.height };
-    // Where the field is on screen right now, for the list: content space less the body's scroll.
-    this.#resolutionField = { ...field, y: field.y - this.#bodyScroll.offsetPx };
+    // How far the body is scrolled, so the open list goes under the field only when it shows there.
+    const scrolled = this.#body?.element.scroller?.scrollTop ?? 0;
     this.#resolutionInfo = info;
     const open = (): void => {
       this.#resolutionListOpen = true;
-      this.#resolutionListScroll = new VariableListScroll();
       this.#draw();
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "quiet",
-        label: "",
-        type: typeRole.label,
-        rect: field,
-        onClick: open,
-        clip: this.#bodyClip,
-        suppressClick: this.#bodySuppressClick,
-      }),
-    );
-    const g = this.add.graphics();
-    g.fillStyle(surface.paper.hex, 1).fillRect(field.x, field.y, field.width, field.height);
-    const value = this.add
-      .text(
-        field.x + 12,
-        field.y + field.height / 2,
-        info.options.find((option) => option.value === picked)?.label ?? "",
-        textStyle(typeRole.label, surface.ink.hex),
-      )
-      .setFontSize(12)
-      .setOrigin(0, 0.5);
-    fitText(value, field.width - 40, 12);
-    this.add
-      .text(field.x + field.width - 12, field.y + field.height / 2, "▼", textStyle(typeRole.label, surface.ink.hex))
-      .setFontSize(10)
-      .setOrigin(1, 0.5);
-    stops.set(
-      "row:resolution:field",
-      this.#bodyStop(field, item.slot, () => {
-        open();
-        this.#route?.focusKey(`list:${this.#resolutionPickedIndex()}`);
-      }),
-    );
-
     const pending = this.#pendingResolution !== null && this.#pendingResolution !== info.selected;
     const activateApply = (): void => {
       if (this.#pendingResolution === null) return;
@@ -1559,19 +1520,69 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#pendingResolution = null;
       this.#setWindow(next);
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: pending ? "primary" : "secondary",
-        label: "Apply",
-        type: typeRole.label,
-        rect: apply,
-        enabled: pending,
-        onClick: activateApply,
-        clip: this.#bodyClip,
-        suppressClick: this.#bodySuppressClick,
-      }),
+    this.#addBodyRow(
+      {
+        key: "row:resolution",
+        rect: this.#bodyRect(rect),
+        ...this.#rowText(info.title, info.detail, item.stacked ? rect.width : rect.width - control.width - 16),
+        controls: [
+          {
+            kind: "field",
+            key: "resolution:field",
+            rect: this.#bodyRect(field),
+            label: info.options.find((option) => option.value === picked)?.label ?? "",
+          },
+          {
+            kind: "button",
+            key: "resolution:apply",
+            rect: this.#bodyRect(apply),
+            label: t("settings.apply"),
+            look: pending ? "primary" : "secondary",
+            ...(pending ? {} : { disabled: true as const }),
+          },
+        ],
+      },
+      {
+        "resolution:field": () => {
+          open();
+          this.#route?.focusKey(`list:${this.#resolutionPickedIndex()}`);
+        },
+        "resolution:apply": activateApply,
+      },
+      stops,
+      { "row:resolution:field": "resolution:field", "row:resolution:apply": "resolution:apply" },
     );
-    stops.set("row:resolution:apply", this.#bodyStop(apply, item.slot, activateApply));
+    // A tap on the field opens the list without moving the ring into it; the pad's A does both.
+    this.#bodyActions.set("resolution:field", open);
+    if (this.#resolutionListOpen) {
+      const visible = Math.min(info.options.length, LIST_VISIBLE_ROWS);
+      const height = visible * LIST_ROW_HEIGHT + 4;
+      const viewport = this.#body?.rect.height ?? 0;
+      const below = field.y + field.height + height <= scrolled + viewport - 8;
+      const box: Rect = {
+        x: field.x,
+        y: below ? field.y + field.height + 2 : field.y - height - 2,
+        width: field.width,
+        height,
+      };
+      this.#bodyList = {
+        rect: this.#bodyRect(box),
+        rowHeight: LIST_ROW_HEIGHT,
+        closeKey: "list:close",
+        options: info.options.map((option, i) => ({
+          key: `list:${i}`,
+          label: option.label,
+          selected: option.value === picked,
+        })),
+      };
+      this.#bodyActions.set("list:close", () => this.#closeResolutionList());
+      info.options.forEach((option, i) =>
+        this.#bodyActions.set(`list:${i}`, () => {
+          this.#pickResolution(option.value);
+          this.#closeResolutionList();
+        }),
+      );
+    }
   }
 
   /** Index in the open list of the size shown as picked (the pending one, else the one in effect). */
@@ -1598,85 +1609,29 @@ export class SettingsOverlay extends Phaser.Scene {
    * choice, which Apply then puts into effect.
    */
   #drawResolutionList(bounds: Rect, stops: Map<string, FocusStop>): string[] {
-    const field = this.#resolutionField;
     const info = this.#resolutionInfo;
-    if (field === null || info === null) return [];
-    this.add
-      .zone(0, 0, bounds.width, bounds.height)
-      .setOrigin(0, 0)
-      .setInteractive()
-      .on("pointerup", () => this.#closeResolutionList());
-    const visible = Math.min(info.options.length, LIST_VISIBLE_ROWS);
-    const height = visible * LIST_ROW_HEIGHT + 4;
-    const below = field.y + field.height + height <= bounds.y + bounds.height - 8;
-    const box: Rect = {
-      x: field.x,
-      y: below ? field.y + field.height + 2 : field.y - height - 2,
-      width: field.width,
-      height,
-    };
-    const g = this.add.graphics();
-    g.fillStyle(surface.ink.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    g.lineStyle(2, surface.paper.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
-    // Swallows presses on the box's own border so they don't close it.
-    this.add.zone(box.x, box.y, box.width, box.height).setOrigin(0, 0).setInteractive();
-    const viewport: Rect = { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 };
-    this.#listRegion = new McScrollRegion(this, {
-      rect: viewport,
-      heights: info.options.map(() => LIST_ROW_HEIGHT),
-      scroll: this.#resolutionListScroll,
-      clipInteractive: true,
-    });
-    const region = this.#listRegion;
-    const picked = this.#pendingResolution ?? info.selected;
-    const pickedIndex = this.#resolutionPickedIndex();
-    const ids: string[] = [];
-    info.options.forEach((option, i) => {
-      const pick = (): void => {
-        this.#pendingResolution = option.value === info.selected ? null : option.value;
-      };
-      ids.push(`list:${i}`);
-      stops.set(`list:${i}`, {
-        rect: () => ({
-          x: viewport.x,
-          y: viewport.y + i * LIST_ROW_HEIGHT - this.#resolutionListScroll.offsetPx,
-          width: viewport.width - 8,
-          height: LIST_ROW_HEIGHT,
-        }),
-        activate: () => {
-          pick();
+    if (info === null) return [];
+    // A tap outside the body (the header, the tabs) closes the list too; inside the body its backdrop does. A tap, not
+    // a bare release: a swipe that lifts over the header must leave the list open (CLAUDE.md, no tap on finger lift).
+    const outside = this.add.zone(0, 0, bounds.width, bounds.height).setOrigin(0, 0).setInteractive();
+    onTap(outside, () => this.#closeResolutionList(), "resolution-list-outside");
+    return info.options.map((option, i) => {
+      const key = `list:${i}`;
+      stops.set(
+        key,
+        this.#bodyStop(key, () => {
+          this.#pickResolution(option.value);
           this.#closeResolutionList(true);
-        },
-        ensureVisible: () => region.scrollIntoView(i),
-      });
-      const row: Rect = {
-        x: viewport.x,
-        y: viewport.y + i * LIST_ROW_HEIGHT,
-        width: viewport.width - 8,
-        height: LIST_ROW_HEIGHT,
-      };
-      const selected = option.value === picked;
-      this.#captureInto(region.content, () => {
-        this.#buttons.push(
-          new McButton(this, {
-            kind: selected ? "secondary" : "quiet",
-            label: option.label,
-            type: typeRole.label,
-            rect: row,
-            selected,
-            onClick: () => {
-              pick();
-              this.#closeResolutionList();
-            },
-            clip: () => region.rect,
-            suppressClick: () => region.isDragSuppressingClick,
-          }),
-        );
-      });
+        }),
+      );
+      return key;
     });
-    region.syncInteractivity();
-    region.scrollIntoView(pickedIndex);
-    return ids;
+  }
+
+  /** Makes `value` the pending Resolution, which Apply puts into effect (none when it is already the one in effect). */
+  #pickResolution(value: Resolution): void {
+    const info = this.#resolutionInfo;
+    this.#pendingResolution = info !== null && value === info.selected ? null : value;
   }
 
   #setTokenMotion(value: FirstPlayerTokenMotion): void {
@@ -1688,70 +1643,54 @@ export class SettingsOverlay extends Phaser.Scene {
     rect: Rect,
     id: "villain-hold" | "villain-flip" | "villain-dock" | "power-saving",
     row: { readonly title: string; readonly detail: string; readonly on: boolean },
-    index: number,
+    _index: number,
     stops: Map<string, FocusStop>,
   ): void {
-    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(rect.x, rect.y + 20, row.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - 100);
-    const toggleRect = controlRectOf(rect);
     const activate = (): void => (id === "power-saving" ? this.#togglePowerSaving() : this.#setVillain(id));
-    addRowTapZone(this, rect, { onClick: activate, clip: this.#bodyClip, suppressClick: this.#bodySuppressClick });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: row.on ? "secondary" : "quiet",
-        label: row.on ? "ON" : "OFF",
-        type: typeRole.label,
-        rect: toggleRect,
-        selected: row.on,
-        onClick: activate,
-        clip: this.#bodyClip,
-        suppressClick: this.#bodySuppressClick,
-      }),
+    this.#addBodyRow(
+      {
+        key: `row:${id}`,
+        rect: this.#bodyRect(rect),
+        ...this.#rowText(row.title, row.detail, rect.width - 100),
+        rowKey: id,
+        controls: [
+          this.#rowButton(id, rect, { label: row.on ? t("settings.toggleOn") : t("settings.toggleOff"), on: row.on }),
+        ],
+      },
+      { [id]: activate },
+      stops,
+      { [`row:${id}`]: `row:${id}` },
     );
-    if (row.on) paintOnFrame(this, toggleRect);
-    stops.set(`row:${id}`, this.#bodyStop(rect, index, activate));
   }
 
-  #drawGuideRow(rect: Rect, row: GuideNonLevelRow, index: number, stops: Map<string, FocusStop>): void {
-    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(
-        rect.x,
-        rect.y + 20,
-        guideRowDetailOf(row),
-        textStyle(typeRole.body, surface.paper.hex, row.kind === "action" && row.unavailable ? 0.55 : 0.8),
-      )
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - 100);
-
-    const controlRect = controlRectOf(rect);
+  #drawGuideRow(rect: Rect, row: GuideNonLevelRow, _index: number, stops: Map<string, FocusStop>): void {
     const activate = (): void => this.#activateGuideRow(row);
     const unavailable = row.kind === "action" ? row.unavailable : undefined;
-    addRowTapZone(this, rect, {
-      onClick: activate,
-      enabled: unavailable === undefined,
-      clip: this.#bodyClip,
-      suppressClick: this.#bodySuppressClick,
-    });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: row.kind === "toggle" && row.on ? "secondary" : "quiet",
-        label: unavailable ? "—" : row.kind === "toggle" ? (row.on ? "ON" : "OFF") : "Open ▸",
-        type: typeRole.label,
-        rect: controlRect,
-        enabled: unavailable === undefined,
-        ...(unavailable ? { reason: unavailable } : {}),
-        selected: row.kind === "toggle" && row.on,
-        onClick: activate,
-        clip: this.#bodyClip,
-        suppressClick: this.#bodySuppressClick,
-      }),
+    const on = row.kind === "toggle" && row.on;
+    this.#addBodyRow(
+      {
+        key: `row:${row.id}`,
+        rect: this.#bodyRect(rect),
+        ...this.#rowText(row.title, guideRowDetailOf(row), rect.width - 100, unavailable !== undefined),
+        ...(unavailable === undefined ? { rowKey: row.id } : {}),
+        controls: [
+          this.#rowButton(row.id, rect, {
+            label: unavailable
+              ? "—"
+              : row.kind === "toggle"
+                ? row.on
+                  ? t("settings.toggleOn")
+                  : t("settings.toggleOff")
+                : t("settings.open"),
+            on,
+            ...(unavailable !== undefined ? { unavailable } : {}),
+          }),
+        ],
+      },
+      { [row.id]: activate },
+      stops,
+      { [`row:${row.id}`]: `row:${row.id}` },
     );
-    if (row.kind === "toggle" && row.on) paintOnFrame(this, controlRect);
-    stops.set(`row:${row.id}`, this.#bodyStop(rect, index, activate));
   }
 
   #setGuideLevel(level: GuideLevel): void {
@@ -1776,66 +1715,43 @@ export class SettingsOverlay extends Phaser.Scene {
     id: string,
     title: string,
     detail: string,
-    index: number,
+    _index: number,
     stops: Map<string, FocusStop>,
     activate: () => void,
-    buttonLabel = "Open ▸",
+    buttonLabel = t("settings.open"),
   ): void {
-    label(this, rect.x, rect.y + 2, title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(rect.x, rect.y + 20, detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - 100);
-    const openRect = controlRectOf(rect);
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: buttonLabel,
-        type: typeRole.label,
-        rect: openRect,
-        onClick: activate,
-        clip: this.#bodyClip,
-        suppressClick: this.#bodySuppressClick,
-      }),
+    this.#addBodyRow(
+      {
+        key: `row:${id}`,
+        rect: this.#bodyRect(rect),
+        ...this.#rowText(title, detail, rect.width - 100),
+        controls: [this.#rowButton(id, rect, { label: buttonLabel, door: true })],
+      },
+      { [id]: activate },
+      stops,
+      { [`row:${id}`]: `row:${id}` },
     );
-    stops.set(`row:${id}`, this.#bodyStop(rect, index, activate));
   }
 
-  #drawRow(rect: Rect, row: SettingsRowInfo, index: number, stops: Map<string, FocusStop>): void {
-    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(
-        rect.x,
-        rect.y + 20,
-        row.unavailable ?? row.detail,
-        textStyle(typeRole.body, surface.paper.hex, row.unavailable ? 0.55 : 0.8),
-      )
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - 100);
-
-    const toggleRect = controlRectOf(rect);
+  #drawRow(rect: Rect, row: SettingsRowInfo, _index: number, stops: Map<string, FocusStop>): void {
     const activate = (): void => this.#toggle(row);
-    addRowTapZone(this, rect, {
-      onClick: activate,
-      enabled: row.unavailable === undefined,
-      clip: this.#bodyClip,
-      suppressClick: this.#bodySuppressClick,
-    });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: row.on ? "secondary" : "quiet",
-        label: row.unavailable ? "—" : row.on ? "ON" : "OFF",
-        type: typeRole.label,
-        rect: toggleRect,
-        enabled: row.unavailable === undefined,
-        ...(row.unavailable ? { reason: row.unavailable } : {}),
-        selected: row.on,
-        onClick: activate,
-        clip: this.#bodyClip,
-        suppressClick: this.#bodySuppressClick,
-      }),
+    this.#addBodyRow(
+      {
+        key: `row:${row.id}`,
+        rect: this.#bodyRect(rect),
+        ...this.#rowText(row.title, row.unavailable ?? row.detail, rect.width - 100, row.unavailable !== undefined),
+        ...(row.unavailable === undefined ? { rowKey: row.id } : {}),
+        controls: [
+          this.#rowButton(row.id, rect, {
+            label: row.unavailable ? "—" : row.on ? t("settings.toggleOn") : t("settings.toggleOff"),
+            on: row.on,
+            ...(row.unavailable !== undefined ? { unavailable: row.unavailable } : {}),
+          }),
+        ],
+      },
+      { [row.id]: activate },
+      stops,
+      { [`row:${row.id}`]: `row:${row.id}` },
     );
-    if (row.on && row.unavailable === undefined) paintOnFrame(this, toggleRect);
-    stops.set(`row:${row.id}`, this.#bodyStop(rect, index, activate));
   }
 }

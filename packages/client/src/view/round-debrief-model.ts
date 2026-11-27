@@ -217,7 +217,7 @@ export interface RoundDebriefLayout {
   readonly worthRemembering: Rect;
   readonly newOnBoard: Rect;
   readonly guideLevelLabel: Rect;
-  /** The three-cell segmented row; the scene divides it into `GUIDE_LEVEL_OPTIONS.length` equal cells. */
+  /** The three-cell segmented row; the scene divides it into `guideLevelOptions().length` equal cells. */
   readonly guideLevel: Rect;
   readonly replayLesson: Rect;
   readonly nextRound: Rect;

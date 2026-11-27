@@ -5,7 +5,7 @@ import {
   receiveLinkOf,
   transferFailureStatusOf,
   typedCodeOf,
-  UNAVAILABLE_TEXT,
+  unavailableText,
 } from "./save-transfer-model.js";
 
 const CODE = { room: "ABCDEFGH", keyPart: "JKMN" };
@@ -14,7 +14,7 @@ describe("transferFailureStatusOf", () => {
   it("says transfer is unavailable and offers Export", () => {
     const status = transferFailureStatusOf({ kind: "unavailable" });
     expect(status.text).toBe("Online transfer is unavailable right now. You can still export a save file.");
-    expect(status.text).toBe(UNAVAILABLE_TEXT);
+    expect(status.text).toBe(unavailableText());
     expect(status.offerExport).toBe(true);
   });
 

@@ -85,6 +85,55 @@ export async function installPageHelpers(page: Page): Promise<void> {
         };
         for (const child of (scene as unknown as { children: { list: unknown[] } }).children.list) walk(child);
       }
+      // The Lit panels over the canvas (`src/dom/dom-region.ts`): each region names its scene in `data-scene`. An
+      // element's own text (not its children's) is one match, at its box's center, as a Phaser Text is.
+      const shown = new Set(wanted.map((scene) => scene.sys.settings.key));
+      const layer = document.getElementById("mc-ui");
+      for (const wrap of Array.from(layer?.children ?? []) as HTMLElement[]) {
+        const key = wrap.dataset.scene;
+        if (!key || !shown.has(key) || wrap.style.visibility === "hidden") continue;
+        // Only what the panel shows: a row scrolled out of its list is not on screen to press.
+        const view = wrap.getBoundingClientRect();
+        const visit = (node: Element | ShadowRoot): void => {
+          for (const child of Array.from(node.children)) {
+            const own = Array.from(child.childNodes)
+              .filter((n) => n.nodeType === Node.TEXT_NODE)
+              .map((n) => n.textContent ?? "")
+              .join("")
+              .trim();
+            if (own && own.toLowerCase().includes(substr.toLowerCase())) {
+              const box = child.getBoundingClientRect();
+              // Inside the panel, and inside every scrolling box it sits in (crossing shadow roots): a row scrolled out
+              // of a list inside the panel is not on screen to press.
+              let onScreen =
+                box.right > view.left && box.left < view.right && box.bottom > view.top && box.top < view.bottom;
+              for (let at: Node | null = child.parentNode; at && at !== wrap && onScreen;) {
+                if (at instanceof Element) {
+                  const overflow = getComputedStyle(at).overflowY;
+                  if (overflow === "auto" || overflow === "scroll" || overflow === "hidden") {
+                    const clip = at.getBoundingClientRect();
+                    onScreen =
+                      box.right > clip.left && box.left < clip.right && box.bottom > clip.top && box.top < clip.bottom;
+                  }
+                }
+                at = at instanceof ShadowRoot ? at.host : at.parentNode;
+              }
+              if (box.width > 0 && box.height > 0 && onScreen)
+                results.push({
+                  scene: key,
+                  text: own,
+                  x: box.x + box.width / 2,
+                  y: box.y + box.height / 2,
+                  w: box.width,
+                  h: box.height,
+                });
+            }
+            if (child.shadowRoot) visit(child.shadowRoot);
+            visit(child);
+          }
+        };
+        visit(wrap);
+      }
       return results;
     };
     (window as unknown as { __mcActiveScenes: () => string[] }).__mcActiveScenes = () => {
@@ -232,6 +281,21 @@ async function screenFingerprint(page: Page): Promise<string> {
         if (o.list) for (const child of o.list) walk(child);
       };
       for (const child of scene.children.list) walk(child);
+    }
+    // The Lit panels (`src/dom/dom-region.ts`): what each shows, where it is, and how far its lists are scrolled.
+    const layer = document.getElementById("mc-ui");
+    for (const wrap of Array.from(layer?.children ?? []) as HTMLElement[]) {
+      out += `#dom:${wrap.dataset.scene ?? ""}:${wrap.style.cssText}`;
+      const visit = (node: Element | ShadowRoot): void => {
+        for (const child of Array.from(node.children)) {
+          if (child.scrollTop) out += `^${Math.round(child.scrollTop)}`;
+          for (const text of Array.from(child.childNodes))
+            if (text.nodeType === Node.TEXT_NODE) out += text.textContent;
+          if (child.shadowRoot) visit(child.shadowRoot);
+          visit(child);
+        }
+      };
+      visit(wrap);
     }
     return out;
   });

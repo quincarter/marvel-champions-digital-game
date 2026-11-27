@@ -120,9 +120,21 @@ export function glyphRightInRow(panel: Rect, top: number, row: number, width: nu
   return { x: panel.x + panel.width - padX - width, y: top + row / 2 };
 }
 
-/** A stable identity for a spec list, so a scene re-sets its glyph only when the keys it shows actually changed. */
+/**
+ * A stable identity for a spec list, so a scene re-sets its glyph only when what it draws actually changed. A pad
+ * glyph's picture depends on more than its label (two families share "A" or a shoulder label but draw a different
+ * shape, color or art), so those are part of the identity.
+ */
 export const specsSignature = (specs: readonly GlyphSpec[] | null): string =>
-  specs === null ? "" : specs.map((spec) => `${spec.kind}:${spec.label}`).join("|");
+  specs === null
+    ? ""
+    : specs
+        .map((spec) =>
+          spec.kind === "key"
+            ? `key:${spec.label}`
+            : `pad:${spec.label}:${spec.shape}:${spec.symbol ?? ""}:${spec.color ?? ""}:${spec.art ?? ""}`,
+        )
+        .join("|");
 
 export interface LegendItem {
   readonly glyphWidth: number;

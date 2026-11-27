@@ -703,7 +703,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Find",
     definition:
-      "An instruction to search every in-game area a card could be in (play areas, decks, discard piles, set-aside area, etc.) for a specific card; it can't reach facedown cards in play or the victory display, and can't reach a collection outside the current game.",
+      "An instruction to search every game area (play areas, set-aside area, decks, discard piles) for a specific card. It skips facedown encounter cards in play (dealt or boost cards), the victory display, cards removed from or outside the game. A minion found and revealed in play resolves When Revealed and its keywords, keeps its tokens and attachments, does not enter play, and engages you unless already engaged.",
     sources: [
       { kind: "rrg", page: 19 },
       { kind: "ruling", date: "December 17, 2025 - Ruling 4" },
@@ -897,7 +897,8 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Team-Up",
     definition:
-      "This keyword names two characters. A player can only include the card in their deck if their identity is one of the two, and can't play it unless both named characters are in play showing their hero side (an identity in alter-ego form doesn't count).",
+      "This keyword names two characters. A player can only include the card in their deck if their identity's hero or alter-ego title matches one of the two. The card can only be played while both named characters are in play as friendly characters, either as an identity in either form or as an ally whose title or subtitle matches.",
+    // RRG v1.8 p. 43 Team-Up: a friendly identity (either form) or ally by title or subtitle; rulings 2025-07-11, 2025-09-12.
     sources: [{ kind: "rrg", page: 43 }],
   },
   teamwork: {
@@ -946,7 +947,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Victory X",
     definition:
-      "When a card with 'Victory X' would leave play by being defeated (or, for a card with 'Uses', by running out of counters), it goes to the shared victory display instead of a discard pile, where it's worth X victory points.",
+      "When a character or side scheme with Victory X is defeated, it goes to the victory display instead of a discard pile, where it is worth X victory points. An attachment or upgrade with Victory X goes there when the card it is attached to is defeated (that card is discarded as normal). A card with Uses and Victory X goes there when its last counter is removed.",
     sources: [{ kind: "rrg", page: 46 }],
   },
   villainous: {
@@ -965,7 +966,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Vulnerable",
     definition:
-      "A character with this keyword is discarded the instant it becomes stunned or confused, rather than picking up the status card — and this discard isn't counted as that character being defeated.",
+      "A character with this keyword is discarded when it becomes stunned or confused, and this does not count as defeating it. If it would take enough damage to defeat it and become stunned or confused at the same time, it is discarded before the damage is applied, so it is not defeated. If it also has Steady, it is discarded only once it has two stunned or two confused status cards.",
     sources: [
       { kind: "rrg", page: 48 },
       { kind: "rulebook", label: "Agents of S.H.I.E.L.D. rulebook p. 3" },
@@ -1060,8 +1061,12 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Threat",
     definition:
-      "Threat is what piles up on the main scheme and side schemes as the villain phase goes by. If the main scheme's threat reaches its target, the villain wins the game.",
-    sources: [{ kind: "rrg", page: 44 }],
+      "Threat is what piles up on the main scheme and side schemes as the villain phase goes by. When the main scheme's threat reaches its target, that stage is completed and the next main scheme stage comes in. If the final stage is completed, the villain wins, unless the scenario says otherwise.",
+    sources: [
+      { kind: "rrg", page: 44 },
+      { kind: "rrg", page: 27 },
+      { kind: "rrg", page: 48 },
+    ],
   },
   mainScheme: {
     id: "mainScheme",
@@ -1180,8 +1185,12 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Boost",
     definition:
-      "A boost card is dealt facedown to the villain when it attacks or schemes, then flipped face up during that activation to add its icons (and sometimes its own effect) to the total. Minions never get boost cards.",
-    sources: [{ kind: "rrg", page: 11 }],
+      "A boost card is dealt facedown to the villain when it attacks or schemes, then flipped face up during that activation to add its icons (and sometimes its own effect) to the total. Minions get no boost cards, except a Villainous minion, which is dealt one whenever it uses a basic power.",
+    // Villainous (RRG 1.8 p. 47) is the exception to "minions get no boost cards".
+    sources: [
+      { kind: "rrg", page: 11 },
+      { kind: "rrg", page: 47 },
+    ],
   },
   villainPhase: {
     id: "villainPhase",

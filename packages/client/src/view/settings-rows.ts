@@ -72,11 +72,11 @@ import {
   availableCardLanguages,
   type CardLanguage,
 } from "../art/card-language.js";
-import { CAMPAIGN_FADE_COLOR_LABELS } from "./campaign-fade-color.js";
-import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
-import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
+import { CAMPAIGN_FADE_COLOR_KEYS } from "./campaign-fade-color.js";
+import { FIRST_PLAYER_TOKEN_MOTION_KEYS } from "./first-player-token-motion.js";
+import { powerSavingRowNote } from "./power-saving-notice.js";
 import { EARNED_ITEMS, type EarnedItemId } from "../progression/earned-items.js";
-import { HERO_ART_LABELS, heroArtChoicesOf, heroArtInForce } from "./hero-art-choice.js";
+import { HERO_ART_KEYS, heroArtChoicesOf, heroArtInForce } from "./hero-art-choice.js";
 
 export type SettingsRowId =
   | "reduced-motion"
@@ -116,114 +116,102 @@ export interface SettingsRowInfo {
 
 /** `powerSaving`: the device is in power saving mode (`platform/power-saving.ts`), which the two rows it turns down say. */
 export function settingsRowInfoOf(settings: Settings, powerSaving = false): readonly SettingsRowInfo[] {
-  const followsPowerSaving = (detail: string): string => (powerSaving ? `${detail} ${POWER_SAVING_ROW_NOTE}` : detail);
+  const followsPowerSaving = (detail: string): string => (powerSaving ? `${detail} ${powerSavingRowNote()}` : detail);
   return [
     {
       id: "reduced-motion",
-      title: "Reduced motion",
-      detail: followsPowerSaving(
-        "Skip travel animation and auto-advancing reveals; beats and state changes still appear, just without the motion.",
-      ),
+      title: t("settings.reducedMotion.title"),
+      detail: followsPowerSaving(t("settings.reducedMotion.detail")),
       on: settings.reducedMotion,
     },
     {
       id: "sharper-text",
-      title: "Sharper text",
-      detail: followsPowerSaving(
-        "Renders text at the screen's own pixel density. Off trades a little crispness for less texture memory.",
-      ),
+      title: t("settings.sharperText.title"),
+      detail: followsPowerSaving(t("settings.sharperText.detail")),
       on: settings.textResolution > 1,
     },
     {
       id: "dark-mode",
-      title: "Dark mode",
-      detail: "Draws the light screens and popups dark, with light text. Card art stays exactly as printed.",
+      title: t("settings.darkMode.title"),
+      detail: t("settings.darkMode.detail"),
       on: settings.darkMode,
     },
     {
       id: "large-card-text",
-      title: "Large card text",
-      detail:
-        "Reads a card's full rules text larger in the Inspect sheet — the screen whose whole job is reading a card closely.",
+      title: t("settings.largeCardText.title"),
+      detail: t("settings.largeCardText.detail"),
       on: settings.largeCardText,
     },
     {
       id: "sound",
-      title: "Sound",
-      detail: "Background music and audio across menus and games.",
+      title: t("settings.sound.title"),
+      detail: t("settings.sound.detail"),
       on: settings.sound,
     },
     {
       id: "music-shuffle",
-      title: "Shuffle earned music",
-      detail:
-        "Plays the songs you've earned in Extras, shuffled, in menus and games. Openers, Game over and finales keep their own.",
+      title: t("settings.musicShuffle.title"),
+      detail: t("settings.musicShuffle.detail"),
       on: settings.musicShuffle,
     },
     {
       id: "confirm-end-turn",
-      title: "Confirm before ending turn",
-      detail:
-        "Ask before End turn whenever a basic attack, thwart or recover is still open, for you or an ally. Off ends the turn straight away.",
+      title: t("settings.confirmEndTurn.title"),
+      detail: t("settings.confirmEndTurn.detail"),
       on: settings.confirmBeforeEndTurn,
     },
     {
       id: "not-offered-notices",
-      title: "Explain abilities not offered",
-      detail:
-        "The first time a card's interrupt or response can't be used (no target, or a cost you can't pay), say why. The log always says it.",
+      title: t("settings.notOffered.title"),
+      detail: t("settings.notOffered.detail"),
       on: settings.notOfferedNotices,
     },
     {
       id: "same-name-conflict",
-      title: "Same-name hero and ally",
-      detail:
-        "A hero and an ally with the same name can't both be in play. Applies to new games; the ally can still be spent as a resource.",
+      title: t("settings.sameName.title"),
+      detail: t("settings.sameName.detail"),
       on: settings.sameNameHeroAllyConflict,
     },
     {
       id: "deck-counts-hero",
-      title: "Your deck's cards left",
-      detail: "Tap your deck to list the cards still in it, with how many of each. Never in draw order.",
+      title: t("settings.deckCountsHero.title"),
+      detail: t("settings.deckCountsHero.detail"),
       on: settings.deckCountsHero,
     },
     {
       id: "deck-counts-encounter",
-      title: "Encounter deck's cards left",
-      detail: "Tap the encounter deck for the same list. It can name cards of a scenario you haven't met yet.",
+      title: t("settings.deckCountsEncounter.title"),
+      detail: t("settings.deckCountsEncounter.detail"),
       on: settings.deckCountsEncounter,
     },
     {
       id: "deck-boost-average",
-      title: "Encounter boost average",
-      detail:
-        "Shows the boost icons per card left in the encounter deck when you tap it. Star boosts are listed apart.",
+      title: t("settings.boostAverage.title"),
+      detail: t("settings.boostAverage.detail"),
       on: settings.deckBoostAverage,
     },
     {
       id: "hover-hero",
-      title: "Hero card popover",
-      detail: "With a mouse, resting on a hero card shows the larger popover. Off leaves hero cards as they are.",
+      title: t("settings.hoverHero.title"),
+      detail: t("settings.hoverHero.detail"),
       on: settings.hoverHeroCard,
     },
     {
       id: "hover-villain",
-      title: "Villain card popover",
-      detail: "With a mouse, resting on a villain card shows the larger popover. Off leaves villain cards as they are.",
+      title: t("settings.hoverVillain.title"),
+      detail: t("settings.hoverVillain.detail"),
       on: settings.hoverVillainCard,
     },
     {
       id: "large-schemes",
-      title: "Large schemes",
-      detail:
-        "Shows the main scheme and side schemes as large cards on the table, as the hover popover does. The schemes panel scrolls when they don't all fit.",
+      title: t("settings.largeSchemes.title"),
+      detail: t("settings.largeSchemes.detail"),
       on: settings.largeSchemes,
     },
     {
       id: "scheme-stack",
-      title: "Stack schemes",
-      detail:
-        "Shows the schemes as one large card with the rest stacked behind it. Swipe or tap a card's name band to bring it forward; tap the front card to fan them all out.",
+      title: t("settings.schemeStack.title"),
+      detail: t("settings.schemeStack.detail"),
       on: settings.schemeStack,
     },
   ];
@@ -236,9 +224,8 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
 export function deckCopyLimitsRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
     id: "deck-copy-limits",
-    title: "Deck builder copy limits",
-    detail:
-      "Refuse a copy past a card's limit (3 by title, Max 1 per deck, a hero's own rule). Off lets you add it; the deck then shows as illegal.",
+    title: t("settings.copyLimits.title"),
+    detail: t("settings.copyLimits.detail"),
     on: settings.deckCopyLimits,
   };
 }
@@ -250,9 +237,8 @@ export function deckCopyLimitsRowInfoOf(settings: Settings): SettingsRowInfo {
 export function extraModularSetsRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
     id: "extra-modular-sets",
-    title: "Allow extra modular sets",
-    detail:
-      "House rule, not the printed game. Table setup then lets a scenario take more modular sets than it calls for: the ones it names, plus any more you add, all shuffled into the encounter deck. Off keeps to the scenario's count.",
+    title: t("settings.extraModular.title"),
+    detail: t("settings.extraModular.detail"),
     on: settings.allowExtraModularSets,
   };
 }
@@ -264,9 +250,8 @@ export function extraModularSetsRowInfoOf(settings: Settings): SettingsRowInfo {
 export function showPreconDecksRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
     id: "show-precon-decks",
-    title: "Show preconstructed decks",
-    detail:
-      "Lists the preconstructed decks on the Decks screen. Off hides them there; Take your seats still offers every one, so a table can always be filled.",
+    title: t("settings.showPrecons.title"),
+    detail: t("settings.showPrecons.detail"),
     on: settings.showPreconDecks,
   };
 }
@@ -275,9 +260,8 @@ export function showPreconDecksRowInfoOf(settings: Settings): SettingsRowInfo {
 export function fadedCampaignArtRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
     id: "faded-campaign-art",
-    title: "Faded art on campaign pages",
-    detail:
-      "Shows the campaign box art, faded, behind the side panel of campaign pages (the Briefing and the start-a-campaign prompt). Off leaves the panel a plain color.",
+    title: t("settings.fadedArt.title"),
+    detail: t("settings.fadedArt.detail"),
     on: settings.fadedCampaignArt,
   };
 }
@@ -289,9 +273,8 @@ export function fadedCampaignArtRowInfoOf(settings: Settings): SettingsRowInfo {
 export function customUnlockedRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
     id: "custom-unlocked",
-    title: "Custom content starts unlocked",
-    detail:
-      "Every installed pack's heroes and scenarios are ready to play. Off, each pack's heroes and scenarios unlock the way its creator chose: open, with champion points, or by winning games. Its campaigns stay open.",
+    title: t("settings.customUnlocked.title"),
+    detail: t("settings.customUnlocked.detail"),
     on: settings.customUnlocked,
   };
 }
@@ -303,26 +286,24 @@ export function customUnlockedRowInfoOf(settings: Settings): SettingsRowInfo {
 export function manualAdjustRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
     id: "manual-adjust",
-    title: "Allow manual adjust",
-    detail:
-      "Adds Manual adjust to Pause, to fix the table by hand after a bug or a misclick. Blocks progression: a game you adjust no longer counts toward stats, achievements or champion points.",
+    title: t("settings.manualAdjust.title"),
+    detail: t("settings.manualAdjust.detail"),
     on: settings.allowManualAdjust,
   };
 }
 
-const CUSTOM_PLACEMENT_LABELS: Readonly<Record<CustomPlacement, string>> = {
-  top: "Top",
-  bottom: "Bottom",
-  mixed: "Mixed in",
-};
+const customPlacementLabels = (): Readonly<Record<CustomPlacement, string>> => ({
+  top: t("settings.top"),
+  bottom: t("settings.bottom"),
+  mixed: t("settings.customPlacement.mixed"),
+});
 
 /** Settings > More > Custom content (issue #734): where installed packs' heroes and scenarios sit in the lists. */
 export function customPlacementRowInfoOf(settings: Settings): AchievementPopupRowInfo<CustomPlacement> {
   return {
-    title: "Custom content in the lists",
-    detail:
-      "Where installed packs' heroes and scenarios sit: on their own shelf at the top or the bottom, or mixed in beside the release wave each pack names (a pack that names none stays at the bottom).",
-    options: (["top", "bottom", "mixed"] as const).map((value) => ({ value, label: CUSTOM_PLACEMENT_LABELS[value] })),
+    title: t("settings.customPlacement.title"),
+    detail: t("settings.customPlacement.detail"),
+    options: (["top", "bottom", "mixed"] as const).map((value) => ({ value, label: customPlacementLabels()[value] })),
     selected: settings.customPlacement,
   };
 }
@@ -336,8 +317,8 @@ export function nextSettingsAfterCustomPlacement(settings: Settings, value: Cust
 export function discordRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
     id: "discord-presence",
-    title: "Show my game on Discord",
-    detail: "Shows what you're playing on your Discord profile while Discord is open.",
+    title: t("settings.discord.title"),
+    detail: t("settings.discord.detail"),
     on: settings.discordPresence,
   };
 }
@@ -369,10 +350,10 @@ export function liveWatchRowInfoOf(settings: Settings): SettingsRowInfo {
 export function earnedItemRowInfoOf(settings: Settings, earned: ReadonlySet<EarnedItemId>): readonly SettingsRowInfo[] {
   return EARNED_ITEMS.map((item) => ({
     id: item.id,
-    title: item.title,
-    detail: item.detail,
+    title: t(`settings.earned.${item.id}.title`),
+    detail: t(`settings.earned.${item.id}.detail`),
     on: earned.has(item.id) && settings[item.setting],
-    ...(earned.has(item.id) ? {} : { unavailable: item.howToEarn }),
+    ...(earned.has(item.id) ? {} : { unavailable: t(`settings.earned.${item.id}.howToEarn`) }),
   }));
 }
 
@@ -464,14 +445,17 @@ export interface GuideLevelOption {
 }
 
 /** "Full — Every step explained" / "Hints — Only before mistakes" / "Off — Glossary stays on" (docs/guided-mode.md §3.9, the debrief tile). */
-export const GUIDE_LEVEL_OPTIONS: readonly GuideLevelOption[] = [
-  { value: "full", label: "Full", detail: "Every step explained" },
-  { value: "hints", label: "Hints", detail: "Only before mistakes" },
-  { value: "off", label: "Off", detail: "Glossary stays on" },
+export const guideLevelOptions = (): readonly GuideLevelOption[] => [
+  { value: "full", label: t("settings.guide.full"), detail: t("settings.guide.fullDetail") },
+  { value: "hints", label: t("settings.guide.hints"), detail: t("settings.guide.hintsDetail") },
+  { value: "off", label: t("settings.guide.off"), detail: t("settings.guide.offDetail") },
 ];
 
 /** The Guide level row's text for Settings' search: it draws no detail line of its own, its options say it. */
-export const GUIDE_LEVEL_SEARCH_DETAIL = GUIDE_LEVEL_OPTIONS.map((o) => `${o.label}: ${o.detail}.`).join(" ");
+export const guideLevelSearchDetail = (): string =>
+  guideLevelOptions()
+    .map((o) => `${o.label}: ${o.detail}.`)
+    .join(" ");
 
 export interface GuideLevelRowInfo {
   readonly kind: "segmented";
@@ -503,50 +487,56 @@ export type GuideRowInfo = GuideLevelRowInfo | GuideActionRowInfo | GuideToggleR
 
 export type GuideSettingsRowId = "guide-level" | "play-tutorial" | "aspect-lessons" | SilencedWarningKey;
 
-const WARNING_ROW_COPY: Record<SilencedWarningKey, { readonly title: string; readonly detail: string }> = {
+const warningRowCopy = (): Record<SilencedWarningKey, { readonly title: string; readonly detail: string }> => ({
   schemeFinish: {
-    title: "Scheme warning",
-    detail: "Catches ending your turn when the main scheme would finish next villain phase.",
+    title: t("settings.warning.schemeFinish.title"),
+    detail: t("settings.warning.schemeFinish.detail"),
   },
   lethal: {
-    title: "Lethal hit warning",
-    detail: "Catches ending your turn in hero form with no ready defender against a lethal-looking attack.",
+    title: t("settings.warning.lethal.title"),
+    detail: t("settings.warning.lethal.detail"),
   },
   schemeClose: {
-    title: "Close-call warning",
-    detail: "Catches ending your turn with the main scheme one or two threat from finishing.",
+    title: t("settings.warning.schemeClose.title"),
+    detail: t("settings.warning.schemeClose.detail"),
   },
   flipDanger: {
-    title: "Flip warning",
-    detail: "Catches flipping to (or staying in) alter-ego when the scheme would complete from it.",
+    title: t("settings.warning.flipDanger.title"),
+    detail: t("settings.warning.flipDanger.detail"),
   },
   wastedPay: {
-    title: "Overpay warning",
-    detail: "Catches a payment that spends more than a card costs, or skips a cheaper card that would cover it.",
+    title: t("settings.warning.wastedPay.title"),
+    detail: t("settings.warning.wastedPay.detail"),
   },
-};
+});
 
 /** The Guide group's own rows, in draw order, from the live `GuidePrefs`. */
 export function guideRowInfoOf(prefs: GuidePrefs): readonly GuideRowInfo[] {
   return [
-    { kind: "segmented", id: "guide-level", title: "Guide level", options: GUIDE_LEVEL_OPTIONS, selected: prefs.level },
+    {
+      kind: "segmented",
+      id: "guide-level",
+      title: t("settings.guide.level"),
+      options: guideLevelOptions(),
+      selected: prefs.level,
+    },
     {
       kind: "action",
       id: "play-tutorial",
-      title: prefs.tutorial.finished ? "Replay the tutorial" : "Play the tutorial",
-      detail: "A short scripted first game against Rhino with Spider-Man — five lessons long.",
+      title: prefs.tutorial.finished ? t("settings.guide.replayTutorial") : t("settings.guide.playTutorial"),
+      detail: t("settings.guide.tutorialDetail"),
     },
     {
       kind: "action",
       id: "aspect-lessons",
-      title: "Aspect lessons",
-      detail: "What each aspect is for, when to pick it, and a couple of signature cards.",
+      title: t("settings.guide.aspectLessons"),
+      detail: t("settings.guide.aspectLessonsDetail"),
     },
     ...SILENCED_WARNING_KEYS.map((key): GuideToggleRowInfo => ({
       kind: "toggle",
       id: key,
-      title: WARNING_ROW_COPY[key].title,
-      detail: WARNING_ROW_COPY[key].detail,
+      title: warningRowCopy()[key].title,
+      detail: warningRowCopy()[key].detail,
       on: !prefs.silencedWarnings.includes(key),
     })),
   ];
@@ -581,22 +571,26 @@ export interface VillainOption<V extends string> {
   readonly detail: string;
 }
 
-export const VILLAIN_AUTO_ADVANCE_OPTIONS: readonly VillainOption<VillainAutoAdvance>[] = [
-  { value: "off", label: "Off", detail: "Recap waits for Start player phase" },
-  { value: "afterPause", label: "After a pause", detail: "Recap closes itself after 6 seconds" },
-  { value: "on", label: "On", detail: "Straight to your turn, no recap" },
+export const villainAutoAdvanceOptions = (): readonly VillainOption<VillainAutoAdvance>[] => [
+  { value: "off", label: t("settings.optionOff"), detail: t("settings.villainAuto.offDetail") },
+  {
+    value: "afterPause",
+    label: t("settings.villainAuto.afterPause"),
+    detail: t("settings.villainAuto.afterPauseDetail"),
+  },
+  { value: "on", label: t("settings.optionOn"), detail: t("settings.villainAuto.onDetail") },
 ];
 
-export const VILLAIN_BEAT_SPEED_OPTIONS: readonly VillainOption<VillainBeatSpeed>[] = [
-  { value: "slow", label: "Slow", detail: "Longest on screen" },
-  { value: "normal", label: "Normal", detail: "" },
-  { value: "fast", label: "Fast", detail: "Shortest on screen" },
+export const villainBeatSpeedOptions = (): readonly VillainOption<VillainBeatSpeed>[] => [
+  { value: "slow", label: t("settings.slow"), detail: t("settings.beatSpeed.slowDetail") },
+  { value: "normal", label: t("settings.normal"), detail: "" },
+  { value: "fast", label: t("settings.fast"), detail: t("settings.beatSpeed.fastDetail") },
 ];
 
-export const FLIP_ENCOUNTER_SPEED_OPTIONS: readonly VillainOption<FlipEncounterSpeed>[] = [
-  { value: "slow", label: "Slow", detail: "1 second" },
-  { value: "normal", label: "Normal", detail: "" },
-  { value: "off", label: "Off", detail: "Turns over at once" },
+export const flipEncounterSpeedOptions = (): readonly VillainOption<FlipEncounterSpeed>[] => [
+  { value: "slow", label: t("settings.slow"), detail: t("settings.flipSpeed.slowDetail") },
+  { value: "normal", label: t("settings.normal"), detail: "" },
+  { value: "off", label: t("settings.optionOff"), detail: t("settings.flipSpeed.offDetail") },
 ];
 
 export type VillainRowId =
@@ -634,36 +628,36 @@ export interface VillainRowsInfo {
 export function villainRowInfoOf(settings: Settings): VillainRowsInfo {
   return {
     autoAdvance: {
-      title: "Auto-advance",
-      detail: "What happens once the villain phase has nothing left for you to answer.",
-      options: VILLAIN_AUTO_ADVANCE_OPTIONS,
+      title: t("settings.villainAuto.title"),
+      detail: t("settings.villainAuto.detail"),
+      options: villainAutoAdvanceOptions(),
       selected: settings.villainAutoAdvance,
     },
     hold: {
-      title: "Hold each encounter card",
-      detail: "Keep every revealed card on screen until you tap past it, even when you have no answer to it.",
+      title: t("settings.villainHold.title"),
+      detail: t("settings.villainHold.detail"),
       on: settings.holdEncounterCards,
     },
     flip: {
-      title: "Flip each encounter card",
-      detail: "Stop on each facedown encounter card until you press Flip Encounter Card.",
+      title: t("settings.villainFlip.title"),
+      detail: t("settings.villainFlip.detail"),
       on: settings.flipEncounterCards,
     },
     flipSpeed: {
-      title: "Flip animation",
-      detail: "How long a facedown encounter card takes to turn over. Off turns it at once; you still press Flip.",
-      options: FLIP_ENCOUNTER_SPEED_OPTIONS,
+      title: t("settings.flipSpeed.title"),
+      detail: t("settings.flipSpeed.detail"),
+      options: flipEncounterSpeedOptions(),
       selected: settings.flipEncounterSpeed,
     },
     beatSpeed: {
-      title: "Beat speed",
-      detail: "How long each step stays up while the phase runs on its own.",
-      options: VILLAIN_BEAT_SPEED_OPTIONS,
+      title: t("settings.beatSpeed.title"),
+      detail: t("settings.beatSpeed.detail"),
+      options: villainBeatSpeedOptions(),
       selected: settings.villainBeatSpeed,
     },
     dock: {
-      title: "Show the table beside it",
-      detail: "Desktop and tablet dock the villain phase on the right. Off draws it full screen, as now.",
+      title: t("settings.villainDock.title"),
+      detail: t("settings.villainDock.detail"),
       on: settings.villainDockTable,
     },
   };
@@ -677,15 +671,15 @@ export function nextSettingsAfterVillainRow(
 ): Settings {
   switch (id) {
     case "villain-auto":
-      return VILLAIN_AUTO_ADVANCE_OPTIONS.some((o) => o.value === value)
+      return villainAutoAdvanceOptions().some((o) => o.value === value)
         ? { ...settings, villainAutoAdvance: value as VillainAutoAdvance }
         : settings;
     case "villain-speed":
-      return VILLAIN_BEAT_SPEED_OPTIONS.some((o) => o.value === value)
+      return villainBeatSpeedOptions().some((o) => o.value === value)
         ? { ...settings, villainBeatSpeed: value as VillainBeatSpeed }
         : settings;
     case "villain-flip-speed":
-      return FLIP_ENCOUNTER_SPEED_OPTIONS.some((o) => o.value === value)
+      return flipEncounterSpeedOptions().some((o) => o.value === value)
         ? { ...settings, flipEncounterSpeed: value as FlipEncounterSpeed }
         : settings;
     case "villain-hold":
@@ -702,14 +696,14 @@ export function nextSettingsAfterVillainRow(
 // on a desktop-sized Settings screen (a phone or tablet has long-press Inspect and never shows the popover).
 // ---------------------------------------------------------------------------
 
-export const CARD_HOVER_SCALE_LABELS: Readonly<Record<CardHoverScale, string>> = {
-  off: "Off",
+export const cardHoverScaleLabels = (): Readonly<Record<CardHoverScale, string>> => ({
+  off: t("settings.optionOff"),
   "1.5x": "1.5×",
   "2x": "2×",
   "2.5x": "2.5×",
   "3x": "3×",
   "4x": "4×",
-};
+});
 
 // ---------------------------------------------------------------------------
 // The volumes (#243), desktop only (a phone or tablet uses the device's own volume): the game's own entry in the
@@ -736,36 +730,26 @@ function volumeRowInfo(title: string, detail: string, percent: number): VolumeRo
   return {
     title,
     detail,
-    options: VOLUME_STEPS.map((value) => ({ value, label: value === "0" ? "Off" : `${value}%` })),
+    options: VOLUME_STEPS.map((value) => ({ value, label: value === "0" ? t("settings.optionOff") : `${value}%` })),
     selected,
   };
 }
 
 /** The game's volume in the Windows mixer, as last read (`platform/app-volume.ts`). */
 export function gameVolumeRowInfoOf(mixerPercent: number): VolumeRowInfo {
-  return volumeRowInfo(
-    "Game volume",
-    "The game's own volume in the Windows volume mixer, music and effects together. The music player's slider sets it finer.",
-    mixerPercent,
-  );
+  return volumeRowInfo(t("settings.gameVolume.title"), t("settings.gameVolume.detail"), mixerPercent);
 }
 
 export function musicVolumeRowInfoOf(settings: Settings, mixer: boolean): VolumeRowInfo {
   return volumeRowInfo(
-    "Music volume",
-    mixer
-      ? "How loud the music plays within the game, against the effects."
-      : "How loud the music plays, against the effects. On desktop the music player's slider sets it finer.",
+    t("settings.musicVolume.title"),
+    mixer ? t("settings.musicVolume.detailMixer") : t("settings.musicVolume.detail"),
     settings.musicVolume,
   );
 }
 
 export function effectsVolumeRowInfoOf(settings: Settings): VolumeRowInfo {
-  return volumeRowInfo(
-    "Effects volume",
-    "How loud the sound effects play (attacks, thwarts, cards played), against the music.",
-    settings.effectsVolume,
-  );
+  return volumeRowInfo(t("settings.effectsVolume.title"), t("settings.effectsVolume.detail"), settings.effectsVolume);
 }
 
 /** `settings` with the music volume set to a step; a value that is not a step changes nothing. */
@@ -787,10 +771,9 @@ export interface CardHoverRowInfo {
 
 export function cardHoverRowInfoOf(settings: Settings): CardHoverRowInfo {
   return {
-    title: "Card size on hover",
-    detail:
-      "With a mouse, rest on a card on the table to see it larger beside the pointer, with its state. Off turns the popover off.",
-    options: CARD_HOVER_SCALE_VALUES.map((value) => ({ value, label: CARD_HOVER_SCALE_LABELS[value] })),
+    title: t("settings.cardHover.title"),
+    detail: t("settings.cardHover.detail"),
+    options: CARD_HOVER_SCALE_VALUES.map((value) => ({ value, label: cardHoverScaleLabels()[value] })),
     selected: settings.cardHoverScale,
   };
 }
@@ -805,17 +788,17 @@ export function nextSettingsAfterCardHover(settings: Settings, value: CardHoverS
 // setting, shown on every form factor.
 // ---------------------------------------------------------------------------
 
-export const CARD_SIZE_LABELS: Readonly<Record<CardSize, string>> = {
-  standard: "Fit to screen",
-  same: "Same size",
-  large: "Large",
-  xlarge: "Extra large",
-};
+export const cardSizeLabels = (): Readonly<Record<CardSize, string>> => ({
+  standard: t("settings.cardSize.standard"),
+  same: t("settings.cardSize.same"),
+  large: t("settings.large"),
+  xlarge: t("settings.cardSize.xlarge"),
+});
 
-export const INSPECT_CARD_LABELS: Readonly<Record<InspectCard, string>> = {
-  large: "Large card",
-  sideBySide: "Side by side",
-};
+export const inspectCardLabels = (): Readonly<Record<InspectCard, string>> => ({
+  large: t("settings.inspectCard.large"),
+  sideBySide: t("settings.inspectCard.sideBySide"),
+});
 
 export interface InspectCardRowInfo {
   readonly title: string;
@@ -827,10 +810,9 @@ export interface InspectCardRowInfo {
 /** The phone-portrait Inspect layout (#358): the scan across the sheet, or the older small scan beside the text. */
 export function inspectCardRowInfoOf(settings: Settings): InspectCardRowInfo {
   return {
-    title: "Inspect card",
-    detail:
-      "On a phone held upright, Large card shows the whole scan across the sheet with the text below it. Side by side shows a small scan beside the text.",
-    options: INSPECT_CARD_VALUES.map((value) => ({ value, label: INSPECT_CARD_LABELS[value] })),
+    title: t("settings.inspectCard.title"),
+    detail: t("settings.inspectCard.detail"),
+    options: INSPECT_CARD_VALUES.map((value) => ({ value, label: inspectCardLabels()[value] })),
     selected: settings.inspectCard,
   };
 }
@@ -851,8 +833,8 @@ export interface CardLanguageRowInfo {
 export function cardLanguageRowInfoOf(settings: Settings): CardLanguageRowInfo {
   const carried = availableCardLanguages();
   return {
-    title: "Card art language",
-    detail: "Which language the card pictures are printed in. Cards without a translated picture stay in English.",
+    title: t("settings.cardLanguage.title"),
+    detail: t("settings.cardLanguage.detail"),
     options: carried.map((value) => ({ value, label: CARD_LANGUAGE_NAMES[value] })),
     selected: carried.includes(settings.cardLanguage) ? settings.cardLanguage : (carried[0] ?? "en"),
   };
@@ -874,10 +856,9 @@ export interface CardSizeRowInfo {
 
 export function cardSizeRowInfoOf(settings: Settings): CardSizeRowInfo {
   return {
-    title: "Card size",
-    detail:
-      "Fit to screen sizes every card to the screen it is on. Same size draws a card the size a desktop does on every device. Large and Extra large draw them bigger still. Larger cards scroll (the table, the villain phase, decks and card lists).",
-    options: CARD_SIZE_VALUES.map((value) => ({ value, label: CARD_SIZE_LABELS[value] })),
+    title: t("settings.cardSize.title"),
+    detail: t("settings.cardSize.detail"),
+    options: CARD_SIZE_VALUES.map((value) => ({ value, label: cardSizeLabels()[value] })),
     selected: settings.cardSize,
   };
 }
@@ -887,28 +868,27 @@ export function nextSettingsAfterCardSize(settings: Settings, value: CardSize): 
   return CARD_SIZE_VALUES.includes(value) ? { ...settings, cardSize: value } : settings;
 }
 
-export const PLAY_AREA_ORDER_LABELS: Readonly<Record<PlayAreaOrder, string>> = {
-  played: "As played",
-  type: "By type",
-  cost: "By cost",
-  name: "By name",
-};
+export const playAreaOrderLabels = (): Readonly<Record<PlayAreaOrder, string>> => ({
+  played: t("settings.playAreaOrder.played"),
+  type: t("settings.playAreaOrder.type"),
+  cost: t("settings.playAreaOrder.cost"),
+  name: t("settings.playAreaOrder.name"),
+});
 
-const SCHEME_FAN_BACKGROUND_LABELS: Readonly<Record<SchemeFanBackground, string>> = {
-  "0": "None",
+const schemeFanBackgroundLabels = (): Readonly<Record<SchemeFanBackground, string>> => ({
+  "0": t("settings.fanBackground.none"),
   "25": "25%",
   "50": "50%",
   "75": "75%",
-  "100": "Solid",
-};
+  "100": t("settings.fanBackground.solid"),
+});
 
 /** "Fan background" under Cards: how solid the paper behind the scheme fan's cards is. Settings only, like Card size. */
 export function schemeFanBackgroundRowInfoOf(settings: Settings): AchievementPopupRowInfo<SchemeFanBackground> {
   return {
-    title: "Scheme fan background",
-    detail:
-      "What's behind the schemes when Stack schemes fans them out. None leaves the cards over the dimmed table; the others lay a paper sheet behind them, up to solid.",
-    options: SCHEME_FAN_BACKGROUND_VALUES.map((value) => ({ value, label: SCHEME_FAN_BACKGROUND_LABELS[value] })),
+    title: t("settings.fanBackground.title"),
+    detail: t("settings.fanBackground.detail"),
+    options: SCHEME_FAN_BACKGROUND_VALUES.map((value) => ({ value, label: schemeFanBackgroundLabels()[value] })),
     selected: settings.schemeFanBackground,
   };
 }
@@ -928,10 +908,9 @@ export interface PlayAreaOrderRowInfo {
 /** "Play area order" under Cards (#768): how the cards in a play area are laid out. Only the drawing changes. */
 export function playAreaOrderRowInfoOf(settings: Settings): PlayAreaOrderRowInfo {
   return {
-    title: "Play area order",
-    detail:
-      "How the cards in your play area are laid out. As played keeps the order they entered play. By type groups allies, supports, upgrades, then the rest; by cost and by name sort them. Only the table changes, never the game.",
-    options: PLAY_AREA_ORDER_VALUES.map((value) => ({ value, label: PLAY_AREA_ORDER_LABELS[value] })),
+    title: t("settings.playAreaOrder.title"),
+    detail: t("settings.playAreaOrder.detail"),
+    options: PLAY_AREA_ORDER_VALUES.map((value) => ({ value, label: playAreaOrderLabels()[value] })),
     selected: settings.playAreaOrder,
   };
 }
@@ -941,13 +920,13 @@ export function nextSettingsAfterPlayAreaOrder(settings: Settings, value: PlayAr
   return PLAY_AREA_ORDER_VALUES.includes(value) ? { ...settings, playAreaOrder: value } : settings;
 }
 
-export const DECK_LIST_ON_OPEN_LABELS: Readonly<Record<DeckListOnOpen, string>> = {
-  all: "All",
-  precon: "Precons",
-  build: "Yours",
-  community: "Comm.",
-  last: "Last",
-};
+export const deckListOnOpenLabels = (): Readonly<Record<DeckListOnOpen, string>> => ({
+  all: t("settings.deckListOnOpen.all"),
+  precon: t("settings.deckListOnOpen.precon"),
+  build: t("settings.deckListOnOpen.build"),
+  community: t("settings.deckListOnOpen.community"),
+  last: t("settings.deckListOnOpen.last"),
+});
 
 export interface DeckListOnOpenRowInfo {
   readonly title: string;
@@ -959,13 +938,12 @@ export interface DeckListOnOpenRowInfo {
 /** "Deck list on open" under Gameplay (#755): which list the Decks screen opens on. Hiding precons drops that option. */
 export function deckListOnOpenRowInfoOf(settings: Settings): DeckListOnOpenRowInfo {
   return {
-    title: "Deck list on open",
-    detail:
-      "Which list the Decks screen opens on: all three together (as it always has), only the preconstructed decks (Precons), only your own (Yours, the Your decks chip), only the community decks (Comm., the Community chip), or whichever you had open last. The list chips switch it any time.",
+    title: t("settings.deckListOnOpen.title"),
+    detail: t("settings.deckListOnOpen.detail"),
     options: DECK_LIST_ON_OPEN_VALUES.filter((value) => value !== "precon" || settings.showPreconDecks).map(
       (value) => ({
         value,
-        label: DECK_LIST_ON_OPEN_LABELS[value],
+        label: deckListOnOpenLabels()[value],
       }),
     ),
     selected: settings.deckListOnOpen === "precon" && !settings.showPreconDecks ? "all" : settings.deckListOnOpen,
@@ -992,13 +970,12 @@ export interface UndoPastTurnRowInfo {
 /** "Undo past your turn" under More > Cheats (issues #791, #899): allow, warn first, or off. */
 export function undoPastTurnRowInfoOf(settings: Settings): UndoPastTurnRowInfo {
   return {
-    title: "Undo past your turn",
-    detail:
-      "House rule that blocks progression: Undo can go back past the start of your turn, a draw or a reveal, through the villain phase, and a game where you do stops counting toward stats, achievements and champion points. Warn asks first each game; Off (the default) keeps Undo to your own turn.",
+    title: t("settings.undoPastTurn.title"),
+    detail: t("settings.undoPastTurn.detail"),
     options: [
-      { value: "allow", label: "Allow" },
-      { value: "warn", label: "Warn" },
-      { value: "off", label: "Off" },
+      { value: "allow", label: t("settings.undoPastTurn.allow") },
+      { value: "warn", label: t("settings.undoPastTurn.warn") },
+      { value: "off", label: t("settings.optionOff") },
     ],
     selected: settings.undoPastTurn,
   };
@@ -1019,18 +996,16 @@ export interface CheatUnlockWarning {
 export function cheatUnlockWarningOf(before: Settings, after: Settings): CheatUnlockWarning | null {
   if (before.undoPastTurn === "off" && after.undoPastTurn !== "off") {
     return {
-      title: "This blocks progression",
-      sentence:
-        "Undo past your turn lets you take back draws, reveals and the villain phase. Any game where you do will NOT count toward your stats, achievements or champion points, even if you win.",
-      confirmLabel: "Turn it on",
+      title: t("settings.cheat.undo.title"),
+      sentence: t("settings.cheat.undo.sentence"),
+      confirmLabel: t("settings.cheat.undo.confirm"),
     };
   }
   if (!before.allowManualAdjust && after.allowManualAdjust) {
     return {
-      title: "THIS GAME WILL NOT COUNT",
-      sentence:
-        "Manual adjust lets you change the table by hand from Pause. Any game you adjust will NOT count toward your stats, achievements or champion points, even if you win.",
-      confirmLabel: "Allow it",
+      title: t("settings.cheat.adjust.title"),
+      sentence: t("settings.cheat.adjust.sentence"),
+      confirmLabel: t("settings.cheat.adjust.confirm"),
     };
   }
   return null;
@@ -1051,13 +1026,12 @@ export interface DeckSignatureRowInfo {
 /** "Signature cards" under Gameplay (issue #531): free, standard (kept at the set's count) or hidden from the pool. */
 export function deckSignatureRowInfoOf(settings: Settings): DeckSignatureRowInfo {
   return {
-    title: "Signature cards",
-    detail:
-      "In the deck builder: Free lets you change your hero's own cards like any other; Standard keeps them at their set's count; Hidden also leaves them out of the card pool.",
+    title: t("settings.signature.title"),
+    detail: t("settings.signature.detail"),
     options: [
-      { value: "free", label: "Free" },
-      { value: "standard", label: "Standard" },
-      { value: "hidden", label: "Hidden" },
+      { value: "free", label: t("settings.signature.free") },
+      { value: "standard", label: t("settings.signature.standard") },
+      { value: "hidden", label: t("settings.signature.hidden") },
     ],
     selected: settings.deckSignatureCards,
   };
@@ -1078,9 +1052,9 @@ export interface FadeColorRowInfo {
 /** "Fade color" under Animation and display, after Faded art on campaign pages (issue #609). */
 export function fadeColorRowInfoOf(settings: Settings): FadeColorRowInfo {
   return {
-    title: "Fade color",
-    detail: "The color of the side panel on campaign pages, and the color the faded art blends into.",
-    options: CAMPAIGN_FADE_COLOR_VALUES.map((value) => ({ value, label: CAMPAIGN_FADE_COLOR_LABELS[value] })),
+    title: t("settings.fadeColor.title"),
+    detail: t("settings.fadeColor.detail"),
+    options: CAMPAIGN_FADE_COLOR_VALUES.map((value) => ({ value, label: t(CAMPAIGN_FADE_COLOR_KEYS[value]) })),
     selected: settings.campaignFadeColor,
   };
 }
@@ -1099,13 +1073,11 @@ export interface TokenMotionRowInfo {
 
 export function tokenMotionRowInfoOf(settings: Settings): TokenMotionRowInfo {
   return {
-    title: "First player token",
-    detail: settings.reducedMotion
-      ? "How the token moves to a new first player. Reduced motion is on, so it is placed without moving."
-      : "How the token moves to a new first player: tossed, slid, bounced or spun across the table, or placed at once.",
+    title: t("settings.tokenMotion.title"),
+    detail: settings.reducedMotion ? t("settings.tokenMotion.detailReduced") : t("settings.tokenMotion.detail"),
     options: FIRST_PLAYER_TOKEN_MOTION_VALUES.map((value) => ({
       value,
-      label: FIRST_PLAYER_TOKEN_MOTION_LABELS[value],
+      label: t(FIRST_PLAYER_TOKEN_MOTION_KEYS[value]),
     })),
     selected: settings.firstPlayerTokenMotion,
   };
@@ -1128,32 +1100,32 @@ export interface AchievementPopupRowInfo<V extends string> {
   readonly selected: V;
 }
 
-const ACHIEVEMENT_POPUP_TIME_LABELS: Readonly<Record<AchievementPopupTime, string>> = {
-  off: "Off",
+const achievementPopupTimeLabels = (): Readonly<Record<AchievementPopupTime, string>> => ({
+  off: t("settings.optionOff"),
   "3s": "3 s",
   "5s": "5 s",
   "8s": "8 s",
   "10s": "10 s",
-};
+});
 
-const ACHIEVEMENT_POPUP_PLACE_LABELS: Readonly<Record<AchievementPopupPlace, string>> = {
-  titleBar: "Title bar",
-  top: "Top",
-  middle: "Middle",
-  bottom: "Bottom",
-};
+const achievementPopupPlaceLabels = (): Readonly<Record<AchievementPopupPlace, string>> => ({
+  titleBar: t("settings.popupPlace.titleBar"),
+  top: t("settings.top"),
+  middle: t("settings.popupPlace.middle"),
+  bottom: t("settings.bottom"),
+});
 
-const ACHIEVEMENT_POPUP_SIZE_LABELS: Readonly<Record<AchievementPopupSize, string>> = {
-  small: "Small",
-  medium: "Medium",
-  large: "Large",
-};
+const achievementPopupSizeLabels = (): Readonly<Record<AchievementPopupSize, string>> => ({
+  small: t("settings.popupSize.small"),
+  medium: t("settings.popupSize.medium"),
+  large: t("settings.large"),
+});
 
 export function achievementPopupSizeRowInfoOf(settings: Settings): AchievementPopupRowInfo<AchievementPopupSize> {
   return {
-    title: "Popup size",
-    detail: "How large the achievement popup is drawn. Picking one shows a sample.",
-    options: ACHIEVEMENT_POPUP_SIZE_VALUES.map((value) => ({ value, label: ACHIEVEMENT_POPUP_SIZE_LABELS[value] })),
+    title: t("settings.popupSize.title"),
+    detail: t("settings.popupSize.detail"),
+    options: ACHIEVEMENT_POPUP_SIZE_VALUES.map((value) => ({ value, label: achievementPopupSizeLabels()[value] })),
     selected: settings.achievementPopupSize,
   };
 }
@@ -1165,21 +1137,19 @@ export function nextSettingsAfterAchievementPopupSize(settings: Settings, value:
 
 export function achievementPopupTimeRowInfoOf(settings: Settings): AchievementPopupRowInfo<AchievementPopupTime> {
   return {
-    title: "Achievement popup",
+    title: t("settings.popupTime.title"),
     detail:
-      settings.achievementPopupTime === "off"
-        ? "Off: a new achievement shows only in the Trophy Room, with no popup or sound."
-        : "How long the popup stays up when you earn an achievement, with its sound.",
-    options: ACHIEVEMENT_POPUP_TIME_VALUES.map((value) => ({ value, label: ACHIEVEMENT_POPUP_TIME_LABELS[value] })),
+      settings.achievementPopupTime === "off" ? t("settings.popupTime.detailOff") : t("settings.popupTime.detail"),
+    options: ACHIEVEMENT_POPUP_TIME_VALUES.map((value) => ({ value, label: achievementPopupTimeLabels()[value] })),
     selected: settings.achievementPopupTime,
   };
 }
 
 export function achievementPopupPlaceRowInfoOf(settings: Settings): AchievementPopupRowInfo<AchievementPopupPlace> {
   return {
-    title: "Popup position",
-    detail: "Where on the screen the achievement popup shows. Picking one shows a sample there.",
-    options: ACHIEVEMENT_POPUP_PLACE_VALUES.map((value) => ({ value, label: ACHIEVEMENT_POPUP_PLACE_LABELS[value] })),
+    title: t("settings.popupPlace.title"),
+    detail: t("settings.popupPlace.detail"),
+    options: ACHIEVEMENT_POPUP_PLACE_VALUES.map((value) => ({ value, label: achievementPopupPlaceLabels()[value] })),
     selected: settings.achievementPopupPlace,
   };
 }
@@ -1187,9 +1157,9 @@ export function achievementPopupPlaceRowInfoOf(settings: Settings): AchievementP
 /** The Hero art row: Game art, Card art, and Promo art once a promo is on offer (`view/hero-art-choice.ts`). */
 export function heroArtRowInfoOf(settings: Settings, promoShown: boolean): AchievementPopupRowInfo<HeroArt> {
   return {
-    title: "Hero art",
-    detail: "The picture on each hero when you take your seats. Promo art shows on heroes whose promo you've earned.",
-    options: heroArtChoicesOf(promoShown).map((value) => ({ value, label: HERO_ART_LABELS[value] })),
+    title: t("settings.heroArt.title"),
+    detail: t("settings.heroArt.detail"),
+    options: heroArtChoicesOf(promoShown).map((value) => ({ value, label: t(HERO_ART_KEYS[value]) })),
     selected: heroArtInForce(settings.heroArt, promoShown),
   };
 }
@@ -1214,11 +1184,11 @@ export function nextSettingsAfterAchievementPopupPlace(settings: Settings, value
 // Settings screen leaves both rows out on the web and the phone apps.
 // ---------------------------------------------------------------------------
 
-const DISPLAY_MODE_LABELS: Readonly<Record<DisplayMode, string>> = {
-  windowed: "Windowed",
-  borderless: "Borderless",
-  fullscreen: "Fullscreen",
-};
+const displayModeLabels = (): Readonly<Record<DisplayMode, string>> => ({
+  windowed: t("settings.displayMode.windowed"),
+  borderless: t("settings.displayMode.borderless"),
+  fullscreen: t("settings.displayMode.fullscreen"),
+});
 
 export interface DisplayModeRowInfo {
   readonly title: string;
@@ -1229,10 +1199,9 @@ export interface DisplayModeRowInfo {
 
 export function displayModeRowInfoOf(settings: Settings): DisplayModeRowInfo {
   return {
-    title: "Window mode",
-    detail:
-      "Windowed is a normal window. Borderless fills the screen with a window you can switch away from at once. Fullscreen is your computer's own full screen.",
-    options: DISPLAY_MODE_VALUES.map((value) => ({ value, label: DISPLAY_MODE_LABELS[value] })),
+    title: t("settings.displayMode.title"),
+    detail: t("settings.displayMode.detail"),
+    options: DISPLAY_MODE_VALUES.map((value) => ({ value, label: displayModeLabels()[value] })),
     selected: settings.displayMode,
   };
 }
@@ -1249,11 +1218,11 @@ export function couchModeRowInfoOf(
   base: CouchSize = { width: Infinity, height: Infinity },
 ): ScreenChoiceRowInfo<CouchMode> {
   return {
-    title: "Couch mode",
-    detail: "Makes everything bigger, for playing on a TV from across the room.",
+    title: t("settings.couchMode.title"),
+    detail: t("settings.couchMode.detail"),
     options: COUCH_MODE_VALUES.filter(
       (value) => value === "off" || value === settings.couchMode || couchFactorFits(couchModeFactor(value), base),
-    ).map((value) => ({ value, label: value === "off" ? "Off" : value })),
+    ).map((value) => ({ value, label: value === "off" ? t("settings.optionOff") : value })),
     selected: settings.couchMode,
   };
 }
@@ -1300,7 +1269,7 @@ export interface ScreenAdvice {
 /** " Recommended for this device (mid-range: 6 GB, Adreno 642L): 720p." */
 function adviceSentence(advice: ScreenAdvice, choice: string, withReason: boolean): string {
   const reason = withReason ? ` (${advice.tier}${advice.summary ? `: ${advice.summary}` : ""})` : "";
-  return ` Recommended for this device${reason}: ${choice}.`;
+  return ` ${t("settings.advice", { reason, choice })}`;
 }
 
 export function renderScaleRowInfoOf(
@@ -1319,15 +1288,17 @@ export function renderScaleRowInfoOf(
   const options = offered.map((value) => ({
     value,
     label:
-      value === "native" ? "Native" : `${Math.round(short * renderScaleFactorOf(value, screen.devicePixelRatio))}p`,
+      value === "native"
+        ? t("settings.native")
+        : `${Math.round(short * renderScaleFactorOf(value, screen.devicePixelRatio))}p`,
   }));
   const recommended = advice && (options.find((o) => o.value === advice.renderScale) ?? options[0]!);
   const detail =
     selected === "native"
-      ? `Draws at ${size}, the screen's own. Lower is lighter on the GPU, memory and battery.`
-      : `Draws at ${size} and scales it up to the screen. Native is sharpest.`;
+      ? t("settings.renderScale.detailNative", { size })
+      : t("settings.renderScale.detailScaled", { size });
   return {
-    title: "Render resolution",
+    title: t("settings.renderScale.title"),
     detail: advice && recommended ? detail + adviceSentence(advice, recommended.label, true) : detail,
     options,
     selected,
@@ -1345,7 +1316,11 @@ export function nextSettingsAfterRenderScale(settings: Settings, value: RenderSc
   return RENDER_SCALE_VALUES.includes(value) ? { ...settings, renderScale: value } : settings;
 }
 
-const FRAME_RATE_LABELS: Readonly<Record<FrameRate, string>> = { screen: "Screen", "60": "60 fps", "30": "30 fps" };
+const frameRateLabels = (): Readonly<Record<FrameRate, string>> => ({
+  screen: t("settings.frameRate.screen"),
+  "60": "60 fps",
+  "30": "30 fps",
+});
 
 /**
  * Match screen, 60 and 30. `maxRefreshRate` is the screen's fastest mode as the app reports it (null until read): a
@@ -1362,14 +1337,14 @@ export function frameRateRowInfoOf(
   const rate = maxRefreshRate === null ? "" : ` (${maxRefreshRate} Hz)`;
   const detail =
     selected === "screen"
-      ? `Runs at the screen's own refresh rate${rate}. A cap saves battery; 30 fps saves the most.`
-      : `Holds the game to ${selected} fps, which saves battery and heat.`;
+      ? t("settings.frameRate.detailScreen", { rate })
+      : t("settings.frameRate.detailCapped", { fps: selected });
   const recommended = advice && (offered.includes(advice.frameRate) ? advice.frameRate : "screen");
-  const advised = recommended ? detail + adviceSentence(advice!, FRAME_RATE_LABELS[recommended], false) : detail;
+  const advised = recommended ? detail + adviceSentence(advice!, frameRateLabels()[recommended], false) : detail;
   return {
-    title: "Frame rate",
-    detail: powerSaving ? `${advised} ${POWER_SAVING_ROW_NOTE}` : advised,
-    options: offered.map((value) => ({ value, label: FRAME_RATE_LABELS[value] })),
+    title: t("settings.frameRate.title"),
+    detail: powerSaving ? `${advised} ${powerSavingRowNote()}` : advised,
+    options: offered.map((value) => ({ value, label: frameRateLabels()[value] })),
     selected,
   };
 }
@@ -1393,7 +1368,9 @@ export function resolutionLabelOf(
 ): string {
   const px = resolutionPixelsOf(size);
   if (px !== null) return `${px.width} × ${px.height}`;
-  return native === null ? "Native" : `Native · ${native.width} × ${native.height}`;
+  return native === null
+    ? t("settings.native")
+    : t("settings.nativeSize", { width: native.width, height: native.height });
 }
 
 /**
@@ -1419,13 +1396,13 @@ export function resolutionRowInfoOf(
     (a, b) => area(b) - area(a) || (sizeOf(b)?.width ?? 0) - (sizeOf(a)?.width ?? 0),
   );
   return {
-    title: "Resolution",
+    title: t("settings.resolution.title"),
     detail:
       settings.displayMode === "fullscreen" && switchesDisplayMode
-        ? "Fullscreen switches your screen to this resolution. Your own comes back when you leave Fullscreen, switch to another app, or quit."
+        ? t("settings.resolution.detailFullscreen")
         : settings.displayMode === "windowed"
-          ? "In a window, the window's own size; Native draws at whatever size the window is. Your computer's display resolution is never changed."
-          : "Other than native, the game draws at that resolution and is scaled to fit the screen, with black bars where the shapes differ. Your computer's display resolution is never changed.",
+          ? t("settings.resolution.detailWindowed")
+          : t("settings.resolution.detailScaled"),
     options: values.map((value) => ({ value, label: resolutionLabelOf(value, native) })),
     selected: values.includes(settings.resolution) ? settings.resolution : "native",
   };

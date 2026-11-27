@@ -12,18 +12,24 @@
  * from a `#receive=` link, `save-data/receive-link.ts`) and lands on the same replace confirm as Import. Wording
  * and the countdown are in `view/save-transfer-model.ts`.
  */
+import { hitRectAround } from "../view/hit-rect.js";
+import { t } from "../i18n/translate.js";
 import Phaser from "phaser";
-import { hit, signal, statHue, surface, typeRole } from "../tokens.js";
-import { caseOf, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput } from "../ui/widgets.js";
+import { accent, font, hit, signal, surface, typeRole } from "../tokens.js";
+import { McTextInput } from "../ui/widgets.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { PopupSheet } from "../dom/popup-sheet.js";
+import { SheetBuilder } from "../dom/sheet-builder.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { encode } from "uqr";
+import { BETA_TAG_GAP, BETA_TAG_SIZE, BETA_TAG_TEXT, SHOW_BETA_TAGS } from "../view/beta-tag.js";
 import { deliverSaveFile, pickSaveFile } from "../save-data/file-transfer.js";
 import { exportSaveData, importSaveData } from "../save-data/save-data.js";
 import type { SaveFile } from "../save-data/save-file.js";
 import { receiveSaveFile, sendSaveFile } from "../save-data/transfer-client.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
-import { drawQr } from "../ui/qr-draw.js";
 import type { TransferCode } from "@mc/sync-worker/protocol";
 import { overlayPanelLayout } from "../view/overlay-layout.js";
 import type { Rect } from "../view/layout.js";
@@ -35,10 +41,10 @@ import {
   replaceConfirmOf,
   type SaveDataStatus,
   type SaveDataStep,
-  EXPORT_ROW_DETAIL,
-  EXPORT_ROW_TITLE,
-  IMPORT_ROW_DETAIL,
-  IMPORT_ROW_TITLE,
+  exportRowDetail,
+  exportRowTitle,
+  importRowDetail,
+  importRowTitle,
 } from "../view/save-data-model.js";
 import {
   codeTextOf,
@@ -46,23 +52,21 @@ import {
   COPY_FAILED_STATUS,
   countdownOf,
   receiveLinkOf,
-  RECEIVE_ROW_DETAIL,
-  RECEIVE_ROW_TITLE,
-  SEND_ROW_DETAIL,
-  SEND_ROW_TITLE,
+  receiveRowDetail,
+  receiveRowTitle,
+  sendRowDetail,
+  sendRowTitle,
   transferFailureStatusOf,
   sendFailedStatusOf,
   typedCodeOf,
 } from "../view/save-transfer-model.js";
 import { syncService } from "../sync/sync-wiring.js";
-import { syncStatusDisplay, SYNC_ROW_TITLE } from "../view/sync-model.js";
+import { syncStatusDisplay, syncRowTitle } from "../view/sync-model.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
 import { finishedIdsOf, readConsent, turnOffGlobalStats, turnOnGlobalStats } from "../global-stats/global-consent.js";
-import { GLOBAL_ROW_FAILED, GLOBAL_ROW_TITLE, globalRowButton, globalRowDetail } from "../view/global-stats-ui.js";
+import { globalRowFailed, globalRowTitle, globalRowButton, globalRowDetail } from "../view/global-stats-ui.js";
 import { appSession } from "../session.js";
 import type { SyncDataSceneData } from "./sync-data.js";
-import { drawBetaTagBeside } from "../ui/beta-tag.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -93,16 +97,18 @@ interface PairButton {
 }
 
 export class SaveDataOverlay extends Phaser.Scene {
-  #buttons: McButton[] = [];
   #field: McTextInput | null = null;
   #route: FocusRoute | null = null;
-  #hints!: GlyphHints;
+  #panel!: PopupSheet;
+  #glyphs!: SheetGlyphs;
+  /** What each key in the panel does when pressed, this draw. */
+  #actions = new Map<string, () => void>();
+  #b!: SheetBuilder;
   #motion = new OverlayMotion();
   #step: SaveDataStep = { kind: "menu" };
   #status: SaveDataStatus = NO_STATUS;
-  /** Once a second while a code is showing; only the countdown line changes until the code runs out. */
+  /** Once a second while a code is showing: the screen is drawn again for the countdown, until the code runs out. */
   #ticker: Phaser.Time.TimerEvent | null = null;
-  #countdown: Phaser.GameObjects.Text | null = null;
   /** The stop Start presses on the step now showing, or null (the menu and the replace confirm have none). */
   #primary: (() => void) | null = null;
 
@@ -120,7 +126,8 @@ export class SaveDataOverlay extends Phaser.Scene {
     this.#status = NO_STATUS;
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#hints = new GlyphHints(this);
+    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.());
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     // Before the route: A, B or Start takes the caret out of the code field (the route is held while it has one).
     bindTextFieldEscape(
       this,
@@ -128,13 +135,14 @@ export class SaveDataOverlay extends Phaser.Scene {
       () => this.scene.isActive(SCENES.syncData),
     );
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       blocked: () => (this.#field?.focused ?? false) || this.scene.isActive(SCENES.syncData),
       onCancel: () => this.#cancel(),
       // Start is "forward": Receive on the code step, Copy code / New code on the Send step.
       onPause: () => this.#primary?.(),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.#hints.dispose();
+      this.#glyphs.dispose();
       this.scale.off("resize", onResize, this);
       this.#clearControls();
     });
@@ -180,7 +188,7 @@ export class SaveDataOverlay extends Phaser.Scene {
       }
     }
     if (!this.sys.isActive() || this.#step.kind !== "menu") return;
-    this.#set({ kind: "menu" }, saved ? NO_STATUS : { tone: "error", text: GLOBAL_ROW_FAILED });
+    this.#set({ kind: "menu" }, saved ? NO_STATUS : { tone: "error", text: globalRowFailed() });
   }
 
   #close(): void {
@@ -316,20 +324,17 @@ export class SaveDataOverlay extends Phaser.Scene {
     if (left.expired) {
       this.#status = NO_STATUS;
       this.#draw();
-    } else this.#countdown?.setText(left.text);
+    } else this.#draw();
   }
 
   /** `keepField` keeps the code field through a redraw on the typing step (`#draw`). */
   #clearControls(keepField = false): void {
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
     if (!keepField) {
       this.#field?.destroy();
       this.#field = null;
     }
     this.#ticker?.remove(false);
     this.#ticker = null;
-    this.#countdown = null;
   }
 
   #draw(): void {
@@ -342,20 +347,25 @@ export class SaveDataOverlay extends Phaser.Scene {
     for (const object of kept) this.children.remove(object);
     destroyChildren(this);
     for (const object of kept) this.children.add(object);
-    this.#hints.reset();
+    this.#glyphs.reset();
+    this.#actions = new Map();
     this.#primary = null;
 
     const { width, height } = this.scale.gameSize;
     const { panel, header, body } = overlayPanelLayout({ x: 0, y: 0, width, height }, HEADER_HEIGHT, 0);
-    // Swallows taps that land on no control, so none reach Settings underneath.
+    // Swallows presses that land on no control, so none reach Settings underneath.
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    const scrim = this.add.graphics();
-    scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
-    const panelsFrom = this.children.list.length;
-    const ground = this.add.graphics();
-    ground.fillStyle(surface.ink.hex, 1).fillRect(panel.x, panel.y, panel.width, panel.height);
-    ground.lineStyle(4, surface.paper.hex, 1).strokeRect(panel.x, panel.y, panel.width, panel.height);
-    ground.fillStyle(surface.paper.hex, 0.4).fillRect(header.x, header.y + header.height - 2, header.width, 2);
+    // Nothing drawn: the entrance and exit tween this, and the panel rises and fades with it (`DomRegion.follow`).
+    const anchor = this.add.graphics();
+    // Before the first mount: the sheet then has this anchor as its one motion owner (no built-in slide on top).
+    this.#panel.follow(anchor);
+    const b = this.#panel.begin(width, height);
+    this.#b = b;
+    b.box(panel, { fill: surface.ink.hex, stroke: surface.paper.hex, strokeWidth: 4 });
+    b.box(
+      { x: header.x, y: header.y + header.height - 2, width: header.width, height: 2 },
+      { fill: surface.paper.hex, fillAlpha: 0.4 },
+    );
 
     const stops = new Map<string, FocusStop>();
     const closeSize = 32;
@@ -366,24 +376,28 @@ export class SaveDataOverlay extends Phaser.Scene {
       height: closeSize,
     };
     const working = this.#working;
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "✕",
-        type: typeRole.rowTitle,
-        rect: closeRect,
-        enabled: !working,
-        onClick: () => this.#close(),
-      }),
-    );
-    if (!working) this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
+    this.#glyphs.button(b, {
+      key: "back",
+      rect: closeRect,
+      label: "✕",
+      look: "secondary",
+      type: typeRole.rowTitle,
+      ids: working ? [] : ["cancel"],
+      ground: "ink",
+      ...(working ? { disabled: true as const } : {}),
+    });
+    this.#press("back", () => this.#close());
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
-    this.add
-      .text(header.x + 16, header.y + header.height / 2, caseOf(typeRole.barTitle, "Save data"), {
-        ...textStyle(typeRole.barTitle, surface.paper.hex),
-        fontSize: "24px",
-      })
-      .setOrigin(0, 0.5);
+    if (!working) {
+      // The drawn ✕ is small: a 44px press area around it, inside the header.
+      this.#press("back:hit", () => this.#close());
+      b.tap("back:hit", hitRectAround(closeRect, hit.target, header));
+    }
+    b.text(header.x + 16, header.y + header.height / 2, t("settings.saveData.title"), typeRole.barTitle, {
+      size: 24,
+      color: surface.paper.hex,
+      origin: [0, 0.5],
+    });
 
     const order: string[] = ["back"];
     const x = body.x + 16;
@@ -392,37 +406,71 @@ export class SaveDataOverlay extends Phaser.Scene {
     let y = body.y + 16;
 
     const step = this.#step;
+    let holes: readonly Rect[] = [];
     if (step.kind === "confirm") y = this.#drawConfirm(step.file, x, y, rowWidth, stops, order);
     else if (step.kind === "send") y = this.#drawSend(step.phase, x, y, rowWidth, bodyBottom, stops, order);
-    else if (step.kind === "receive") y = this.#drawReceive(step, x, y, rowWidth, stops, order);
-    else y = this.#drawMenu(x, y, rowWidth, bodyBottom - y, working, stops, order);
+    else if (step.kind === "receive") {
+      const drawn = this.#drawReceive(step, x, y, rowWidth, stops, order);
+      y = drawn.bottom;
+      holes = drawn.field ? [drawn.field] : [];
+    } else y = this.#drawMenu(x, y, rowWidth, bodyBottom - y, working, stops, order);
 
     if (this.#status.tone !== "none" || working) {
-      const text = working ? "Working…" : this.#status.text;
+      const text = working ? t("saveData.working") : this.#status.text;
       const error = this.#status.tone === "error" && !working;
-      const line = this.add
-        .text(
-          x,
-          y + 16,
-          error ? `Problem: ${text}` : text,
-          textStyle(typeRole.body, error ? signal.caution.hex : surface.paper.hex, 0.95),
-        )
-        .setFontSize(12)
-        .setWordWrapWidth(rowWidth);
-      y = line.y + line.height;
+      const line = b.text(x, y + 16, error ? t("saveData.problem", { text }) : text, typeRole.body, {
+        size: 12,
+        color: error ? signal.caution.hex : surface.paper.hex,
+        alpha: 0.95,
+        wrapWidth: rowWidth,
+      });
+      y = y + 16 + line.height;
       if (this.#status.offerExport && !working) {
         const rect: Rect = { x, y: y + 10, width: Math.min(rowWidth, 200), height: hit.primary };
         const exportNow = (): void => void this.#export();
-        this.#buttons.push(
-          new McButton(this, { kind: "secondary", label: "Export", type: buttonType, rect, onClick: exportNow }),
-        );
+        b.button({
+          key: "status-export",
+          rect,
+          label: t("saveData.button.export"),
+          look: "secondary",
+          type: buttonType,
+        });
+        this.#press("status-export", exportNow);
         stops.set("status-export", { rect, activate: exportNow });
         order.push("status-export");
       }
     }
 
+    this.#panel.mount(b, width, height, holes);
     this.#route?.set(order, stops);
-    this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+    this.#motion.enter(this, { scrim: [], panels: [anchor] });
+  }
+
+  /** A key's press. */
+  #press(key: string, action: () => void): void {
+    this.#actions.set(key, action);
+  }
+
+  /** The small outlined BETA tag (`ui/beta-tag.ts`) with its left edge at `x`, centred on `centerY`. */
+  #betaTag(x: number, centerY: number): void {
+    if (!SHOW_BETA_TAGS) return;
+    const rect: Rect = {
+      x: Math.round(x),
+      y: Math.round(centerY - BETA_TAG_SIZE.height / 2),
+      width: BETA_TAG_SIZE.width,
+      height: BETA_TAG_SIZE.height,
+    };
+    this.#b.box(rect, { fill: accent.heroRed.hex, fillAlpha: 0.28, stroke: accent.heroRed.hex, strokeWidth: 1.5 });
+    this.#b.text(
+      rect.x + rect.width / 2,
+      rect.y + rect.height / 2,
+      BETA_TAG_TEXT,
+      { ...typeRole.mono, family: font.mono, size: 9, weight: 700, letterSpacing: 1, uppercase: false },
+      {
+        color: surface.paper.hex,
+        origin: [0.5, 0.5],
+      },
+    );
   }
 
   /**
@@ -441,36 +489,44 @@ export class SaveDataOverlay extends Phaser.Scene {
   ): number {
     const rows = [
       {
-        title: EXPORT_ROW_TITLE,
-        detail: EXPORT_ROW_DETAIL,
-        label: "Export",
+        title: exportRowTitle(),
+        detail: exportRowDetail(),
+        label: t("saveData.button.export"),
         run: () => void this.#export(),
         id: "export",
       },
       {
-        title: IMPORT_ROW_TITLE,
-        detail: IMPORT_ROW_DETAIL,
-        label: "Import",
+        title: importRowTitle(),
+        detail: importRowDetail(),
+        label: t("saveData.button.import"),
         run: () => void this.#import(),
         id: "import",
       },
-      { title: SEND_ROW_TITLE, detail: SEND_ROW_DETAIL, label: "Send", run: () => void this.#send(), id: "send" },
       {
-        title: RECEIVE_ROW_TITLE,
-        detail: RECEIVE_ROW_DETAIL,
-        label: "Receive",
+        title: sendRowTitle(),
+        detail: sendRowDetail(),
+        label: t("saveData.button.send"),
+        run: () => void this.#send(),
+        id: "send",
+      },
+      {
+        title: receiveRowTitle(),
+        detail: receiveRowDetail(),
+        label: t("saveData.button.receive"),
         run: () => this.#set({ kind: "receive", phase: "typing", input: "" }, NO_STATUS),
         id: "receive",
       },
       {
-        title: SYNC_ROW_TITLE,
-        detail: `Status: ${syncStatusDisplay(syncService().isOn(), syncService().status.get(), Date.now())}`,
-        label: "Sync",
+        title: syncRowTitle(),
+        detail: t("sync.statusLine", {
+          status: syncStatusDisplay(syncService().isOn(), syncService().status.get(), Date.now()),
+        }),
+        label: t("saveData.button.sync"),
         run: () => this.#openSync(),
         id: "sync",
       },
       {
-        title: GLOBAL_ROW_TITLE,
+        title: globalRowTitle(),
         detail: globalRowDetail(readConsent()),
         label: globalRowButton(readConsent()),
         run: () => void this.#toggleGlobal(),
@@ -516,18 +572,27 @@ export class SaveDataOverlay extends Phaser.Scene {
     enabled: boolean,
     compact = false,
   ): number {
+    const b = this.#b;
     // Compact: the button sits at the right of its text, centred on the row, instead of under it.
     const buttonWidth = compact ? 104 : Math.min(at.width, 200);
     const textWidth = compact ? at.width - buttonWidth - 12 : at.width;
-    const titleText = this.add
-      .text(at.x, at.y, caseOf(typeRole.sectionHeader, title), textStyle(typeRole.sectionHeader, surface.paper.hex))
-      .setWordWrapWidth(textWidth);
-    if (id === "sync") drawBetaTagBeside(this, titleText, at.x + textWidth);
-    const detailText = this.add
-      .text(at.x, titleText.y + titleText.height + 4, detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(11)
-      .setWordWrapWidth(textWidth);
-    const textBottom = detailText.y + detailText.height;
+    const titleText = b.text(at.x, at.y, title, typeRole.sectionHeader, {
+      color: surface.paper.hex,
+      wrapWidth: textWidth,
+    });
+    if (id === "sync") {
+      // Right of the title's last line, as the Phaser tag sat beside the text's bounds.
+      const oneLine = b.measure(title, typeRole.sectionHeader);
+      const tagX = at.x + Math.min(oneLine.width, textWidth) + BETA_TAG_GAP;
+      if (tagX + BETA_TAG_SIZE.width <= at.x + textWidth) this.#betaTag(tagX, at.y + titleText.height / 2);
+    }
+    const detailText = b.text(at.x, at.y + titleText.height + 4, detail, typeRole.body, {
+      size: 11,
+      color: surface.paper.hex,
+      alpha: 0.8,
+      wrapWidth: textWidth,
+    });
+    const textBottom = at.y + titleText.height + 4 + detailText.height;
     const rect: Rect = compact
       ? {
           x: at.x + at.width - buttonWidth,
@@ -536,9 +601,15 @@ export class SaveDataOverlay extends Phaser.Scene {
           height: hit.primary,
         }
       : { x: at.x, y: textBottom + 10, width: buttonWidth, height: hit.primary };
-    this.#buttons.push(
-      new McButton(this, { kind: "secondary", label: buttonLabel, type: buttonType, rect, enabled, onClick }),
-    );
+    b.button({
+      key: `row:${id}`,
+      rect,
+      label: buttonLabel,
+      look: "secondary",
+      type: buttonType,
+      ...(enabled ? {} : { disabled: true as const }),
+    });
+    this.#press(`row:${id}`, onClick);
     stops.set(`row:${id}`, { rect, activate: onClick });
     order.push(`row:${id}`);
     return compact ? Math.max(textBottom, rect.y + rect.height) : rect.y + rect.height;
@@ -557,18 +628,18 @@ export class SaveDataOverlay extends Phaser.Scene {
     const buttonWidth = Math.min(180, (rowWidth - 12) / 2);
     for (const [at, spec] of [left, right].entries()) {
       const rect: Rect = { x: x + at * (buttonWidth + 12), y, width: buttonWidth, height: hit.primary };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: spec.label,
-          type: buttonType,
-          rect,
-          onClick: spec.onClick,
-        }),
-      );
+      this.#glyphs.button(this.#b, {
+        key: spec.id,
+        rect,
+        label: spec.label,
+        look: "secondary",
+        type: buttonType,
+        ids: spec.id === "back-menu" ? ["cancel"] : [],
+        ground: "ink",
+      });
+      this.#press(spec.id, spec.onClick);
       stops.set(spec.id, { rect, activate: spec.onClick });
       order.push(spec.id);
-      if (spec.id === "back-menu") this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
     }
     return y + hit.primary;
   }
@@ -582,66 +653,79 @@ export class SaveDataOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     order: string[],
   ): number {
+    const b = this.#b;
     const wide = rowWidth >= WIDE_ROW;
     const column = wide ? rowWidth - WIDE_QR - 24 : rowWidth;
-    const title = this.add
-      .text(
-        x,
-        top,
-        caseOf(typeRole.sectionHeader, SEND_ROW_TITLE),
-        textStyle(typeRole.sectionHeader, surface.paper.hex),
-      )
-      .setWordWrapWidth(column);
-    if (phase.kind === "uploading") return title.y + title.height;
+    const title = b.text(x, top, sendRowTitle(), typeRole.sectionHeader, {
+      color: surface.paper.hex,
+      wrapWidth: column,
+    });
+    if (phase.kind === "uploading") return top + title.height;
 
     // A short screen (a landscape phone) gets one line of instructions so the column fits beside the QR code.
     const short = bodyBottom - top < 340;
-    const help = this.add
-      .text(
-        x,
-        title.y + title.height + 8,
-        short
-          ? "Type this code on the other device, or scan the QR code."
-          : "On the other device open Settings, Save data, Receive from another device, then type this code or scan the QR code with its camera. The code works once.",
-        textStyle(typeRole.body, surface.paper.hex, 0.85),
-      )
-      .setFontSize(12)
-      .setWordWrapWidth(column)
-      .setLineSpacing(3);
+    const help = b.text(
+      x,
+      top + title.height + 8,
+      short ? t("saveData.send.helpShort") : t("saveData.send.help"),
+      typeRole.body,
+      {
+        size: 12,
+        color: surface.paper.hex,
+        alpha: 0.85,
+        wrapWidth: column,
+        lineSpacing: 3,
+      },
+    );
     // 14 mono characters ("ABCD-EFGH-JKMN") at about 0.62 em each.
     const codeSize = Math.max(16, Math.min(34, Math.floor(column / (14 * 0.62))));
-    const code = this.add
-      .text(x, help.y + help.height + 14, codeTextOf(phase.code), textStyle(typeRole.mono, surface.paper.hex))
-      .setFontSize(codeSize);
-    let y = code.y + code.height + 14;
+    const codeTop = top + title.height + 8 + help.height + 14;
+    const code = b.text(x, codeTop, codeTextOf(phase.code), typeRole.mono, {
+      size: codeSize,
+      color: surface.paper.hex,
+    });
+    let y = codeTop + code.height + 14;
 
     const link = receiveLinkOf(phase.code, location);
     let qrBottom = 0;
     if (wide) {
       // Beside the text, clamped to the room the panel has left.
       const size = Math.max(112, Math.min(WIDE_QR, bodyBottom - 16 - top));
-      drawQr(this, link, x + rowWidth - WIDE_QR + (WIDE_QR - size) / 2, top, size);
+      this.#qr(link, x + rowWidth - WIDE_QR + (WIDE_QR - size) / 2, top, size);
       qrBottom = top + size;
     } else {
       // Room left under the QR: the countdown, the buttons and a status line with its Export button.
       const size = Math.max(112, Math.min(rowWidth, 260, bodyBottom - 16 - y - 230));
-      drawQr(this, link, x + (rowWidth - size) / 2, y, size);
+      this.#qr(link, x + (rowWidth - size) / 2, y, size);
       y += size + 12;
     }
 
     const left = countdownOf(phase.expiresAt, Date.now());
-    this.#countdown = this.add.text(x, y, left.text, textStyle(typeRole.body, surface.paper.hex)).setFontSize(15);
+    const countdown = b.text(x, y, left.text, typeRole.body, { size: 15, color: surface.paper.hex, key: "countdown" });
     if (!left.expired) {
       this.#ticker = this.time.addEvent({ delay: 1000, loop: true, callback: () => this.#tick() });
     }
-    y += this.#countdown.height + 12;
+    y += countdown.height + 12;
 
-    const back = { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
+    const back = { id: "back-menu", label: t("saveData.back"), onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
     const first = left.expired
-      ? { id: "new-code", label: "New code", onClick: () => void this.#send() }
-      : { id: "copy", label: "Copy code", onClick: () => this.#copy(phase.code) };
+      ? { id: "new-code", label: t("saveData.newCode"), onClick: () => void this.#send() }
+      : { id: "copy", label: t("saveData.copyCode"), onClick: () => this.#copy(phase.code) };
     this.#primary = first.onClick;
     return Math.max(qrBottom, this.#drawPair(x, y, column, first, back, stops, order));
+  }
+
+  /** A link as a QR code, in whole pixels per module with a four-module quiet zone (`ui/qr-draw.ts`, now in the panel). */
+  #qr(text: string, x: number, y: number, size: number): void {
+    const { data } = encode(text, { ecc: "M", border: 0 });
+    const cell = Math.max(1, Math.floor(size / (data.length + 8)));
+    const drawn = cell * (data.length + 8);
+    this.#b.qr(
+      { x: x + Math.floor((size - drawn) / 2), y, width: drawn, height: drawn },
+      data.map((row) => row.map((dark) => (dark ? "1" : "0")).join("")),
+      4,
+      { background: surface.paper.hex, foreground: surface.ink.hex },
+    );
   }
 
   #drawReceive(
@@ -651,38 +735,41 @@ export class SaveDataOverlay extends Phaser.Scene {
     rowWidth: number,
     stops: Map<string, FocusStop>,
     order: string[],
-  ): number {
-    const title = this.add
-      .text(
-        x,
-        top,
-        caseOf(typeRole.sectionHeader, RECEIVE_ROW_TITLE),
-        textStyle(typeRole.sectionHeader, surface.paper.hex),
-      )
-      .setWordWrapWidth(rowWidth);
-    if (step.phase === "fetching") return title.y + title.height;
+  ): { bottom: number; field: Rect | null } {
+    const b = this.#b;
+    const title = b.text(x, top, receiveRowTitle(), typeRole.sectionHeader, {
+      color: surface.paper.hex,
+      wrapWidth: rowWidth,
+    });
+    if (step.phase === "fetching") return { bottom: top + title.height, field: null };
 
-    const help = this.add
-      .text(
-        x,
-        title.y + title.height + 8,
-        "On the other device open Settings, Save data, Send to another device. Type the code it shows. It replaces what's on this device, after you confirm.",
-        textStyle(typeRole.body, surface.paper.hex, 0.85),
-      )
-      .setFontSize(12)
-      .setWordWrapWidth(rowWidth)
-      .setLineSpacing(3);
-    const fieldRect: Rect = { x, y: help.y + help.height + 14, width: Math.min(rowWidth, 320), height: hit.primary };
+    const help = b.text(x, top + title.height + 8, t("saveData.receive.help"), typeRole.body, {
+      size: 12,
+      color: surface.paper.hex,
+      alpha: 0.85,
+      wrapWidth: rowWidth,
+      lineSpacing: 3,
+    });
+    const fieldRect: Rect = {
+      x,
+      y: top + title.height + 8 + help.height + 14,
+      width: Math.min(rowWidth, 320),
+      height: hit.primary,
+    };
     // A field kept through the redraw (`#draw`) only moves; a new one is made on entering the step.
     const field = this.#field ?? this.#newCodeField(fieldRect, step.input);
     field.layout(fieldRect);
+    for (const node of field.gameObjects) this.children.bringToTop(node);
     stops.set("code", { rect: fieldRect, activate: () => field.focus() });
     order.push("code");
 
-    const receive = { id: "receive", label: "Receive", onClick: () => void this.#receive() };
-    const back = { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
+    const receive = { id: "receive", label: t("saveData.button.receive"), onClick: () => void this.#receive() };
+    const back = { id: "back-menu", label: t("saveData.back"), onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
     this.#primary = receive.onClick;
-    return this.#drawPair(x, fieldRect.y + fieldRect.height + 14, fieldRect.width, receive, back, stops, order);
+    return {
+      bottom: this.#drawPair(x, fieldRect.y + fieldRect.height + 14, fieldRect.width, receive, back, stops, order),
+      field: fieldRect,
+    };
   }
 
   #newCodeField(rect: Rect, input: string): McTextInput {
@@ -714,40 +801,38 @@ export class SaveDataOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     order: string[],
   ): number {
+    const b = this.#b;
     const confirm = replaceConfirmOf(file, syncService().isOn());
-    const title = this.add
-      .text(x, top, confirm.title, textStyle(typeRole.sectionHeader, surface.paper.hex))
-      .setWordWrapWidth(rowWidth);
-    const body = this.add
-      .text(x, title.y + title.height + 10, confirm.body, textStyle(typeRole.body, surface.paper.hex, 0.9))
-      .setFontSize(14)
-      .setWordWrapWidth(rowWidth)
-      .setLineSpacing(4);
-    const buttonY = body.y + body.height + 16;
+    const title = b.text(x, top, confirm.title, typeRole.sectionHeader, {
+      color: surface.paper.hex,
+      wrapWidth: rowWidth,
+    });
+    const body = b.text(x, top + title.height + 10, confirm.body, typeRole.body, {
+      size: 14,
+      color: surface.paper.hex,
+      alpha: 0.9,
+      wrapWidth: rowWidth,
+      lineSpacing: 4,
+    });
+    const buttonY = top + title.height + 10 + body.height + 16;
     const buttonWidth = Math.min(180, (rowWidth - 12) / 2);
     const cancelRect: Rect = { x, y: buttonY, width: buttonWidth, height: hit.primary };
     const replaceRect: Rect = { x: x + buttonWidth + 12, y: buttonY, width: buttonWidth, height: hit.primary };
     const cancel = (): void => this.#set({ kind: "menu" }, NO_STATUS);
     const replace = (): void => void this.#replace(file);
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: confirm.cancelLabel,
-        type: buttonType,
-        rect: cancelRect,
-        onClick: cancel,
-      }),
-      // Destructive: the attack red the board uses for damage, never the color alone (the label says Replace).
-      new McButton(this, {
-        kind: "secondary",
-        label: confirm.confirmLabel,
-        type: buttonType,
-        rect: replaceRect,
-        tint: { fill: statHue.atk.hex, ink: surface.paper.hex },
-        onClick: replace,
-      }),
-    );
-    this.#hints.button(this.#buttons.at(-2)!, ["cancel"], "ink");
+    this.#glyphs.button(b, {
+      key: "cancel",
+      rect: cancelRect,
+      label: confirm.cancelLabel,
+      look: "secondary",
+      type: buttonType,
+      ids: ["cancel"],
+      ground: "ink",
+    });
+    // Destructive: the attack red, never the colour alone (the label says Replace).
+    b.button({ key: "replace", rect: replaceRect, label: confirm.confirmLabel, look: "primary", type: buttonType });
+    this.#press("cancel", cancel);
+    this.#press("replace", replace);
     stops.set("cancel", { rect: cancelRect, activate: cancel });
     stops.set("replace", { rect: replaceRect, activate: replace });
     order.push("cancel", "replace");

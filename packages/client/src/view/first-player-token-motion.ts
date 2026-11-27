@@ -4,6 +4,7 @@
  * `ui/first-player-token.ts` draws the token and plays these frames.
  */
 
+import type { MessageKey } from "../i18n/translate.js";
 import type { FirstPlayerTokenMotion } from "../settings.js";
 import { lerp } from "./motion-math.js";
 
@@ -25,12 +26,13 @@ export interface TokenFrame {
   readonly angle: number;
 }
 
-export const FIRST_PLAYER_TOKEN_MOTION_LABELS: Readonly<Record<FirstPlayerTokenMotion, string>> = {
-  toss: "Toss",
-  slide: "Slide",
-  bounce: "Bounce",
-  spin: "Spin",
-  instant: "Instant",
+/** Each style's name on Settings' First player token row, as a catalog key (`t` reads it in the current language). */
+export const FIRST_PLAYER_TOKEN_MOTION_KEYS: Readonly<Record<FirstPlayerTokenMotion, MessageKey>> = {
+  toss: "settings.tokenMotion.toss",
+  slide: "settings.tokenMotion.slide",
+  bounce: "settings.tokenMotion.bounce",
+  spin: "settings.tokenMotion.spin",
+  instant: "settings.tokenMotion.instant",
 };
 
 /** The style a flight actually plays: Reduced motion always places the token without moving it. */

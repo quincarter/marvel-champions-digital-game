@@ -53,6 +53,15 @@ const CHROME_STOPS: ReadonlySet<string> = new Set([
   CHROME_THEME_STOP,
 ]);
 
+/** What the route draws its ring with: `McSelectionRing`, or a DOM twin over a panel (`dom/dom-ring.ts`). */
+export interface FocusRing {
+  show(rect: Rect, mode: "static" | "pulse", reducedMotion: boolean): void;
+  hide(): void;
+  destroy(): void;
+  /** Whether the ring is drawn (`__mcFocusState`'s `ringShown` for e2e). */
+  readonly graphics: { readonly visible: boolean };
+}
+
 export interface FocusStop {
   /**
    * Where the ring frames this stop. A function rather than a fixed `Rect`
@@ -138,6 +147,11 @@ export interface FocusRouteOptions {
   readonly onLog?: () => void;
   /** R3 and the Expand key (F / ;), for a screen with an Expand/Collapse control. No-op (and no key) when omitted. */
   readonly onExpand?: () => void;
+  /**
+   * Draws the focus ring some other way than a Phaser `McSelectionRing`: a screen whose content is a DOM panel over
+   * the canvas (`dom/dom-region.ts`) passes `dom/dom-ring.ts`'s, since nothing Phaser draws can show above the DOM.
+   */
+  readonly ring?: (scene: Phaser.Scene, color: number | undefined) => FocusRing;
   /**
    * The key of the screen's primary commit stop right now (Start, Continue), or null. With nothing focused, Enter / A
    * presses it (`view/primary-activation.ts`); with a stop focused it presses that stop.
@@ -225,7 +239,8 @@ export class FocusRoute {
   #ownOrder: readonly string[] = [];
   #ownStops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
-  #ring: McSelectionRing | null = null;
+  #ring: FocusRing | null = null;
+  readonly #makeRing: (scene: Phaser.Scene, color: number | undefined) => FocusRing;
   #ringColor: number | undefined;
   /** Where the ring was drawn last, to notice a stop that moved under it. */
   #ringRect: Rect | null = null;
@@ -254,6 +269,7 @@ export class FocusRoute {
     const reachAcross = options.reachAcross ?? false;
     this.#reachAcross = typeof reachAcross === "function" ? reachAcross : () => reachAcross;
     this.#topRow = options.topRow ?? false;
+    this.#makeRing = options.ring ?? ((ringScene, color) => new McSelectionRing(ringScene, color, true));
     // The mouse moving hides the ring (it comes back, on the same stop, at the next pad or keyboard input). The change
     // arrives deferred (platform/input-device.ts), never mid-press.
     const unsubscribe = onInputDeviceChange((state) => {
@@ -300,6 +316,9 @@ export class FocusRoute {
     scene.events.on("update", follow);
     const release = (): void => {
       unsubscribe();
+      // A Phaser ring goes with the scene's display list; a DOM one (`dom/dom-ring.ts`) has to be taken down.
+      this.#ring?.destroy();
+      this.#ring = null;
       scene.events.off("update", follow);
       scene.events.off("shutdown", release);
       scene.events.off("destroy", release);
@@ -710,7 +729,7 @@ export class FocusRoute {
     if (!stop || this.#ringHidden) return;
     const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
     this.#ringRect = rect;
-    this.#ring = new McSelectionRing(this.#scene, this.#ringColor, true);
+    this.#ring = this.#makeRing(this.#scene, this.#ringColor);
     if (inView(rect, stop.view)) this.#ring.show(rect, "static", true);
     else this.#ring.hide();
   }

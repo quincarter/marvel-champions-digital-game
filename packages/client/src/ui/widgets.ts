@@ -240,6 +240,8 @@ export interface McButtonOptions {
   readonly label: string;
   readonly type: TypeSpec;
   readonly rect: Rect;
+  /** A press area larger than the drawn `rect` (a small ✕ with a 44px target, `view/hit-rect.ts`); the look and focus ring stay `rect`. */
+  readonly hit?: Rect;
   readonly onClick: () => void;
   /** Shown as the "Why illegal?" line when the button is unavailable. */
   readonly reason?: string;
@@ -336,8 +338,9 @@ export class McButton {
       ? scene.add.text(0, 0, options.value, textStyle(options.type, 0)).setOrigin(1, 0.5)
       : null;
 
+    const press = options.hit ?? rect;
     this.#zone = scene.add
-      .zone(rect.x, rect.y, rect.width, rect.height)
+      .zone(press.x, press.y, press.width, press.height)
       .setOrigin(0, 0)
       // Every control is at least the design's 44px touch target.
       .setInteractive({ useHandCursor: true });
@@ -438,9 +441,10 @@ export class McButton {
 
   update(options: Partial<McButtonOptions>): void {
     this.#options = { ...this.#options, ...options };
-    const { rect } = this.#options;
-    this.#zone.setPosition(rect.x, rect.y).setSize(rect.width, rect.height);
-    this.#zone.input?.hitArea.setSize(rect.width, rect.height);
+    const { rect, hit } = this.#options;
+    const press = hit ?? rect;
+    this.#zone.setPosition(press.x, press.y).setSize(press.width, press.height);
+    this.#zone.input?.hitArea.setSize(press.width, press.height);
     this.redraw();
   }
 
@@ -1255,6 +1259,11 @@ export class McTextInput {
   #coveredByOtherScene = false;
   /** The caller's own last `setVisible` request — combined with `#coveredByOtherScene` in `#applyVisibility`. */
   #requestedVisible = true;
+
+  /** Whether the field is on screen now: asked to show, and no scene running above its own (a panel over it uses this). */
+  get shown(): boolean {
+    return this.#requestedVisible && !this.#coveredByOtherScene;
+  }
   /** The `clip-path` cutting a card hover popover out of the field (`coverWith`), or "" when none overlaps it. */
   #clip = "";
 
@@ -1438,6 +1447,11 @@ export class McTextInput {
     this.#placeholder = placeholder;
     const node = this.#input.node as HTMLInputElement;
     if (node.placeholder !== STEAM_KEYBOARD_HINT) node.placeholder = placeholder;
+  }
+
+  /** Shifts the field `dy` below its rect (a pop-up's box sliding in or out carries its field with it); 0 is home. */
+  slide(dy: number): void {
+    this.#input.setPosition(this.#rect.x, this.#rect.y + dy);
   }
 
   layout(rect: Rect): void {

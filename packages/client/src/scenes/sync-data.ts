@@ -9,6 +9,7 @@
  * region (the screen has none: each step fits the panel), and the typed field is kept through a redraw (a phone's
  * keyboard shrinks the viewport, which redraws the scene, and a new `<input>` would close the keyboard at once).
  */
+import { t } from "../i18n/translate.js";
 import Phaser from "phaser";
 import { hit, signal, statHue, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
@@ -23,31 +24,31 @@ import { countdownOf } from "../view/save-transfer-model.js";
 import {
   COPIED_STATUS,
   COPY_FAILED_STATUS,
-  DELETE_BODY,
-  DELETE_TITLE,
+  deleteBody,
+  deleteTitle,
   DELETED_STATUS,
-  JOIN_HELP,
-  JOIN_LINK_BODY,
-  JOIN_LINK_TITLE,
+  joinHelp,
+  joinLinkBody,
+  joinLinkTitle,
   JOINED_STATUS,
-  LINK_HELP,
-  LINK_TYPE_HELP,
+  linkHelp,
+  linkTypeHelp,
   NO_STATUS,
   RECOVERY_PLACEHOLDER,
-  SETUP_HELP,
-  SETUP_LOCK_NOTICE,
-  SHOW_CODE_HELP,
-  SYNC_OFF_INTRO,
-  SYNC_ON_INTRO,
-  SYNC_ROW_TITLE,
+  setupHelp,
+  setupLockNotice,
+  showCodeHelp,
+  syncOffIntro,
+  syncOnIntro,
+  syncRowTitle,
   UNLINKED_STATUS,
   recoveryCodeText,
   syncFailureStatusOf,
   syncLinkUrlOf,
   syncStatusDisplay,
-  JOIN_LINK_SWITCH_BODY,
-  UNLINK_BODY,
-  UNLINK_TITLE,
+  joinLinkSwitchBody,
+  unlinkBody,
+  unlinkTitle,
   syncStepMustAcknowledge,
   syncStepWorking,
   type SyncStep,
@@ -283,7 +284,9 @@ export class SyncDataOverlay extends Phaser.Scene {
   }
 
   #statusText(): string {
-    return `Status: ${syncStatusDisplay(syncService().isOn(), syncService().status.get(), Date.now())}`;
+    return t("sync.statusLine", {
+      status: syncStatusDisplay(syncService().isOn(), syncService().status.get(), Date.now()),
+    });
   }
 
   // ---- drawing ---------------------------------------------------------------------------------------------------
@@ -347,7 +350,7 @@ export class SyncDataOverlay extends Phaser.Scene {
     if (!locked) this.#hints.button(closeButton, ["cancel"], "ink");
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
     const barTitle = this.add
-      .text(header.x + 16, header.y + header.height / 2, caseOf(typeRole.barTitle, SYNC_ROW_TITLE), {
+      .text(header.x + 16, header.y + header.height / 2, caseOf(typeRole.barTitle, syncRowTitle()), {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
         fontSize: "24px",
       })
@@ -384,14 +387,14 @@ export class SyncDataOverlay extends Phaser.Scene {
         break;
       case "setup":
         y = this.#drawCode(
-          "Your recovery code",
-          SETUP_HELP,
+          t("sync.recoveryCode"),
+          setupHelp(),
           step.phase === "creating" ? null : step.phase.code,
           [
-            { id: "copy", label: "Copy code", onClick: () => this.#copy(recoveryText(step)) },
+            { id: "copy", label: t("saveData.copyCode"), onClick: () => this.#copy(recoveryText(step)) },
             {
               id: "ack",
-              label: "I've saved my code",
+              label: t("sync.savedMyCode"),
               onClick: () => this.#set({ kind: "home" }, NO_STATUS),
             },
           ],
@@ -403,7 +406,7 @@ export class SyncDataOverlay extends Phaser.Scene {
         );
         if (syncStepMustAcknowledge(step)) {
           const notice = this.add
-            .text(x, y + 14, SETUP_LOCK_NOTICE, textStyle(typeRole.body, signal.caution.hex, 0.95))
+            .text(x, y + 14, setupLockNotice(), textStyle(typeRole.body, signal.caution.hex, 0.95))
             .setFontSize(12)
             .setWordWrapWidth(rowWidth);
           y = notice.y + notice.height;
@@ -411,12 +414,12 @@ export class SyncDataOverlay extends Phaser.Scene {
         break;
       case "show-code":
         y = this.#drawCode(
-          "Your recovery code",
-          SHOW_CODE_HELP,
+          t("sync.recoveryCode"),
+          showCodeHelp(),
           step.code,
           [
-            { id: "copy", label: "Copy code", onClick: () => this.#copy(recoveryCodeText(step.code)) },
-            { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
+            { id: "copy", label: t("saveData.copyCode"), onClick: () => this.#copy(recoveryCodeText(step.code)) },
+            { id: "back-menu", label: t("saveData.back"), onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
           ],
           x,
           top,
@@ -433,12 +436,12 @@ export class SyncDataOverlay extends Phaser.Scene {
         break;
       case "join-link":
         y = this.#drawConfirm(
-          JOIN_LINK_TITLE,
-          syncService().isOn() ? JOIN_LINK_SWITCH_BODY : JOIN_LINK_BODY,
+          joinLinkTitle(),
+          syncService().isOn() ? joinLinkSwitchBody() : joinLinkBody(),
           step.phase === "working",
           [
-            { id: "cancel", label: "Cancel", onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
-            { id: "join-link", label: "Join", onClick: () => void this.#joinFromLink() },
+            { id: "cancel", label: t("saveData.cancel"), onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
+            { id: "join-link", label: t("sync.join"), onClick: () => void this.#joinFromLink() },
           ],
           x,
           top,
@@ -449,20 +452,20 @@ export class SyncDataOverlay extends Phaser.Scene {
         break;
       case "unlink":
         y = this.#drawConfirm(
-          UNLINK_TITLE,
-          UNLINK_BODY,
+          unlinkTitle(),
+          unlinkBody(),
           false,
           [
             {
               id: "show-first",
-              label: "Show recovery code first",
+              label: t("sync.showFirst"),
               onClick: () => {
                 const code = syncService().recoveryCode();
                 if (code) this.#set({ kind: "show-code", code }, NO_STATUS);
               },
             },
-            { id: "cancel", label: "Cancel", onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
-            { id: "confirm-unlink", label: "Unlink", onClick: () => void this.#unlink() },
+            { id: "cancel", label: t("saveData.cancel"), onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
+            { id: "confirm-unlink", label: t("sync.unlink"), onClick: () => void this.#unlink() },
           ],
           x,
           top,
@@ -473,12 +476,12 @@ export class SyncDataOverlay extends Phaser.Scene {
         break;
       case "delete":
         y = this.#drawConfirm(
-          DELETE_TITLE,
-          DELETE_BODY,
+          deleteTitle(),
+          deleteBody(),
           step.phase === "working",
           [
-            { id: "cancel", label: "Cancel", onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
-            { id: "confirm-delete", label: "Delete", destructive: true, onClick: () => void this.#delete() },
+            { id: "cancel", label: t("saveData.cancel"), onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
+            { id: "confirm-delete", label: t("sync.delete"), destructive: true, onClick: () => void this.#delete() },
           ],
           x,
           top,
@@ -490,13 +493,13 @@ export class SyncDataOverlay extends Phaser.Scene {
     }
 
     if (this.#status.tone !== "none" || this.#working) {
-      const text = this.#working ? "Working…" : this.#status.text;
+      const text = this.#working ? t("saveData.working") : this.#status.text;
       const error = this.#status.tone === "error" && !this.#working;
       this.add
         .text(
           x,
           y + 16,
-          error ? `Problem: ${text}` : text,
+          error ? t("saveData.problem", { text }) : text,
           textStyle(typeRole.body, error ? signal.caution.hex : surface.paper.hex, 0.95),
         )
         .setFontSize(12)
@@ -557,18 +560,18 @@ export class SyncDataOverlay extends Phaser.Scene {
   }
 
   #drawOff(x: number, top: number, width: number, stops: Map<string, FocusStop>, order: string[]): number {
-    const title = this.#heading("Sync is off", x, top, width);
+    const title = this.#heading(t("sync.heading.off"), x, top, width);
     this.#statusLine = this.add
       .text(x, title.y + title.height + 6, this.#statusText(), textStyle(typeRole.body, surface.paper.hex))
       .setFontSize(14);
-    const intro = this.#paragraph(SYNC_OFF_INTRO, x, this.#statusLine.y + this.#statusLine.height + 10, width);
+    const intro = this.#paragraph(syncOffIntro(), x, this.#statusLine.y + this.#statusLine.height + 10, width);
     this.#startTicker();
     return this.#drawButtons(
       [
-        { id: "sync:setup", label: "Set up sync", onClick: () => void this.#setUp() },
+        { id: "sync:setup", label: t("sync.setUp"), onClick: () => void this.#setUp() },
         {
           id: "sync:join",
-          label: "Join with a recovery code",
+          label: t("sync.joinWithCode"),
           onClick: () => this.#set({ kind: "join", phase: "typing", input: "" }, NO_STATUS),
         },
       ],
@@ -581,35 +584,35 @@ export class SyncDataOverlay extends Phaser.Scene {
   }
 
   #drawOn(x: number, top: number, width: number, stops: Map<string, FocusStop>, order: string[]): number {
-    const title = this.#heading("Sync is on", x, top, width);
+    const title = this.#heading(t("sync.heading.on"), x, top, width);
     this.#statusLine = this.add
       .text(x, title.y + title.height + 6, this.#statusText(), textStyle(typeRole.body, surface.paper.hex))
       .setFontSize(14);
-    const intro = this.#paragraph(SYNC_ON_INTRO, x, this.#statusLine.y + this.#statusLine.height + 10, width);
+    const intro = this.#paragraph(syncOnIntro(), x, this.#statusLine.y + this.#statusLine.height + 10, width);
     this.#startTicker();
     const code = syncService().recoveryCode();
     return this.#drawButtons(
       [
         {
           id: "sync:now",
-          label: "Sync now",
+          label: t("sync.now"),
           enabled: syncService().status.get().state !== "syncing",
           onClick: () => void this.#syncNow(),
         },
-        { id: "sync:link", label: "Link another device", onClick: () => void this.#link() },
+        { id: "sync:link", label: t("sync.linkDevice"), onClick: () => void this.#link() },
         {
           id: "sync:show-code",
-          label: "Show recovery code",
+          label: t("sync.showCode"),
           onClick: () => (code ? this.#set({ kind: "show-code", code }, NO_STATUS) : undefined),
         },
         {
           id: "sync:unlink",
-          label: "Unlink this device",
+          label: t("sync.unlinkDevice"),
           onClick: () => this.#set({ kind: "unlink" }, NO_STATUS),
         },
         {
           id: "sync:delete",
-          label: "Delete cloud data",
+          label: t("sync.deleteCloud"),
           destructive: true,
           onClick: () => this.#set({ kind: "delete", phase: "asking" }, NO_STATUS),
         },
@@ -638,7 +641,7 @@ export class SyncDataOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     order: string[],
   ): number {
-    const heading = this.#heading(code === null ? "Setting up sync" : title, x, top, width);
+    const heading = this.#heading(code === null ? t("sync.settingUp") : title, x, top, width);
     if (code === null) return heading.y + heading.height;
     const text = this.#paragraph(help, x, heading.y + heading.height + 8, width);
     // 29 mono characters ("ABCDE-FGHJK-MNPQR-STUVW-XYZ23") at about 0.62 em each.
@@ -657,9 +660,9 @@ export class SyncDataOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     order: string[],
   ): number {
-    const title = this.#heading("Join with a recovery code", x, top, width);
+    const title = this.#heading(t("sync.joinWithCode"), x, top, width);
     if (step.phase === "working") return title.y + title.height;
-    const help = this.#paragraph(JOIN_HELP, x, title.y + title.height + 8, width);
+    const help = this.#paragraph(joinHelp(), x, title.y + title.height + 8, width);
     const fieldRect: Rect = { x, y: help.y + help.height + 14, width: Math.min(width, 440), height: hit.primary };
     const field = this.#field ?? this.#newField(fieldRect, step.input);
     field.layout(fieldRect);
@@ -667,8 +670,8 @@ export class SyncDataOverlay extends Phaser.Scene {
     order.push("code");
     return this.#drawButtons(
       [
-        { id: "join-go", label: "Join", onClick: () => void this.#join() },
-        { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
+        { id: "join-go", label: t("sync.join"), onClick: () => void this.#join() },
+        { id: "back-menu", label: t("saveData.back"), onClick: () => this.#set({ kind: "home" }, NO_STATUS) },
       ],
       x,
       fieldRect.y + fieldRect.height + 14,
@@ -709,19 +712,14 @@ export class SyncDataOverlay extends Phaser.Scene {
   ): number {
     const wide = width >= WIDE_ROW;
     const column = wide ? width - WIDE_QR - 24 : width;
-    const title = this.#heading("Link another device", x, top, column);
+    const title = this.#heading(t("sync.linkDevice"), x, top, column);
     const phase = step.phase;
     if (phase === "uploading") return title.y + title.height;
 
     const short = bodyBottom - top < 360;
-    const help = this.#paragraph(
-      short ? "Scan this QR code with the other device's camera." : LINK_HELP,
-      x,
-      title.y + title.height + 8,
-      column,
-    );
+    const help = this.#paragraph(short ? t("sync.scanShort") : linkHelp(), x, title.y + title.height + 8, column);
     let y = help.y + help.height + 10;
-    const orType = this.#paragraph(LINK_TYPE_HELP, x, y, column);
+    const orType = this.#paragraph(linkTypeHelp(), x, y, column);
     y = orType.y + orType.height + 6;
     // The typed link code, big, for a device with no camera.
     const typed = this.add
@@ -746,9 +744,9 @@ export class SyncDataOverlay extends Phaser.Scene {
     y += this.#countdown.height + 12;
 
     const buttons: ButtonSpec[] = [];
-    if (left.expired) buttons.push({ id: "new-link", label: "New link", onClick: () => void this.#link() });
-    else buttons.push({ id: "copy", label: "Copy code", onClick: () => this.#copy(phase.typed) });
-    buttons.push({ id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "home" }, NO_STATUS) });
+    if (left.expired) buttons.push({ id: "new-link", label: t("sync.newLink"), onClick: () => void this.#link() });
+    else buttons.push({ id: "copy", label: t("saveData.copyCode"), onClick: () => this.#copy(phase.typed) });
+    buttons.push({ id: "back-menu", label: t("saveData.back"), onClick: () => this.#set({ kind: "home" }, NO_STATUS) });
     return Math.max(qrBottom, this.#drawButtons(buttons, x, y, column, stops, order));
   }
 

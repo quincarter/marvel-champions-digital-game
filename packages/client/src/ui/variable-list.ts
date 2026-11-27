@@ -121,6 +121,14 @@ export class McVariableList {
     return this.#heights.length;
   }
 
+  /**
+   * Something the drawn rows wait for has arrived (card art): each row with a `refresh` fills itself in, as
+   * `McVirtualList#refreshRows`.
+   */
+  refreshRows(): void {
+    for (const row of this.#rows.values()) row.refresh?.();
+  }
+
   get isDragSuppressingClick(): boolean {
     return this.#drag.isDragging && this.#drag.movedPastThreshold;
   }

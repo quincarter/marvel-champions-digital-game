@@ -9,39 +9,45 @@
  * Launched over Settings (`scenes/settings.ts`), the same ink-and-paper panel shape; ✕ or Escape stops only this
  * overlay, back to Settings. Rows and wording come from `view/unlocks-model.ts`; this scene draws them and saves a
  * choice through `setUnlockPrefs`, which every picker reads the next time it draws.
+ *
+ * **A Lit panel over the canvas** (`mc-sheet`, `dom/popup-sheet.ts`, `dom/sheet-builder.ts`), at the rects the Phaser
+ * screen drew: the ink panel and its header (title, "How it works", ✕ with its Cancel glyph), the points text, the two
+ * switch rows and the list, scrolled natively. The scene keeps the press shield, the entrance and exit motion, the
+ * focus route (ring in the panel layer, `dom/dom-ring.ts`) and the choices.
  */
+import { hitRectAround } from "../view/hit-rect.js";
 import Phaser from "phaser";
-import { ink, surface, typeRole } from "../tokens.js";
-import { caseOf, textStyle } from "../ui/theme.js";
-import { McButton, fitText, fitWrapped, label } from "../ui/widgets.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { overlayPanelLayout } from "../view/overlay-layout.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { PopupSheet } from "../dom/popup-sheet.js";
+import { SheetBuilder } from "../dom/sheet-builder.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { t } from "../i18n/translate.js";
+import { onLanguageChange } from "../language-change.js";
+import { hit, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { destroyChildren } from "../ui/destroy-children.js";
+import { isDesktopType } from "../ui/desktop-type.js";
+import { OverlayMotion } from "../ui/transitions.js";
 import { formFactorFor, toggleRowHeight, type Rect } from "../view/layout.js";
-import { ListScroll } from "../view/list-scroll.js";
-import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { McScrollRegion } from "../ui/scroll-region.js";
+import { overlayPanelLayout } from "../view/overlay-layout.js";
 import { progressionGuideOf } from "../view/progression-guide.js";
 import {
   pointsRowOf,
+  printAndPlayRowOf,
+  printAndPlayTapOf,
   rowTapOf,
   switchLabel,
   switchToggleable,
   tapOf,
-  printAndPlayRowOf,
-  printAndPlayTapOf,
   unlockAllRowOf,
-  type UnlockAllRow,
   unlockListRowsOf,
+  type UnlockAllRow,
   type UnlockListRow,
   type UnlockTap,
 } from "../view/unlocks-model.js";
-import { askToUnlock } from "./unlock-confirm.js";
 import { setUnlockPrefs, unlocks } from "../progression/progression.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
-import { destroyChildren } from "../ui/destroy-children.js";
-import { OverlayMotion } from "../ui/transitions.js";
+import { askToUnlock } from "./unlock-confirm.js";
 
 const HEADER_HEIGHT = 60;
 const ROW_HEIGHT = 48;
@@ -49,6 +55,11 @@ const PILL_WIDTH = 84;
 const PILL_HEIGHT = 28;
 /** Room at each row's right edge for the list's own scrollbar. */
 const GUTTER = 14;
+/** The scrolling keys in the panel. */
+const LIST = "list";
+const GUIDE = "guide-text";
+
+const BODY: TypeSpec = typeRole.body;
 
 /** Launch data, for a Settings search result: a row to show, or a section of "How it works" to open on. */
 export interface UnlocksSceneData {
@@ -57,18 +68,17 @@ export interface UnlocksSceneData {
 }
 
 export class UnlocksOverlay extends Phaser.Scene {
-  #buttons: McButton[] = [];
-  #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
-  #hints!: GlyphHints;
+  #panel!: PopupSheet;
+  #glyphs!: SheetGlyphs;
   #motion = new OverlayMotion();
   /** Showing "How it works" (`view/progression-guide.ts`) in place of the switches. */
   #guide = false;
-  #guideRegion: McScrollRegion | null = null;
-  readonly #guideScroll = new VariableListScroll();
   /** Where each guide section starts, from the top of the text. */
   #guideTops: number[] = [];
-  readonly #scroll = new ListScroll();
+  /** What each key in the panel does when pressed, this draw. */
+  #actions = new Map<string, () => void>();
+  #viewport: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
   constructor() {
     super(SCENES.unlocks);
@@ -81,45 +91,40 @@ export class UnlocksOverlay extends Phaser.Scene {
     // A search result that opened on the guide backs out to the search, as it came.
     const cameForGuide = data.guideSection !== undefined;
     this.#guide = cameForGuide;
-    this.#guideScroll.reset();
-    this.#scroll.reset();
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#hints = new GlyphHints(this);
+    const offLanguage = onLanguageChange(onResize);
+    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.());
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       blocked: () => this.scene.isActive(SCENES.unlockConfirm),
       // LB / RB switch between the switches and "How it works"; PageUp / PageDown page the list or the text.
       onTab: (direction) => {
         if (this.#guide !== (direction === 1)) this.#showGuide(direction === 1);
       },
-      onHomeEnd: (edge) => {
-        if (this.#guide) this.#guideRegion?.scrollByPx(edge === "home" ? -1e6 : 1e6);
-        else if (edge === "home") this.#list?.scrollToStart();
-        else this.#list?.scrollToEnd();
-      },
+      onHomeEnd: (edge) => this.#scroller()?.scrollTo({ top: edge === "home" ? 0 : 1e6 }),
       onCancel: () => (this.#guide && !cameForGuide ? this.#showGuide(false) : this.#close()),
-      onPage: (direction) => {
-        if (this.#guide) this.#guideRegion?.scrollByPx(direction * 240);
-        else this.#list?.scrollByPage(direction);
-      },
-      onScroll: (_dx, dy) => (this.#guide ? this.#guideRegion : this.#list)?.scrollByPx(dy),
+      onPage: (direction) => this.#scroller()?.scrollBy({ top: direction * Math.max(120, this.#viewport.height - 60) }),
+      onScroll: (_dx, dy) => this.#scroller()?.scrollBy({ top: dy }),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.#hints.dispose();
+      this.#glyphs.dispose();
       this.scale.off("resize", onResize, this);
-      for (const button of this.#buttons) button.destroy();
-      this.#buttons = [];
-      this.#list = null;
+      offLanguage();
     });
     this.#draw();
-    if (data.guideSection !== undefined) this.#guideRegion?.scrollByPx(this.#guideTops[data.guideSection] ?? 0);
+    if (data.guideSection !== undefined) this.#scroller()?.scrollTo({ top: this.#guideTops[data.guideSection] ?? 0 });
     if (data.row !== undefined) this.#showRow(data.row);
+  }
+
+  #scroller(): HTMLElement | null {
+    return this.#panel.element?.elementOf(this.#guide ? GUIDE : LIST) ?? null;
   }
 
   /** Brings a row into view and puts the ring on it (a Settings search result). A scenario row has no stop: in view only. */
   #showRow(id: string): void {
-    const index = unlockListRowsOf(unlocks()).findIndex((row) => row.id === id);
-    if (index >= 0) this.#list?.scrollIntoView(index);
+    this.#panel.element?.elementOf(`row:${id}`)?.scrollIntoView({ block: "nearest" });
     this.#route?.focusKey(`row:${id}`);
   }
 
@@ -136,7 +141,6 @@ export class UnlocksOverlay extends Phaser.Scene {
 
   #showGuide(on: boolean): void {
     this.#guide = on;
-    this.#guideScroll.reset();
     this.#draw();
   }
 
@@ -154,16 +158,33 @@ export class UnlocksOverlay extends Phaser.Scene {
     this.#apply(rowTapOf(unlocks(), row));
   }
 
+  /** A key's press, and the stop for a part inside the scrolling list (its box is read off the panel). */
+  #press(key: string, action: () => void): void {
+    this.#actions.set(key, action);
+  }
+
+  #listStop(key: string, activate: () => void): FocusStop {
+    const region = this.#panel;
+    const viewport = (): Rect => {
+      const list = region.element?.elementOf(LIST);
+      return (list && region.rectOf(list)) || this.#viewport;
+    };
+    return {
+      rect: () => {
+        const found = region.element?.elementOf(key);
+        return (found && region.rectOf(found)) || viewport();
+      },
+      view: viewport,
+      activate,
+      ensureVisible: () => region.element?.elementOf(key)?.scrollIntoView({ block: "nearest" }),
+    };
+  }
+
   #draw(): void {
     if (this.#motion.leaving) return;
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-    this.#list?.destroy();
-    this.#list = null;
-    this.#guideRegion?.destroy();
-    this.#guideRegion = null;
     destroyChildren(this);
-    this.#hints.reset();
+    this.#glyphs.reset();
+    this.#actions = new Map();
 
     const { width, height } = this.scale.gameSize;
     const { panel, header, body } = overlayPanelLayout({ x: 0, y: 0, width, height }, HEADER_HEIGHT, 0);
@@ -172,16 +193,18 @@ export class UnlocksOverlay extends Phaser.Scene {
     const allRow = unlockAllRowOf(current);
     const rows = unlockListRowsOf(current);
 
-    // Swallows every tap that lands on no control of this overlay's own — the list's rows are tapped through
-    // scene-level pointer events, which would otherwise also reach Settings, Pause or the Board underneath.
+    // Swallows every press that lands on no control of this overlay's own, so none reaches Settings, Pause or the Board.
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    const scrim = this.add.graphics();
-    scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
-    const panelsFrom = this.children.list.length;
-    const ground = this.add.graphics();
-    ground.fillStyle(surface.ink.hex, 1).fillRect(panel.x, panel.y, panel.width, panel.height);
-    ground.lineStyle(4, surface.paper.hex, 1).strokeRect(panel.x, panel.y, panel.width, panel.height);
-    ground.fillStyle(surface.paper.hex, 0.4).fillRect(header.x, header.y + header.height - 2, header.width, 2);
+    // Nothing drawn: the entrance and exit tween this, and the panel rises and fades with it (`DomRegion.follow`).
+    const anchor = this.add.graphics();
+    // Before the first mount: the sheet then has this anchor as its one motion owner (no built-in slide on top).
+    this.#panel.follow(anchor);
+    const b = this.#panel.begin(width, height);
+    b.box(panel, { fill: surface.ink.hex, stroke: surface.paper.hex, strokeWidth: 4 });
+    b.box(
+      { x: header.x, y: header.y + header.height - 2, width: header.width, height: 2 },
+      { fill: surface.paper.hex, fillAlpha: 0.4 },
+    );
 
     const stops = new Map<string, FocusStop>();
     const closeSize = 32;
@@ -191,69 +214,64 @@ export class UnlocksOverlay extends Phaser.Scene {
       width: closeSize,
       height: closeSize,
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "✕",
-        type: typeRole.rowTitle,
-        rect: closeRect,
-        onClick: () => this.#close(),
-      }),
-    );
-    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
+    this.#glyphs.button(b, {
+      key: "back",
+      rect: closeRect,
+      label: "✕",
+      look: "secondary",
+      type: typeRole.rowTitle,
+      ids: ["cancel"],
+      ground: "ink",
+    });
+    this.#press("back", () => this.#close());
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
-    this.add
-      .text(
-        header.x + 16,
-        header.y + header.height / 2,
-        caseOf(typeRole.barTitle, this.#guide ? "How it works" : "Unlocks"),
-        {
-          ...textStyle(typeRole.barTitle, surface.paper.hex),
-          fontSize: "24px",
-        },
-      )
-      .setOrigin(0, 0.5);
+    // The drawn ✕ is small: a 44px press area around it, inside the header.
+    this.#press("back:hit", () => this.#close());
+    b.tap("back:hit", hitRectAround(closeRect, hit.target, header));
+    b.text(
+      header.x + 16,
+      header.y + header.height / 2,
+      this.#guide ? t("unlocks.guideTitle") : t("settings.unlocks.title"),
+      typeRole.barTitle,
+      { size: 24, color: surface.paper.hex, origin: [0, 0.5] },
+    );
 
     // The door between the switches and the explanation of what they mean.
     const guideRect: Rect = { x: closeRect.x - 12 - 128, y: closeRect.y, width: 128, height: closeRect.height };
     const toggleGuide = (): void => this.#showGuide(!this.#guide);
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "quiet",
-        label: this.#guide ? "◂ Unlocks" : "How it works",
-        type: typeRole.label,
-        rect: guideRect,
-        onClick: toggleGuide,
-      }),
-    );
-    // LB / RB (and the zone keys) flip between the two views.
-    this.#hints.button(this.#buttons.at(-1)!, [this.#guide ? "zonePrevious" : "zoneNext"], "ink");
+    this.#glyphs.button(b, {
+      key: "guide",
+      rect: guideRect,
+      label: this.#guide ? "◂ " + t("settings.unlocks.title") : t("unlocks.guideTitle"),
+      look: "quiet",
+      type: typeRole.label,
+      // LB / RB (and the zone keys) flip between the two views.
+      ids: [this.#guide ? "zonePrevious" : "zoneNext"],
+      ground: "ink",
+    });
+    this.#press("guide", toggleGuide);
     stops.set("guide", { rect: guideRect, activate: toggleGuide });
 
     if (this.#guide) {
-      this.#drawGuide({ x: body.x + 16, y: body.y + 12, width: body.width - 32, height: body.height - 24 });
+      this.#drawGuide(b, { x: body.x + 16, y: body.y + 12, width: body.width - 32, height: body.height - 24 });
+      this.#panel.mount(b, width, height);
       this.#route?.set(["back", "guide"], stops);
-      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      this.#enter(anchor);
       return;
     }
 
     // Champion points: the reason to play for it rather than switch it on.
     const rowWidth = body.width - 32;
-    const pointsTitle = this.add.text(
-      body.x + 16,
-      body.y + 12,
-      pointsRow.title,
-      textStyle(typeRole.sectionHeader, surface.paper.hex),
-    );
-    const pointsDetail = this.add
-      .text(
-        body.x + 16,
-        pointsTitle.y + pointsTitle.height + 4,
-        pointsRow.detail,
-        textStyle(typeRole.body, surface.paper.hex, 0.8),
-      )
-      .setFontSize(10)
-      .setWordWrapWidth(rowWidth);
+    const pointsTitle = b.text(body.x + 16, body.y + 12, pointsRow.title, typeRole.sectionHeader, {
+      color: surface.paper.hex,
+    });
+    const pointsDetail = b.text(body.x + 16, body.y + 12 + pointsTitle.height + 4, pointsRow.detail, BODY, {
+      size: 10,
+      color: surface.paper.hex,
+      alpha: 0.8,
+      wrapWidth: rowWidth,
+    });
+    const pointsBottom = body.y + 12 + pointsTitle.height + 4 + pointsDetail.height;
 
     // Switch rows ("Unlock everything", then the print-and-play opt-in): the same row shape as Settings' own toggles.
     const switchRow = (key: string, row: UnlockAllRow, y: number, onTap: () => void): Rect => {
@@ -263,31 +281,37 @@ export class UnlocksOverlay extends Phaser.Scene {
         width: rowWidth,
         height: toggleRowHeight(row.detail, rowWidth, formFactorFor(width, height) === "desktop"),
       };
-      label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-      this.add
-        .text(rect.x, rect.y + 20, row.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-        .setFontSize(10)
-        .setWordWrapWidth(rect.width - 100);
+      b.text(rect.x, rect.y + 2, row.title, typeRole.label, {
+        size: 12,
+        color: surface.paper.hex,
+        alpha: ink.secondary,
+        fitWidth: rect.width - 100,
+      });
+      b.text(rect.x, rect.y + 20, row.detail, BODY, {
+        size: 10,
+        color: surface.paper.hex,
+        alpha: 0.8,
+        wrapWidth: rect.width - 100,
+      });
       const toggle: Rect = {
         x: rect.x + rect.width - PILL_WIDTH,
         y: rect.y + (rect.height - 32) / 2,
         width: PILL_WIDTH,
         height: 32,
       };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: row.on ? "secondary" : "quiet",
-          label: row.on ? "ON" : "OFF",
-          type: typeRole.label,
-          rect: toggle,
-          selected: row.on,
-          onClick: onTap,
-        }),
-      );
+      b.button({
+        key,
+        rect: toggle,
+        label: row.on ? t("settings.toggleOn") : t("settings.toggleOff"),
+        look: row.on ? "secondary" : "quiet",
+        selected: row.on,
+        type: typeRole.label,
+      });
+      this.#press(key, onTap);
       stops.set(key, { rect, activate: onTap });
       return rect;
     };
-    const allRect = switchRow("row:all", allRow, pointsDetail.y + pointsDetail.height + 14, () => this.#toggleAll());
+    const allRect = switchRow("row:all", allRow, pointsBottom + 14, () => this.#toggleAll());
     const pnpRect = switchRow("row:pnp", printAndPlayRowOf(current), allRect.y + allRect.height, () =>
       this.#togglePrintAndPlay(),
     );
@@ -299,159 +323,177 @@ export class UnlocksOverlay extends Phaser.Scene {
       width: rowWidth,
       height: Math.max(ROW_HEIGHT, body.y + body.height - listTop - 12),
     };
+    this.#viewport = listRect;
 
-    const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderRow(rows[index]!, rect);
-    let list: McVirtualList;
     const order: string[] = ["back", "guide", "row:all", "row:pnp"];
-    rows.forEach((row, index) => {
-      if (row.kind !== "hero" && row.kind !== "campaign") return;
+    b.scroll(LIST, listRect, rows.length * ROW_HEIGHT, (inner) => {
+      rows.forEach((row, index) =>
+        this.#renderRow(inner, row, {
+          x: listRect.x,
+          y: index * ROW_HEIGHT,
+          width: listRect.width,
+          height: ROW_HEIGHT,
+        }),
+      );
+    });
+    for (const row of rows) {
+      if (row.kind !== "hero" && row.kind !== "campaign") continue;
       order.push(`row:${row.id}`);
-      stops.set(`row:${row.id}`, {
-        rect: () => list.rectFor(index),
-        activate: () => this.#tap(row),
-        ensureVisible: () => list.scrollIntoView(index),
-      });
-    });
-    list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight: ROW_HEIGHT,
-      count: rows.length,
-      scroll: this.#scroll,
-      background: false,
-      renderRow,
-      onRowActivate: (index) => this.#tap(rows[index]!),
-    });
-    this.#list = list;
-
+      stops.set(
+        `row:${row.id}`,
+        this.#listStop(`row:${row.id}`, () => this.#tap(row)),
+      );
+    }
+    this.#panel.mount(b, width, height);
     this.#route?.set(order, stops);
-    this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+    this.#enter(anchor);
+  }
+
+  #enter(anchor: Phaser.GameObjects.Graphics): void {
+    this.#motion.enter(this, { scrim: [], panels: [anchor] });
   }
 
   /** "How it works": every section of the guide, top to bottom, in one scrolling region. */
-  #drawGuide(rect: Rect): void {
-    const before = this.children.list.length;
+  #drawGuide(b: SheetBuilder, rect: Rect): void {
+    this.#viewport = rect;
     const textWidth = rect.width - 16;
-    let y = rect.y;
     this.#guideTops = [];
+    // The region's height is only known once the text is measured, so its parts are built first and handed over.
+    const inner = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+    let y = 0;
     for (const section of progressionGuideOf()) {
-      this.#guideTops.push(y - rect.y);
-      const heading = this.add
-        .text(rect.x, y, section.heading, textStyle(typeRole.sectionHeader, surface.paper.hex))
-        .setWordWrapWidth(textWidth);
+      this.#guideTops.push(y);
+      const heading = inner.text(0, y, section.heading, typeRole.sectionHeader, {
+        color: surface.paper.hex,
+        wrapWidth: textWidth,
+      });
       y += heading.height + 6;
       for (const paragraph of section.paragraphs) {
-        const text = this.add
-          .text(rect.x, y, paragraph, textStyle(typeRole.body, surface.paper.hex, 0.85))
-          .setFontSize(12)
-          .setWordWrapWidth(textWidth)
-          .setLineSpacing(2);
+        const text = inner.text(0, y, paragraph, BODY, {
+          size: 12,
+          color: surface.paper.hex,
+          alpha: 0.85,
+          wrapWidth: textWidth,
+          lineSpacing: 2,
+        });
         y += text.height + 6;
       }
       for (const bullet of section.bullets) {
-        const dot = this.add
-          .text(rect.x + 4, y, "•", textStyle(typeRole.body, surface.paper.hex, 0.85))
-          .setFontSize(12);
-        const text = this.add
-          .text(rect.x + 18, y, bullet, textStyle(typeRole.body, surface.paper.hex, 0.85))
-          .setFontSize(12)
-          .setWordWrapWidth(textWidth - 18)
-          .setLineSpacing(2);
+        const dot = inner.text(4, y, "•", BODY, { size: 12, color: surface.paper.hex, alpha: 0.85 });
+        const text = inner.text(18, y, bullet, BODY, {
+          size: 12,
+          color: surface.paper.hex,
+          alpha: 0.85,
+          wrapWidth: textWidth - 18,
+          lineSpacing: 2,
+        });
         y += Math.max(dot.height, text.height) + 4;
       }
       y += 14;
     }
-    const contentHeight = Math.max(1, y - rect.y);
-    const added = this.children.list.slice(before);
-    this.#guideRegion = new McScrollRegion(this, { rect, heights: [contentHeight], scroll: this.#guideScroll });
-    this.#guideRegion.content.add(added);
+    b.scroll(GUIDE, rect, Math.max(1, y), (target) => {
+      target.nodes.push(...inner.nodes);
+    });
   }
 
-  #renderRow(row: UnlockListRow, rect: Rect): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
+  #renderRow(b: SheetBuilder, row: UnlockListRow, rect: Rect): void {
     const midY = rect.y + ROW_HEIGHT / 2;
     const right = rect.x + rect.width - GUTTER;
     if (row.kind === "section") {
       // A long section title wraps onto a second line (stepping the type down first), sitting on the row's foot.
-      const heading = label(this, rect.x, rect.y, row.title, typeRole.label, surface.paper.hex);
-      fitWrapped(heading, rect.width - GUTTER, 2, typeRole.label.size);
-      heading.setY(rect.y + ROW_HEIGHT - 6 - Math.ceil(heading.height));
-      objects.push(heading);
-      return { objects };
+      const wrap = rect.width - GUTTER;
+      const lines = b.measure(row.title, typeRole.label, { wrapWidth: wrap });
+      b.text(rect.x, rect.y + ROW_HEIGHT - 6 - Math.ceil(lines.height), row.title, typeRole.label, {
+        color: surface.paper.hex,
+        alpha: ink.label,
+        wrapWidth: wrap,
+        maxLines: 2,
+      });
+      return;
     }
     if (row.kind === "wave") {
-      const title = label(this, rect.x, midY - 2, row.title, typeRole.sectionHeader, surface.paper.hex, 1).setOrigin(
-        0,
-        0.5,
-      );
-      const status = label(
-        this,
-        right,
-        midY - 2,
-        row.status,
-        typeRole.label,
-        surface.paper.hex,
-        row.open ? ink.secondary : 0.8,
-      )
-        .setOrigin(1, 0.5)
-        .setFontSize(10);
+      const title = b.measure(row.title, typeRole.sectionHeader);
+      const statusAlpha = row.open ? ink.secondary : 0.8;
+      const status = b.measure(row.status, typeRole.label, { size: 10 });
       // A long lock reason gives way to the wave's own name rather than running over it: when it has too little room
       // beside the title it drops under it (left-aligned, wrapped to the row's width), never squeezed into a sliver.
       const room = rect.width - GUTTER - title.width - 16;
       let ruleY = rect.y + ROW_HEIGHT - 6;
-      if (status.width > room) {
-        if (room >= 140) status.setWordWrapWidth(room).setFontSize(9);
-        else {
-          title.setY(rect.y + 13);
-          status
-            .setOrigin(0, 0)
-            .setPosition(rect.x, rect.y + 25)
-            .setFontSize(9);
-          status.setWordWrapWidth(rect.width - GUTTER);
-          ruleY = rect.y + ROW_HEIGHT - 1;
-        }
+      b.box({ x: rect.x, y: rect.y, width: 1, height: 1 }, { key: `row:${row.id}` });
+      if (status.width > room && room < 140) {
+        b.text(rect.x, rect.y + 13, row.title, typeRole.sectionHeader, { color: surface.paper.hex, origin: [0, 0.5] });
+        b.text(rect.x, rect.y + 25, row.status, typeRole.label, {
+          size: 9,
+          color: surface.paper.hex,
+          alpha: statusAlpha,
+          wrapWidth: rect.width - GUTTER,
+        });
+        ruleY = rect.y + ROW_HEIGHT - 1;
+      } else {
+        b.text(rect.x, midY - 2, row.title, typeRole.sectionHeader, { color: surface.paper.hex, origin: [0, 0.5] });
+        const wrapped = status.width > room;
+        b.text(right, midY - 2, row.status, typeRole.label, {
+          size: wrapped ? 9 : 10,
+          color: surface.paper.hex,
+          alpha: statusAlpha,
+          origin: [1, 0.5],
+          ...(wrapped ? { wrapWidth: room, align: "right" as const } : {}),
+        });
       }
-      const rule = this.add.graphics();
-      rule.fillStyle(surface.paper.hex, 0.25).fillRect(rect.x, ruleY, rect.width - GUTTER, 1);
-      objects.push(rule, title, status);
-      return { objects };
+      b.box(
+        { x: rect.x, y: ruleY, width: rect.width - GUTTER, height: 1 },
+        { fill: surface.paper.hex, fillAlpha: 0.25 },
+      );
+      return;
     }
 
     const textWidth = rect.width - GUTTER - PILL_WIDTH - 24;
-    const title = this.add
-      .text(rect.x + 12, midY - 9, row.title, textStyle(typeRole.body, surface.paper.hex, 0.95))
-      .setOrigin(0, 0.5)
-      .setFontSize(14);
-    // A long scenario name ("Scenario · Collector (Infiltrate the Museum)") steps its type down to the room beside the pill.
-    fitText(title, textWidth, 14);
-    const detail = this.add
-      .text(rect.x + 12, midY + 10, row.detail, textStyle(typeRole.body, surface.paper.hex, 0.6))
-      .setOrigin(0, 0.5)
-      .setFontSize(10);
-    if (detail.width > textWidth) detail.setFontSize(9);
-    // Still too long on a phone: wrap to a second line under a title lifted a little, never cut.
-    if (detail.width > textWidth) {
-      title.setY(midY - 13);
-      detail
-        .setOrigin(0, 0)
-        .setY(midY - 1)
-        .setWordWrapWidth(textWidth);
+    b.text(rect.x + 12, midY - 9, row.title, BODY, {
+      size: 14,
+      color: surface.paper.hex,
+      alpha: 0.95,
+      origin: [0, 0.5],
+      fitWidth: textWidth,
+    });
+    // A long detail steps its type down to the room beside the pill; still too long on a phone, it wraps to a second
+    // line under a title lifted a little, never cut.
+    const small = b.measure(row.detail, BODY, { size: 10 }).width;
+    const tiny = small > textWidth ? b.measure(row.detail, BODY, { size: 9 }).width : small;
+    if (tiny > textWidth) {
+      b.text(rect.x + 12, midY - 1, row.detail, BODY, {
+        size: 9,
+        color: surface.paper.hex,
+        alpha: 0.6,
+        wrapWidth: textWidth,
+      });
+    } else {
+      b.text(rect.x + 12, midY + 10, row.detail, BODY, {
+        size: small > textWidth ? 9 : 10,
+        color: surface.paper.hex,
+        alpha: 0.6,
+        origin: [0, 0.5],
+      });
     }
     const toggleable = switchToggleable(row.state);
     const on = row.state === "on";
     const pill: Rect = { x: right - PILL_WIDTH, y: midY - PILL_HEIGHT / 2, width: PILL_WIDTH, height: PILL_HEIGHT };
-    const g = this.add.graphics();
-    if (on) g.fillStyle(surface.paper.hex, 1).fillRect(pill.x, pill.y, pill.width, pill.height);
-    g.lineStyle(1.5, surface.paper.hex, toggleable ? 1 : 0.4).strokeRect(pill.x, pill.y, pill.width, pill.height);
-    const pillText = label(
-      this,
-      pill.x + pill.width / 2,
-      midY,
-      switchLabel(row.state),
-      typeRole.label,
-      on ? surface.ink.hex : surface.paper.hex,
-      toggleable ? 1 : 0.55,
-    ).setOrigin(0.5, 0.5);
-    objects.push(title, detail, g, pillText);
-    return { objects };
+    b.box(pill, {
+      ...(on ? { fill: surface.paper.hex } : {}),
+      stroke: surface.paper.hex,
+      strokeWidth: 1.5,
+      ...(toggleable ? {} : { alpha: 0.4 }),
+    });
+    b.text(pill.x + pill.width / 2, midY, switchLabel(row.state), typeRole.label, {
+      color: on ? surface.ink.hex : surface.paper.hex,
+      alpha: toggleable ? 1 : 0.55,
+      origin: [0.5, 0.5],
+    });
+    const key = `row:${row.id}`;
+    if (row.kind === "hero" || row.kind === "campaign") {
+      b.tap(key, rect);
+      this.#press(key, () => this.#tap(row));
+    } else {
+      b.box({ x: rect.x, y: rect.y, width: 1, height: 1 }, { key });
+    }
   }
 }

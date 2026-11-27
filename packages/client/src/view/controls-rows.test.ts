@@ -25,7 +25,7 @@ import {
   padFamilyRowInfoOf,
   padRowsOf,
   padStatusOf,
-  STEAM_NINTENDO_DETAIL,
+  steamNintendoDetail,
 } from "./controls-rows.js";
 import { detectPad } from "./pad-family.js";
 
@@ -59,7 +59,7 @@ describe("controls rows", () => {
     const info = nintendoToggleInfoOf({ ...defaultSettings(), nintendoLayout: true }, deck);
     expect(info.locked?.chip).toBe("STEAM");
     expect(info.on).toBe(false);
-    expect(info.detail).toBe(STEAM_NINTENDO_DETAIL);
+    expect(info.detail).toBe(steamNintendoDetail());
     expect(nintendoToggleInfoOf(defaultSettings(), xbox).locked).toBeUndefined();
   });
 

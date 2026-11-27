@@ -32,7 +32,7 @@ import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
 import { onArtChange, onLanguageChange } from "../language-change.js";
-import { releasePackArt } from "./pack-art.js";
+import { currentPackArt, isPackArtKey, leasePackUrl, releasePackArt, type PackUrlLease } from "./pack-art.js";
 import { artBudgetBytes } from "./memory-budget.js";
 import { decodedBakedPicture } from "./picture-bake-client.js";
 import type { Size } from "./grayscale.js";
@@ -80,6 +80,7 @@ const FULL_SLOT: Size = { width: 1, height: 1400 };
 const FULL_SUFFIX = "#full";
 /** The full-size copy's texture key, beside the table copy (which keeps the source's own key). */
 const fullKeyOf = (key: string): string => `${key}${FULL_SUFFIX}`;
+const tableKeyOf = (key: string): string => (key.endsWith(FULL_SUFFIX) ? key.slice(0, -FULL_SUFFIX.length) : key);
 /** Decodes running at once. A cold screen asks for dozens of scans; each decode holds the whole scan while it runs. */
 const MAX_DECODES = 4;
 
@@ -115,6 +116,9 @@ export function cardArt(scene: Phaser.Scene): CardArt {
 /** How long arrivals are gathered before the screens showing them redraw. Short enough to read as "the art popped in". */
 const ARRIVAL_WINDOW_MS = 120;
 
+/** Why `CardArt.onArrived` listeners are called: scans landed, or every face may have a new source. */
+export type ArtRedraw = "arrival" | "all";
+
 /**
  * What this cache tracks is deliberately *not* "has this scan arrived" — the
  * texture manager already knows that, and a second answer to the same question
@@ -134,7 +138,7 @@ export class CardArt {
   readonly #requested = new Set<string>();
   /** Keys the server has no scan for. The generated frame is the answer for these. */
   readonly #missing = new Set<string>();
-  readonly #listeners = new Set<() => void>();
+  readonly #listeners = new Set<(why: ArtRedraw) => void>();
   /** The source behind each table copy, so `upgrade` can fetch its full-size copy. */
   readonly #sources = new Map<string, ArtSource>();
   /** Decoded byte size of every non-pinned texture currently resident. */
@@ -146,10 +150,6 @@ export class CardArt {
   /** Decodes waiting for a free slot, oldest first. */
   #queue: DecodeJob[] = [];
   #decoding = 0;
-  /** Decodes running or queued, by url: a pack picture's blob: URL is not revoked while one still reads it. */
-  readonly #urlsInUse = new Map<string, number>();
-  /** Evicted pack pictures whose URL a decode still reads, by url: revoked once it settles. */
-  readonly #revokeLater = new Map<string, string>();
   /** A scan's own height once a full copy has been decoded, by url: no full copy is asked for a table copy as tall. */
   readonly #nativeHeight = new Map<string, number>();
   readonly #decode: ScanDecoder;
@@ -162,8 +162,12 @@ export class CardArt {
     this.#renderScale = deps.renderScale ?? currentRenderScale;
   }
 
-  /** Called when art arrives, so the board can redraw with it. */
-  onArrived(listener: () => void): () => void {
+  /**
+   * Called when art arrives, so the board can redraw with it. `why` is "arrival" for scans landing, and "all" when
+   * every face may have a new source (a card language switch, a pack's pictures): a screen that fills tiles in place
+   * (`art/art-slot.ts`) draws itself again for "all", since its tiles were drawn from the old sources.
+   */
+  onArrived(listener: (why: ArtRedraw) => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
   }
@@ -174,7 +178,11 @@ export class CardArt {
    * the table copy's; `drawArt` swaps in the full-size copy for a slot that
    * needs it.
    */
-  request(scene: Phaser.Scene, source: ArtSource | null): string | null {
+  request(scene: Phaser.Scene, held: ArtSource | null): string | null {
+    if (!held) return null;
+    // A source held across an eviction (a slot, a pane) may carry a blob URL revoked since: resolve it at request time.
+    // Null while the fresh URL is being read from the store (the art change announced then redraws).
+    const source = currentPackArt(held);
     if (!source) return null;
     // Every request, hit or miss, marks the key as the newest tick — this is
     // the only signal eviction uses, so a key still being drawn is always the
@@ -206,8 +214,12 @@ export class CardArt {
    */
   upgrade(scene: Phaser.Scene, key: string, slotHeight: number): string {
     if (key.endsWith(FULL_SUFFIX)) return key;
-    const source = this.#sources.get(key);
-    if (!source || !scene.textures.exists(key)) return key;
+    const held = this.#sources.get(key);
+    if (!held || !scene.textures.exists(key)) return key;
+    // The remembered source may carry a URL revoked since its table copy loaded.
+    const source = currentPackArt(held);
+    if (!source) return key;
+    this.#sources.set(key, source);
     const height = scene.textures.get(key).getSourceImage().height;
     if (!height || slotHeight * this.#renderScale() <= height * UPGRADE_SLACK) return key;
     // The scan itself is no taller than the table copy (a small scan, or a big window): nothing better to fetch.
@@ -233,7 +245,7 @@ export class CardArt {
 
   /** Tells every screen showing art to redraw, as an arrival does (a card language switch). */
   redrawAll(): void {
-    this.#fireListeners();
+    this.#fireListeners("all");
   }
 
   /** True when the server has said it has no scan for this key. */
@@ -271,8 +283,16 @@ export class CardArt {
     while (this.#decoding < MAX_DECODES) {
       const job = this.#queue.shift();
       if (!job) return;
+      // A pack picture released (evicted) while this job waited has a revoked URL: decoding it would fail and mark
+      // the picture missing. Forget the ask; the next draw resolves the fresh URL through `request`.
+      const table = job.key.endsWith(FULL_SUFFIX) ? job.key.slice(0, -FULL_SUFFIX.length) : job.key;
+      if (currentPackArt({ key: table, url: job.url })?.url !== job.url) {
+        this.#requested.delete(job.key);
+        continue;
+      }
       this.#decoding++;
-      this.#urlsInUse.set(job.url, (this.#urlsInUse.get(job.url) ?? 0) + 1);
+      // A pack picture's blob: URL is leased (pack-art.ts owns its lifetime) for as long as this decode reads it.
+      const lease: PackUrlLease | null = leasePackUrl(table, { decode: true, takesTexture: table === job.key });
       this.#decode(job.url, job.slot)
         .then(
           (canvas) => this.#landed(job, canvas),
@@ -281,17 +301,7 @@ export class CardArt {
         )
         .finally(() => {
           this.#decoding--;
-          const left = (this.#urlsInUse.get(job.url) ?? 1) - 1;
-          if (left > 0) this.#urlsInUse.set(job.url, left);
-          else {
-            this.#urlsInUse.delete(job.url);
-            // An evicted pack picture's blob: URL waited for this decode before it was revoked.
-            const revoke = this.#revokeLater.get(job.url);
-            if (revoke !== undefined) {
-              this.#revokeLater.delete(job.url);
-              releasePackArt(revoke);
-            }
-          }
+          lease?.release();
           this.#pump();
         });
     }
@@ -304,6 +314,8 @@ export class CardArt {
       // No table copy is a missing scan. A full copy that failed after its table copy loaded is not (its pack URL may
       // have been revoked by an eviction meanwhile): forget it was asked for, and the next hover asks again.
       if (full) this.#requested.delete(key);
+      else if (isPackArtKey(key) && currentPackArt({ key: tableKeyOf(key), url: job.url })?.url !== job.url)
+        this.#requested.delete(key);
       else this.#missing.add(key);
     } else if (full && this.#tableCovers(textures, key, canvas.height)) {
       // The scan is no taller than its table copy: not kept, and not fetched again while the table copy is this size.
@@ -375,10 +387,9 @@ export class CardArt {
         if (url !== undefined) this.#nativeHeight.delete(url);
       }
       if (key.endsWith(FULL_SUFFIX)) continue;
-      // A pack picture was loaded from a blob: URL; revoke it (a later ask reads the store again), once no decode
-      // still reads it (a full copy on its way).
-      if (url !== undefined && this.#urlsInUse.has(url)) this.#revokeLater.set(url, key);
-      else releasePackArt(key);
+      // A pack picture was loaded from a blob: URL; revoke it (a later ask reads the store again). A decode still
+      // reading it holds a lease, so pack-art.ts revokes on the last release.
+      if (url !== undefined) releasePackArt(key);
     }
   }
 
@@ -395,8 +406,8 @@ export class CardArt {
     }, ARRIVAL_WINDOW_MS);
   }
 
-  #fireListeners(): void {
-    for (const listener of [...this.#listeners]) listener();
+  #fireListeners(why: ArtRedraw = "arrival"): void {
+    for (const listener of [...this.#listeners]) listener(why);
   }
 }
 
@@ -430,6 +441,28 @@ export interface DrawArtOptions {
 }
 
 /**
+ * The texture key `drawArt` draws `given` from in `rect`: the table copy, or the full-size copy once it is in for a
+ * slot too big for the table copy (asked for here). Null when `given` is not a texture. A screen that keeps what it
+ * drew compares this key's texture with the one it drew from, so a full copy arriving, or evicted while the table copy
+ * stays, is noticed.
+ */
+export function artKeyFor(
+  scene: Phaser.Scene,
+  given: string | null,
+  rect: Rect,
+  options: DrawArtOptions = {},
+): string | null {
+  if (!given || !scene.textures.exists(given)) return null;
+  const table = scene.textures.get(given).getSourceImage();
+  if (!table.width || !table.height) return null;
+  const scale =
+    (options.fit ?? "contain") === "cover"
+      ? Math.max(rect.width / table.width, rect.height / table.height)
+      : Math.min(rect.width / table.width, rect.height / table.height);
+  return cardArt(scene).upgrade(scene, given, table.height * scale);
+}
+
+/**
  * Draws a loaded scan into `rect`. Returns null when the key isn't a texture,
  * so a caller can draw its own frame in the same pass without asking twice.
  *
@@ -453,10 +486,9 @@ export function drawArt(
     fit === "cover"
       ? Math.max(rect.width / width, rect.height / height)
       : Math.min(rect.width / width, rect.height / height);
-  const table = scene.textures.get(given).getSourceImage();
-  if (!table.width || !table.height) return null;
-  const key = cardArt(scene).upgrade(scene, given, table.height * fitScale(table.width, table.height));
-  const size = key === given ? table : scene.textures.get(key).getSourceImage();
+  const key = artKeyFor(scene, given, rect, options);
+  if (!key) return null;
+  const size = scene.textures.get(key).getSourceImage();
   const sourceWidth = size.width;
   const sourceHeight = size.height;
   if (!sourceWidth || !sourceHeight) return null;

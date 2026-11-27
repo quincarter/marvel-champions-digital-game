@@ -4,6 +4,10 @@ import { onArtChange } from "../language-change.js";
 import { artFor } from "./art-source.js";
 import {
   packArtFor,
+  currentPackArt,
+  leasePackUrl,
+  PackLeases,
+  refreshPackArt,
   packArtKey,
   packFileArt,
   releasePackArt,
@@ -156,6 +160,81 @@ describe("pack card art", () => {
     expect(store.revoked).toHaveLength(1);
   });
 
+  it("defers revoking a leased URL past a texture eviction, and revokes it on the last release", async () => {
+    const store = fakeStore();
+    setPackArt([manifest()], store);
+    packArtFor("x.demo.01a", "en");
+    await flush();
+    const art = packArtFor("x.demo.01a", "en")!;
+    const first = leasePackUrl(art.key)!;
+    const second = leasePackUrl(art.key)!;
+    expect(first.url).toBe(art.url);
+    releasePackArt(art.key);
+    // The eviction asked for the revoke, but a DOM image still holds the URL: it stays valid and resolved.
+    expect(store.revoked).toEqual([]);
+    expect(packArtFor("x.demo.01a", "en")?.url).toBe(art.url);
+    first.release();
+    first.release();
+    expect(store.revoked).toEqual([]);
+    second.release();
+    expect(store.revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
+    expect(packArtFor("x.demo.01a", "en")).toBeNull();
+  });
+
+  it("revokes nothing at release when no eviction asked, and leases nothing for a base scan or an unread URL", async () => {
+    const store = fakeStore();
+    setPackArt([manifest()], store);
+    expect(leasePackUrl(packArtKey("demo", "1.2.0", "cards/en/x.demo.01a.webp"))).toBeNull();
+    packArtFor("x.demo.01a", "en");
+    await flush();
+    const art = packArtFor("x.demo.01a", "en")!;
+    leasePackUrl(art.key)!.release();
+    expect(store.revoked).toEqual([]);
+    expect(leasePackUrl("art:some/base/scan.png")).toBeNull();
+  });
+
+  it("PackLeases holds the URLs of one pass until the next pass is mounted", async () => {
+    const store = fakeStore();
+    setPackArt([manifest()], store);
+    packArtFor("x.demo.01a", "en");
+    await flush();
+    const art = packArtFor("x.demo.01a", "en")!;
+    const leases = new PackLeases();
+    leases.begin();
+    expect(leases.image(art)).toEqual({ src: art.url, retry: art.key });
+    expect(leases.image(null)).toEqual({ src: null });
+    expect(leases.image({ key: "art:base/1.png", url: "/1.png" })).toEqual({ src: "/1.png" });
+    leases.end();
+    releasePackArt(art.key);
+    expect(store.revoked).toEqual([]);
+    // A redraw takes its own lease before the old pass lets go.
+    leases.begin();
+    leases.image(art);
+    leases.end();
+    expect(store.revoked).toEqual([]);
+    leases.dispose();
+    expect(store.revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
+  });
+
+  it("refreshPackArt forgets a failed current URL and reads the file again, announcing the new one", async () => {
+    const store = fakeStore();
+    setPackArt([manifest()], store);
+    packArtFor("x.demo.01a", "en");
+    await flush();
+    const art = packArtFor("x.demo.01a", "en")!;
+    refreshPackArt(art.key, art.url);
+    expect(store.revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
+    expect(packArtFor("x.demo.01a", "en")).toBeNull();
+    await flush();
+    const fresh = packArtFor("x.demo.01a", "en")!;
+    // Read from the store again (the fake store's URLs are stable per file).
+    expect(store.urls.filter((url) => url === art.url).length).toBeGreaterThan(1);
+    // A failure of a URL that is no longer the current one leaves the current one alone.
+    refreshPackArt(art.key, "blob:stale");
+    expect(packArtFor("x.demo.01a", "en")?.url).toBe(fresh.url);
+    refreshPackArt("art:pack:nope@1/x.webp", undefined);
+  });
+
   it("keeps a new version's pictures apart from the old version's", async () => {
     const store = fakeStore();
     setPackArt([manifest()], store);
@@ -176,5 +255,20 @@ describe("pack card art", () => {
     expect(artFor(custom, { kind: "front" })?.url).toBe("blob:test/demo/cards/en/x.demo.02.webp");
     const base = { id: cardId("01001"), type: "event", art: "01001", images: { front: "/bundles/cards/01001.png" } };
     expect(artFor(base as unknown as AnyCard, { kind: "front" })?.url).toMatch(/^\/card-art\//);
+  });
+
+  it("answers null for a held pack source once its pack is removed or upgraded, and leaves other art alone", async () => {
+    const store = fakeStore();
+    setPackArt([manifest()], store);
+    packArtFor("x.demo.01a", "en");
+    await flush();
+    const held = packArtFor("x.demo.01a", "en")!;
+    expect(currentPackArt(held)).toEqual(held);
+    setPackArt([manifest({ version: "1.3.0" })], store);
+    expect(currentPackArt(held)).toBeNull();
+    setPackArt([], store);
+    expect(currentPackArt(held)).toBeNull();
+    const plain = { key: "art:01001", url: "/card-art/01001.png" };
+    expect(currentPackArt(plain)).toBe(plain);
   });
 });

@@ -11,6 +11,8 @@
 //   - the mod SDK (packages/mod-sdk) sits above the cards package and below the client, which imports it to load
 //     installed packs. A change there, or to the sample packs in `content-packs/` (the client's pack tests build the
 //     sample), runs its tests and the client's; a change to cards, engine or content runs them too.
+//   - the Lit components (packages/ui) sit below the client and import nothing of ours; the client imports them. A
+//     change there runs their tests and the client's.
 //   - a changelog fragment affects nothing; any other file outside `packages/` (the lockfile, a config, docs or art
 //     a test may read) runs everything.
 import { readdirSync } from "node:fs";
@@ -22,6 +24,7 @@ const PROJECTS = ["content", "engine", "cards", "client"];
 const PACKAGE_FILE = /^packages\/(content|engine|cards|client)\//;
 const WAVE_FILE = /^packages\/cards\/src\/wave(\d+)\//;
 const SYNC_WORKER_FILE = /^packages\/sync-worker\//;
+const UI_FILE = /^packages\/ui\//;
 const MOD_SDK_FILE = /^(packages\/mod-sdk|content-packs)\//;
 const NEVER_AFFECTS_TESTS = /^\.changes\//;
 
@@ -41,11 +44,17 @@ export function affectedBy(changedPaths) {
   let lowest = PROJECTS.length;
   let firstWave = Infinity;
   let syncWorker = false;
+  let ui = false;
   let modSdk = false;
   for (const path of changedPaths) {
     if (NEVER_AFFECTS_TESTS.test(path)) continue;
     if (MOD_SDK_FILE.test(path)) {
       modSdk = true;
+      lowest = Math.min(lowest, PROJECTS.indexOf("client"));
+      continue;
+    }
+    if (UI_FILE.test(path)) {
+      ui = true;
       lowest = Math.min(lowest, PROJECTS.indexOf("client"));
       continue;
     }
@@ -66,11 +75,16 @@ export function affectedBy(changedPaths) {
   if (lowest < PROJECTS.indexOf("cards") || firstWave === Infinity) firstWave = 0;
   if (lowest <= PROJECTS.indexOf("cards")) modSdk = true;
   return {
-    projects: [...PROJECTS.slice(lowest), ...(syncWorker ? ["sync-worker"] : []), ...(modSdk ? ["mod-sdk"] : [])],
+    projects: [
+      ...PROJECTS.slice(lowest),
+      ...(syncWorker ? ["sync-worker"] : []),
+      ...(ui ? ["ui"] : []),
+      ...(modSdk ? ["mod-sdk"] : []),
+    ],
     firstWave,
   };
 }
 
 export function everything() {
-  return { projects: [...PROJECTS, "sync-worker", "mod-sdk"], firstWave: 0 };
+  return { projects: [...PROJECTS, "sync-worker", "ui", "mod-sdk"], firstWave: 0 };
 }

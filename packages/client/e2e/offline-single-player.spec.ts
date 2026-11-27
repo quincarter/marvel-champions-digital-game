@@ -110,8 +110,14 @@ test("offline: a single-player game with watching on starts, plays, saves and re
   expect(resumed.status).not.toBe("failed");
 
   // Play online, offline: a line on its own screen, and nothing connects.
+  // Leave the table as a player does (the Title menu stops the board): a board left running under the screen would
+  // take a phone press that misses the panel.
   await page.evaluate(async () => {
-    (window as unknown as { __mcGame: { scene: { start: (key: string) => void } } }).__mcGame.scene.start("Online");
+    const scenes = (
+      window as unknown as { __mcGame: { scene: { start: (key: string) => void; stop: (key: string) => void } } }
+    ).__mcGame.scene;
+    scenes.stop("Board");
+    scenes.start("Online");
   });
   await waitForScene(page, "Online");
   await settle(page);

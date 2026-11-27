@@ -11,13 +11,7 @@ import { promoFaceArt, type PromoSet } from "../art/promo-art.js";
 import type { HeroArt } from "../settings.js";
 import type { MessageKey } from "../i18n/translate.js";
 
-export const HERO_ART_LABELS: Readonly<Record<HeroArt, string>> = {
-  game: "Game art",
-  card: "Card art",
-  promo: "Promo art",
-};
-
-/** The same choices' catalog keys, for a translated screen (#390: Take your seats; Settings is not translated yet). */
+/** The choices' names as catalog keys (#390), shared by Take your seats and Settings ▸ Cards. */
 export const HERO_ART_KEYS: Readonly<Record<HeroArt, MessageKey>> = {
   game: "seats.heroArt.game",
   card: "seats.heroArt.card",

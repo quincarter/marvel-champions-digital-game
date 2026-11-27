@@ -1,0 +1,3 @@
+kind: Changed
+body: The game log is now drawn as a page panel over the table (same look), so it scrolls natively and its header, close button, newer chip and status chips are in Spanish too.
+time: 2026-11-26T11:38:58.2516311-05:00

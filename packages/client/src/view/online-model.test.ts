@@ -1,6 +1,13 @@
 import type { LiveRoomEntry } from "@mc/sync-worker/room-protocol";
 import { describe, expect, it } from "vitest";
-import { liveRowsOf, onlineLayout, rowsThatFit, LIVE_HEADING_HEIGHT, LIVE_ROW_HEIGHT } from "./online-model.js";
+import {
+  liveRowKey,
+  liveRowsOf,
+  onlineLayout,
+  rowsThatFit,
+  LIVE_HEADING_HEIGHT,
+  LIVE_ROW_HEIGHT,
+} from "./online-model.js";
 
 describe("onlineLayout", () => {
   it("splits on desktop and tablet landscape, live on the left and controls on the right", () => {
@@ -55,18 +62,18 @@ describe("rows", () => {
   });
 });
 
-describe("public rooms in the rows", () => {
-  const entry = (code: string, over: Partial<LiveRoomEntry> = {}): LiveRoomEntry => ({
-    code,
-    host: "Ann",
-    mode: "strict",
-    seatsTaken: 1,
-    seatsTotal: 2,
-    started: false,
-    updatedAt: 5,
-    ...over,
-  });
+const entry = (code: string, over: Partial<LiveRoomEntry> = {}): LiveRoomEntry => ({
+  code,
+  host: "Ann",
+  mode: "strict",
+  seatsTaken: 1,
+  seatsTotal: 2,
+  started: false,
+  updatedAt: 5,
+  ...over,
+});
 
+describe("public rooms in the rows", () => {
   it("puts recent rooms first, then public rooms in the order given", () => {
     const rows = liveRowsOf([{ code: "ABC234", role: "guest", at: 4 }], [entry("LIVE22"), entry("LIVE33")]);
     expect(rows.map((r) => [r.target, r.kind])).toEqual([
@@ -98,5 +105,17 @@ describe("public rooms in the rows", () => {
   it("with no public rooms (offline or a failed fetch) is just the recent rooms", () => {
     expect(liveRowsOf([{ code: "ABC234", role: "guest", at: 4 }], []).map((r) => r.target)).toEqual(["ABC234"]);
     expect(liveRowsOf([{ code: "ABC234", role: "guest", at: 4 }]).map((r) => r.target)).toEqual(["ABC234"]);
+  });
+});
+
+describe("live row keys", () => {
+  it("follow the room and its action, not its position", () => {
+    const before = liveRowsOf([{ code: "ABC234", role: "guest", at: 4 }], [entry("LIVE22"), entry("LIVE33")]);
+    const after = liveRowsOf([{ code: "ABC234", role: "guest", at: 4 }], [entry("LIVE11"), entry("LIVE33")]);
+    expect(before.map(liveRowKey)).toEqual(["live:ABC234:rejoin", "live:LIVE22:join", "live:LIVE33:join"]);
+    // LIVE33 keeps its key when a room is inserted ahead of it or removed; no key is ever another room's.
+    expect(after.map(liveRowKey)).toContain("live:LIVE33:join");
+    expect(new Set(after.map(liveRowKey)).size).toBe(after.length);
+    expect(after.map(liveRowKey)).not.toContain("live:LIVE22:join");
   });
 });

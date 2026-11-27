@@ -83,12 +83,14 @@ export function drawSearchToggle(
   onToggle: () => void,
   buttons: McButton[],
   stops: Map<string, FocusStop>,
+  hit?: Rect,
 ): void {
   const button = new McButton(scene, {
     kind: "secondary",
     label: "",
     type: typeRole.rowTitle,
     rect,
+    ...(hit ? { hit } : {}),
     selected: active,
     onClick: onToggle,
   });

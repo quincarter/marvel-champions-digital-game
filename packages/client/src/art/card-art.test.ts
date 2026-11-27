@@ -12,9 +12,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CardArt, type ScanDecoder } from "./card-art.js";
-import { releasePackArt } from "./pack-art.js";
+import { currentPackArt, isPackArtKey, leasePackUrl, releasePackArt } from "./pack-art.js";
 
-vi.mock("./pack-art.js", () => ({ releasePackArt: vi.fn() }));
+vi.mock("./pack-art.js", () => ({
+  releasePackArt: vi.fn(),
+  currentPackArt: vi.fn((held: ArtSource) => held),
+  leasePackUrl: vi.fn(() => null),
+  isPackArtKey: vi.fn(() => false),
+}));
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
 
 type Size = { readonly width: number; readonly height: number };
@@ -380,7 +385,7 @@ describe("CardArt decoding", () => {
     expect(art.stats.sources).toBeLessThanOrEqual(45);
   });
 
-  it("keeps a pack picture's URL until a full copy that reads it has landed, and retries a full copy that failed", async () => {
+  it("retries a full copy that failed after its table copy was evicted", async () => {
     const release = vi.mocked(releasePackArt);
     release.mockClear();
     let fail = false;
@@ -404,7 +409,7 @@ describe("CardArt decoding", () => {
       await settle();
     }
     expect(scene.textures.exists("p")).toBe(false);
-    expect(release).not.toHaveBeenCalledWith("p");
+    // The eviction asks pack-art to release; its lease for the running decode defers the revoke.
     fail = true;
     hold!();
     await settle();
@@ -412,4 +417,277 @@ describe("CardArt decoding", () => {
     // The failed full copy is not a missing scan: the next hover asks again.
     expect(art.isMissing("p#full")).toBe(false);
   });
+});
+
+describe("CardArt with a pack picture held across an eviction", () => {
+  it("loads the fresh blob URL, not the revoked one a slot still holds", async () => {
+    const resolve = vi.mocked(currentPackArt);
+    const { art, scene, decoder } = setup();
+    const held: ArtSource = { key: "art:pack:demo", url: "blob:old" };
+    decoder.stage("blob:new", { width: 627, height: 900 });
+    // The store is reading the fresh URL: nothing to ask for yet, and nothing decoded from the revoked one.
+    resolve.mockImplementation((s) => (s.key === held.key ? null : s));
+    expect(art.request(scene, held)).toBeNull();
+    await settle();
+    expect(decoder.asked).toEqual([]);
+    expect(art.isMissing(held.key)).toBe(false);
+    // The fresh URL arrived.
+    resolve.mockImplementation((s) => (s.key === held.key ? { key: s.key, url: "blob:new" } : s));
+    expect(art.request(scene, held)).toBeNull();
+    await settle();
+    expect(decoder.asked.map((ask) => ask.url)).toEqual(["blob:new"]);
+    expect(art.request(scene, held)).toBe(held.key);
+    resolve.mockImplementation((s) => s);
+  });
+
+  it("does not decode a queued job whose pack URL was released while it waited, and asks again later", async () => {
+    const resolve = vi.mocked(currentPackArt);
+    const decoder = new FakeDecoder();
+    const gates: (() => void)[] = [];
+    const decode: ScanDecoder = (url, slot) => new Promise((done) => gates.push(() => done(decoder.decode(url, slot))));
+    const { art, scene } = setup({ decode });
+    for (const key of ["a", "b", "c", "d"]) {
+      decoder.stage(urlOf(key), { width: 627, height: 900 });
+      art.request(scene, source(key));
+    }
+    const fifth: ArtSource = { key: "art:pack:q", url: "blob:q1" };
+    decoder.stage("blob:q1", { width: 627, height: 900 });
+    art.request(scene, fifth);
+    expect(art.stats).toMatchObject({ decoding: 4, queued: 1 });
+    // The fifth's URL is revoked and replaced before a slot frees up.
+    resolve.mockImplementation((s) => (s.key === fifth.key ? { key: s.key, url: "blob:q2" } : s));
+    gates.shift()!();
+    await settle();
+    expect(decoder.asked.some((ask) => ask.url === "blob:q1")).toBe(false);
+    expect(art.isMissing(fifth.key)).toBe(false);
+    decoder.stage("blob:q2", { width: 627, height: 900 });
+    art.request(scene, fifth);
+    for (const open of gates.splice(0)) open();
+    await settle();
+    expect(decoder.asked.some((ask) => ask.url === "blob:q2")).toBe(true);
+    resolve.mockImplementation((s) => s);
+  });
+
+  it("does not decode a queued pack job after its pack is removed, through the real pack-art module", async () => {
+    const real = await vi.importActual<typeof import("./pack-art.js")>("./pack-art.js");
+    const resolve = vi.mocked(currentPackArt);
+    resolve.mockImplementation(real.currentPackArt);
+    const store = {
+      objectUrl: async (id: string, path: string) => `blob:${id}/${path}`,
+      revoke: () => undefined,
+    };
+    const manifest = {
+      id: "demo",
+      version: "1.0.0",
+      languages: { base: "en", available: ["en"] },
+      files: [{ path: "cards/en/x.demo.01a.webp", bytes: 1, sha256: "" }],
+    } as unknown as Parameters<typeof real.setPackArt>[0][number];
+    real.setPackArt([manifest], store);
+    real.packArtFor("x.demo.01a", "en");
+    await vi.advanceTimersByTimeAsync(250);
+    const held = real.packArtFor("x.demo.01a", "en");
+    expect(held).not.toBeNull();
+    const decoder = new FakeDecoder();
+    const gates: (() => void)[] = [];
+    const decode: ScanDecoder = (url, slot) => new Promise((done) => gates.push(() => done(decoder.decode(url, slot))));
+    const { art, scene } = setup({ decode });
+    for (const key of ["a", "b", "c", "d"]) {
+      decoder.stage(urlOf(key), { width: 627, height: 900 });
+      art.request(scene, source(key));
+    }
+    decoder.stage(held!.url, { width: 627, height: 900 });
+    art.request(scene, held!);
+    expect(art.stats).toMatchObject({ decoding: 4, queued: 1 });
+    // The pack is uninstalled while its decode waits; the queue then drains.
+    real.setPackArt([], store);
+    for (const open of gates.splice(0)) open();
+    await settle();
+    // Whatever the queue started once a slot freed is let finish, then checked.
+    for (const open of gates.splice(0)) open();
+    await settle();
+    expect(decoder.asked.some((ask) => ask.url === held!.url)).toBe(false);
+    expect(art.isMissing(held!.key)).toBe(false);
+    real.resetPackArt();
+    resolve.mockImplementation((s) => s);
+  });
+});
+
+describe("CardArt and PackLeases share one URL lifetime (pack-art owns it)", () => {
+  const manifest = {
+    id: "demo",
+    version: "1.0.0",
+    languages: { base: "en", available: ["en"] },
+    files: [{ path: "cards/en/x.demo.01a.webp", bytes: 1, sha256: "" }],
+  } as unknown as Parameters<typeof import("./pack-art.js").setPackArt>[0][number];
+
+  async function rig() {
+    const real = await vi.importActual<typeof import("./pack-art.js")>("./pack-art.js");
+    vi.mocked(currentPackArt).mockImplementation(real.currentPackArt);
+    vi.mocked(releasePackArt).mockImplementation(real.releasePackArt);
+    vi.mocked(leasePackUrl).mockImplementation(real.leasePackUrl);
+    vi.mocked(isPackArtKey).mockImplementation(real.isPackArtKey);
+    let serial = 0;
+    const revoked: string[] = [];
+    const store = {
+      objectUrl: async (id: string, path: string) => `blob:${id}/${path}#${++serial}`,
+      revoke: (id: string, path?: string) => void revoked.push(`${id}/${path ?? "*"}`),
+      detach: (id: string, path: string) => `blob:${id}/${path}#${serial}`,
+    };
+    real.setPackArt([manifest], store);
+    real.packArtFor("x.demo.01a", "en");
+    await vi.advanceTimersByTimeAsync(250);
+    const held = real.packArtFor("x.demo.01a", "en")!;
+    expect(held).not.toBeNull();
+    const gates: (() => void)[] = [];
+    const sizes = new Map<string, Size>();
+    const decode: ScanDecoder = (url, slot) =>
+      new Promise((done) =>
+        gates.push(() => {
+          const size = sizes.get(url);
+          done(size ? ({ width: size.width, height: Math.min(size.height, slot.height) } as HTMLCanvasElement) : null);
+        }),
+      );
+    const { art, scene } = setup({ decode });
+    sizes.set(held.url, { width: 300, height: 400 });
+    return { real, art, scene, held, gates, revoked, sizes };
+  }
+
+  const reset = async (): Promise<void> => {
+    const real = await vi.importActual<typeof import("./pack-art.js")>("./pack-art.js");
+    real.resetPackArt();
+    vi.mocked(currentPackArt).mockImplementation((s) => s);
+    vi.mocked(releasePackArt).mockReset();
+    vi.mocked(leasePackUrl).mockImplementation(() => null);
+    vi.mocked(isPackArtKey).mockImplementation(() => false);
+  };
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(reset);
+
+  it("keeps the URL for a re-requested decode when the DOM lease is released after an eviction", async () => {
+    const { real, art, scene, held, gates, revoked } = await rig();
+    // The table texture is there, Rules holds a lease, then the texture is evicted.
+    art.request(scene, held);
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(scene.textures.exists(held.key)).toBe(true);
+    const dom = new real.PackLeases();
+    dom.begin();
+    dom.image(held);
+    dom.end();
+    real.releasePackArt(held.key);
+    scene.textures.remove(held.key);
+    expect(revoked).toEqual([]);
+    // Hover asks for the same key again while the lease is alive: a new decode starts on the retained URL.
+    // (a fresh request: CardArt's own bookkeeping saw the eviction)
+    const again = new CardArt({
+      decode: (url, slot) =>
+        new Promise((done) =>
+          gates.push(() => done({ width: 300, height: Math.min(400, slot.height) } as HTMLCanvasElement)),
+        ),
+      budgetBytes: BUDGET,
+      renderScale: () => 1,
+    });
+    again.request(scene, held);
+    expect(gates).toHaveLength(1);
+    // The row unmounts: the DOM lease goes while the decode is still reading.
+    dom.dispose();
+    expect(revoked).toEqual([]);
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(again.isMissing(held.key)).toBe(false);
+    expect(scene.textures.exists(held.key)).toBe(true);
+    // The new texture owns the URL now: still not revoked, still current.
+    expect(revoked).toEqual([]);
+    expect(real.currentPackArt(held)?.url).toBe(held.url);
+  });
+
+  it("revokes an evicted URL when the last decode lease lets go", async () => {
+    const { real, art, scene, held, gates, revoked } = await rig();
+    art.request(scene, held);
+    // Evicted while its first decode is still reading.
+    real.releasePackArt(held.key);
+    expect(revoked).toEqual([]);
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
+  });
+
+  it("refreshPackArt during a failing decode with a live DOM lease delivers a fresh URL and the retry succeeds", async () => {
+    const { real, art, scene, held, gates, revoked, sizes } = await rig();
+    const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const announced = vi.fn();
+    const off = (await import("../language-change.js")).onArtChange(announced);
+    // Rules holds a DOM lease on the URL; a decode reads it too.
+    const dom = new real.PackLeases();
+    dom.begin();
+    dom.image(held);
+    dom.end();
+    art.request(scene, held);
+    // The DOM image fails and asks for a refresh while the decode is still out.
+    real.refreshPackArt(held.key, held.url);
+    // Nothing is revoked under the decode, but the failed URL is no longer current and a fresh one is being read.
+    expect(revoked).toEqual([]);
+    expect(revokeUrl).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(250);
+    const fresh = real.currentPackArt(held);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.url).not.toBe(held.url);
+    expect(announced).toHaveBeenCalled();
+    // The decode of the failed URL really fails (nothing is served at it): a retry, not a missing scan; the old blob
+    // is revoked now (the DOM lease is still held and does not block this).
+    sizes.delete(held.url);
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(scene.textures.exists(held.key)).toBe(false);
+    expect(art.isMissing(held.key)).toBe(false);
+    expect(revokeUrl).toHaveBeenCalledWith(held.url);
+    // The same CardArt asks again with the fresh URL and it decodes.
+    sizes.set(fresh!.url, { width: 300, height: 400 });
+    art.request(scene, fresh!);
+    expect(gates).toHaveLength(1);
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(art.isMissing(held.key)).toBe(false);
+    expect(scene.textures.exists(held.key)).toBe(true);
+    dom.dispose();
+    off();
+    revokeUrl.mockRestore();
+  });
+
+  for (const order of ["fresh first", "old first"] as const) {
+    it(`revokes both URL generations once each whatever the release order (${order})`, async () => {
+      const { real, art, scene, held, gates, revoked } = await rig();
+      const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+      const oldDom = new real.PackLeases();
+      oldDom.begin();
+      oldDom.image(held);
+      oldDom.end();
+      art.request(scene, held);
+      real.refreshPackArt(held.key, held.url);
+      await vi.advanceTimersByTimeAsync(250);
+      const fresh = real.currentPackArt(held)!;
+      expect(fresh.url).not.toBe(held.url);
+      // The old decode settles: the detached old blob goes, though its DOM lease is still held.
+      gates.splice(0).forEach((open) => open());
+      await settle();
+      expect(revokeUrl).toHaveBeenCalledWith(held.url);
+      // The fresh URL is leased by a second screen, then evicted while leased.
+      const freshDom = new real.PackLeases();
+      freshDom.begin();
+      freshDom.image(fresh);
+      freshDom.end();
+      real.releasePackArt(held.key);
+      expect(revoked).toEqual([]);
+      if (order === "fresh first") {
+        freshDom.dispose();
+        oldDom.dispose();
+      } else {
+        oldDom.dispose();
+        freshDom.dispose();
+      }
+      expect(revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
+      revokeUrl.mockRestore();
+    });
+  }
 });

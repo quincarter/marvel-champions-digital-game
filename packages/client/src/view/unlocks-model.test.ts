@@ -127,12 +127,18 @@ describe("taps", () => {
   describe("in Spanish", () => {
     afterEach(useEnglish);
 
-    it("keeps Settings ▸ Unlocks' wave rows in English until that screen is translated", () => {
+    it("words Settings ▸ Unlocks' wave and campaign rows in Spanish", () => {
       useSpanish();
       const rows = unlockListRowsOf(make());
-      expect(rows.find((r) => r.id === "wave:wave1")).toMatchObject({ status: "Beat Rhino to unlock Wave 1" });
-      expect(rowOf(rows, "campaign:trors")).toMatchObject({ detail: "Beat Rhino to unlock The Rise of Red Skull" });
-      expect(rowOf(rows, "scenario:red-skull")).toMatchObject({ detail: "Beat Rhino to unlock The Rise of Red Skull" });
+      expect(rows.find((r) => r.id === "wave:wave1")).toMatchObject({
+        status: "Vence a Rhino para desbloquear Ciclo 1",
+      });
+      expect(rowOf(rows, "campaign:trors")).toMatchObject({
+        detail: "Vence a Rhino para desbloquear La Tiranía de Cráneo Rojo",
+      });
+      expect(rowOf(rows, "scenario:red-skull")).toMatchObject({
+        detail: "Vence a Rhino para desbloquear La Tiranía de Cráneo Rojo",
+      });
     });
 
     it("words a confirm from the same parts", () => {
@@ -175,6 +181,18 @@ describe("taps", () => {
 });
 
 describe("summaries", () => {
+  it("reads in Spanish once Spanish is picked (#390)", () => {
+    useSpanish();
+    try {
+      const byHand = unlockByHand(rich(), { kind: "hero", identityCardId: thor });
+      expect(unlocksSummaryOf(rich(byHand))).toMatch(
+        /^600 puntos de campeón · 2 de 12 ciclos abiertos · 1 desbloqueado con puntos\. Siguiente: /,
+      );
+    } finally {
+      useEnglish();
+    }
+  });
+
   it("leads with champion points", () => {
     expect(unlocksSummaryOf(make())).toBe("0 champion points · 1 of 12 waves open. Next: Beat Rhino to unlock Wave 1.");
     const byHand = unlockByHand(rich(), { kind: "hero", identityCardId: thor });

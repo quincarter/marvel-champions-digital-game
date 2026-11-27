@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import type { GameState } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
@@ -12,6 +12,8 @@ import {
   rulesGlossaryPoolOf,
   villainPhaseOrder,
 } from "./rules-reference.js";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
+import { GLOSSARY_ES } from "../content/glossary-es.js";
 
 describe("rulesGlossaryOf", () => {
   test("always includes the three table-state entries `@mc/content` doesn't carry", async () => {
@@ -313,5 +315,54 @@ describe("searching the glossary ranks the term itself first", () => {
   test("a prefix outranks a mention, and alphabetical order holds within a rank", () => {
     const names = rulesGlossaryPoolOf(POOL_CARDS, "Retal").map((entry) => entry.displayName);
     expect(names[0]).toMatch(/^Retaliate/);
+  });
+});
+
+describe("the Rules reference in Spanish", () => {
+  afterEach(useEnglish);
+
+  test("draws a glossary entry's name, definition and player note in Spanish, then English again", () => {
+    useSpanish();
+    const spanish = rulesGlossaryPoolOf(POOL_CARDS);
+    const retaliate = spanish.find((entry) => entry.id === "retaliate")!;
+    expect(retaliate.displayName).toBe("Represalia X");
+    expect(retaliate.definition).toBe(GLOSSARY_ES["retaliate"]!.definition);
+    expect(retaliate.playerCiteLabel).toMatch(/^RRG 1\.8 p\. \d+/);
+    expect(spanish.find((entry) => entry.id === "quickstrike")!.playerNote).toBe(GLOSSARY_ES["quickstrike"]!.note);
+    expect(spanish.find((entry) => entry.id === "exhausted")!.displayName).toBe("Agotada");
+    expect(spanish.find((entry) => entry.id === "aspectCard")!.displayName).toBe("Carta de aspecto");
+    useEnglish();
+    const english = rulesGlossaryPoolOf(POOL_CARDS).find((entry) => entry.id === "retaliate")!;
+    expect(english.displayName).toBe("Retaliate X");
+    expect(english.englishName).toBeUndefined();
+  });
+
+  test("words the player's citations in Spanish and keeps the implementer's in English", () => {
+    useSpanish();
+    const sources = [
+      { kind: "card", cards: "Storm 36001a" },
+      { kind: "owner-ruling", date: "Oct 5, 2026" },
+    ] as const;
+    expect(playerCiteLabelOf(sources)).toBe(
+      "Storm 36001a (texto de la carta) · Aclaración para este juego, Oct 5, 2026",
+    );
+    expect(citeLabelOf(sources)).toBe("Storm 36001a (card text) · Ruling for this game, Oct 5, 2026");
+  });
+
+  test("searches the Spanish terms, and still finds an entry by its English name", () => {
+    useSpanish();
+    expect(rulesGlossaryPoolOf(POOL_CARDS, "represalia")[0]!.id).toBe("retaliate");
+    expect(rulesGlossaryPoolOf(POOL_CARDS, "Oleada")[0]!.id).toBe("surge");
+    expect(rulesGlossaryPoolOf(POOL_CARDS, "intervencion")[0]!.id).toBe("thwart");
+    expect(rulesGlossaryPoolOf(POOL_CARDS, "retaliate")[0]!.id).toBe("retaliate");
+  });
+
+  test("words the villain phase steps in Spanish", () => {
+    useSpanish();
+    const steps = villainPhaseOrder();
+    expect(steps[0]).toMatchObject({ id: "placeThreat", label: "1. Colocar Amenaza", art: "mainScheme" });
+    expect(steps[2]!.detail).toMatch(/boca abajo/);
+    useEnglish();
+    expect(villainPhaseOrder()[0]!.label).toBe("1. Place threat");
   });
 });

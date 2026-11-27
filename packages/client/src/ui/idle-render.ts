@@ -32,9 +32,24 @@ function mix(value: number): void {
   hash = Math.imul(hash ^ (Number.isFinite(value) ? Math.round(value * 64) | 0 : 0), 0x01000193);
 }
 
+/**
+ * Each string's own hash, worked out once: a frame signs every object's texture and frame names, and hashing those
+ * character by character every frame was a real part of the signature's cost on a busy screen. Texture keys and frame
+ * names repeat from frame to frame, so the cache stays small; it is emptied if it ever grows past `TEXT_CACHE_LIMIT`.
+ */
+const textHashes = new Map<string, number>();
+const TEXT_CACHE_LIMIT = 20_000;
+
 function mixText(value: string): void {
-  mix(value.length);
-  for (let index = 0; index < value.length; index++) mix(value.charCodeAt(index));
+  let own = textHashes.get(value);
+  if (own === undefined) {
+    own = 0x811c9dc5;
+    for (let index = 0; index < value.length; index++) own = Math.imul(own ^ value.charCodeAt(index), 0x01000193);
+    own = Math.imul(own ^ value.length, 0x01000193);
+    if (textHashes.size >= TEXT_CACHE_LIMIT) textHashes.clear();
+    textHashes.set(value, own);
+  }
+  hash = Math.imul(hash ^ own, 0x01000193);
 }
 
 function mixArray(values: readonly unknown[]): void {
@@ -136,8 +151,12 @@ export function signature(scenes: readonly SignedScene[]): number | null {
     for (const camera of scene.cameras) {
       if (camera.fadeEffect?.isRunning || camera.flashEffect?.isRunning || camera.shakeEffect?.isRunning) return null;
       mix(camera.visible === false ? 2 : 1);
-      for (const value of [camera.x, camera.y, camera.width, camera.height, camera.scrollX, camera.scrollY])
-        mix(value!);
+      mix(camera.x!);
+      mix(camera.y!);
+      mix(camera.width!);
+      mix(camera.height!);
+      mix(camera.scrollX!);
+      mix(camera.scrollY!);
       mix(camera.zoom!);
       mix(camera.rotation!);
       mix(camera.alpha!);

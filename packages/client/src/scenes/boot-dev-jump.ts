@@ -329,6 +329,10 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.controls, data: {} };
   }
+  // `?screen=unlocks[&guide=1]` and `?screen=save-data`: Settings' Unlocks and Save data sheets (as `settings` opens them).
+  if (screen === "unlocks")
+    return { key: SCENES.unlocks, data: params.get("guide") === "1" ? { guideSection: 0 } : {} };
+  if (screen === "save-data") return { key: SCENES.saveData, data: {} };
   // `?screen=room-lobby&competitive=host|guest[&phase=building|sealed|ready][&size=2][&side=resistance]`: the Civil War Competitive
   // lobby over a made-up room (`view/competitive-room-fixture.ts`, issue #883). Presses are recorded in `__mcRoomCalls`. Dev only.
   if (screen === "room-lobby" && params.get("competitive") !== null && import.meta.env.DEV) {
@@ -489,6 +493,22 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
         ...(params.get("result") === "decks" ? { startResult: "decks" } : {}),
       },
     };
+  }
+  // `?screen=room-chat` (dev only): the room chat sheet over a made-up room. `__mcChatArrives(text)` makes a line arrive
+  // from another player, as the room worker would send it.
+  if (screen === "room-chat" && import.meta.env.DEV) {
+    const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    const { previewRoomState, roomState } = await import("../platform/room.js");
+    previewRoomState(roomLobbyFixture("guest", "open"));
+    (globalThis as { __mcChatArrives?: (text: string) => void }).__mcChatArrives = (text) => {
+      const now = roomState();
+      previewRoomState({
+        ...now,
+        chat: [...now.chat, { from: "p2", name: "Ava", text, at: now.chat.length, mine: false }],
+        chatLive: now.chatLive + 1,
+      });
+    };
+    return { key: SCENES.roomChat, data: { draft: params.get("draft") ?? "" } };
   }
   // `?screen=room-deck-picker&as=guest|host`: the deck picker for a seat of the made-up room (a guest's own seat, or the host's Set deck on seat 2).
   if (screen === "room-deck-picker") {

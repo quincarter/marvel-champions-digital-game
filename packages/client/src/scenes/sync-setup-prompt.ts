@@ -23,13 +23,13 @@ import { OverlayMotion } from "../ui/transitions.js";
 import { appSession } from "../session.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import {
-  SYNC_NOTICE_BODY,
-  SYNC_NOTICE_HEADING,
+  syncNoticeBody,
+  syncNoticeHeading,
   SYNC_NOTICE_HOLD_MS,
-  SYNC_SETUP_BODY,
-  SYNC_SETUP_BUTTONS,
-  SYNC_SETUP_LATER,
-  SYNC_SETUP_TITLE,
+  syncSetupBody,
+  syncSetupButtons,
+  syncSetupLater,
+  syncSetupTitle,
   markSyncPromptAnswered,
   syncSetupAnswerOutcome,
   syncSetupButtonSpan,
@@ -192,18 +192,18 @@ export class SyncSetupPromptOverlay extends Phaser.Scene {
     };
 
     textRow(
-      caseOf(typeRole.sectionHeader, SYNC_SETUP_TITLE),
+      caseOf(typeRole.sectionHeader, syncSetupTitle()),
       textStyle(typeRole.sectionHeader, surface.paper.hex),
       20,
       10,
       (title) => drawBetaTagBeside(this, title, x + panelWidth - PAD),
     );
-    textRow(SYNC_SETUP_BODY, textStyle(typeRole.body, surface.paper.hex, 0.9), 14, 10);
-    textRow(SYNC_SETUP_LATER, textStyle(typeRole.body, surface.paper.hex, 0.85), 12, 10);
+    textRow(syncSetupBody(), textStyle(typeRole.body, surface.paper.hex, 0.9), 14, 10);
+    textRow(syncSetupLater(), textStyle(typeRole.body, surface.paper.hex, 0.85), 12, 10);
     infoRow();
-    buttonRow("set-up", SYNC_SETUP_BUTTONS.setUp, true, "set-up");
-    buttonRow("join", SYNC_SETUP_BUTTONS.join, false, "join");
-    buttonRow("not-now", SYNC_SETUP_BUTTONS.notNow, false, "not-now");
+    buttonRow("set-up", syncSetupButtons.setUp, true, "set-up");
+    buttonRow("join", syncSetupButtons.join, false, "join");
+    buttonRow("not-now", syncSetupButtons.notNow, false, "not-now");
 
     const total = rows.reduce((sum, row) => sum + row.height, 0);
     const panelHeight = total + PAD * 2;
@@ -240,11 +240,11 @@ export class SyncSetupNotice extends Phaser.Scene {
     const heading = this.add.text(
       0,
       0,
-      SYNC_NOTICE_HEADING.toUpperCase(),
+      syncNoticeHeading().toUpperCase(),
       textStyle(typeRole.label, surface.paper.hex),
     );
     const line = this.add
-      .text(0, 0, SYNC_NOTICE_BODY, textStyle(typeRole.body, surface.paper.hex))
+      .text(0, 0, syncNoticeBody(), textStyle(typeRole.body, surface.paper.hex))
       .setFontSize(phone ? 13 : 14)
       .setWordWrapWidth(boxWidth - textX - 14)
       .setLineSpacing(2);

@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Scrolling Decks & Collection and a deck''s check no longer stutters while card pictures load: each picture fills in its own tile instead of the whole screen being drawn again.'
+time: 2026-11-26T06:23:10.9256836-05:00

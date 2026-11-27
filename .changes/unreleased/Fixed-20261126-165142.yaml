@@ -1,0 +1,3 @@
+kind: Fixed
+body: Pressing a toggle in the room's Settings, Seats or Chat list no longer scrolls the list back to the top.
+time: 2026-11-26T16:51:42.3712142-05:00

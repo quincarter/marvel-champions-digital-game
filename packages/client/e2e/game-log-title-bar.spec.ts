@@ -15,6 +15,10 @@ const tickerRect = (page: Page): Promise<Rect | null> => hook<Rect | null>(page,
 const logOpen = (page: Page): Promise<boolean | null> => hook<boolean>(page, "__mcBoardDebug", "logOpen");
 const logRect = (page: Page): Promise<Rect | null> => hook<Rect | null>(page, "__mcBoardDebug", "logRect");
 
+/** The log's large view is a Lit panel over the canvas (`mc-game-log`), one per scene that shows it. */
+const logPanel = (page: Page, scene: "Board" | "VillainPhaseOverlay") =>
+  page.locator(`#mc-ui [data-scene=${scene}] mc-game-log`);
+
 const press = async (page: Page, phone: boolean, rect: Rect): Promise<void> => {
   // A control drawn this frame takes presses from the next one: let the screen settle first.
   await settle(page);
@@ -52,6 +56,8 @@ test("issue #550: the title bar's line opens the larger log, and its key does to
   const panel = (await logRect(page))!;
   expect(panel.width).toBeGreaterThan(phone ? 340 : 480);
   expect(panel.height).toBeGreaterThan(phone ? 280 : 700);
+  await expect(logPanel(page, "Board").getByText("GAME LOG"), "the panel is up, over the canvas").toBeVisible();
+  await expect(logPanel(page, "Board").getByText("Close")).toBeVisible();
   if (SHOT) {
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${SHOT}/log-open-${info.project.name}.png` });
@@ -59,6 +65,7 @@ test("issue #550: the title bar's line opens the larger log, and its key does to
 
   await press(page, phone, ticker);
   expect(await logOpen(page), "a second press shuts it").toBe(false);
+  await expect(logPanel(page, "Board")).toBeHidden();
 
   if (!phone) {
     await page.keyboard.press("Shift+B");
@@ -92,6 +99,7 @@ test("issue #550: the villain phase goes to the log and back, and waits while th
   await press(page, phone, ticker);
   expect(await logView(page), "the line opens the log inside the phase").toBe(true);
   expect(await logOpen(page), "the table's own log stays shut").toBe(false);
+  await expect(logPanel(page, "VillainPhaseOverlay").getByText("GAME LOG")).toBeVisible();
   if (SHOT) {
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${SHOT}/log-in-villain-phase-${info.project.name}.png` });
@@ -274,6 +282,60 @@ test("issue #227: a swipe of the log that lifts on Close or the title bar's line
     await settle(page);
     expect(await logOpen(page), "a swipe that lifted over a control presses nothing").toBe(true);
   }
+});
+
+test("issue #227: a swipe of the log list that lifts on the newer chip or on Close presses neither", async ({
+  page,
+}, info) => {
+  test.setTimeout(150_000);
+  test.skip(info.project.name !== "phone", "a phone's touch sequence");
+  await installWave6Helpers(page);
+  await openApp(page);
+  await startGame(page, { scenarioId: "rhino", decks: ["core-spider-man-justice"], seed: 3 });
+  await declineMulligans(page);
+  await settle(page);
+  const ticker = await waitFor(() => tickerRect(page), "the log's line in the title bar", 15_000);
+  await press(page, true, ticker);
+  const panel = logPanel(page, "Board");
+  await expect(panel.getByText("GAME LOG")).toBeVisible();
+  // A long log, read back: the chip shows under the list. (A fresh game's log is two lines.)
+  await panel.evaluate(async (element) => {
+    const log = element as HTMLElement & { lines: unknown[]; updateComplete: Promise<unknown>; scroller: HTMLElement };
+    log.lines = Array.from({ length: 60 }, (_, index) => ({
+      id: `swipe${index}`,
+      ref: `R1.${index}`,
+      text: `Line ${index}: a sentence long enough to wrap on a phone's narrow panel, so the list scrolls.`,
+      voice: "player",
+      tags: [],
+    }));
+    await log.updateComplete;
+    log.scroller.scrollTop = 0;
+  });
+  const chip = panel.locator(".newer");
+  await expect(chip).toBeVisible();
+  const box = async (locator: typeof chip) => (await locator.boundingBox())!;
+  const list = await box(panel.locator(".scroller"));
+  const from = { x: list.x + list.width / 2, y: list.y + list.height / 2 };
+  const chipBox = await box(chip);
+  const closeBox = await box(panel.locator("mc-button.close"));
+  const swipeTo = async (to: { x: number; y: number }) => {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ ...from, id: 1 }] });
+    for (let i = 1; i <= 10; i++) {
+      const point = { x: from.x + ((to.x - from.x) * i) / 10, y: from.y + ((to.y - from.y) * i) / 10 };
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...point, id: 1 }] });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+    await settle(page);
+  };
+  await swipeTo({ x: chipBox.x + chipBox.width / 2, y: chipBox.y + chipBox.height / 2 });
+  await expect(chip, "the lift over the chip did not take it").toBeVisible();
+  await swipeTo({ x: closeBox.x + closeBox.width / 2, y: closeBox.y + closeBox.height / 2 });
+  expect(await logOpen(page), "the lift over Close did not shut the log").toBe(true);
+  // A real tap on the chip does go to the latest line.
+  await press(page, true, chipBox);
+  await expect(chip).toBeHidden();
 });
 
 for (const [name, viewport] of [

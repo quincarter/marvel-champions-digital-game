@@ -38,26 +38,22 @@
  * off to Game Over — so on success this overlay only has to get out of the way.
  */
 import Phaser from "phaser";
+import "@mc/ui";
+import type { McSheet } from "@mc/ui";
 import { addPressShield } from "../ui/press-shield.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { hitRectAround } from "../view/hit-rect.js";
+import { SheetBuilder, type Measured, type TextOptions } from "../dom/sheet-builder.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import type { CardSize } from "../settings.js";
 import { playableScenarioOffer } from "@mc/cards";
 import { gameEncounterSets, gameScenarios } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
 import { accent, hit, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
-import { caseOf, textStyle } from "../ui/theme.js";
+import { skin, type WidgetKind, type WidgetState } from "../ui/theme.js";
 import { applyTextResolution, drawnDensity } from "../platform/screen-settings.js";
-import {
-  McButton,
-  McTextInput,
-  addRowTapZone,
-  fitText,
-  label,
-  paintDotGrid,
-  paintOnFrame,
-  paintPanel,
-} from "../ui/widgets.js";
-import { McScrollRegion } from "../ui/scroll-region.js";
-import { onTap } from "../ui/tap.js";
+import { McTextInput } from "../ui/widgets.js";
 import {
   pauseLayout,
   type PausePhoneLowerContent,
@@ -83,10 +79,9 @@ import {
 import { askToConfirm } from "./end-turn-confirm.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
-import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { ManualAdjustData } from "./manual-adjust.js";
 import { pauseFocusOrder } from "../view/screen-focus.js";
-import { contentSlotHeights, type Rect } from "../view/layout.js";
+import type { Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
 import { roomCheatsOf } from "../view/room-strict.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
@@ -104,6 +99,7 @@ import { concedeRouteOf } from "../view/competitive-concede.js";
 import { SCENES } from "./keys.js";
 import type { PlayerStatsData } from "./player-stats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { artLanguageNow } from "../art/art-source.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import type { BoardScene } from "./board.js";
 import { withLevel } from "../guide/guide-prefs.js";
@@ -111,7 +107,7 @@ import { detectPlatform } from "../platform/platform.js";
 import { inputDevice, padAvailable } from "../platform/input-device.js";
 import { followsWindowsMixer } from "../platform/app-volume.js";
 import { powerSavingOn } from "../platform/power-saving.js";
-import { t } from "../i18n/translate.js";
+import { t, tPlural } from "../i18n/translate.js";
 import { liveStatus, onLiveStatus } from "../platform/live-watch.js";
 import { copyWatchLink, pauseWatchLinkOf, watchLinkLabelOf } from "../view/live-watch-ui.js";
 import { readConsent } from "../global-stats/global-consent.js";
@@ -130,7 +126,8 @@ import {
 } from "../view/pause-search.js";
 import { controlsShown, settingsDeviceRowsFor, settingsTabsFor } from "./settings-env.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
-import { drawSearchResultRow } from "./settings-search-row.js";
+import { SEARCH_RESULT_ROW_HEIGHT } from "./settings-search-row.js";
+import { markedLineOf, type TextRange } from "../view/settings-search-line.js";
 import type { SettingsSceneData } from "./settings.js";
 import type { UnlocksSceneData } from "./unlocks.js";
 import type { SaveDataSceneData } from "./save-data.js";
@@ -177,7 +174,15 @@ function isGuideNonLevelRow(row: GuideRowInfo): row is GuideNonLevelRow {
 export class PauseOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
   #unsubscribeGuide: (() => void) | null = null;
-  #buttons: McButton[] = [];
+  /** The sheet, one Lit panel over the canvas, made on the first draw and kept (so its scroll positions stay). */
+  #region: DomRegion<McSheet> | null = null;
+  /** The parts the draw in progress is building (a scrolling region's own while it builds that). */
+  #b!: SheetBuilder;
+  /** What each key in the panel does this draw, for its `mc-activate`. */
+  #actions = new Map<string, () => void>();
+  /** The Table/Guide and results regions read from their top on the next draw. */
+  #lowerFromTop = false;
+  #resultsFromTop = false;
   #searchInput: McTextInput | null = null;
   #route: FocusRoute | null = null;
   #confirmingConcede = false;
@@ -190,9 +195,6 @@ export class PauseOverlay extends Phaser.Scene {
   #motion = new OverlayMotion();
   /** The log moments drawn this pass that a tap rewinds to (`BoardScene.undoMoments`), by line id, in draw order. */
   #momentIds: string[] = [];
-  /** Phone only — the Guide group's own scroll region (docs/guided-mode.md §4 G2b); `null` on a wide layout, which has no inline Guide group. */
-  #lowerRegion: McScrollRegion | null = null;
-  #lowerScroll = new VariableListScroll();
   /**
    * The search: Settings' own search worker, indexed when the sheet opens (so the first letter typed is answered at
    * once), and again whenever what the results say may have changed (a resize, a page closing over the sheet).
@@ -200,8 +202,6 @@ export class PauseOverlay extends Phaser.Scene {
   #searchClient: SettingsSearchClient | null = null;
   /** What is typed and the worker's answer for it (`view/pause-search.ts`). */
   #search: PauseSearchSession | null = null;
-  #resultsRegion: McScrollRegion | null = null;
-  #resultsScroll = new VariableListScroll();
 
   constructor() {
     super(SCENES.pause);
@@ -212,6 +212,9 @@ export class PauseOverlay extends Phaser.Scene {
     this.#confirmingConcede = false;
     this.#logExpanded = false;
     this.#quickExpanded = false;
+    this.#region = null;
+    this.#lowerFromTop = false;
+    this.#resultsFromTop = false;
     // The watch link appearing (or going) while Pause is up adds or drops its item (#876).
     let linkShown = pauseWatchLinkOf(liveStatus()) !== null;
     const liveOff = onLiveStatus((status) => {
@@ -237,11 +240,10 @@ export class PauseOverlay extends Phaser.Scene {
       (newQuery) => {
         // A new query's list reads from its top; the same query answered again (a setting changed in place) stays
         // where the player had scrolled to.
-        if (newQuery) this.#resultsScroll = new VariableListScroll();
+        if (newQuery) this.#resultsFromTop = true;
         if (this.sys.isActive()) this.#draw();
       },
     );
-    this.#resultsScroll = new VariableListScroll();
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#draw());
     // The standalone Settings overlay (or another Pause) can change the same live guide prefs while this one is
@@ -263,6 +265,7 @@ export class PauseOverlay extends Phaser.Scene {
       () => this.#covered(),
     );
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       blocked: () => this.#covered() || (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#confirmingConcede ? this.#setConfirmingConcede(false) : this.#resume()),
     });
@@ -274,12 +277,8 @@ export class PauseOverlay extends Phaser.Scene {
       this.#unsubscribeGuide = null;
       this.#searchInput?.destroy();
       this.#searchInput = null;
-      for (const button of this.#buttons) button.destroy();
-      this.#buttons = [];
-      this.#lowerRegion?.destroy();
-      this.#lowerRegion = null;
-      this.#resultsRegion?.destroy();
-      this.#resultsRegion = null;
+      // The panel goes with the scene (`DomRegion`); the next open makes a new one.
+      this.#region = null;
       this.#searchClient?.destroy();
       this.#searchClient = null;
       this.#search = null;
@@ -381,16 +380,16 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   #adjustLabel(): string {
-    return this.#seatGame() ? t("ask.change") : "Manual adjust";
+    return this.#seatGame() ? t("ask.change") : t("pause.manualAdjust");
   }
 
   #quitLabel(): string {
-    return this.#seatGame() ? t("ask.leave") : "Save & quit";
+    return this.#seatGame() ? t("ask.leave") : t("pause.saveQuit");
   }
 
   /** What the Concede confirm says: a guest's Concede is leaving the seat, not ending the game. */
   #concedeSentence(): string {
-    if (!this.#seatGame()) return "Concede? This ends the game for the whole table.";
+    if (!this.#seatGame()) return t("pause.concedeSentence");
     return handoverOn(roomState())
       ? `${t("concede.seatTitle")} ${t("concede.seatBody")}`
       : `${t("concede.seatTitle")} ${t("concede.seatStays")}`;
@@ -513,40 +512,40 @@ export class PauseOverlay extends Phaser.Scene {
     rows.push(
       {
         id: "villainPhase",
-        title: "Villain phase order",
-        detail: "Six steps, in sequence.",
+        title: t("pause.q.villainPhase.title"),
+        detail: t("pause.q.villainPhase.detail"),
         open: () => this.#openRules({ initialTab: "villainPhase" satisfies RulesTab }),
       },
       {
         id: "glossary",
-        title: "Keyword glossary",
-        detail: game ? `${glossaryCount} term${glossaryCount === 1 ? "" : "s"} on the table` : "No game in progress.",
+        title: t("pause.q.glossary.title"),
+        detail: game ? tPlural("pause.q.glossary.count", glossaryCount) : t("pause.noGame"),
         open: () => this.#openRules({ initialTab: "glossary" satisfies RulesTab }),
       },
       {
         id: "cardList",
-        title: "Scenario card list",
-        detail: game ? `${cardListSetCount} encounter set${cardListSetCount === 1 ? "" : "s"}` : "No game in progress.",
+        title: t("pause.q.cardList.title"),
+        detail: game ? tPlural("pause.q.cardList.count", cardListSetCount) : t("pause.noGame"),
         open: () => this.#openRules({ initialTab: "cardList" satisfies RulesTab }),
       },
       {
         id: "jumpLog",
-        title: "Game log",
-        detail: this.#logExpanded ? "Showing below, newest first. Tap again for Table." : "What has happened so far.",
+        title: t("pause.q.log.title"),
+        detail: this.#logExpanded ? t("pause.q.log.shown") : t("pause.q.log.detail"),
         open: () => this.#toggleFullGameLog(),
       },
       // The Table rows below are only a few of them: the rest (music, card size, the villain phase, accessibility) are
       // on the standalone Settings screen, which wide mode's menu links to and the phone had no way to reach.
       {
         id: "settings",
-        title: "Show all settings",
-        detail: "Sound, card size, villain phase and more.",
+        title: t("pause.q.settings.title"),
+        detail: t("pause.q.settings.detail"),
         open: () => this.#launchOver(SCENES.settings, {}),
       },
       {
         id: "stats",
-        title: this.#roomChat() ? t("chat.title") : "Your stats",
-        detail: this.#roomChat() ? t("chat.pauseDetail") : "Your record, heroes, villains and the cards you play.",
+        title: this.#roomChat() ? t("chat.title") : t("pause.yourStats"),
+        detail: this.#roomChat() ? t("chat.pauseDetail") : t("pause.q.stats.detail"),
         open: () => (this.#roomChat() ? this.#openChat() : this.#openStats()),
       },
       // Only once the player has turned it on in Settings > More > Cheats (the owner, 2026-11-19).
@@ -555,24 +554,22 @@ export class PauseOverlay extends Phaser.Scene {
             {
               id: "manualAdjust",
               title: this.#adjustLabel(),
-              detail: this.#seatGame()
-                ? t("ask.changeDetail")
-                : "Fix the table by hand after a bug or a misclick. The game stops counting.",
+              detail: this.#seatGame() ? t("ask.changeDetail") : t("pause.q.adjust.detail"),
               open: () => this.#openManualAdjust(),
             },
           ]
         : []),
       {
         id: "music",
-        title: "Music",
-        detail: "What is playing, and the songs you have earned.",
+        title: t("pause.music"),
+        detail: t("pause.q.music.detail"),
         compact: true,
         open: () => this.#openMusic(),
       },
       {
         id: "report",
-        title: "Report",
-        detail: "Tell us about a bug or a wrong ruling.",
+        title: t("pause.report"),
+        detail: t("pause.q.report.detail"),
         compact: true,
         open: () => this.#openReport(),
       },
@@ -605,8 +602,8 @@ export class PauseOverlay extends Phaser.Scene {
         ? [
             {
               id: "controls",
-              title: "Controls",
-              detail: "Controller buttons, keyboard shortcuts and hints.",
+              title: t("pause.q.controls.title"),
+              detail: t("pause.q.controls.detail"),
               compact: true as const,
               open: () => this.scene.launch(SCENES.controls),
             },
@@ -616,17 +613,126 @@ export class PauseOverlay extends Phaser.Scene {
     return rows;
   }
 
+  // ------------------------------------------------------------------------------------------------------------
+  // The sheet is one Lit panel (`mc-sheet`, `dom/sheet-builder.ts`) over the canvas: each `#draw` builds its parts
+  // again, at the rects `view/pause-layout.ts` gives, and hands them to the panel. Phaser keeps the scrim, the press
+  // shield, the search field and the invisible motion anchor the panel follows (`DomRegion.follow`).
+  // ------------------------------------------------------------------------------------------------------------
+
+  /** A label (Phaser's `label()` and a `caseOf`'d `add.text`): the spec's own case, tracking and weight. */
+  #label(
+    x: number,
+    y: number,
+    text: string,
+    spec: TypeSpec,
+    color: number,
+    alpha: number = ink.label,
+    options: Omit<TextOptions, "color" | "alpha"> = {},
+  ): Measured {
+    return this.#b.text(x, y, text, spec, { ...options, color, alpha });
+  }
+
+  /** A text as `add.text(..., textStyle(spec, ...))` drew it: the spec's face and size, never uppercased. */
+  #plain(
+    x: number,
+    y: number,
+    text: string,
+    spec: TypeSpec,
+    color: number,
+    alpha = 1,
+    options: Omit<TextOptions, "color" | "alpha"> = {},
+  ): Measured {
+    return this.#b.text(x, y, text, { ...spec, uppercase: false }, { ...options, color, alpha });
+  }
+
+  /** `paintPanel`: a box in a widget kind's skin. */
+  #panel(rect: Rect, kind: WidgetKind, state: WidgetState): void {
+    const s = skin(kind, state);
+    this.#b.box(rect, {
+      fill: s.fill,
+      stroke: s.stroke,
+      strokeWidth: s.strokeWidth,
+      ...(s.fillAlpha < 1 ? { alpha: s.fillAlpha } : {}),
+      ...(s.dashed ? { dashed: true } : {}),
+    });
+  }
+
+  /** What a key does when the panel reports a tap on it. */
+  #press(key: string, action: () => void): void {
+    this.#actions.set(key, action);
+  }
+
+  /** A stop inside one of the panel's scrolling regions: its box is read off the panel, so it follows the scroll. */
+  #scrollStop(
+    scroll: { readonly key: string; readonly rect: Rect },
+    itemKey: string,
+    rect: Rect,
+    activate: () => void,
+  ): FocusStop {
+    const region = (): DomRegion<McSheet> | null => this.#region;
+    return {
+      rect: () => {
+        const found = region()?.element.elementOf(itemKey);
+        return found ? region()!.rectOf(found) : rect;
+      },
+      view: () => {
+        const found = region()?.element.elementOf(scroll.key);
+        return found ? region()!.rectOf(found) : scroll.rect;
+      },
+      activate,
+      ensureVisible: () => region()?.element.elementOf(itemKey)?.scrollIntoView({ block: "nearest" }),
+    };
+  }
+
+  /** Builds the parts of a scrolling region in its own content space (`y` from 0, `x` the screen's). */
+  #inScroll(key: string, rect: Rect, height: number, draw: () => void): void {
+    const outer = this.#b;
+    outer.scroll(key, rect, height, (inner) => {
+      this.#b = inner;
+      try {
+        draw();
+      } finally {
+        this.#b = outer;
+      }
+    });
+  }
+
+  /** Hands the built parts to the panel (made once, so scroll positions survive a redraw) and renders them now. */
+  #mount(width: number, height: number, searchRect: Rect): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      element.addEventListener("mc-activate", (event) => {
+        // Closing already (its exit is playing): a second tap must not act.
+        if (this.#motion.leaving) return;
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#region = new DomRegion(this, element, { x: 0, y: 0, width, height });
+    }
+    const region = this.#region;
+    region.setRect({ x: 0, y: 0, width, height });
+    // The search field is a Phaser DOM element under the panel: left out of it, it is seen and pressed. Only while it
+    // shows: under a pop-up it hides itself, and the hole would show the board through the panel.
+    region.setHoles(() => (this.#searchInput?.shown ? [searchRect] : []));
+    region.element.nodes = this.#b.nodes;
+    renderNow(region.element);
+    if (this.#lowerFromTop) {
+      const scroller = region.element.elementOf("lower");
+      if (scroller) scroller.scrollTop = 0;
+      this.#lowerFromTop = false;
+    }
+    if (this.#resultsFromTop) {
+      const scroller = region.element.elementOf("results");
+      if (scroller) scroller.scrollTop = 0;
+      this.#resultsFromTop = false;
+    }
+  }
+
   #draw(): void {
     // Answered its own exit already (Resume, Save & quit) — a store update or
     // resize mid-fade must not redraw over the outgoing sheet.
     if (this.#motion.leaving) return;
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-    this.#lowerRegion?.destroy();
-    this.#lowerRegion = null;
-    this.#resultsRegion?.destroy();
-    this.#resultsRegion = null;
     this.#momentIds = [];
+    this.#actions = new Map();
 
     const { store, settings } = appSession();
     const { game, perspectiveId, config } = store.state;
@@ -672,31 +778,35 @@ export class PauseOverlay extends Phaser.Scene {
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
 
-    // Dim scrim over the board — the sheet itself paints its own two panels below.
+    // Dim scrim over the board — the sheet itself is the panel above it.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
     // The scrim is Graphics, which takes no pointer: without this a press outside the sheet reached the board.
     addPressShield(this, { x: 0, y: 0, width, height });
     const panelsFrom = this.children.list.length;
+    // Nothing drawn: the entrance and exit tween this, and the panel rises and fades with it (`DomRegion.follow`).
+    const anchor = this.add.graphics();
 
+    this.#b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
     const stops = new Map<string, FocusStop>();
+    let order: readonly string[];
+    let searchRect: Rect;
 
     if (layout.kind === "wide") {
+      searchRect = layout.search;
       const resultIds = this.#drawWide(layout, keywordEntries, game, perspectiveId, config, stops, searching);
-      this.#route?.set(
-        pauseFocusOrder({
-          ...(searching ? { searchResultIds: resultIds } : {}),
-          kind: "wide",
-          keywordIds: keywordEntries.slice(0, layout.keywordGrid.shown).map((entry) => entry.id),
-          momentIds: this.#momentIds,
-          confirmingConcede: this.#confirmingConcede,
-          guidedRunActive,
-          watchLink: layout.watchLink !== null,
-          showHand: layout.showHand !== null,
-        }),
-        stops,
-      );
+      order = pauseFocusOrder({
+        ...(searching ? { searchResultIds: resultIds } : {}),
+        kind: "wide",
+        keywordIds: keywordEntries.slice(0, layout.keywordGrid.shown).map((entry) => entry.id),
+        momentIds: this.#momentIds,
+        confirmingConcede: this.#confirmingConcede,
+        guidedRunActive,
+        watchLink: layout.watchLink !== null,
+        showHand: layout.showHand !== null,
+      });
     } else {
+      searchRect = layout.search;
       const { guideRowIds, resultIds } = this.#drawPhone(
         layout,
         quickReferenceRows,
@@ -708,33 +818,35 @@ export class PauseOverlay extends Phaser.Scene {
         stops,
         searching,
       );
-      this.#route?.set(
-        pauseFocusOrder({
-          ...(searching ? { searchResultIds: resultIds } : {}),
-          kind: "phone",
-          // The compact cells share the toggle's line, so they come before the rows it opens.
-          quickReferenceIds: [
-            ...quickReferenceRows.filter((row) => row.compact),
-            ...quickReferenceRows.filter((row) => !row.compact),
-          ].map((row) => row.id),
-          momentIds: this.#momentIds,
-          tableRowIds: phoneLogShown
-            ? []
-            : [
-                ...cardSizeRowInfoOf(appSession().settings).options.map((option) => `card-size:${option.value}`),
-                ...tableRows.map((row) => row.id),
-              ],
-          guideRowIds,
-          confirmingConcede: this.#confirmingConcede,
-          guidedRunActive: guidedRunActive && !phoneLogShown,
-        }),
-        stops,
-      );
+      order = pauseFocusOrder({
+        ...(searching ? { searchResultIds: resultIds } : {}),
+        kind: "phone",
+        // The compact cells share the toggle's line, so they come before the rows it opens.
+        quickReferenceIds: [
+          ...quickReferenceRows.filter((row) => row.compact),
+          ...quickReferenceRows.filter((row) => !row.compact),
+        ].map((row) => row.id),
+        momentIds: this.#momentIds,
+        tableRowIds: phoneLogShown
+          ? []
+          : [
+              ...cardSizeRowInfoOf(appSession().settings).options.map((option) => `card-size:${option.value}`),
+              ...tableRows.map((row) => row.id),
+            ],
+        guideRowIds,
+        confirmingConcede: this.#confirmingConcede,
+        guidedRunActive: guidedRunActive && !phoneLogShown,
+      });
     }
 
-    // A kept field's ring was first on the list, under the panels drawn since (as in `scenes/settings.ts`).
+    // Rendered before the route reads its stops, so a stop inside a scrolling region can find its element.
+    this.#mount(width, height, searchRect);
+    this.#route?.set(order, stops);
+
+    // A kept field's ring was first on the list, under the anchor drawn since (as in `scenes/settings.ts`).
     for (const node of kept) this.children.bringToTop(node);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+    this.#region?.follow(anchor);
   }
 
   // ------------------------------------------------------------------------------------------------------------
@@ -750,71 +862,63 @@ export class PauseOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     searching: boolean,
   ): readonly string[] {
+    const b = this.#b;
     // A hard offset shadow behind the sheet — the design's own one shadow besides the selection ring.
-    const shadow = this.add.graphics();
-    shadow
-      .fillStyle(surface.ink.hex, 0.5)
-      .fillRect(layout.sheet.x + 8, layout.sheet.y + 8, layout.sheet.width, layout.sheet.height);
+    b.box(
+      { x: layout.sheet.x + 8, y: layout.sheet.y + 8, width: layout.sheet.width, height: layout.sheet.height },
+      { fill: surface.ink.hex, fillAlpha: 0.5 },
+    );
 
-    const leftG = this.add.graphics();
-    leftG.fillStyle(surface.ink.hex, 1).fillRect(layout.left.x, layout.left.y, layout.left.width, layout.left.height);
-    leftG
-      .lineStyle(4, surface.paper.hex, 1)
-      .strokeRect(layout.left.x, layout.left.y, layout.left.width, layout.left.height);
-    paintDotGrid(this, layout.left, "ink", { spacing: 8, radius: 1, alpha: 0.08 });
+    b.box(layout.left, { fill: surface.ink.hex, stroke: surface.paper.hex, strokeWidth: 4 });
+    b.dots(layout.left, "ink", 8, 1, 0.08);
 
     // Searching, the right panel turns ink like the left, the ground the results (and the phone's) are drawn for.
-    const rightG = this.add.graphics();
-    rightG
-      .fillStyle(searching ? surface.ink.hex : surface.paper.hex, 1)
-      .fillRect(layout.right.x, layout.right.y, layout.right.width, layout.right.height);
-    rightG
-      .lineStyle(4, searching ? surface.paper.hex : surface.ink.hex, 1)
-      .strokeRect(layout.right.x, layout.right.y, layout.right.width, layout.right.height);
-    paintDotGrid(this, layout.right, searching ? "ink" : "paper", { spacing: 6, radius: 1, alpha: 0.1 });
-
-    this.add.text(layout.title.x, layout.title.y, caseOf(typeRole.barTitle, "Paused"), {
-      ...textStyle(typeRole.barTitle, surface.paper.hex),
-      fontSize: "30px",
+    b.box(layout.right, {
+      fill: searching ? surface.ink.hex : surface.paper.hex,
+      stroke: searching ? surface.paper.hex : surface.ink.hex,
+      strokeWidth: 4,
     });
-    const statusText =
-      game && perspectiveId ? this.#wideStatusLine(game, perspectiveId, config) : "No game in progress.";
-    const statusLabel = label(
-      this,
-      layout.status.x,
-      layout.status.y,
-      statusText,
-      typeRole.label,
-      surface.paper.hex,
-      ink.secondary,
-    ).setFontSize(11);
-    fitText(statusLabel, layout.status.width, 11);
+    b.dots(layout.right, searching ? "ink" : "paper", 6, 1, 0.1);
+
+    this.#label(layout.title.x, layout.title.y, t("pause.title"), typeRole.barTitle, surface.paper.hex, 1, {
+      size: 30,
+    });
+    const statusText = game && perspectiveId ? this.#wideStatusLine(game, perspectiveId, config) : t("pause.noGame");
+    this.#label(layout.status.x, layout.status.y, statusText, typeRole.label, surface.paper.hex, ink.secondary, {
+      size: 11,
+      fitWidth: layout.status.width,
+    });
     if (game && perspectiveId) this.#drawBlindSheet(layout.blindSheet, game, perspectiveId, config);
 
-    this.#menuButton(stops, "resume", "primary", "Resume", layout.menu.resume, () => this.#resume());
+    this.#menuButton(stops, "resume", "primary", t("pause.resume"), layout.menu.resume, () => this.#resume());
     this.#menuButton(
       stops,
       "full-game-log",
       "onInk",
-      "Full game log",
+      t("pause.fullGameLog"),
       layout.menu.fullGameLog,
       () => this.#toggleFullGameLog(),
       this.#logExpanded,
     );
-    this.#menuButton(stops, "rules-reference", "onInk", "Rules reference", layout.menu.rulesReference, () =>
+    this.#menuButton(stops, "rules-reference", "onInk", t("pause.rulesReference"), layout.menu.rulesReference, () =>
       this.#openRules({ initialTab: "glossary" satisfies RulesTab }),
     );
-    this.#menuButton(stops, "settings", "onInk", "Settings", layout.menu.settings, () =>
+    this.#menuButton(stops, "settings", "onInk", t("settings.title"), layout.menu.settings, () =>
       this.#launchOver(SCENES.settings, {}),
     );
     // A room game's chat takes the stats slot: its stop keeps the id, so the focus route is the same (#881).
-    this.#menuButton(stops, "stats", "onInk", this.#roomChat() ? t("chat.open") : "Your stats", layout.menu.stats, () =>
-      this.#roomChat() ? this.#openChat() : this.#openStats(),
+    this.#menuButton(
+      stops,
+      "stats",
+      "onInk",
+      this.#roomChat() ? t("chat.open") : t("pause.yourStats"),
+      layout.menu.stats,
+      () => (this.#roomChat() ? this.#openChat() : this.#openStats()),
     );
     this.#menuButton(stops, "save-quit", "onInk", this.#quitLabel(), layout.menu.saveQuit, () => this.#saveAndQuit());
-    this.#menuButton(stops, "music", "onInk", "Music", layout.menu.music, () => this.#openMusic());
+    this.#menuButton(stops, "music", "onInk", t("pause.music"), layout.menu.music, () => this.#openMusic());
     // Half a narrow sheet (tablet portrait) cannot hold the whole phrase.
-    const reportLabel = layout.menu.report.width < 130 ? "Report" : "Report a problem";
+    const reportLabel = layout.menu.report.width < 130 ? t("pause.report") : t("pause.reportLong");
     this.#menuButton(stops, "report", "onInk", reportLabel, layout.menu.report, () => this.#openReport());
     if (layout.watchLink)
       this.#menuButton(stops, "watch-link", "onInk", watchLinkLabelOf(this.#linkCopied, false), layout.watchLink, () =>
@@ -836,26 +940,25 @@ export class PauseOverlay extends Phaser.Scene {
     // `layout.guideStopTutorial`/`guideTurnGuideOff` are `null` unless `guidedRunActive` was true when this layout
     // was built, so this stays a no-op for the far more common non-guided game.
     if (layout.guideStopTutorial && layout.guideTurnGuideOff) {
-      this.#menuButton(stops, "guide-stop-tutorial", "onInk", "Stop tutorial", layout.guideStopTutorial, () =>
+      this.#menuButton(stops, "guide-stop-tutorial", "onInk", t("pause.stopTutorial"), layout.guideStopTutorial, () =>
         this.#stopTutorial(),
       );
-      this.#menuButton(stops, "guide-turn-guide-off", "onInk", "Turn guide off", layout.guideTurnGuideOff, () =>
+      this.#menuButton(stops, "guide-turn-guide-off", "onInk", t("pause.turnGuideOff"), layout.guideTurnGuideOff, () =>
         this.#turnGuideOff(),
       );
     }
 
     // The wide status line has no room for it, so the left panel says it in the gap above Manual adjust.
     if (!this.#confirmingConcede && appSession().store.state.adjusted) {
-      this.add
-        .text(
-          layout.manualAdjust.x,
-          layout.manualAdjust.y - 36,
-          "Adjusted: not counted toward stats",
-          textStyle(typeRole.label, surface.paper.hex, ink.secondary),
-        )
-        .setFontSize(11)
-        .setWordWrapWidth(layout.manualAdjust.width)
-        .setLineSpacing(2);
+      this.#plain(
+        layout.manualAdjust.x,
+        layout.manualAdjust.y - 36,
+        t("pause.adjusted"),
+        typeRole.label,
+        surface.paper.hex,
+        ink.secondary,
+        { size: 11, wrapWidth: layout.manualAdjust.width, lineSpacing: 2 },
+      );
     }
     if (this.#confirmingConcede) this.#drawWideConcedeConfirm(layout, stops);
     else {
@@ -868,7 +971,9 @@ export class PauseOverlay extends Phaser.Scene {
       }
       // The same full-strength outline as the rest of the menu. D13 dims it, which read as *disabled* (owner,
       // 2026-09-18); its place alone at the panel's foot, and the confirm step behind it, already set it apart.
-      this.#menuButton(stops, "concede", "onInk", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
+      this.#menuButton(stops, "concede", "onInk", t("pause.concede"), layout.concede, () =>
+        this.#setConfirmingConcede(true),
+      );
     }
 
     this.#drawSearchField(layout.search, stops);
@@ -887,47 +992,40 @@ export class PauseOverlay extends Phaser.Scene {
     selected = false,
   ): void {
     stops.set(id, { rect, activate: onClick });
-    this.#buttons.push(
-      new McButton(this, { kind, label: text, type: MENU_BUTTON_TYPE, rect, onClick, selected, enabled: true }),
-    );
+    this.#press(id, onClick);
+    this.#b.button({ key: id, rect, label: text, look: kind, type: MENU_BUTTON_TYPE, selected });
   }
 
   #drawWideConcedeConfirm(layout: PauseWideLayout, stops: Map<string, FocusStop>): void {
-    this.add
-      .text(
-        layout.title.x,
-        layout.concedeConfirmCancel.y - 34,
-        this.#concedeSentence(),
-        textStyle(typeRole.body, accent.heroRed.hex),
-      )
-      .setFontSize(10)
-      .setWordWrapWidth(layout.title.width);
-    stops.set("concede-confirm-yes", {
+    this.#plain(
+      layout.title.x,
+      layout.concedeConfirmCancel.y - 34,
+      this.#concedeSentence(),
+      typeRole.body,
+      accent.heroRed.hex,
+      1,
+      { size: 10, wrapWidth: layout.title.width },
+    );
+    const yes = (): void => void this.#onConcedeConfirmed();
+    const cancel = (): void => this.#setConfirmingConcede(false);
+    stops.set("concede-confirm-yes", { rect: layout.concedeConfirmYes, activate: yes });
+    this.#press("concede-confirm-yes", yes);
+    this.#b.button({
+      key: "concede-confirm-yes",
       rect: layout.concedeConfirmYes,
-      activate: () => void this.#onConcedeConfirmed(),
+      label: this.#seatGame() ? t("concede.seatConfirm") : t("pause.concedeYes"),
+      look: "primary",
+      type: MENU_BUTTON_TYPE,
     });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: this.#seatGame() ? t("concede.seatConfirm") : "Yes, concede",
-        type: MENU_BUTTON_TYPE,
-        rect: layout.concedeConfirmYes,
-        onClick: () => void this.#onConcedeConfirmed(),
-      }),
-    );
-    stops.set("concede-confirm-cancel", {
+    stops.set("concede-confirm-cancel", { rect: layout.concedeConfirmCancel, activate: cancel });
+    this.#press("concede-confirm-cancel", cancel);
+    this.#b.button({
+      key: "concede-confirm-cancel",
       rect: layout.concedeConfirmCancel,
-      activate: () => this.#setConfirmingConcede(false),
+      label: t("pause.cancel"),
+      look: "onInk",
+      type: MENU_BUTTON_TYPE,
     });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: "Cancel",
-        type: MENU_BUTTON_TYPE,
-        rect: layout.concedeConfirmCancel,
-        onClick: () => this.#setConfirmingConcede(false),
-      }),
-    );
   }
 
   #drawWideRight(
@@ -941,114 +1039,98 @@ export class PauseOverlay extends Phaser.Scene {
       return;
     }
 
-    const headerTitle = this.add.text(
+    const headerTitle = this.#label(
       layout.rulesHeader.x,
       layout.rulesHeader.y,
-      caseOf(typeRole.barTitle, "Rules reference"),
-      { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "20px" },
+      t("pause.rulesReference"),
+      typeRole.barTitle,
+      surface.ink.hex,
+      1,
+      { size: 20 },
     );
-    const filterText = game ? "Filtered to what's on your table" : "No game in progress";
-    const filterLabel = label(
-      this,
-      layout.rulesHeader.x + layout.rulesHeader.width,
+    const filterText = game ? t("pause.filtered") : t("pause.filteredNone");
+    const filterRight = layout.rulesHeader.x + layout.rulesHeader.width;
+    const filterLabel = this.#label(
+      filterRight,
       layout.rulesHeader.y + 8,
       filterText,
       typeRole.label,
       surface.ink.hex,
       ink.secondary,
-    )
-      .setOrigin(1, 0)
-      .setFontSize(9);
-    fitText(filterLabel, 240, 9);
+      { origin: [1, 0], size: 9, fitWidth: 240 },
+    );
     const ruleY = layout.rulesHeader.y + headerTitle.height / 2 + 4;
     const ruleStartX = layout.rulesHeader.x + headerTitle.width + 12;
-    const ruleEndX = filterLabel.x - filterLabel.width - 12;
-    if (ruleEndX > ruleStartX) {
-      const rule = this.add.graphics();
-      rule.fillStyle(surface.ink.hex, 0.3).fillRect(ruleStartX, ruleY, ruleEndX - ruleStartX, 2);
-    }
+    const ruleEndX = filterRight - filterLabel.width - 12;
+    if (ruleEndX > ruleStartX)
+      this.#b.box(
+        { x: ruleStartX, y: ruleY, width: ruleEndX - ruleStartX, height: 2 },
+        { fill: surface.ink.hex, fillAlpha: 0.3 },
+      );
 
     if (layout.keywordGrid.shown === 0) {
-      const emptyText = game
-        ? "Nothing on the table carries a keyword or status right now."
-        : "No game in progress — start or resume one to see what's on your table.";
-      this.add
-        .text(
-          layout.keywordEmpty.x,
-          layout.keywordEmpty.y,
-          emptyText,
-          textStyle(typeRole.body, surface.ink.hex, ink.meta),
-        )
-        .setFontSize(10)
-        .setWordWrapWidth(layout.keywordEmpty.width);
+      const emptyText = game ? t("pause.keywordsNone") : t("pause.keywordsNoGame");
+      this.#plain(layout.keywordEmpty.x, layout.keywordEmpty.y, emptyText, typeRole.body, surface.ink.hex, ink.meta, {
+        size: 10,
+        wrapWidth: layout.keywordEmpty.width,
+      });
     } else {
       entries
         .slice(0, layout.keywordGrid.shown)
         .forEach((entry, index) => this.#drawKeywordCard(layout.keywordGrid.cells[index]!, entry, stops));
     }
 
-    this.#drawLogSection(layout.jumpHeader, layout.logBox, "Jump to a moment", stops);
+    this.#drawLogSection(layout.jumpHeader, layout.logBox, t("pause.jump"), stops);
   }
 
   /** One bordered keyword/status card — a status is a filled card in its own status color with paper text (colorblind-safe: the term is always the plain word, never color alone), a keyword a plain outlined card. Tapping either opens the full Rules reference overlay's Glossary tab, filtered to this term. */
   #drawKeywordCard(rect: Rect, entry: RulesEntry, stops: Map<string, FocusStop>): void {
     const isStatus = entry.id === "stunned" || entry.id === "confused" || entry.id === "tough";
-    const g = this.add.graphics();
     if (isStatus) {
-      g.fillStyle(status[entry.id as "stunned" | "confused" | "tough"].hex, 1).fillRect(
-        rect.x,
-        rect.y,
-        rect.width,
-        rect.height,
+      this.#b.box(rect, { fill: status[entry.id as "stunned" | "confused" | "tough"].hex });
+      this.#b.box(
+        { x: rect.x + 1.5, y: rect.y + 1.5, width: rect.width - 3, height: rect.height - 3 },
+        { stroke: surface.inkOnHue.hex, strokeWidth: 3 },
       );
-      g.lineStyle(3, surface.inkOnHue.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
     } else {
-      paintPanel(g, rect, "card", "rest");
+      this.#panel(rect, "card", "rest");
     }
     const textColor = isStatus ? surface.paper.hex : surface.ink.hex;
     const pad = 10;
-    const term = this.add.text(rect.x + pad, rect.y + 8, caseOf(typeRole.barTitle, entry.displayName), {
-      ...textStyle(typeRole.barTitle, textColor),
-      fontSize: "16px",
+    const term = this.#label(rect.x + pad, rect.y + 8, entry.displayName, typeRole.barTitle, textColor, 1, {
+      size: 16,
+      fitWidth: rect.width - pad * 2,
     });
-    fitText(term, rect.width - pad * 2, 16);
-    this.add
-      .text(
-        rect.x + pad,
-        rect.y + 8 + term.height + 4,
-        entry.definition,
-        textStyle(typeRole.body, textColor, isStatus ? 1 : ink.body),
-      )
-      .setFontSize(9)
-      .setWordWrapWidth(rect.width - pad * 2);
+    this.#plain(
+      rect.x + pad,
+      rect.y + 8 + term.height + 4,
+      entry.definition,
+      typeRole.body,
+      textColor,
+      isStatus ? 1 : ink.body,
+      { size: 9, wrapWidth: rect.width - pad * 2 },
+    );
     const tailCard = entry.cardRefs[0];
-    if (tailCard) {
-      const tail = this.add
-        .text(
-          rect.x + pad,
-          rect.y + rect.height - 16,
-          `On ${tailCard.name}.`,
-          textStyle(typeRole.label, textColor, isStatus ? 0.85 : ink.meta),
-        )
-        .setFontSize(9);
-      fitText(tail, rect.width - pad * 2, 9);
-    }
+    if (tailCard)
+      this.#plain(
+        rect.x + pad,
+        rect.y + rect.height - 16,
+        t("pause.onCard", { card: tailCard.name }),
+        typeRole.label,
+        textColor,
+        isStatus ? 0.85 : ink.meta,
+        { size: 9, fitWidth: rect.width - pad * 2 },
+      );
     const activate = (): void =>
       this.#openRules({ initialTab: "glossary" satisfies RulesTab, initialQuery: entry.displayName });
-    const zone = this.add
-      .zone(rect.x, rect.y, rect.width, rect.height)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true });
-    // A tap, not any release: a finger swiping the sheet that lifts over a card is a scroll (`ui/tap.ts`).
-    onTap(zone, activate, `keyword:${entry.id}`);
+    this.#press(`keyword:${entry.id}`, activate);
+    this.#b.tap(`keyword:${entry.id}`, rect);
     stops.set(`keyword:${entry.id}`, { rect, activate });
   }
 
   /** The parchment box of recent log lines — shared by the normal "Jump to a moment" footprint and "Full game log"'s expanded one. Lines Undo could get back to are tap targets (`#drawUndoMoment`). */
   #drawLogBox(boxRect: Rect, stops: Map<string, FocusStop>): void {
-    const g = this.add.graphics();
-    g.fillStyle(surface.parchment.hex, 1).fillRect(boxRect.x, boxRect.y, boxRect.width, boxRect.height);
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(boxRect.x, boxRect.y, boxRect.width, boxRect.height);
+    this.#b.box(boxRect, { fill: surface.parchment.hex, stroke: surface.ink.hex, strokeWidth: 2 });
 
     const padX = 12;
     const padY = 10;
@@ -1063,14 +1145,9 @@ export class PauseOverlay extends Phaser.Scene {
     );
 
     if (moments.length === 0) {
-      this.add
-        .text(
-          boxRect.x + padX,
-          boxRect.y + padY,
-          "Nothing has happened yet.",
-          textStyle(typeRole.body, surface.ink.hex, ink.meta),
-        )
-        .setFontSize(10);
+      this.#plain(boxRect.x + padX, boxRect.y + padY, t("pause.logEmpty"), typeRole.body, surface.ink.hex, ink.meta, {
+        size: 10,
+      });
     } else {
       let y = boxRect.y + padY;
       for (const moment of moments) {
@@ -1080,32 +1157,23 @@ export class PauseOverlay extends Phaser.Scene {
           this.#drawUndoMoment(moment.line.id, target, boxRect, y, moment.height, stops);
           textY = y + (moment.height - moment.textHeight) / 2;
         }
-        this.add
-          .text(boxRect.x + padX, textY, moment.line.ref, textStyle(typeRole.mono, surface.ink.hex, ink.meta))
-          .setFontSize(9);
-        this.add
-          .text(
-            boxRect.x + padX + 46,
-            textY,
-            logLineWords(moment.line),
-            textStyle(typeRole.body, surface.ink.hex, ink.body),
-          )
-          .setFontSize(10)
-          .setWordWrapWidth(textWidth);
+        this.#plain(boxRect.x + padX, textY, moment.line.ref, typeRole.mono, surface.ink.hex, ink.meta, { size: 9 });
+        this.#plain(boxRect.x + padX + 46, textY, logLineWords(moment.line), typeRole.body, surface.ink.hex, ink.body, {
+          size: 10,
+          wrapWidth: textWidth,
+        });
         y += moment.height;
       }
     }
-    label(
-      this,
+    this.#label(
       boxRect.x + padX,
       boxRect.y + boxRect.height - padY - 6,
-      undoable.size > 0 ? "TAP A ↶ MOMENT TO UNDO BACK TO IT" : "ONLY YOUR OWN MOVES THIS TURN CAN BE UNDONE",
+      undoable.size > 0 ? t("pause.logUndoHint") : t("pause.logUndoNone"),
       typeRole.label,
       surface.ink.hex,
       ink.meta,
-    )
-      .setFontSize(8)
-      .setOrigin(0, 0.5);
+      { size: 8, origin: [0, 0.5] },
+    );
   }
 
   /**
@@ -1123,17 +1191,14 @@ export class PauseOverlay extends Phaser.Scene {
     // The whole row is the target (`height` is at least `hit.target`, from `recentLogMoments`), less a 2 px seam so
     // two undoable rows in a row read as two.
     const rect: Rect = { x: boxRect.x + 4, y: y - 2, width: boxRect.width - 8, height: Math.max(1, height - 2) };
-    const g = this.add.graphics();
-    g.lineStyle(1, surface.ink.hex, 0.5).strokeRect(rect.x, rect.y, rect.width, rect.height);
-    label(this, rect.x + rect.width - 10, rect.y + rect.height / 2, "↶", typeRole.rowTitle, surface.ink.hex, 1)
-      .setOrigin(0.5)
-      .setFontSize(14);
+    this.#b.box(rect, { stroke: surface.ink.hex, strokeWidth: 1, alpha: 0.5 });
+    this.#label(rect.x + rect.width - 10, rect.y + rect.height / 2, "↶", typeRole.rowTitle, surface.ink.hex, 1, {
+      origin: [0.5, 0.5],
+      size: 14,
+    });
     const activate = (): void => void this.#undoTo(target);
-    const zone = this.add
-      .zone(rect.x, rect.y, rect.width, rect.height)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true });
-    onTap(zone, activate, `moment:${lineId}`);
+    this.#press(`moment:${lineId}`, activate);
+    this.#b.tap(`moment:${lineId}`, rect);
     stops.set(`moment:${lineId}`, { rect, activate });
     this.#momentIds.push(lineId);
   }
@@ -1143,30 +1208,22 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   #drawLogSection(headerRect: Rect, boxRect: Rect, title: string, stops: Map<string, FocusStop>): void {
-    this.add.text(headerRect.x, headerRect.y, caseOf(typeRole.barTitle, title), {
-      ...textStyle(typeRole.barTitle, surface.ink.hex),
-      fontSize: "18px",
-    });
+    this.#label(headerRect.x, headerRect.y, title, typeRole.barTitle, surface.ink.hex, 1, { size: 18 });
     this.#drawLogBox(boxRect, stops);
   }
 
   /** "Full game log": there is no separate full-log screen to open (`view/pause-layout.ts`'s own doc comment), so this swaps the header/grid/jump-header/log-box group for one taller box over the same footprint instead. */
   #drawExpandedLog(layout: PauseWideLayout, stops: Map<string, FocusStop>): void {
     const rect = layout.rightContent;
-    const titleText = this.add.text(rect.x, rect.y, caseOf(typeRole.barTitle, "Full game log"), {
-      ...textStyle(typeRole.barTitle, surface.ink.hex),
-      fontSize: "20px",
+    const titleText = this.#label(rect.x, rect.y, t("pause.fullGameLog"), typeRole.barTitle, surface.ink.hex, 1, {
+      size: 20,
     });
-    const note = this.add
-      .text(
-        rect.x,
-        rect.y + titleText.height + 4,
-        "Every retained beat, newest first. Tap “Full game log” again to go back to the keyword grid.",
-        textStyle(typeRole.label, surface.ink.hex, ink.secondary),
-      )
-      .setFontSize(9)
-      .setWordWrapWidth(rect.width);
-    const boxTop = note.y + note.height + 8;
+    const noteY = rect.y + titleText.height + 4;
+    const note = this.#plain(rect.x, noteY, t("pause.fullLogNote"), typeRole.label, surface.ink.hex, ink.secondary, {
+      size: 9,
+      wrapWidth: rect.width,
+    });
+    const boxTop = noteY + note.height + 8;
     this.#drawLogBox(
       { x: rect.x, y: boxTop, width: rect.width, height: Math.max(60, rect.y + rect.height - boxTop) },
       stops,
@@ -1188,14 +1245,8 @@ export class PauseOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     searching: boolean,
   ): { readonly guideRowIds: readonly string[]; readonly resultIds: readonly string[] } {
-    const panel = this.add.graphics();
-    panel
-      .fillStyle(surface.ink.hex, 1)
-      .fillRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
-    panel
-      .lineStyle(4, surface.paper.hex, 1)
-      .strokeRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
-    paintDotGrid(this, layout.panel, "ink", { spacing: 8, radius: 1, alpha: 0.08 });
+    this.#b.box(layout.panel, { fill: surface.ink.hex, stroke: surface.paper.hex, strokeWidth: 4 });
+    this.#b.dots(layout.panel, "ink", 8, 1, 0.08);
 
     this.#drawHeader(layout.header, layout.closeButton, layout.blindSheet, game, perspectiveId, config, stops);
 
@@ -1227,9 +1278,11 @@ export class PauseOverlay extends Phaser.Scene {
   #drawPhoneFooter(layout: PausePhoneLayout, stops: Map<string, FocusStop>): void {
     if (this.#confirmingConcede) this.#drawPhoneConcedeConfirm(layout, stops);
     else {
-      this.#button(stops, "resume", "primary", "Resume", layout.resume, () => this.#resume());
+      this.#button(stops, "resume", "primary", t("pause.resume"), layout.resume, () => this.#resume());
       this.#button(stops, "save-quit", "secondary", this.#quitLabel(), layout.saveQuit, () => this.#saveAndQuit());
-      this.#button(stops, "concede", "quiet", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
+      this.#button(stops, "concede", "quiet", t("pause.concede"), layout.concede, () =>
+        this.#setConfirmingConcede(true),
+      );
     }
   }
 
@@ -1245,7 +1298,7 @@ export class PauseOverlay extends Phaser.Scene {
       this.#searchInput = new McTextInput(this, {
         rect,
         value: this.#search?.query ?? "",
-        placeholder: "Search settings and rules…",
+        placeholder: t("pause.searchPlaceholder"),
         onChange: (value) => this.#onQuery(value),
       });
     }
@@ -1287,7 +1340,7 @@ export class PauseOverlay extends Phaser.Scene {
       id: `pause:${row.id}`,
       title: row.title,
       detail: row.detail,
-      place: "Pause",
+      place: t("pause.place"),
       target: { kind: "pause", id: row.id },
       ...(REFERENCE_KEYWORDS[row.id] ? { keywords: REFERENCE_KEYWORDS[row.id] } : {}),
     }));
@@ -1310,21 +1363,10 @@ export class PauseOverlay extends Phaser.Scene {
       unlocks: { progress, prefs, devUnlockAll, achievementPoints },
       globalConsent: readConsent(),
       controls: controlsShown(),
+      language: artLanguageNow(),
       extra: this.#referenceEntries(),
     };
   }
-
-  /** A stop inside the results' scroll region, as `#lowerStop` is for the Table group's. */
-  #resultsStop(rect: Rect, index: number, activate: () => void): FocusStop {
-    return {
-      rect: () => ({ ...rect, y: rect.y - this.#resultsScroll.offsetPx }),
-      activate,
-      ensureVisible: () => this.#resultsRegion?.scrollIntoView(index),
-    };
-  }
-
-  #resultsClip = (): Rect | null => this.#resultsRegion?.rect ?? null;
-  #resultsSuppressClick = (): boolean => this.#resultsRegion?.isDragSuppressingClick ?? false;
 
   /**
    * The grouped results in `room`'s own scroll region: each group's heading, then its rows. Returns the focus stop
@@ -1333,9 +1375,7 @@ export class PauseOverlay extends Phaser.Scene {
   #drawSearchResults(room: Rect, stops: Map<string, FocusStop>): readonly string[] {
     const results = this.#search?.results ?? null;
     if (results === null) {
-      this.add
-        .text(room.x, room.y + 14, "Searching…", textStyle(typeRole.body, surface.paper.hex, 0.7))
-        .setFontSize(12);
+      this.#plain(room.x, room.y + 14, t("pause.searching"), typeRole.body, surface.paper.hex, 0.7, { size: 12 });
       return [];
     }
     const query = (this.#search?.query ?? "").trim();
@@ -1349,15 +1389,10 @@ export class PauseOverlay extends Phaser.Scene {
       items.push({
         slot: { kind: "link" },
         draw: (rect) => {
-          this.add
-            .text(
-              rect.x,
-              rect.y + 14,
-              "Nothing in Settings or Pause matches that.",
-              textStyle(typeRole.body, surface.paper.hex, 0.8),
-            )
-            .setFontSize(12)
-            .setWordWrapWidth(rect.width);
+          this.#plain(rect.x, rect.y + 14, t("pause.noMatch"), typeRole.body, surface.paper.hex, 0.8, {
+            size: 12,
+            wrapWidth: rect.width,
+          });
           return [];
         },
       });
@@ -1366,7 +1401,7 @@ export class PauseOverlay extends Phaser.Scene {
       items.push({
         slot: { kind: "heading" },
         draw: (rect) => {
-          label(this, rect.x, rect.y + 4, group.title, typeRole.label, surface.paper.hex, ink.secondary);
+          this.#label(rect.x, rect.y + 4, group.title, typeRole.label, surface.paper.hex, ink.secondary);
           return [];
         },
       });
@@ -1377,18 +1412,18 @@ export class PauseOverlay extends Phaser.Scene {
           const control = row.control;
           items.push({
             slot: { kind: "toggle", detail: row.detail },
-            draw: (rect, index) => [this.#drawResultToggle(rect, row, control, index, stops)],
+            draw: (rect, index) => [this.#drawResultToggle(rect, row, control, index, room, stops)],
           });
         } else if (row && row.control.kind === "choice") {
           const control = row.control;
           items.push({
             slot: { kind: "choice", detail: row.detail },
-            draw: (rect, index) => this.#drawResultChoice(rect, row, control, index, stops),
+            draw: (rect, index) => this.#drawResultChoice(rect, row, control, index, room, stops),
           });
         } else {
           items.push({
             slot: { kind: "link" },
-            draw: (rect, index) => [this.#drawResultLink(rect, result, index, stops)],
+            draw: (rect, index) => [this.#drawResultLink(rect, result, index, room, stops)],
           });
         }
       }
@@ -1397,9 +1432,9 @@ export class PauseOverlay extends Phaser.Scene {
         const glossary: SettingsSearchResult = {
           entry: {
             id: "pause-glossary-search",
-            title: `Search "${query}" in the glossary`,
-            detail: "Opens Rules reference, filtered to this.",
-            place: "Rules reference",
+            title: t("pause.glossarySearch", { query }),
+            detail: t("pause.glossarySearchDetail"),
+            place: t("pause.rulesReference"),
             target: { kind: "rules", tab: "glossary", query },
           },
           titleRanges: [],
@@ -1407,7 +1442,7 @@ export class PauseOverlay extends Phaser.Scene {
         };
         items.push({
           slot: { kind: "link" },
-          draw: (rect, index) => [this.#drawResultLink(rect, glossary, index, stops)],
+          draw: (rect, index) => [this.#drawResultLink(rect, glossary, index, room, stops)],
         });
       }
     }
@@ -1416,21 +1451,15 @@ export class PauseOverlay extends Phaser.Scene {
       items.map((item) => item.slot),
       room.width,
     );
-    // `clipInteractive`: a row scrolled up under the field must not take a press meant for it (as `#drawLowerGroup`).
-    this.#resultsRegion = new McScrollRegion(this, {
-      rect: room,
-      heights: contentSlotHeights(content.rects),
-      scroll: this.#resultsScroll,
-      clipInteractive: true,
-    });
-    const container = this.#resultsRegion.content;
     const ids: string[] = [];
-    items.forEach((item, index) => {
-      const at = content.rects[index]!;
-      const rect: Rect = { x: room.x + at.x, y: room.y + at.y, width: at.width, height: at.height };
-      this.#captureInto(container, () => ids.push(...item.draw(rect, index)));
+    this.#inScroll("results", room, content.totalHeight, () => {
+      items.forEach((item, index) => {
+        const at = content.rects[index]!;
+        // In the region's own space: `x` the screen's, `y` from the region's top.
+        const rect: Rect = { x: room.x + at.x, y: at.y, width: at.width, height: at.height };
+        ids.push(...item.draw(rect, index));
+      });
     });
-    this.#resultsRegion.syncInteractivity();
     return ids;
   }
 
@@ -1439,48 +1468,53 @@ export class PauseOverlay extends Phaser.Scene {
     rect: Rect,
     row: PauseSettingRow,
     control: Extract<PauseSettingRow["control"], { kind: "toggle" }>,
-    index: number,
+    _index: number,
+    room: Rect,
     stops: Map<string, FocusStop>,
   ): string {
-    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(
-        rect.x,
-        rect.y + 20,
-        row.detail,
-        textStyle(typeRole.body, surface.paper.hex, control.unavailable ? 0.55 : 0.8),
-      )
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - 100);
+    this.#label(rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary, { size: 12 });
+    this.#plain(rect.x, rect.y + 20, row.detail, typeRole.body, surface.paper.hex, control.unavailable ? 0.55 : 0.8, {
+      size: 10,
+      wrapWidth: rect.width - 100,
+    });
     const toggleRect: Rect = { x: rect.x + rect.width - 86, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
     const enabled = control.unavailable === undefined;
     const activate = (): void => {
       if (enabled) this.#applySetting(row);
     };
-    addRowTapZone(this, rect, {
-      onClick: activate,
-      enabled,
-      clip: this.#resultsClip,
-      suppressClick: this.#resultsSuppressClick,
-    });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: control.on ? "secondary" : "quiet",
-        label: enabled ? (control.on ? "ON" : "OFF") : "—",
-        type: typeRole.label,
-        rect: toggleRect,
-        enabled,
-        ...(control.unavailable ? { reason: control.unavailable } : {}),
-        selected: control.on,
-        onClick: activate,
-        clip: this.#resultsClip,
-        suppressClick: this.#resultsSuppressClick,
-      }),
-    );
-    if (control.on && enabled) paintOnFrame(this, toggleRect);
     const id = `result:${row.id}`;
-    stops.set(id, this.#resultsStop(rect, index, activate));
+    this.#press(id, activate);
+    this.#b.tap(id, rect);
+    this.#press(`${id}:switch`, activate);
+    this.#b.button({
+      key: `${id}:switch`,
+      rect: toggleRect,
+      label: enabled ? (control.on ? t("settings.toggleOn") : t("settings.toggleOff")) : "—",
+      look: control.on ? "secondary" : "quiet",
+      selected: control.on,
+      ...(control.unavailable ? { disabled: control.unavailable } : {}),
+      ...(control.on && enabled ? { framed: true } : {}),
+    });
+    stops.set(id, this.#scrollStop({ key: "results", rect: room }, id, { ...rect, y: rect.y + room.y }, activate));
     return id;
+  }
+
+  /** A cell of a segmented control: ink (or guide yellow when chosen) with a paper (or yellow) frame and its words. */
+  #segmentCell(cell: Rect, selected: boolean, text: string): void {
+    this.#b.box(cell, { fill: selected ? signal.caution.hex : surface.ink.hex });
+    this.#b.box(
+      { x: cell.x + 1, y: cell.y + 1, width: cell.width - 2, height: cell.height - 2 },
+      { stroke: selected ? signal.caution.hex : surface.paper.hex, strokeWidth: 2 },
+    );
+    this.#plain(
+      cell.x + cell.width / 2,
+      cell.y + cell.height / 2,
+      text,
+      typeRole.label,
+      selected ? surface.inkOnHue.hex : surface.paper.hex,
+      1,
+      { origin: [0.5, 0.5], fitWidth: cell.width - 8, size: typeRole.label.size },
+    );
   }
 
   /** A Settings choice found by the search: its title and description, then one cell per option, the chosen one in guide yellow. */
@@ -1488,14 +1522,15 @@ export class PauseOverlay extends Phaser.Scene {
     rect: Rect,
     row: PauseSettingRow,
     control: Extract<PauseSettingRow["control"], { kind: "choice" }>,
-    index: number,
+    _index: number,
+    room: Rect,
     stops: Map<string, FocusStop>,
   ): readonly string[] {
-    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(rect.x, rect.y + 20, row.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - 4);
+    this.#label(rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary, { size: 12 });
+    this.#plain(rect.x, rect.y + 20, row.detail, typeRole.body, surface.paper.hex, 0.8, {
+      size: 10,
+      wrapWidth: rect.width - 4,
+    });
     const gap = 4;
     const EDGE_INSET = 2;
     const count = control.options.length;
@@ -1505,65 +1540,75 @@ export class PauseOverlay extends Phaser.Scene {
       const cellRect: Rect = { x: rect.x + i * (cellWidth + gap), y: top, width: cellWidth, height: hit.target };
       const selected = control.selected === option.value;
       const activate = (): void => this.#applySetting(row, option.value);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "quiet",
-          label: "",
-          type: typeRole.label,
-          rect: cellRect,
-          onClick: activate,
-          clip: this.#resultsClip,
-          suppressClick: this.#resultsSuppressClick,
-        }),
-      );
-      const g = this.add.graphics();
-      g.fillStyle(selected ? signal.caution.hex : surface.ink.hex, 1).fillRect(
-        cellRect.x,
-        cellRect.y,
-        cellRect.width,
-        cellRect.height,
-      );
-      g.lineStyle(2, selected ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
-        cellRect.x + 1,
-        cellRect.y + 1,
-        cellRect.width - 2,
-        cellRect.height - 2,
-      );
-      const text = this.add
-        .text(
-          cellRect.x + cellRect.width / 2,
-          cellRect.y + cellRect.height / 2,
-          option.label,
-          textStyle(typeRole.label, selected ? surface.inkOnHue.hex : surface.paper.hex),
-        )
-        .setOrigin(0.5);
-      fitText(text, cellRect.width - 8, typeRole.label.size);
       const id = `result:${row.id}:${option.value}`;
-      stops.set(id, this.#resultsStop(cellRect, index, activate));
+      this.#segmentCell(cellRect, selected, option.label);
+      this.#press(id, activate);
+      this.#b.tap(id, cellRect);
+      stops.set(
+        id,
+        this.#scrollStop({ key: "results", rect: room }, id, { ...cellRect, y: cellRect.y + room.y }, activate),
+      );
       return id;
     });
   }
 
+  /** A result's one line, cut around its match to what fits `room`, with the match marked (`drawSearchResultRow`'s own rule). */
+  #resultLine(
+    x: number,
+    y: number,
+    whole: string,
+    ranges: readonly TextRange[],
+    size: number,
+    alpha: number,
+    room: number,
+  ): void {
+    const width = this.#b.measure(whole, { ...typeRole.body, uppercase: false }, { size }).width;
+    const maxChars = width <= room ? whole.length : Math.floor((whole.length * room) / width);
+    const line = markedLineOf(whole, ranges, maxChars);
+    this.#plain(x, y, line.text, typeRole.body, surface.paper.hex, alpha, { size, marks: line.ranges });
+  }
+
   /** A result that opens its page: Settings' own result row (what matched, marked), with a chevron. */
-  #drawResultLink(rect: Rect, result: SettingsSearchResult, index: number, stops: Map<string, FocusStop>): string {
-    drawSearchResultRow(this, { ...rect, width: rect.width - 18 }, result);
-    label(
-      this,
+  #drawResultLink(
+    rect: Rect,
+    result: SettingsSearchResult,
+    _index: number,
+    room: Rect,
+    stops: Map<string, FocusStop>,
+  ): string {
+    // As `drawSearchResultRow` draws it, in a row 18px narrower than the slot, with room for its own scrollbar.
+    const row = { ...rect, width: rect.width - 18 };
+    const gutter = 14;
+    const place = this.#plain(
+      row.x + row.width - gutter,
+      row.y + 8,
+      result.entry.place,
+      typeRole.body,
+      surface.paper.hex,
+      0.6,
+      { origin: [1, 0], size: 10, fitWidth: row.width * 0.45 },
+    );
+    const titleRoom = row.width - gutter - place.width - 12;
+    this.#resultLine(row.x, row.y + 6, result.entry.title, result.titleRanges, 14, 0.95, titleRoom);
+    this.#resultLine(row.x, row.y + 28, result.entry.detail, result.detailRanges, 11, 0.75, row.width - gutter);
+    this.#b.box(
+      { x: row.x, y: row.y + SEARCH_RESULT_ROW_HEIGHT - 2, width: row.width - gutter, height: 1 },
+      { fill: surface.paper.hex, fillAlpha: 0.25 },
+    );
+    this.#label(
       rect.x + rect.width - 8,
       rect.y + rect.height / 2,
       "›",
       typeRole.rowTitle,
       surface.paper.hex,
       ink.secondary,
-    ).setOrigin(0.5);
+      { origin: [0.5, 0.5] },
+    );
     const activate = (): void => this.#openSearchResult(result.entry);
-    addRowTapZone(this, rect, {
-      onClick: activate,
-      clip: this.#resultsClip,
-      suppressClick: this.#resultsSuppressClick,
-    });
     const id = `result:${result.entry.id}`;
-    stops.set(id, this.#resultsStop(rect, index, activate));
+    this.#press(id, activate);
+    this.#b.tap(id, rect);
+    stops.set(id, this.#scrollStop({ key: "results", rect: room }, id, { ...rect, y: rect.y + room.y }, activate));
     return id;
   }
 
@@ -1676,39 +1721,27 @@ export class PauseOverlay extends Phaser.Scene {
     config: SessionState["config"],
     stops: Map<string, FocusStop>,
   ): void {
-    this.add.text(rect.x + 16, rect.y + 10, caseOf(typeRole.barTitle, "Paused"), {
-      ...textStyle(typeRole.barTitle, surface.paper.hex),
-      fontSize: "26px",
-    });
-    const statusText = game && perspectiveId ? this.#statusLine(game, perspectiveId, config) : "No game in progress.";
-    const statusLabel = label(
-      this,
-      rect.x + 16,
-      rect.y + 40,
-      statusText,
-      typeRole.label,
-      surface.paper.hex,
-      ink.secondary,
-    ).setFontSize(11);
-    if (game && perspectiveId) this.#drawBlindSheet(blindRect, game, perspectiveId, config);
+    this.#label(rect.x + 16, rect.y + 10, t("pause.title"), typeRole.barTitle, surface.paper.hex, 1, { size: 26 });
+    const statusText = game && perspectiveId ? this.#statusLine(game, perspectiveId, config) : t("pause.noGame");
     // Wraps rather than running under the ✕ or ending in "…": at phone width the full "‹scenario› · ‹difficulty› ·
     // Round ‹n› · ‹phase› · ‹seat›" line is wider than the header has room for beside the close button.
-    statusLabel
-      .setFontSize(10)
-      .setWordWrapWidth(closeRect.x - rect.x - 16 - 12)
-      .setLineSpacing(1);
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "✕",
-        type: typeRole.rowTitle,
-        rect: closeRect,
-        onClick: () => this.#resume(),
-      }),
+    this.#label(rect.x + 16, rect.y + 40, statusText, typeRole.label, surface.paper.hex, ink.secondary, {
+      size: 10,
+      wrapWidth: closeRect.x - rect.x - 16 - 12,
+      lineSpacing: 1,
+    });
+    if (game && perspectiveId) this.#drawBlindSheet(blindRect, game, perspectiveId, config);
+    const close = (): void => this.#resume();
+    this.#press("close", close);
+    this.#b.button({ key: "close", rect: closeRect, label: "✕", look: "secondary", type: typeRole.rowTitle });
+    stops.set("close", { rect: closeRect, activate: close });
+    // The drawn ✕ is small: a 44px press area around it, inside the header (the ring still frames the ✕).
+    this.#press("close:hit", close);
+    this.#b.tap("close:hit", hitRectAround(closeRect, hit.target, rect));
+    this.#b.box(
+      { x: rect.x, y: rect.y + rect.height - 2, width: rect.width, height: 2 },
+      { fill: surface.paper.hex, fillAlpha: 0.4 },
     );
-    stops.set("close", { rect: closeRect, activate: () => this.#resume() });
-    const rule = this.add.graphics();
-    rule.fillStyle(surface.paper.hex, 0.4).fillRect(rect.x, rect.y + rect.height - 2, rect.width, 2);
   }
 
   /**
@@ -1748,11 +1781,11 @@ export class PauseOverlay extends Phaser.Scene {
   ): void {
     const lines = this.#blindSheet(game, perspectiveId, config);
     if (!rect || lines.length === 0) return;
-    this.add
-      .text(rect.x, rect.y, lines.join("\n"), textStyle(typeRole.label, surface.paper.hex, ink.secondary))
-      .setFontSize(10)
-      .setLineSpacing(3)
-      .setWordWrapWidth(rect.width);
+    this.#plain(rect.x, rect.y, lines.join("\n"), typeRole.label, surface.paper.hex, ink.secondary, {
+      size: 10,
+      lineSpacing: 3,
+      wrapWidth: rect.width,
+    });
   }
 
   #statusLine(
@@ -1761,7 +1794,7 @@ export class PauseOverlay extends Phaser.Scene {
     config: SessionState["config"],
   ): string {
     const s = pauseStatusOf(game, perspectiveId, config, gameScenarios(), undefined, appSession().store.state.adjusted);
-    return `${s.scenarioName} · ${s.difficultyLabel} · Round ${s.round} · ${s.phaseLabel} · ${s.seatLabel}${seedSuffixOf(s)}${adjustedSuffixOf(s)}`;
+    return `${s.scenarioName} · ${s.difficultyLabel} · ${t("pause.round", { round: s.round })} · ${s.phaseLabel} · ${s.seatLabel}${seedSuffixOf(s)}${adjustedSuffixOf(s)}`;
   }
 
   /**
@@ -1778,99 +1811,96 @@ export class PauseOverlay extends Phaser.Scene {
   ): string {
     const s = pauseStatusOf(game, perspectiveId, config, gameScenarios(), undefined, appSession().store.state.adjusted);
     // The seed before the seat: the seat name is the part that gives way when the column is too narrow for both.
-    return `Round ${s.round} · ${s.phaseLabel.toLowerCase()}${seedSuffixOf(s)} · ${s.seatLabel}`;
+    return `${t("pause.round", { round: s.round })} · ${s.phaseLabel.toLowerCase()}${seedSuffixOf(s)} · ${s.seatLabel}`;
   }
 
   /** The cell that opens the Reference rows, and closes them unless a typed search is holding them open. */
   #drawQuickReferenceToggle(rect: Rect, open: boolean, stops: Map<string, FocusStop>): void {
-    const g = this.add.graphics();
-    paintPanel(g, rect, "onInk", "rest");
-    const title = label(
-      this,
-      rect.x + 12,
-      rect.y + rect.height / 2,
-      "Reference",
-      typeRole.rowTitle,
-      surface.paper.hex,
-      1,
-    );
-    title.setOrigin(0, 0.5);
-    fitText(title, rect.width - 40, typeRole.rowTitle.size);
-    label(
-      this,
+    this.#panel(rect, "onInk", "rest");
+    this.#label(rect.x + 12, rect.y + rect.height / 2, t("pause.reference"), typeRole.rowTitle, surface.paper.hex, 1, {
+      origin: [0, 0.5],
+      fitWidth: rect.width - 40,
+      size: typeRole.rowTitle.size,
+    });
+    this.#label(
       rect.x + rect.width - 16,
       rect.y + rect.height / 2,
       open ? "▾" : "▸",
       typeRole.rowTitle,
       surface.paper.hex,
       ink.secondary,
-    ).setOrigin(0.5);
+      { origin: [0.5, 0.5] },
+    );
     const activate = (): void => {
       this.#quickExpanded = !open;
-      this.#lowerScroll = new VariableListScroll();
+      this.#lowerFromTop = true;
       this.#draw();
     };
     stops.set("quick-toggle", { rect, activate });
-    const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
-    onTap(zone.setInteractive({ useHandCursor: true }), activate, "quick-toggle");
+    this.#press("quick-toggle", activate);
+    this.#b.tap("quick-toggle", rect);
   }
 
   #drawQuickReferenceRow(rect: Rect, row: QuickReferenceRow, stops: Map<string, FocusStop>): void {
     const enabled = row.open !== undefined;
-    const g = this.add.graphics();
-    paintPanel(g, rect, "onInk", enabled ? "rest" : "unavailable");
+    this.#panel(rect, "onInk", enabled ? "rest" : "unavailable");
     const alpha = enabled ? 1 : ink.disabled;
+    const key = `quick:${row.id}`;
     if (row.compact) {
       // A cell of a shared line: the title centred, nothing else (the row's detail is its accessible hint, not drawn).
-      const title = label(
-        this,
+      this.#label(
         rect.x + rect.width / 2,
         rect.y + rect.height / 2,
         row.title,
         typeRole.rowTitle,
         surface.paper.hex,
         alpha,
-      ).setOrigin(0.5);
-      fitText(title, rect.width - 12, typeRole.rowTitle.size);
+        {
+          origin: [0.5, 0.5],
+          fitWidth: rect.width - 12,
+          size: typeRole.rowTitle.size,
+        },
+      );
       const act = (): void => row.open?.();
-      stops.set(`quick:${row.id}`, { rect, activate: act });
-      const cell = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
-      if (enabled) onTap(cell.setInteractive({ useHandCursor: true }), act, `quick:${row.id}`);
+      stops.set(key, { rect, activate: act });
+      if (enabled) {
+        this.#press(key, act);
+        this.#b.tap(key, rect);
+      }
       return;
     }
     // One line, clear of the chevron: a half-width cell has no room for a second line above its detail.
-    const title = this.add.text(
+    this.#plain(rect.x + 12, rect.y + 6, row.title, typeRole.rowTitle, surface.paper.hex, alpha, {
+      fitWidth: rect.width - 40,
+      size: typeRole.rowTitle.size,
+    });
+    this.#plain(
       rect.x + 12,
-      rect.y + 6,
-      row.title,
-      textStyle(typeRole.rowTitle, surface.paper.hex, alpha),
+      rect.y + 24,
+      row.unavailable ?? row.detail,
+      typeRole.label,
+      surface.paper.hex,
+      alpha * 0.75,
+      {
+        size: 9,
+        wrapWidth: rect.width - 36,
+      },
     );
-    fitText(title, rect.width - 40, typeRole.rowTitle.size);
-    this.add
-      .text(
-        rect.x + 12,
-        rect.y + 24,
-        row.unavailable ?? row.detail,
-        textStyle(typeRole.label, surface.paper.hex, alpha * 0.75),
-      )
-      .setFontSize(9)
-      .setWordWrapWidth(rect.width - 36);
     if (enabled)
-      label(
-        this,
+      this.#label(
         rect.x + rect.width - 16,
         rect.y + rect.height / 2,
         "›",
         typeRole.rowTitle,
         surface.paper.hex,
         ink.secondary,
-      ).setOrigin(0.5);
+        { origin: [0.5, 0.5] },
+      );
     const activate = (): void => row.open?.();
-    stops.set(`quick:${row.id}`, { rect, activate });
-    const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
+    stops.set(key, { rect, activate });
     if (enabled) {
-      // A tap, not any release: a finger swiping the sheet that lifts over a row is a scroll (`ui/tap.ts`).
-      onTap(zone.setInteractive({ useHandCursor: true }), activate, `quick:${row.id}`);
+      this.#press(key, activate);
+      this.#b.tap(key, rect);
     }
   }
 
@@ -1885,55 +1915,53 @@ export class PauseOverlay extends Phaser.Scene {
     id: string,
     onClick: () => void,
   ): void {
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: titleText,
-        type: typeRole.rowTitle,
-        rect,
-        onClick,
-        clip: this.#lowerClip,
-        suppressClick: this.#lowerSuppressClick,
-      }),
-    );
-    stops.set(id, this.#lowerStop(rect, index, onClick));
+    this.#press(id, onClick);
+    this.#b.button({ key: id, rect, label: titleText, look: "secondary", type: typeRole.rowTitle });
+    stops.set(id, this.#scrollStop(this.#lowerScroll, id, this.#lowerScrollRect(rect), onClick));
+  }
+
+  /** The Table/Guide region the group draws in (set by `#drawLowerGroup`). */
+  #lowerScroll: { readonly key: string; readonly rect: Rect } = {
+    key: "lower",
+    rect: { x: 0, y: 0, width: 0, height: 0 },
+  };
+
+  /** A rect in the Table/Guide region's own space, as the screen has it (for a stop read before the panel exists). */
+  #lowerScrollRect(rect: Rect): Rect {
+    return { ...rect, y: rect.y + this.#lowerScroll.rect.y };
   }
 
   #drawTableRow(rect: Rect, row: SettingsRowInfo, index: number, stops: Map<string, FocusStop>): void {
-    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(
-        rect.x,
-        rect.y + 20,
-        row.unavailable ?? row.detail,
-        textStyle(typeRole.body, surface.paper.hex, row.unavailable ? 0.55 : 0.8),
-      )
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - 100);
+    this.#label(rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary, { size: 12 });
+    this.#plain(
+      rect.x,
+      rect.y + 20,
+      row.unavailable ?? row.detail,
+      typeRole.body,
+      surface.paper.hex,
+      row.unavailable ? 0.55 : 0.8,
+      { size: 10, wrapWidth: rect.width - 100 },
+    );
     const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
     const activate = (): void => this.#toggleTableRow(row);
-    addRowTapZone(this, rect, {
-      onClick: activate,
-      enabled: row.unavailable === undefined,
-      clip: this.#lowerClip,
-      suppressClick: this.#lowerSuppressClick,
+    const id = `table:${row.id}`;
+    // A tap on an unavailable row does nothing (the keyboard stop keeps its own old behavior).
+    const tapped = (): void => {
+      if (row.unavailable === undefined) activate();
+    };
+    this.#press(id, tapped);
+    this.#b.tap(id, rect);
+    this.#press(`${id}:switch`, tapped);
+    this.#b.button({
+      key: `${id}:switch`,
+      rect: toggleRect,
+      label: row.unavailable ? "—" : row.on ? t("settings.toggleOn") : t("settings.toggleOff"),
+      look: row.on ? "secondary" : "quiet",
+      selected: row.on,
+      ...(row.unavailable ? { disabled: row.unavailable } : {}),
+      ...(row.on && row.unavailable === undefined ? { framed: true } : {}),
     });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: row.on ? "secondary" : "quiet",
-        label: row.unavailable ? "—" : row.on ? "ON" : "OFF",
-        type: typeRole.label,
-        rect: toggleRect,
-        enabled: row.unavailable === undefined,
-        ...(row.unavailable ? { reason: row.unavailable } : {}),
-        selected: row.on,
-        onClick: activate,
-        clip: this.#lowerClip,
-        suppressClick: this.#lowerSuppressClick,
-      }),
-    );
-    if (row.on && row.unavailable === undefined) paintOnFrame(this, toggleRect);
-    stops.set(`table:${row.id}`, this.#lowerStop(rect, index, activate));
+    stops.set(id, this.#scrollStop(this.#lowerScroll, id, this.#lowerScrollRect(rect), activate));
   }
 
   #toggleTableRow(row: SettingsRowInfo): void {
@@ -1950,30 +1978,9 @@ export class PauseOverlay extends Phaser.Scene {
   // Guide group, only the standalone Settings screen does. A real phone can't fit Quick reference, five Table
   // rows *and* the Guide group's own level control plus six more rows unscrolled (browser verification,
   // 2026-09-26: "Confirm before ending turn" already ran under Resume with no Guide group at all), so both
-  // groups share one bounded, scrollable `McScrollRegion` (`view/pause-layout.ts`'s own `lowerViewport`/
-  // `lowerContent`) — the same "eagerly draw, then reparent" trick `scenes/table-setup.ts`'s own compact layout
-  // uses for its own taller-than-the-screen content.
+  // groups share one bounded, scrollable region of the panel (`view/pause-layout.ts`'s own `lowerViewport`/
+  // `lowerContent`), in the DOM so a swipe scrolls it natively.
   // ------------------------------------------------------------------------------------------------------------
-
-  /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container`. */
-  #captureInto(container: Phaser.GameObjects.Container, draw: () => void): void {
-    const before = this.children.list.length;
-    draw();
-    const added = this.children.list.slice(before);
-    if (added.length > 0) container.add(added);
-  }
-
-  /** A stop inside the Table/Guide scroll region: its rect tracks the current scroll offset, and taking focus scrolls it into view. */
-  #lowerStop(rect: Rect, index: number, activate: () => void): FocusStop {
-    return {
-      rect: () => ({ ...rect, y: rect.y - this.#lowerScroll.offsetPx }),
-      activate,
-      ensureVisible: () => this.#lowerRegion?.scrollIntoView(index),
-    };
-  }
-
-  #lowerClip = (): Rect | null => this.#lowerRegion?.rect ?? null;
-  #lowerSuppressClick = (): boolean => this.#lowerRegion?.isDragSuppressingClick ?? false;
 
   /**
    * "Table" heading + its rows, then "Guide" heading, the "Guide level" segment and one row per non-segmented
@@ -1990,101 +1997,48 @@ export class PauseOverlay extends Phaser.Scene {
   ): readonly string[] {
     const levelRow = guideRows.find((row) => row.kind === "segmented");
     const afterLevel = guideRows.filter(isGuideNonLevelRow);
-    // `contentSlotHeights`, not a plain `.map(r => r.height)`: each row's own gap to the next has to count toward
-    // the scroll region's own total, or its offset math drifts away from where these rows are actually drawn the
-    // further down it scrolls (this file's own `view/layout.ts` doc comment).
-    const heights = contentSlotHeights([
-      ...content.guideRunRows,
-      content.tableHeading,
-      content.cardSizeRow,
-      ...content.tableRows,
-      content.guideHeading,
-      content.guideLevelRow,
-      ...content.guideRows,
-    ]);
-    // `clipInteractive`: a mask hides pixels, not hit areas, so a row scrolled up under the title bar would still win
-    // the press on the ✕ above it (its own `clip` then drops the click, so nothing happened at all), as Settings had.
-    this.#lowerRegion = new McScrollRegion(this, {
-      rect: viewport,
-      heights,
-      scroll: this.#lowerScroll,
-      clipInteractive: true,
-    });
-    const container = this.#lowerRegion.content;
-    const toScreen = (contentRect: Rect): Rect => ({ ...contentRect, y: viewport.y + contentRect.y });
-
-    // §3.10, G5c part 3 — "Stop tutorial" / "Turn guide off", ahead of "Table" (`content.guideRunRows` is empty
-    // outside a guided run, this file's own `#drawPhone` call site).
-    const runOffset = content.guideRunRows.length;
-    if (content.guideRunRows[0]) {
-      this.#captureInto(container, () =>
-        this.#drawGuideRunRow(
-          toScreen(content.guideRunRows[0]!),
-          "Stop tutorial",
-          0,
-          stops,
-          "guide-stop-tutorial",
-          () => this.#stopTutorial(),
-        ),
-      );
-    }
-    if (content.guideRunRows[1]) {
-      this.#captureInto(container, () =>
-        this.#drawGuideRunRow(
-          toScreen(content.guideRunRows[1]!),
-          "Turn guide off",
-          1,
-          stops,
-          "guide-turn-guide-off",
-          () => this.#turnGuideOff(),
-        ),
-      );
-    }
-
-    this.#captureInto(container, () =>
-      label(
-        this,
-        viewport.x,
-        viewport.y + content.tableHeading.y,
-        "Table",
-        typeRole.label,
-        surface.paper.hex,
-        ink.secondary,
-      ),
-    );
-    this.#captureInto(container, () => this.#drawCardSizeRow(toScreen(content.cardSizeRow), runOffset + 1, stops));
-    tableRows.forEach((row, index) => {
-      this.#captureInto(container, () =>
-        this.#drawTableRow(toScreen(content.tableRows[index]!), row, runOffset + index + 2, stops),
-      );
-    });
-
-    this.#captureInto(container, () =>
-      label(
-        this,
-        viewport.x,
-        viewport.y + content.guideHeading.y,
-        "Guide",
-        typeRole.label,
-        surface.paper.hex,
-        ink.secondary,
-      ),
-    );
+    this.#lowerScroll = { key: "lower", rect: viewport };
     const stopIds: string[] = [];
-    const guideBaseIndex = runOffset + 2 + tableRows.length + 1; // guide-run rows + tableHeading + Card size + every table row + guideHeading
-    if (levelRow && levelRow.kind === "segmented") {
-      this.#captureInto(container, () =>
-        this.#drawGuideLevelRow(toScreen(content.guideLevelRow), levelRow, guideBaseIndex, stops),
+    this.#inScroll("lower", viewport, content.totalHeight, () => {
+      // §3.10, G5c part 3 — "Stop tutorial" / "Turn guide off", ahead of "Table" (`content.guideRunRows` is empty
+      // outside a guided run, this file's own `#drawPhone` call site).
+      if (content.guideRunRows[0])
+        this.#drawGuideRunRow(content.guideRunRows[0], t("pause.stopTutorial"), 0, stops, "guide-stop-tutorial", () =>
+          this.#stopTutorial(),
+        );
+      if (content.guideRunRows[1])
+        this.#drawGuideRunRow(content.guideRunRows[1], t("pause.turnGuideOff"), 1, stops, "guide-turn-guide-off", () =>
+          this.#turnGuideOff(),
+        );
+
+      this.#label(
+        viewport.x,
+        content.tableHeading.y,
+        t("pause.table"),
+        typeRole.label,
+        surface.paper.hex,
+        ink.secondary,
       );
-      stopIds.push(...levelRow.options.map((option) => `guide-level:${option.value}`));
-    }
-    afterLevel.forEach((row, index) => {
-      this.#captureInto(container, () =>
-        this.#drawGuideRow(toScreen(content.guideRows[index]!), row, guideBaseIndex + 1 + index, stops),
+      this.#drawCardSizeRow(content.cardSizeRow, stops);
+      tableRows.forEach((row, index) => this.#drawTableRow(content.tableRows[index]!, row, index, stops));
+
+      this.#label(
+        viewport.x,
+        content.guideHeading.y,
+        t("pause.guide"),
+        typeRole.label,
+        surface.paper.hex,
+        ink.secondary,
       );
-      stopIds.push(row.id);
+      if (levelRow && levelRow.kind === "segmented") {
+        this.#drawGuideLevelRow(content.guideLevelRow, levelRow, stops);
+        stopIds.push(...levelRow.options.map((option) => `guide-level:${option.value}`));
+      }
+      afterLevel.forEach((row, index) => {
+        this.#drawGuideRow(content.guideRows[index]!, row, stops);
+        stopIds.push(row.id);
+      });
     });
-    this.#lowerRegion.syncInteractivity();
     return stopIds;
   }
 
@@ -2092,9 +2046,9 @@ export class PauseOverlay extends Phaser.Scene {
    * Card size, as a quick setting on the phone's sheet (the owner: the cards were too small to read and the phone had
    * no way to change it mid-game). Its title, then one segment per size, the selected one in guide yellow.
    */
-  #drawCardSizeRow(rect: Rect, index: number, stops: Map<string, FocusStop>): void {
+  #drawCardSizeRow(rect: Rect, stops: Map<string, FocusStop>): void {
     const info = cardSizeRowInfoOf(appSession().settings);
-    label(this, rect.x, rect.y, info.title.toUpperCase(), typeRole.rowTitle, surface.paper.hex, 1);
+    this.#label(rect.x, rect.y, info.title.toUpperCase(), typeRole.rowTitle, surface.paper.hex, 1);
     const gap = 4;
     const EDGE_INSET = 2;
     const top = rect.y + 22;
@@ -2104,40 +2058,11 @@ export class PauseOverlay extends Phaser.Scene {
       const cellRect: Rect = { x: rect.x + i * (cellWidth + gap), y: top, width: cellWidth, height };
       const selected = info.selected === option.value;
       const activate = (): void => this.#setCardSize(option.value);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "quiet",
-          label: "",
-          type: typeRole.label,
-          rect: cellRect,
-          onClick: activate,
-          clip: this.#lowerClip,
-          suppressClick: this.#lowerSuppressClick,
-        }),
-      );
-      const g = this.add.graphics();
-      g.fillStyle(selected ? signal.caution.hex : surface.ink.hex, 1).fillRect(
-        cellRect.x,
-        cellRect.y,
-        cellRect.width,
-        cellRect.height,
-      );
-      g.lineStyle(2, selected ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
-        cellRect.x + 1,
-        cellRect.y + 1,
-        cellRect.width - 2,
-        cellRect.height - 2,
-      );
-      const text = this.add
-        .text(
-          cellRect.x + cellRect.width / 2,
-          cellRect.y + cellRect.height / 2,
-          option.label,
-          textStyle(typeRole.label, selected ? surface.inkOnHue.hex : surface.paper.hex),
-        )
-        .setOrigin(0.5);
-      fitText(text, cellRect.width - 8, typeRole.label.size);
-      stops.set(`table:card-size:${option.value}`, this.#lowerStop(cellRect, index, activate));
+      const id = `table:card-size:${option.value}`;
+      this.#segmentCell(cellRect, selected, option.label);
+      this.#press(id, activate);
+      this.#b.tap(id, cellRect);
+      stops.set(id, this.#scrollStop(this.#lowerScroll, id, this.#lowerScrollRect(cellRect), activate));
     });
   }
 
@@ -2150,7 +2075,6 @@ export class PauseOverlay extends Phaser.Scene {
   #drawGuideLevelRow(
     rect: Rect,
     row: Extract<GuideRowInfo, { kind: "segmented" }>,
-    index: number,
     stops: Map<string, FocusStop>,
   ): void {
     const gap = 4;
@@ -2164,68 +2088,51 @@ export class PauseOverlay extends Phaser.Scene {
       const cellRect: Rect = { x: rect.x + i * (cellWidth + gap), y: rect.y, width: cellWidth, height: rect.height };
       const selected = row.selected === option.value;
       const activate = (): void => this.#setGuideLevel(option.value);
-      // The button lands first (its own "quiet" skin paints an opaque paper fill), so the cell's own fill/stroke/
-      // text — added after — draw on top of it rather than being hidden under it (`McButton`'s own z-order).
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "quiet",
-          label: "",
-          type: typeRole.label,
-          rect: cellRect,
-          onClick: activate,
-          clip: this.#lowerClip,
-          suppressClick: this.#lowerSuppressClick,
-        }),
-      );
       // Selected reads as guide yellow (`signal.caution`, ink text) rather than ink-on-ink, which — against this
       // overlay's own dark ground — used to read as *less* "on" than the bright-paper unselected cells beside it
       // (found in browser verification, 2026-09-26: the selected cell looked unselected at a glance). Unselected
       // is ink fill with a paper border and paper text, the readable-on-dark pairing the rest of this sheet uses.
-      const g = this.add.graphics();
-      g.fillStyle(selected ? signal.caution.hex : surface.ink.hex, 1).fillRect(
-        cellRect.x,
-        cellRect.y,
-        cellRect.width,
-        cellRect.height,
+      this.#b.box(cellRect, { fill: selected ? signal.caution.hex : surface.ink.hex });
+      this.#b.box(
+        { x: cellRect.x + 1, y: cellRect.y + 1, width: cellRect.width - 2, height: cellRect.height - 2 },
+        { stroke: selected ? signal.caution.hex : surface.paper.hex, strokeWidth: 2 },
       );
-      g.lineStyle(2, selected ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
-        cellRect.x + 1,
-        cellRect.y + 1,
-        cellRect.width - 2,
-        cellRect.height - 2,
+      this.#plain(
+        cellRect.x + 10,
+        cellRect.y + 8,
+        option.label,
+        typeRole.rowTitle,
+        selected ? surface.inkOnHue.hex : surface.paper.hex,
+        1,
+        { size: 12 },
       );
-      this.add
-        .text(
-          cellRect.x + 10,
-          cellRect.y + 8,
-          option.label,
-          textStyle(typeRole.rowTitle, selected ? surface.inkOnHue.hex : surface.paper.hex),
-        )
-        .setFontSize(12);
-      this.add
-        .text(
-          cellRect.x + 10,
-          cellRect.y + 26,
-          option.detail,
-          textStyle(typeRole.body, selected ? surface.inkOnHue.hex : surface.paper.hex, selected ? 0.85 : 0.7),
-        )
-        .setFontSize(9)
-        .setWordWrapWidth(cellWidth - 16);
-      stops.set(`guide:guide-level:${option.value}`, this.#lowerStop(cellRect, index, activate));
+      this.#plain(
+        cellRect.x + 10,
+        cellRect.y + 26,
+        option.detail,
+        typeRole.body,
+        selected ? surface.inkOnHue.hex : surface.paper.hex,
+        selected ? 0.85 : 0.7,
+        { size: 9, wrapWidth: cellWidth - 16 },
+      );
+      const id = `guide:guide-level:${option.value}`;
+      this.#press(id, activate);
+      this.#b.tap(id, cellRect);
+      stops.set(id, this.#scrollStop(this.#lowerScroll, id, this.#lowerScrollRect(cellRect), activate));
     });
   }
 
-  #drawGuideRow(rect: Rect, row: GuideNonLevelRow, index: number, stops: Map<string, FocusStop>): void {
-    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(
-        rect.x,
-        rect.y + 20,
-        guideRowDetailOf(row),
-        textStyle(typeRole.body, surface.paper.hex, row.kind === "action" && row.unavailable ? 0.55 : 0.8),
-      )
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - 100);
+  #drawGuideRow(rect: Rect, row: GuideNonLevelRow, stops: Map<string, FocusStop>): void {
+    this.#label(rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary, { size: 12 });
+    this.#plain(
+      rect.x,
+      rect.y + 20,
+      guideRowDetailOf(row),
+      typeRole.body,
+      surface.paper.hex,
+      row.kind === "action" && row.unavailable ? 0.55 : 0.8,
+      { size: 10, wrapWidth: rect.width - 100 },
+    );
 
     const controlRect: Rect = {
       x: rect.x + rect.width - 84,
@@ -2235,28 +2142,26 @@ export class PauseOverlay extends Phaser.Scene {
     };
     const activate = (): void => this.#activateGuideRow(row);
     const unavailable = row.kind === "action" ? row.unavailable : undefined;
-    addRowTapZone(this, rect, {
-      onClick: activate,
-      enabled: unavailable === undefined,
-      clip: this.#lowerClip,
-      suppressClick: this.#lowerSuppressClick,
+    const id = `guide:${row.id}`;
+    this.#press(id, activate);
+    this.#b.tap(id, rect);
+    this.#press(`${id}:switch`, activate);
+    this.#b.button({
+      key: `${id}:switch`,
+      rect: controlRect,
+      label: unavailable
+        ? "—"
+        : row.kind === "toggle"
+          ? row.on
+            ? t("settings.toggleOn")
+            : t("settings.toggleOff")
+          : t("settings.open"),
+      look: row.kind === "toggle" && row.on ? "secondary" : "quiet",
+      selected: row.kind === "toggle" && row.on,
+      ...(unavailable ? { disabled: unavailable } : {}),
+      ...(row.kind === "toggle" && row.on ? { framed: true } : {}),
     });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: row.kind === "toggle" && row.on ? "secondary" : "quiet",
-        label: unavailable ? "—" : row.kind === "toggle" ? (row.on ? "ON" : "OFF") : "Open ▸",
-        type: typeRole.label,
-        rect: controlRect,
-        enabled: unavailable === undefined,
-        ...(unavailable ? { reason: unavailable } : {}),
-        selected: row.kind === "toggle" && row.on,
-        onClick: activate,
-        clip: this.#lowerClip,
-        suppressClick: this.#lowerSuppressClick,
-      }),
-    );
-    if (row.kind === "toggle" && row.on) paintOnFrame(this, controlRect);
-    stops.set(`guide:${row.id}`, this.#lowerStop(rect, index, activate));
+    stops.set(id, this.#scrollStop(this.#lowerScroll, id, this.#lowerScrollRect(rect), activate));
   }
 
   #setGuideLevel(level: GuideLevel): void {
@@ -2300,30 +2205,30 @@ export class PauseOverlay extends Phaser.Scene {
   #drawPhoneConcedeConfirm(layout: PausePhoneLayout, stops: Map<string, FocusStop>): void {
     const yesRect = layout.resume;
     const cancelRect = layout.saveQuit;
-    this.add
-      .text(layout.panel.x + 16, yesRect.y - 22, this.#concedeSentence(), textStyle(typeRole.body, accent.heroRed.hex))
-      .setFontSize(11)
-      .setWordWrapWidth(layout.panel.width - 32);
-    stops.set("concede-confirm-yes", { rect: yesRect, activate: () => void this.#onConcedeConfirmed() });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: this.#seatGame() ? t("concede.seatConfirm") : "Yes, concede",
-        type: typeRole.barTitle,
-        rect: yesRect,
-        onClick: () => void this.#onConcedeConfirmed(),
-      }),
-    );
-    stops.set("concede-confirm-cancel", { rect: cancelRect, activate: () => this.#setConfirmingConcede(false) });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "quiet",
-        label: "Cancel",
-        type: typeRole.rowTitle,
-        rect: cancelRect,
-        onClick: () => this.#setConfirmingConcede(false),
-      }),
-    );
+    this.#plain(layout.panel.x + 16, yesRect.y - 22, this.#concedeSentence(), typeRole.body, accent.heroRed.hex, 1, {
+      size: 11,
+      wrapWidth: layout.panel.width - 32,
+    });
+    const yes = (): void => void this.#onConcedeConfirmed();
+    const cancel = (): void => this.#setConfirmingConcede(false);
+    stops.set("concede-confirm-yes", { rect: yesRect, activate: yes });
+    this.#press("concede-confirm-yes", yes);
+    this.#b.button({
+      key: "concede-confirm-yes",
+      rect: yesRect,
+      label: this.#seatGame() ? t("concede.seatConfirm") : t("pause.concedeYes"),
+      look: "primary",
+      type: typeRole.barTitle,
+    });
+    stops.set("concede-confirm-cancel", { rect: cancelRect, activate: cancel });
+    this.#press("concede-confirm-cancel", cancel);
+    this.#b.button({
+      key: "concede-confirm-cancel",
+      rect: cancelRect,
+      label: t("pause.cancel"),
+      look: "quiet",
+      type: typeRole.rowTitle,
+    });
   }
 
   #button(
@@ -2335,15 +2240,13 @@ export class PauseOverlay extends Phaser.Scene {
     onClick: () => void,
   ): void {
     stops.set(id, { rect, activate: onClick });
-    this.#buttons.push(
-      new McButton(this, {
-        kind,
-        label: text,
-        type: kind === "primary" ? typeRole.barTitle : typeRole.rowTitle,
-        rect,
-        onClick,
-        enabled: true,
-      }),
-    );
+    this.#press(id, onClick);
+    this.#b.button({
+      key: id,
+      rect,
+      label: text,
+      look: kind,
+      type: kind === "primary" ? typeRole.barTitle : typeRole.rowTitle,
+    });
   }
 }

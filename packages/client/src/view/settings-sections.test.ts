@@ -1,4 +1,5 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import { defaultGuidePrefs } from "../guide/guide-prefs.js";
 import { EARNED_ITEMS } from "../progression/earned-items.js";
 import { defaultSettings } from "../settings.js";
@@ -282,5 +283,18 @@ describe("the Cheats section for a seated guest (#904)", () => {
     expect(ids()).toContain("cheats");
     expect(ids(true)).toContain("cheats");
     expect(ids(false)).not.toContain("cheats");
+  });
+});
+
+describe("the tabs and sections in Spanish (#390)", () => {
+  afterEach(useEnglish);
+
+  test("label each tab and section in the language picked", () => {
+    useSpanish();
+    const tabs = settingsTabsOf({ guideRowIds, cardHover: true });
+    expect(tabs.map((tab) => tab.label)).toEqual(["Juego", "Cartas", "Pantalla", "Sonido", "Guía", "Más"]);
+    expect(tabs[0]!.sections.map((section) => section.title)).toEqual(["Juego", "Cartas restantes", "Fase de villano"]);
+    useEnglish();
+    expect(settingsTabsOf({ guideRowIds, cardHover: true })[0]!.label).toBe("Game");
   });
 });

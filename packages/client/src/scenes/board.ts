@@ -497,7 +497,11 @@ export class BoardScene extends Phaser.Scene {
   #formFanOpen = false;
   #formFanT = 0;
   #formFanTween: Phaser.Tweens.Tween | null = null;
-  readonly #logPanel = new LogPanel(() => this.#draw());
+  /** Stays shown under the replay bar, which covers only the action bar's place (`DomRegion`'s `shownUnder`). */
+  readonly #logPanel = new LogPanel(() => this.#draw(), {
+    shownUnder: [SCENES.replayTransport],
+    hoverRect: () => this.#hover?.shownRect ?? null,
+  });
   readonly #motion = new BoardMotion(this);
   readonly #firstPlayerToken = new BoardFirstPlayerToken();
   /** The rows under the title bar's own (`chromeExtra`), whether the whose-turn row is one, and whether it carries Chat. */
@@ -922,8 +926,6 @@ export class BoardScene extends Phaser.Scene {
     this.input.on("wheel", this.#hand.onWheel, this.#hand);
     // And over a crowded play area, which checks the pointer is over its own row.
     this.input.on("wheel", this.#playAreaScroll.row.onWheel, this.#playAreaScroll.row);
-    // The same for the game log, which checks the pointer is over it.
-    this.input.on("wheel", this.#logPanel.onWheel, this.#logPanel);
     // At a larger Card size the table scrolls: a wheel over it (where no scroll region of its own takes the gesture) and a
     // touch drag. Both only move `#tableScroll`; the next frame redraws.
     this.input.on("wheel", this.#onTableWheel, this);
@@ -954,7 +956,6 @@ export class BoardScene extends Phaser.Scene {
       this.game.events.off("mc-use-ability", this.#onInspectUseAbility, this);
       this.input.off("wheel", this.#hand.onWheel, this.#hand);
       this.input.off("wheel", this.#playAreaScroll.row.onWheel, this.#playAreaScroll.row);
-      this.input.off("wheel", this.#logPanel.onWheel, this.#logPanel);
       this.input.off("wheel", this.#onTableWheel, this);
       this.input.off(Phaser.Input.Events.POINTER_DOWN, this.#onTableDown, this);
       this.input.off(Phaser.Input.Events.POINTER_MOVE, this.#onTableMove, this);
@@ -2107,12 +2108,9 @@ export class BoardScene extends Phaser.Scene {
     if (logRect) {
       this.#logPanel.draw(this, logRect, this.#tableLog(), {
         type: logTypeFor(layout.formFactor),
-        closeLabel: "Close",
+        closeLabel: t("log.close"),
         onClose: () => this.toggleLog(),
-        onCloseButton: (button) => {
-          this.#frame.buttons.push(button);
-          if (glyphsFitLayout(layout.tabbed)) this.#hints.button(button, ["log"], "paper");
-        },
+        glyphIds: glyphsFitLayout(layout.tabbed) ? ["log"] : null,
       });
       this.#frame.innerScroll.push(logRect);
     } else this.#logPanel.hide();
@@ -2426,6 +2424,8 @@ export class BoardScene extends Phaser.Scene {
         else if (this.#replay && this.#focus?.kind === "discard" && !this.#logFocused) this.#openMyDiscard();
         else if (this.#focus && !this.#logFocused) this.#controller.activate(this.#focus);
         else if (this.#focus === null && !this.#logFocused) this.#focusPrimary();
+        // The log has no stop of its own: with its ring up, the press takes the "newer" chip when it is showing.
+        else if (this.#logFocused) this.#logPanel.jumpToLatest();
         break;
       case "inspect":
         if (this.#focus?.kind === "card" && !this.#logFocused) this.#inspect(this.#focus.instanceId);
@@ -3556,6 +3556,7 @@ export class BoardScene extends Phaser.Scene {
   #placeFocusRing(): Rect | null {
     this.#focusRing?.destroy();
     this.#focusRing = null;
+    this.#logPanel.showRing(null);
     // While focus is in the guide region (§3.10, §7 fix), the board's own ring stays hidden — the guide/tip
     // widget draws its own ring (`McGuidePanel`/`McGuideCallout`/`McTipToast#focusAt`) so there is never a
     // visible ring on both surfaces at once.
@@ -3563,8 +3564,8 @@ export class BoardScene extends Phaser.Scene {
     // The log has no stop to ring, so the ring goes round the panel; a tab or layout that no longer shows it ends the focus.
     if (this.#logFocused) {
       if (this.#logRect) {
-        this.#focusRing = new McSelectionRing(this, undefined, true);
-        this.#focusRing.show(this.#logRect, "static", true);
+        // The log is a DOM panel: its ring is drawn in the DOM too, or it would sit under it.
+        this.#logPanel.showRing(this.#logRect);
         return null;
       }
       this.#logFocused = false;

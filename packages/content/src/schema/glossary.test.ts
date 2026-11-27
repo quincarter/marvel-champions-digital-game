@@ -353,6 +353,34 @@ describe("wave 8 mechanics (guided mode section 3.14)", () => {
     );
   });
 
+  it("Team-Up counts a friendly identity in either form or an ally, not only a hero (RRG 1.8 p. 43)", () => {
+    const teamUp = glossaryEntry("teamUp")!.definition;
+    expect(teamUp).toMatch(/either form or as an ally/);
+    expect(teamUp).not.toMatch(/alter-ego form doesn't count/);
+  });
+
+  it("threat reaching the target completes a stage; only the final stage wins for the villain (RRG 1.8 pp. 27, 48)", () => {
+    const threat = glossaryEntry("threat")!;
+    expect(threat.definition).toMatch(/stage is completed/);
+    expect(threat.definition).toMatch(/final stage/);
+    expect(threat.sources).toContainEqual({ kind: "rrg", page: 27 });
+  });
+
+  it("Victory X on an attachment counts when the attached card is defeated; Find skips facedown encounter cards (RRG 1.8 pp. 19, 46)", () => {
+    expect(glossaryEntry("victory")!.definition).toMatch(/when the card it is attached to is defeated/);
+    const find = glossaryEntry("find")!.definition;
+    expect(find).toMatch(/facedown encounter cards/);
+    expect(find).toMatch(/removed from or outside the game/);
+    expect(find).toMatch(/does not enter play/);
+  });
+
+  it("a found minion already engaged with you doesn't engage again; Vulnerable waits for two statuses with Steady (RRG 1.8 pp. 19, 48)", () => {
+    expect(glossaryEntry("find")!.definition).toMatch(/engages you unless already engaged/);
+    const vulnerable = glossaryEntry("vulnerable")!.definition;
+    expect(vulnerable).toMatch(/before the damage is applied/);
+    expect(vulnerable).toMatch(/Steady, it is discarded only once it has two/);
+  });
+
   it("uses American spelling and no dashes in what a player reads", () => {
     for (const id of WAVE_8_IDS) {
       const entry = glossaryEntry(id)!;
@@ -656,6 +684,13 @@ describe("wave 10 mechanics (Civil War, Tigra, Hulkling, Wonder Man, Hercules)",
     expect(glossaryEntry("shapeshift")?.definition).toMatch(/one shape at a time/);
     expect(glossaryEntry("ionicPhysiology")?.definition).toMatch(/up to three/);
     expect(glossaryEntry("overpaying")?.sources).toContainEqual({ kind: "rrg", page: 13 });
+  });
+
+  it("boost names the Villainous minion as the exception to minions getting no boost cards (RRG 1.8 p. 47)", () => {
+    const boost = glossaryEntry("boost")!;
+    expect(boost.definition).toMatch(/except a Villainous minion/);
+    expect(boost.definition).not.toMatch(/Minions never get boost cards/);
+    expect(boost.sources).toContainEqual({ kind: "rrg", page: 47 });
   });
 
   it("uses American spelling and no dashes in what a player reads", () => {

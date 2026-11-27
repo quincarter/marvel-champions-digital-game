@@ -205,7 +205,7 @@ describe("lockCaptionOf", () => {
     expect(unlocks.scenarioLockShort(risky)).toBe("Beat Rhino");
     useSpanish();
     expect(lockCaptionOf(unlocks.scenarioLockShort(risky)!, 150)).toBe("Vence a Rhino · o 150 pts");
-    expect(unlocks.scenarioLock(risky)).toBe("Vence a Rhino para desbloquear Wave 1");
+    expect(unlocks.scenarioLock(risky)).toBe("Vence a Rhino para desbloquear Ciclo 1");
   });
 });
 

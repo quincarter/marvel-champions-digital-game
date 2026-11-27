@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { CAMPAIGN_FADE_COLOR_VALUES } from "../settings.js";
 import { surface } from "../tokens.js";
+import { t } from "../i18n/translate.js";
 import {
   CAMPAIGN_FADE_COLOR_FILLS,
-  CAMPAIGN_FADE_COLOR_LABELS,
+  CAMPAIGN_FADE_COLOR_KEYS,
   PANE_TEXT_COLOR,
   campaignFadeFillOf,
   contrastRatio,
@@ -23,7 +24,7 @@ describe("the faded art across a campaign page", () => {
 describe("the campaign pane's fade colours", () => {
   it("has a label and a ground for each value", () => {
     for (const color of CAMPAIGN_FADE_COLOR_VALUES) {
-      expect(CAMPAIGN_FADE_COLOR_LABELS[color].length).toBeGreaterThan(0);
+      expect(t(CAMPAIGN_FADE_COLOR_KEYS[color]).length).toBeGreaterThan(0);
       expect(CAMPAIGN_FADE_COLOR_FILLS[color]).toBeGreaterThan(0);
     }
     expect(CAMPAIGN_FADE_COLOR_VALUES).toEqual(["grey", "blue", "red", "purple", "green"]);

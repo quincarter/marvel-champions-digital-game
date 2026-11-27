@@ -6,6 +6,7 @@
  *  - Continue waiting on the check for newer saves: "Checking your other devices…" once it takes longer than a beat.
  * The line takes no input, so it is a chrome scene (`CHROME_SCENES`).
  */
+import { t } from "../i18n/translate.js";
 import Phaser from "phaser";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
@@ -17,7 +18,7 @@ import { CONFLICT_CLOSED } from "../view/sync-model.js";
 
 /** How long Continue may wait before the line shows: a quick check should not flash text. */
 export const CHECKING_DELAY_MS = 300;
-export const CHECKING_TEXT = "Checking your other devices…";
+export const checkingText = (): string => t("sync.checkingText");
 
 export class SyncPromptScene extends Phaser.Scene {
   #queue: PendingConflict[] = [];
@@ -68,7 +69,7 @@ export class SyncPromptScene extends Phaser.Scene {
       this.#timer = null;
       if (!this.#checking || this.#line) return;
       this.#line = this.add
-        .text(0, 0, CHECKING_TEXT, textStyle(typeRole.label, surface.paper.hex))
+        .text(0, 0, checkingText(), textStyle(typeRole.label, surface.paper.hex))
         .setPadding(14, 8, 14, 8)
         .setBackgroundColor("#" + surface.ink.hex.toString(16).padStart(6, "0"))
         .setOrigin(0.5, 1);

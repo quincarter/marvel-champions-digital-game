@@ -30,6 +30,8 @@ import { setHouseRuleFaceSource, setPackArtResolver, type ArtSource } from "./ar
 export interface PackArtStore {
   objectUrl(id: string, path: string): Promise<string | undefined>;
   revoke(id: string, path?: string): void;
+  /** Forgets the cached URL for one file without revoking it and returns it, so the next read makes a fresh one. */
+  detach?(id: string, path: string): string | undefined;
 }
 
 interface PackArtPack {
@@ -254,9 +256,169 @@ export const isPackArtKey = (key: string): boolean => key.startsWith("art:pack:"
 export function releasePackArt(key: string): void {
   const info = fileOfKey.get(key);
   if (!info) return;
+  // A DOM picture still holds a lease on this URL (`leasePackUrl`): the revoke waits for the last release, so a
+  // lazy `<img>` that has not loaded yet is not left with a dead URL by a Phaser texture eviction.
+  const held = urls.get(key);
+  if (held !== undefined && (leaseCounts.get(held) ?? 0) > 0) {
+    revokeOnRelease.set(held, key);
+    return;
+  }
   store?.revoke(info.id, info.path);
+  // `fileOfKey` stays: `currentPackArt` needs it to resolve a source drawn before this eviction.
   urls.delete(key);
-  fileOfKey.delete(key);
+}
+
+// Lease bookkeeping is per blob URL, not per key: a refresh can leave two generations of one key's URL alive at once,
+// and each is revoked when its own last lease lets go, whatever the release order.
+
+/** How many consumers hold each blob URL (`leasePackUrl`). */
+const leaseCounts = new Map<string, number>();
+/** URLs whose eviction asked for a revoke while leased (url to its key): done when the last lease is released. */
+const revokeOnRelease = new Map<string, string>();
+
+/** Blob URLs `refreshPackArt` detached from the store while a decode read them: revoked when their last decode settles. */
+const detachedUrls = new Set<string>();
+
+/** How many `CardArt` decodes read each blob URL (a subset of `leaseCounts`). */
+const decodeCounts = new Map<string, number>();
+
+export interface PackLeaseOptions {
+  /** The hold is a `CardArt` decode reading the URL (`refreshPackArt` never revokes under one). */
+  readonly decode?: boolean;
+  /** The decode will become the key's texture: a pending eviction revoke is cancelled. */
+  readonly takesTexture?: boolean;
+}
+
+/** A hold on one pack picture's blob URL, for a DOM `<img>` that outlives Phaser's texture. */
+export interface PackUrlLease {
+  readonly url: string;
+  /** Gives the hold back (idempotent). The URL is revoked now if a texture eviction asked for it meanwhile. */
+  release(): void;
+}
+
+/**
+ * Holds the blob URL of pack picture `key` for a DOM consumer (a Lit panel's lazy `<img>`), so `releasePackArt`
+ * defers revoking it until every lease is released. Null when the URL is not resolved (an art change is announced
+ * when it arrives) or `key` is not a pack picture.
+ */
+export function leasePackUrl(key: string, opts: PackLeaseOptions = {}): PackUrlLease | null {
+  const url = urls.get(key);
+  if (url === undefined || !isPackArtKey(key)) return null;
+  leaseCounts.set(url, (leaseCounts.get(url) ?? 0) + 1);
+  if (opts.decode) decodeCounts.set(url, (decodeCounts.get(url) ?? 0) + 1);
+  // A new texture is being made from this URL: an eviction's pending revoke is moot, the texture's own eviction asks again.
+  if (opts.takesTexture) revokeOnRelease.delete(url);
+  let released = false;
+  return {
+    url,
+    release(): void {
+      if (released) return;
+      released = true;
+      if (opts.decode) {
+        const decodes = (decodeCounts.get(url) ?? 1) - 1;
+        if (decodes > 0) decodeCounts.set(url, decodes);
+        else {
+          decodeCounts.delete(url);
+          if (detachedUrls.delete(url)) URL.revokeObjectURL(url);
+        }
+      }
+      const left = (leaseCounts.get(url) ?? 1) - 1;
+      if (left > 0) {
+        leaseCounts.set(url, left);
+        return;
+      }
+      leaseCounts.delete(url);
+      if (revokeOnRelease.get(url) === key) {
+        revokeOnRelease.delete(url);
+        if (urls.get(key) === url) releasePackArt(key);
+      }
+    },
+  };
+}
+
+/**
+ * The leases one DOM screen holds, renewed on each redraw: `begin()`, then `image(source)` for every picture drawn,
+ * then `end()` once the new nodes are mounted (the old pass's leases are given back only then, so a picture never has
+ * a moment with no hold), and `dispose()` when the screen goes.
+ */
+export class PackLeases {
+  #held: PackUrlLease[] = [];
+  #next: PackUrlLease[] | null = null;
+
+  begin(): void {
+    this.#next = [];
+  }
+
+  /** What to hand a DOM `<img>` for `source`: its URL (held while the screen shows it), and the key to re-resolve it by. */
+  image(source: ArtSource | null): { readonly src: string | null; readonly retry?: string } {
+    if (!source) return { src: null };
+    if (!isPackArtKey(source.key)) return { src: source.url };
+    const lease = leasePackUrl(source.key);
+    if (lease && this.#next) this.#next.push(lease);
+    else lease?.release();
+    return { src: lease?.url ?? source.url, retry: source.key };
+  }
+
+  end(): void {
+    const old = this.#held;
+    this.#held = this.#next ?? this.#held;
+    this.#next = null;
+    if (this.#held !== old) for (const lease of old) lease.release();
+  }
+
+  dispose(): void {
+    for (const lease of [...this.#held, ...(this.#next ?? [])]) lease.release();
+    this.#held = [];
+    this.#next = null;
+  }
+}
+
+/**
+ * A DOM picture failed to load `failedUrl` for `key`: the URL was revoked under it (or never good). Forgets it when it
+ * is still the current one and reads the file from the store afresh; an art change is announced when the new URL is
+ * in, so the screen asks again. A URL that is already newer just announces, so the screen redraws with it.
+ */
+export function refreshPackArt(key: string, failedUrl: string | undefined): void {
+  const info = fileOfKey.get(key);
+  if (!info) return;
+  const current = urls.get(key);
+  if (current !== undefined && (failedUrl === undefined || current === failedUrl)) {
+    // A decode still reads this URL: revoking now would fail it. The URL stops being current at once (so that decode's
+    // failure is a retry, not a missing scan, and a fresh URL is read and announced now); only the revoke of the old
+    // blob waits for the last decode to settle. A store that cannot detach keeps the defer-and-keep behavior.
+    if ((decodeCounts.get(current) ?? 0) > 0) {
+      const old = store?.detach?.(info.id, info.path);
+      if (old === undefined) {
+        revokeOnRelease.set(current, key);
+        return;
+      }
+      detachedUrls.add(old);
+      urls.delete(key);
+      const pack = packs.get(info.id);
+      if (pack && key === packArtKey(pack.id, pack.version, info.path)) ensure(pack, info.path);
+      return;
+    }
+    store?.revoke(info.id, info.path);
+    urls.delete(key);
+    const pack = packs.get(info.id);
+    if (pack && key === packArtKey(pack.id, pack.version, info.path)) ensure(pack, info.path);
+  } else if (current !== undefined) announceSoon();
+}
+
+/**
+ * `source` as it stands now. A source held from before `releasePackArt` carries a revoked blob URL; asking for that
+ * would fail the load and mark the picture missing. This gives the fresh URL (reading it from the store again, and
+ * null until it arrives, when the change is announced). A pack source whose pack was removed or upgraded is null; any other source is returned as it is.
+ */
+export function currentPackArt(source: ArtSource): ArtSource | null {
+  const info = fileOfKey.get(source.key);
+  // A pack key no longer tracked: its pack was uninstalled or upgraded and the store revoked the URL.
+  if (!info) return isPackArtKey(source.key) ? null : source;
+  const url = urls.get(source.key);
+  if (url !== undefined) return url === source.url ? source : { key: source.key, url };
+  const pack = packs.get(info.id);
+  if (pack && source.key === packArtKey(pack.id, pack.version, info.path)) ensure(pack, info.path);
+  return null;
 }
 
 /** Test seam: forgets every pack and URL. */
@@ -264,6 +426,10 @@ export function resetPackArt(): void {
   packs = new Map();
   store = undefined;
   urls.clear();
+  leaseCounts.clear();
+  decodeCounts.clear();
+  detachedUrls.clear();
+  revokeOnRelease.clear();
   fileOfKey.clear();
   resolving.clear();
   if (announceTimer !== undefined) clearTimeout(announceTimer);

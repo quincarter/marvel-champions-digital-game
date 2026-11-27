@@ -111,6 +111,15 @@ export interface SettingsLayout {
   readonly content: SettingsContentLayout;
 }
 
+/**
+ * The room the body's scrollbar takes on the right, inside the panel's 16px margin. The scroll region is this much
+ * wider than the rows (`bodyViewport.width` = the rows' width + this), so the scrollbar's own gutter (6px, `@mc/ui`'s
+ * `--mc-scrollbar-width`; Firefox's thin bar is about 8px) comes out of that extra width and leaves the content its
+ * full width: with the region exactly as wide as the rows, the gutter pushed the content past the scroller's client
+ * width and it scrolled sideways, cutting the first letters of every label.
+ */
+export const SCROLL_GUTTER = 8;
+
 export function settingsLayout(bounds: Rect, sections: readonly SettingsSectionSpec[]): SettingsLayout {
   const { panel, header, body } = overlayPanelLayout(bounds, HEADER_HEIGHT, 0);
   const x = body.x + 16;
@@ -146,7 +155,7 @@ export function settingsLayout(bounds: Rect, sections: readonly SettingsSectionS
   // Never taller than the content itself (no dead scroll space when it already fits, as on a roomy desktop), and
   // never taller than what's actually left in the panel (the phone case this region exists for).
   const viewportHeight = Math.min(totalHeight, Math.max(0, body.y + body.height - bodyTop));
-  const bodyViewport: Rect = { x, y: bodyTop, width, height: viewportHeight };
+  const bodyViewport: Rect = { x, y: bodyTop, width: width + SCROLL_GUTTER, height: viewportHeight };
   const bodyRoom: Rect = { x, y: bodyTop, width, height: Math.max(0, body.y + body.height - bodyTop - 8) };
 
   return {

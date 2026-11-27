@@ -6,7 +6,9 @@
  * `UNLOCK_WAVES` the progression itself runs on, so the numbers on screen can't drift from the code. The repo copy,
  * docs/progression.md, is checked against the same values by `progression-guide.test.ts`.
  */
-import { POINTS, UNLOCK_WAVES, gateHintOf, villainLabelOf, UNLOCK_HEROES } from "../progression/unlocks.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { listAnd, t } from "../i18n/translate.js";
+import { POINTS, UNLOCK_WAVES, gateHintOf, localName, villainLabelOf, UNLOCK_HEROES } from "../progression/unlocks.js";
 
 export interface GuideSection {
   readonly heading: string;
@@ -19,115 +21,83 @@ const heroName = (id: string): string => UNLOCK_HEROES.find((h) => h.identityCar
 
 /** One line per wave: what opens it and how its heroes arrive. */
 export function waveGuideLines(): string[] {
+  const lang = artLanguageNow();
   return UNLOCK_WAVES.map((wave) => {
-    if (wave.gate === null) return `${wave.name}: always open, every hero and every villain.`;
+    const name = localName(wave.name, lang);
+    if (wave.gate === null) return t("guide.wave.always", { name });
     const cast =
       wave.starterHeroIds !== "all" && wave.starterHeroIds.length > 0
-        ? ` ${wave.starterHeroIds.map(heroName).join(" and ")} join at once.`
+        ? ` ${t("guide.wave.cast", { heroes: listAnd(wave.starterHeroIds.map(heroName), lang) })}`
         : "";
     const rewards = wave.heroRewards
-      .map((r) => `${heroName(r.identityCardId)} for ${villainLabelOf(r.scenarioId)}`)
+      .map((r) => t("guide.wave.reward", { hero: heroName(r.identityCardId), villain: villainLabelOf(r.scenarioId) }))
       .join("; ");
-    // English: the guide is not translated, and its search index is built in a worker.
-    const hint = gateHintOf(wave.gate, "en");
+    const hint = gateHintOf(wave.gate, lang);
     const opens = `${hint.charAt(0).toLowerCase()}${hint.slice(1)}`;
-    return `${wave.name}: ${opens}.${cast}${rewards ? ` Then, a villain each: ${rewards}.` : ""}`;
+    return `${t("guide.wave.opens", { name, opens })}${cast}${rewards ? ` ${t("guide.wave.rewards", { rewards })}` : ""}`;
   });
 }
 
 export function progressionGuideOf(): readonly GuideSection[] {
   return [
     {
-      heading: "Part of this app, not the card game",
-      paragraphs: [
-        "Unlocks and champion points are features of this digital edition. They aren't in Marvel Champions' rules " +
-          "and never change how a game plays: every scenario and hero plays exactly as printed, whether you earned " +
-          "it or switched it on.",
-      ],
+      heading: t("guide.h.part"),
+      paragraphs: [t("guide.p.part")],
       bullets: [],
     },
     {
-      heading: "What's always open",
+      heading: t("guide.h.open"),
       paragraphs: [],
-      bullets: [
-        "The Core Set: all five heroes and all three villains, from the first launch.",
-        "Your own decks: a deck you import from MarvelCDB or build in the deck builder plays whatever hero it's " +
-          "for. The locks are on the preconstructed decks only.",
-        "Community decks: public MarvelCDB decks by named authors that this game has imported, checked and played " +
-          "through. They are recommendations on the Decks screen, not official precons. One is offered once its " +
-          "hero and its cards' waves are open; add it to your decks to get a copy you can edit.",
-      ],
+      bullets: [t("guide.b.core"), t("guide.b.own"), t("guide.b.community")],
     },
     {
-      heading: "How waves and heroes unlock",
-      paragraphs: [
-        "Win a game to open more. A win counts at any difficulty, in a campaign or on its own. Each wave opens its " +
-          "scenarios and its campaign; its heroes' precons follow one villain at a time.",
-      ],
+      heading: t("guide.h.waves"),
+      paragraphs: [t("guide.p.waves")],
       bullets: waveGuideLines(),
     },
     {
-      heading: "Earning champion points",
-      paragraphs: ["Only firsts count, so replaying a villain you've beaten earns nothing more."],
+      heading: t("guide.h.points"),
+      paragraphs: [t("guide.p.points")],
       bullets: [
-        `${POINTS.firstWin} for your first win against each scenario.`,
-        `${POINTS.firstExpertWin} more for your first Expert win against it.`,
-        `${POINTS.campaign} for completing a campaign.`,
-        `${POINTS.expertCampaign} more for completing it on Expert.`,
+        t("guide.b.firstWin", { points: POINTS.firstWin }),
+        t("guide.b.firstExpert", { points: POINTS.firstExpertWin }),
+        t("guide.b.campaign", { points: POINTS.campaign }),
+        t("guide.b.expertCampaign", { points: POINTS.expertCampaign }),
       ],
     },
     {
-      heading: "Playing with friends",
-      paragraphs: [
-        "A game in a room counts for you only if you held a seat in it. A host who only watched, a game with Cheats " +
-          "on and an adjusted game earn nothing. A guest's game counts toward their own hero like a game played " +
-          "alone, and a Civil War Competitive game is played only, so it earns no firsts.",
-      ],
+      heading: t("guide.h.friends"),
+      paragraphs: [t("guide.p.friends")],
       bullets: [
-        `First win with friends: ${POINTS.friendsWin[2]} for your first room win at a table of 2 seats, ` +
-          `${POINTS.friendsWin[3]} at 3 and ${POINTS.friendsWin[4]} at 4. Each table size pays once.`,
+        t("guide.b.friends", { two: POINTS.friendsWin[2], three: POINTS.friendsWin[3], four: POINTS.friendsWin[4] }),
       ],
     },
     {
-      heading: "Unlocking by hand",
-      paragraphs: [
-        "Don't want to play through? Unlock something right where you find it locked: a precon in Seats, a " +
-          "scenario in Scenario select, a campaign on the Saga shelf. Or switch it on here. It costs points " +
-          "you've earned instead of wins, and it asks first.",
-      ],
+      heading: t("guide.h.hand"),
+      paragraphs: [t("guide.p.hand")],
       bullets: [
-        `A hero's precon: ${POINTS.unlockHero} points.`,
-        `A campaign: ${POINTS.unlockCampaign} points. Its cast comes with it.`,
-        `A scenario, on its own: ${POINTS.unlockScenario} points.`,
-        "You can only spend points you've earned, so your total never goes below zero.",
-        "Anything you've already earned by playing is free.",
-        "Points are never refunded. Switching something off and on again doesn't charge twice.",
+        t("guide.b.unlockHero", { points: POINTS.unlockHero }),
+        t("guide.b.unlockCampaign", { points: POINTS.unlockCampaign }),
+        t("guide.b.unlockScenario", { points: POINTS.unlockScenario }),
+        t("guide.b.spend"),
+        t("guide.b.free"),
+        t("guide.b.refund"),
       ],
     },
     {
-      heading: "Unlock everything: points off",
-      paragraphs: [
-        "Rather not bother with progression at all? Unlock everything in Settings ▸ Unlocks opens every wave, " +
-          "hero, scenario and campaign for free, and switches champion points off while it's on. Switch it off " +
-          "to go back to earning and spending them; what you've earned stays earned.",
-      ],
+      heading: t("guide.h.all"),
+      paragraphs: [t("guide.p.all")],
       bullets: [],
     },
     {
-      heading: "Official print-and-play sets",
-      paragraphs: [
-        "These are free official sets you print yourself. Turning this on offers them in the modular set picker. " +
-          "It is separate from Unlock everything, which leaves it as it was.",
-      ],
+      heading: t("guide.h.pnp"),
+      paragraphs: [t("guide.p.pnp")],
       bullets: [],
     },
     {
-      heading: "Where it's kept",
+      heading: t("guide.h.kept"),
       paragraphs: [],
-      bullets: [
-        "What you've earned comes from your saved games and campaigns on this device.",
-        "What you've switched on, and what it cost, is saved on this device too. Clearing the app's saved data resets it.",
-      ],
+      bullets: [t("guide.b.keptEarned"), t("guide.b.keptSwitched")],
     },
   ];
 }

@@ -11,6 +11,7 @@ import type { EarnedItemId } from "../progression/earned-items.js";
 import type { GuidePrefs } from "../guide/guide-prefs.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import type { Settings } from "../settings.js";
+import { t } from "../i18n/translate.js";
 import { hit } from "../tokens.js";
 import { estimateWrappedLines, toggleRowHeight } from "./layout.js";
 import type { SettingsItemId } from "./settings-sections.js";
@@ -21,7 +22,7 @@ import type {
   SettingsSearchResult,
 } from "./settings-search.js";
 import {
-  GUIDE_LEVEL_SEARCH_DETAIL,
+  guideLevelSearchDetail,
   achievementPopupPlaceRowInfoOf,
   achievementPopupSizeRowInfoOf,
   achievementPopupTimeRowInfoOf,
@@ -215,7 +216,7 @@ export function pauseSettingRowsOf(settings: Settings, guide: GuidePrefs, env: P
       rows.push({
         id: row.id,
         title: row.title,
-        detail: GUIDE_LEVEL_SEARCH_DETAIL,
+        detail: guideLevelSearchDetail(),
         control: { kind: "choice", options: row.options, selected: row.selected },
         apply: (state, value) =>
           value === undefined
@@ -249,12 +250,14 @@ export interface PauseResultGroup {
   readonly results: readonly SettingsSearchResult[];
 }
 
-const GROUP_TITLES: Readonly<Record<PauseResultGroupId, string>> = {
-  settings: "Settings",
-  rules: "Rules",
-  reference: "Reference",
-  more: "More",
-};
+const groupTitleOf = (id: PauseResultGroupId): string =>
+  id === "settings"
+    ? t("settings.title")
+    : id === "rules"
+      ? t("pause.group.rules")
+      : id === "reference"
+        ? t("pause.reference")
+        : t("pause.group.more");
 
 function groupOf(entry: SettingsSearchEntry): PauseResultGroupId {
   switch (entry.target.kind) {
@@ -279,7 +282,7 @@ export function groupPauseResults(results: readonly SettingsSearchResult[]): rea
   return order.flatMap((id) => {
     const inGroup = results.filter((result) => groupOf(result.entry) === id);
     if (inGroup.length === 0 && id !== "rules") return [];
-    return [{ id, title: GROUP_TITLES[id], results: inGroup }];
+    return [{ id, title: groupTitleOf(id), results: inGroup }];
   });
 }
 

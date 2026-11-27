@@ -11,7 +11,7 @@ import {
   syncStatusText,
   syncStepMustAcknowledge,
   syncStepWorking,
-  UNAVAILABLE_TEXT,
+  unavailableText,
 } from "./sync-model.js";
 
 const CODE = "ABCDEFGHJKMNPQRSTUVWXYZ23";
@@ -74,8 +74,8 @@ describe("status", () => {
 describe("failures", () => {
   test("every failure has a sentence, and a wrong code uses the owner's wording", () => {
     expect(syncFailureStatusOf({ kind: "wrong-code" }).text).toContain("didn't match any synced saves");
-    expect(syncFailureStatusOf({ kind: "unavailable" })).toEqual({ tone: "error", text: UNAVAILABLE_TEXT });
-    expect(UNAVAILABLE_TEXT).toBe("Online sync is unavailable right now. Your saves stay on this device.");
+    expect(syncFailureStatusOf({ kind: "unavailable" })).toEqual({ tone: "error", text: unavailableText() });
+    expect(unavailableText()).toBe("Online sync is unavailable right now. Your saves stay on this device.");
     const kinds = [
       { kind: "unsupported" },
       { kind: "invalid-code" },

@@ -262,6 +262,7 @@ import { villainDefendLayout } from "../view/villain-defend-layout.js";
 import { drawVillainDefendPanel } from "../ui/villain-defend-panel.js";
 import { logTypeFor, logWithShownBeats, shownBeatsOf } from "../view/log-dock.js";
 import { LogPanel } from "./board/log.js";
+import { splitFocusRing } from "./focus-ring-split.js";
 import { villainBandLayout, villainRailLayout, villainTabLayout } from "../view/villain-rail-layout.js";
 import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter-strip.js";
 import { villainHandTagsOf } from "../view/villain-hand-tags.js";
@@ -439,7 +440,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * they toggle back, so nothing plays past them unread. Any decision they left stays open, tucked away.
    */
   #logView = false;
-  readonly #logPanel = new LogPanel(() => this.#draw());
+  readonly #logPanel = new LogPanel(() => this.#draw(), { hoverRect: () => this.#hover?.shownRect ?? null });
   /** Stops listening to the room (the host's cursor, for a following guest's screen). */
   #roomOff: (() => void) | null = null;
   /** The host's heartbeat of its cursor, so a room that woke and forgot it hears it again. */
@@ -525,6 +526,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         if (this.#secondaryStop !== null) this.#route?.pressStop(this.#secondaryStop);
       },
       onFocusChange: () => this.#hints.refresh(),
+      // The log's close button is in the DOM, over the canvas: its ring is too.
+      ring: (ringScene, color) => splitFocusRing(ringScene, color, () => this.#logView),
       // The docked defend's options each wear a combo (RT + A ...): hold a trigger or a bumper and press a face button.
       picks: {
         onLayer: (layer) => this.#hints.setLayer(layer),
@@ -544,7 +547,6 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onExpand: () => this.padExpand(),
       onScroll: (_dx, dy) => this.#logPanel.onPadScroll(dy),
     });
-    this.input.on("wheel", this.#logPanel.onWheel, this.#logPanel);
     const { store } = appSession();
     // Before the subscribe, which runs the first draw (or closes at once, drawing nothing): the last run's cards go.
     resetHoverCards(this);
@@ -1686,6 +1688,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     try {
       resetHoverCards(this);
       this.#decisionDock = null;
+      // The log is a DOM panel the redraw does not sweep away: it is shown again only by a draw that reaches it.
+      this.#logPanel.hide();
       this.#drawNow();
       if (this.#latest?.game) this.#shaped = true;
       this.#publishDecisionDock();
@@ -3789,23 +3793,25 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         )
       : [];
     const back = (): void => this.toggleLog();
-    let backRect: Rect | null = null;
     this.#logPanel.draw(this, panel, logWithShownBeats(board.tableLog(), this.#walkthrough.round, beats), {
       type: logTypeFor(formFactor),
-      closeLabel: "◂ Villain phase",
+      closeLabel: t("log.villainPhase"),
       onClose: back,
-      onCloseButton: (button, rect) => {
-        this.#buttons.push(button);
-        this.#hintButton(button, ["cancel"], "paper");
-        backRect = rect;
-      },
+      glyphIds: glyphsFitFormFactor(formFactorFor(this.scale.gameSize.width, this.scale.gameSize.height))
+        ? ["cancel"]
+        : null,
     });
-    if (backRect) this.#route?.set(["back"], new Map([["back", { rect: backRect, activate: back }]]));
+    const backRect = this.#logPanel.closeRect();
+    if (backRect)
+      this.#route?.set(
+        ["back"],
+        new Map([["back", { rect: backRect, activate: () => (this.#logPanel.jumpToLatest() ? undefined : back()) }]]),
+      );
     if (import.meta.env.DEV) {
       (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
         continueRect: () => null,
         skipRect: () => null,
-        logBackRect: () => backRect,
+        logBackRect: () => this.#logPanel.closeRect(),
         logView: () => this.#logView,
         presentation: () => this.#presentation,
       };
