@@ -1672,7 +1672,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       const rect = split?.main ?? cellRect;
       const selected = deck.aspects.includes(aspect);
       // The aspect's own card-frame color, the same stamp Seats' aspect chips and the hero cards wear.
-      const stamp = aspectStampOf(aspect);
+      const stamp = aspectStampOf(aspect, artLanguageNow());
       const toggle = (): void => {
         if (frozen) return;
         if (selected)
@@ -1849,7 +1849,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     // Inline (the desktop's pool column), a "show" word and two chips share one row with the card count at its end.
     const word = inline ? 48 : 0;
-    if (inline) this.#label(left, y + hit.target / 2, t("deckBuilder.show"), false, { origin: [0, 0.5] });
+    if (inline)
+      this.#label(left, y + hit.target / 2, t("deckBuilder.show"), false, { origin: [0, 0.5], fitWidth: word - 6 });
     else {
       this.#label(left, y, t("deckBuilder.show"));
       y += 16;
@@ -1858,7 +1859,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Plain chips, filled while on with a tick: a tinted Basic chip read as "on" either way.
     const toggles = [
       { id: "show-hero", text: t("deckBuilder.showHero"), key: "hideHero" },
-      { id: "show-basic", text: aspectStampOf("basic").label, key: "hideBasic" },
+      { id: "show-basic", text: aspectStampOf("basic", artLanguageNow()).label, key: "hideBasic" },
     ] as const;
     toggles.forEach((toggle, index) => {
       const rect: Rect = { x: left + word + index * (width + CHIP_GAP), y, width, height: hit.target };
@@ -1909,7 +1910,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       const named = row.filter((chip) => !isCost(chip));
       const nameSpace = chipsWidth - costs * hit.target - (row.length - 1) * CHIP_GAP;
       // Names share their space by length, so "Physical" gets more than "Wild".
-      const weight = (chip: (typeof row)[number]): number => (oneRow ? textOf(chip).length + 3 : 1);
+      const weight = (chip: (typeof row)[number]): number => (oneRow ? textOf(chip).length + 4 : 1);
       const totalWeight = named.reduce((sum, chip) => sum + weight(chip), 0);
       let x = left;
       row.forEach((chip) => {
@@ -2179,7 +2180,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     // deck size, so the legal-count line says so rather than reading a plain total that includes them.
     const cardCountText = this.#campaignModel
       ? campaignDeckSizeLabel(campaignDeckSizeSplit(this.#campaignModel))
-      : deckCountText(deckStatsOf(deck, this.#pool()));
+      : deckCountText(deckStatsOf(deck, this.#pool()), artLanguageNow());
     const legalityText = verdict.ok
       ? t("deckBuilder.legal", { count: cardCountText })
       : t(verdict.problems.length === 1 ? "deckBuilder.problemOne" : "deckBuilder.problems", {
@@ -2495,6 +2496,11 @@ export class DeckBuilderScene extends Phaser.Scene {
         });
         // With the deck lines, so the pictures open the card popover and follow a scrolling region.
         this.#deckLines.push({ cardId: entry.cardId, rect: pic, scope: this.#scope });
+        if (card) {
+          const key = `games-open:${id}:${entry.cardId}`;
+          b.tap(key, pic, { inspect: true });
+          this.#actions.set(key, () => this.#inspect(card));
+        }
         const buttonWidth = action ? 70 : 0;
         b.text(left + thumb.width + 8, y + 2, `${card?.name ?? entry.cardId}\n${entry.detail}`, typeRole.body, {
           color: fg,
@@ -2792,11 +2798,16 @@ export class DeckBuilderScene extends Phaser.Scene {
           }
           const line: Rect = { x: left, y: rowTop, width: column - removeWidth - 4, height: y - rowTop };
           this.#deckLines.push({ cardId, rect: line, scope: this.#scope });
+          // A hold or a right-click on any line opens Inspect; a plain press does too where the line is a
+          // campaign grant (its only place to read it), and nothing elsewhere.
           const open = inspectable(entry);
-          if (open) {
+          const card = open?.card ?? this.#pool().find((candidate) => candidate.id === entry.cardId);
+          if (card) {
             const key = `deck-line:${cardId}`;
             b.tap(key, { x: left, y: rowTop, width: column - removeWidth - 4, height: y - rowTop }, { inspect: true });
-            this.#actions.set(key, () => this.#inspect(open.card, open.face));
+            const show = (): void => this.#inspect(card, open?.face ?? null);
+            this.#actions.set(key, open ? show : () => undefined);
+            this.#holds.set(key, show);
           }
         }
         y += 4;
@@ -3651,8 +3662,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     };
     add("start:empty", t("deckBuilder.startEmpty"), () => this.#startWith(identity, null));
     for (const starter of preconsFor(identity, currentStarterDecks())) {
-      const aspects = starter.aspects.map((aspect) => aspectStampOf(aspect).label).join(" + ");
-      const stamp = starter.aspects[0] ? aspectStampOf(starter.aspects[0]) : null;
+      const aspects = starter.aspects.map((aspect) => aspectStampOf(aspect, artLanguageNow()).label).join(" + ");
+      const stamp = starter.aspects[0] ? aspectStampOf(starter.aspects[0], artLanguageNow()) : null;
       add(
         `start:${starter.id as string}`,
         t("deckBuilder.startPrecon", { aspects }),

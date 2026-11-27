@@ -114,11 +114,11 @@ test.describe("deck builder tabs on a phone", () => {
     expect(save.rect.y).toBeGreaterThan(viewport.height * 0.7);
     expect(save.rect.y + save.rect.height).toBeLessThanOrEqual(viewport.height);
 
-    // The name field is a DOM input over the canvas: on Deck it is there to type in, off Deck it is gone.
+    // The name field is a real input in the panel: on Deck it is there to type in, off Deck it is gone.
     // Each tab keeps its own scroll, and this one was swiped down to Clear: back up to the name.
     await swipe(page, { x: viewport.width / 2, y: 200 }, { x: viewport.width / 2, y: viewport.height - 180 });
     await swipe(page, { x: viewport.width / 2, y: 200 }, { x: viewport.width / 2, y: viewport.height - 180 });
-    const nameField = page.locator('input[placeholder=""]');
+    const nameField = page.locator('mc-search-field[data-key="name"] input');
     await expect(nameField).toBeVisible();
     await nameField.fill("Tabs deck");
     expect(await findText(page, "Tabs deck", "DeckBuilder")).toBeDefined();
