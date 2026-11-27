@@ -28,13 +28,7 @@ import { rebuildOnPackChange } from "../../ui/pack-redraw.js";
 import { campaignCardsById } from "../../content/campaign-pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import { accent, hit, ink, signal, surface, typeRole } from "../../tokens.js";
-import {
-  bangers,
-  campaignCoverPicture,
-  campaignFrame,
-  villainPicture,
-  type PipState,
-} from "../../ui/campaign-chrome.js";
+import { bangers, campaignCoverPicture, campaignFrame, villainPicture } from "../../ui/campaign-chrome.js";
 import { cssOf, caseOf } from "../../ui/theme.js";
 import { isDesktopType } from "../../ui/desktop-type.js";
 import { inputDevice } from "../../platform/input-device.js";
@@ -72,6 +66,7 @@ import { domFocusRing } from "../../dom/dom-ring.js";
 import { gatePanels } from "../../dom/busy-gate.js";
 import { PictureLeases } from "../../dom/picture-leases.js";
 import { SheetBuilder } from "../../dom/sheet-builder.js";
+import { drawIssuePips } from "../../dom/issue-pips.js";
 import { SheetGlyphs } from "../../dom/sheet-glyphs.js";
 import { sheetTopBar } from "../../dom/sheet-top-bar.js";
 import { commandMeaning, staleKeys } from "../../dom/stale-presses.js";
@@ -157,25 +152,6 @@ function turnedCorners(cx: number, cy: number, width: number, height: number, an
       [-width / 2, height / 2],
     ] as const
   ).map(([x, y]) => [cx + x * cos - y * sin, cy + x * sin + y * cos]);
-}
-
-/** The "pips" of a run's issues: paper done, red current (paper ring), outlined empty. */
-function drawPips(b: SheetBuilder, rect: Rect, pips: readonly PipState[]): void {
-  const gap = 5;
-  const count = Math.max(1, pips.length);
-  const width = (rect.width - gap * (count - 1)) / count;
-  pips.forEach((state, index) => {
-    const x = rect.x + index * (width + gap);
-    if (state === "done") b.box({ x, y: rect.y, width, height: rect.height }, { fill: surface.paper.hex });
-    else if (state === "current") {
-      b.box({ x: x - 2, y: rect.y - 2, width: width + 4, height: rect.height + 4 }, { fill: surface.paper.hex });
-      b.box({ x, y: rect.y, width, height: rect.height }, { fill: accent.heroRed.hex });
-    } else
-      b.box(
-        { x: x + 1, y: rect.y + 1, width: width - 2, height: rect.height - 2 },
-        { stroke: surface.paper.hex, strokeWidth: 2, alpha: 0.35 },
-      );
-  });
 }
 
 const CHIP_COLORS = {
@@ -773,7 +749,7 @@ export class CampaignSagaScene extends Phaser.Scene {
         card.text(pinnedRect.x + pad, y, name, nameType, { color: surface.paper.hex, wrapWidth: innerWidth });
         y += nameHeight + 9;
         if (copy.hasPips) {
-          drawPips(card, { x: pinnedRect.x + pad, y, width: innerWidth, height: 7 }, row.pips);
+          drawIssuePips(card, { x: pinnedRect.x + pad, y, width: innerWidth, height: 7 }, row.pips);
           y += 15;
         }
         if (alts.length > 0) {
@@ -795,7 +771,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       const sub = copy.sub ? inner.measure(copy.sub, typeRole.emphasis, { size: 11, wrapWidth: innerWidth }).height : 0;
       const footText = alts.length > 0 && copy.foot ? caseOf(typeRole.label, copy.foot) : "";
       const foot = footText ? inner.measure(footText, typeRole.label, { size: 9.5, wrapWidth: innerWidth }).height : 0;
-      const tailHeight = sub + foot > 0 ? 10 + sub + (foot > 0 ? 8 + foot : 0) + 12 : 0;
+      const tailHeight = sub + foot > 0 ? 10 + sub + (foot > 0 ? 8 + foot : 0) + 16 : 0;
       if (tailHeight > 0) {
         const tailRect: Rect = { x: gutter, y: tailTop, width: cardWidth, height: tailHeight };
         inner.box(tailRect, { fill: surface.ink.hex });
@@ -1036,7 +1012,11 @@ export class CampaignSagaScene extends Phaser.Scene {
     y += nameBox.height + 9;
 
     if (copy.hasPips) {
-      drawPips(b, { x: footerRect.x + pad, y, width: footerRect.width - pad * 2, height: phone ? 7 : 8 }, row.pips);
+      drawIssuePips(
+        b,
+        { x: footerRect.x + pad, y, width: footerRect.width - pad * 2, height: phone ? 7 : 8 },
+        row.pips,
+      );
       y += phone ? 15 : 18;
     }
 

@@ -14,7 +14,7 @@ import type { McSheet } from "@mc/ui";
 import { campaignDefinitionIn, campaignRecordOf } from "../../campaign/pack-campaigns.js";
 import { campaignCardsById } from "../../content/campaign-pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
-import { accent, ink, surface, typeRole } from "../../tokens.js";
+import { ink, surface, typeRole } from "../../tokens.js";
 import { bangers, campaignCoverPicture, campaignFrame, villainPicture } from "../../ui/campaign-chrome.js";
 import { cssOf, caseOf } from "../../ui/theme.js";
 import { isDesktopType } from "../../ui/desktop-type.js";
@@ -35,8 +35,8 @@ import { DomRegion, renderNow } from "../../dom/dom-region.js";
 import { domFocusRing } from "../../dom/dom-ring.js";
 import { PictureLeases } from "../../dom/picture-leases.js";
 import { SheetBuilder } from "../../dom/sheet-builder.js";
+import { drawIssuePips } from "../../dom/issue-pips.js";
 import { SheetGlyphs } from "../../dom/sheet-glyphs.js";
-import type { PipState } from "../../ui/campaign-chrome.js";
 import type { CampaignCoverData } from "./routes.js";
 
 const cardOf = (id: string) => campaignCardsById().get(id);
@@ -62,25 +62,6 @@ function turnedCorners(cx: number, cy: number, width: number, height: number, an
       [-width / 2, height / 2],
     ] as const
   ).map(([x, y]) => [cx + x * cos - y * sin, cy + x * sin + y * cos]);
-}
-
-/** The five issue pips: paper done, red current (paper ring), outlined empty. */
-function drawPips(b: SheetBuilder, rect: Rect, pips: readonly PipState[]): void {
-  const gap = 5;
-  const count = Math.max(1, pips.length);
-  const width = (rect.width - gap * (count - 1)) / count;
-  pips.forEach((state, index) => {
-    const x = rect.x + index * (width + gap);
-    if (state === "done") b.box({ x, y: rect.y, width, height: rect.height }, { fill: surface.paper.hex });
-    else if (state === "current") {
-      b.box({ x: x - 2, y: rect.y - 2, width: width + 4, height: rect.height + 4 }, { fill: surface.paper.hex });
-      b.box({ x, y: rect.y, width, height: rect.height }, { fill: accent.heroRed.hex });
-    } else
-      b.box(
-        { x: x + 1, y: rect.y + 1, width: width - 2, height: rect.height - 2 },
-        { stroke: surface.paper.hex, strokeWidth: 2, alpha: 0.35 },
-      );
-  });
 }
 
 /**
@@ -547,7 +528,7 @@ export class CampaignCoverScene extends Phaser.Scene {
 
     if (model.hasRun && model.pips.length > 0) {
       y -= 8;
-      drawPips(b, { x, y, width, height: 8 }, model.pips);
+      drawIssuePips(b, { x, y, width, height: 8 }, model.pips);
       y -= 8;
 
       b.text(x, y - 16, model.rosterNames.join(" · "), typeRole.emphasis, {
