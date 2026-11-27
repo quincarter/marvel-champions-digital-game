@@ -12,6 +12,7 @@
  * from a `#receive=` link, `save-data/receive-link.ts`) and lands on the same replace confirm as Import. Wording
  * and the countdown are in `view/save-transfer-model.ts`.
  */
+import { hitRectAround } from "../view/hit-rect.js";
 import { t } from "../i18n/translate.js";
 import Phaser from "phaser";
 import { accent, font, hit, signal, surface, typeRole } from "../tokens.js";
@@ -387,6 +388,11 @@ export class SaveDataOverlay extends Phaser.Scene {
     });
     this.#press("back", () => this.#close());
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
+    if (!working) {
+      // The drawn ✕ is small: a 44px press area around it, inside the header.
+      this.#press("back:hit", () => this.#close());
+      b.tap("back:hit", hitRectAround(closeRect, hit.target, header));
+    }
     b.text(header.x + 16, header.y + header.height / 2, t("settings.saveData.title"), typeRole.barTitle, {
       size: 24,
       color: surface.paper.hex,

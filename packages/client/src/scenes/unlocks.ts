@@ -15,6 +15,7 @@
  * switch rows and the list, scrolled natively. The scene keeps the press shield, the entrance and exit motion, the
  * focus route (ring in the panel layer, `dom/dom-ring.ts`) and the choices.
  */
+import { hitRectAround } from "../view/hit-rect.js";
 import Phaser from "phaser";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { PopupSheet } from "../dom/popup-sheet.js";
@@ -22,7 +23,7 @@ import { SheetBuilder } from "../dom/sheet-builder.js";
 import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { t } from "../i18n/translate.js";
 import { onLanguageChange } from "../language-change.js";
-import { ink, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { hit, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import { OverlayMotion } from "../ui/transitions.js";
@@ -224,6 +225,9 @@ export class UnlocksOverlay extends Phaser.Scene {
     });
     this.#press("back", () => this.#close());
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
+    // The drawn ✕ is small: a 44px press area around it, inside the header.
+    this.#press("back:hit", () => this.#close());
+    b.tap("back:hit", hitRectAround(closeRect, hit.target, header));
     b.text(
       header.x + 16,
       header.y + header.height / 2,

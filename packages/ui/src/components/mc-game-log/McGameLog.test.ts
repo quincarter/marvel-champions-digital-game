@@ -275,6 +275,17 @@ describe("mc-game-log", () => {
     log.remove();
   });
 
+  it("raises mc-activate with the key close on a tap of the 44px press area over the close button", async () => {
+    const log = await mounted();
+    const keys: string[] = [];
+    log.addEventListener("mc-activate", (event) => keys.push((event as CustomEvent).detail.key));
+    const hit = log.renderRoot.querySelector(".close-hit")!;
+    hit.dispatchEvent(pointer("pointerdown"));
+    hit.dispatchEvent(pointer("pointerup"));
+    expect(keys).toEqual(["close"]);
+    log.remove();
+  });
+
   describe("keeping the reader's place", () => {
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetTop");
     afterEach(() => {

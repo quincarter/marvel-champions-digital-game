@@ -43,6 +43,7 @@ import type { McSheet } from "@mc/ui";
 import { addPressShield } from "../ui/press-shield.js";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
+import { hitRectAround } from "../view/hit-rect.js";
 import { SheetBuilder, type Measured, type TextOptions } from "../dom/sheet-builder.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import type { CardSize } from "../settings.js";
@@ -1734,6 +1735,9 @@ export class PauseOverlay extends Phaser.Scene {
     this.#press("close", close);
     this.#b.button({ key: "close", rect: closeRect, label: "✕", look: "secondary", type: typeRole.rowTitle });
     stops.set("close", { rect: closeRect, activate: close });
+    // The drawn ✕ is small: a 44px press area around it, inside the header (the ring still frames the ✕).
+    this.#press("close:hit", close);
+    this.#b.tap("close:hit", hitRectAround(closeRect, hit.target, rect));
     this.#b.box(
       { x: rect.x, y: rect.y + rect.height - 2, width: rect.width, height: 2 },
       { fill: surface.paper.hex, fillAlpha: 0.4 },

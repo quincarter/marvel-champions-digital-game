@@ -34,10 +34,11 @@
  * the rects `view/how-to-play-model.ts` gives, scrolled natively. The scene keeps the focus route (its ring drawn in
  * the DOM, `dom/dom-ring.ts`), navigation and the guide-prefs subscription.
  */
+import { hitRectAround } from "../view/hit-rect.js";
 import Phaser from "phaser";
 import "@mc/ui";
 import type { McSheet } from "@mc/ui";
-import { dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { dotGrid, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf } from "../ui/theme.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import type { Rect } from "../view/layout.js";
@@ -314,7 +315,7 @@ export class HowToPlayScene extends Phaser.Scene {
       color: surface.paper.hex,
       origin: [0.5, 0.5],
     });
-    b.tap("close", header.close);
+    b.tap("close", hitRectAround(header.close, hit.target, header.header));
     this.#press("close", () => this.#leave());
 
     const title = b.text(header.title.x, header.header.height / 2, t("title.howToPlay"), TITLE_TYPE, {

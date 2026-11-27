@@ -260,6 +260,7 @@ export class McGameLog extends LitElement {
           ?still=${this.close.still ?? false}
           @mc-press=${this.#press}
         ></mc-button>
+        <div class="close-hit" ${tapped(this.#press)}></div>
         ${
           glyph
             ? html`<mc-glyph

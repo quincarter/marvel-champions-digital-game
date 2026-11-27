@@ -24,6 +24,7 @@
  * flips fields on that one shared object, it never re-implements what reading
  * them does.
  */
+import { hitRectAround } from "../view/hit-rect.js";
 import Phaser from "phaser";
 import type { OnlineNameData } from "./online-name.js";
 import {
@@ -143,7 +144,7 @@ import {
   readMixerVolume,
   writeMixerVolume,
 } from "../platform/app-volume.js";
-import { surface, typeRole } from "../tokens.js";
+import { hit, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, type McTextInput } from "../ui/widgets.js";
 import { onTap } from "../ui/tap.js";
@@ -774,17 +775,21 @@ export class SettingsOverlay extends Phaser.Scene {
       width: closeSize,
       height: closeSize,
     };
+    const searchRect: Rect = { ...closeRect, x: closeRect.x - SEARCH_GAP - closeSize };
+    // Both are small drawn squares: each gets a 44px press area inside the header, splitting the gap between them.
+    const closeHit = hitRectAround(closeRect, hit.target, layout.header, [searchRect]);
+    const searchHit = hitRectAround(searchRect, hit.target, layout.header, [closeRect]);
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
         label: "✕",
         type: typeRole.rowTitle,
         rect: closeRect,
+        hit: closeHit,
         onClick: () => this.#close(),
       }),
     );
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
-    const searchRect: Rect = { ...closeRect, x: closeRect.x - SEARCH_GAP - closeSize };
     drawSearchToggle(
       this,
       searchRect,
@@ -793,6 +798,7 @@ export class SettingsOverlay extends Phaser.Scene {
       () => this.#toggleSearch(),
       this.#buttons,
       stops,
+      searchHit,
     );
     const title = this.add
       .text(

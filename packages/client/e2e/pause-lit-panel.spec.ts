@@ -103,3 +103,26 @@ test("on a phone, a swipe that lifts over a switch only scrolls the Table group"
   expect(await allLabels()).toEqual(labelsBefore);
   expect((await sheet(page).count()) > 0).toBe(true);
 });
+
+test("on a phone, a tap just outside the drawn ✕ but inside its 44px press area closes Pause", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "phone", "the ✕ is the phone sheet's");
+  await openApp(page, "screen=pause", { landing: "PauseOverlay" });
+  await expect(sheet(page)).toBeVisible();
+  const drawn = (await sheet(page).locator('[data-key="close"]').boundingBox())!;
+  const area = (await sheet(page).locator('[data-key="close:hit"]').boundingBox())!;
+  expect(area.width).toBeGreaterThanOrEqual(44);
+  expect(area.height).toBeGreaterThanOrEqual(44);
+  // The area wraps the drawn ✕ (it is the ✕'s box grown, never moved off it).
+  expect(area.x).toBeLessThanOrEqual(drawn.x);
+  expect(area.y).toBeLessThanOrEqual(drawn.y);
+  expect(area.x + area.width).toBeGreaterThanOrEqual(drawn.x + drawn.width);
+  expect(area.y + area.height).toBeGreaterThanOrEqual(drawn.y + drawn.height);
+  // Just outside the drawn box, below its foot, still inside the press area.
+  const x = drawn.x + drawn.width / 2;
+  const y = drawn.y + drawn.height + (area.y + area.height - drawn.y - drawn.height) / 2;
+  expect(y).toBeGreaterThan(drawn.y + drawn.height);
+  await page.touchscreen.tap(x, y);
+  await expect(sheet(page)).toHaveCount(0, { timeout: 10000 });
+});

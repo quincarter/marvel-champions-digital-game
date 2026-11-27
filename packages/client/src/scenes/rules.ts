@@ -44,6 +44,7 @@
  * Back returns to Pause (`this.scene.stop()` — Pause is still running underneath, since it
  * launched this the same way every other overlay in this app is launched).
  */
+import { hitRectAround } from "../view/hit-rect.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import Phaser from "phaser";
 import "@mc/ui";
@@ -54,7 +55,7 @@ import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS } from "../cont
 import { PackLeases, refreshPackArt } from "../art/pack-art.js";
 import { artFor, defaultFaceFor, CARD_BACKS, type ArtSource, type CardFace } from "../art/art-source.js";
 import { faceOf } from "../view/board-model.js";
-import { border, ink, minType, status, surface, typeRole } from "../tokens.js";
+import { border, hit, ink, minType, status, surface, typeRole } from "../tokens.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { poolCellRect, poolGridGeometry } from "../view/deck-pool-grid.js";
@@ -496,6 +497,9 @@ export class RulesOverlay extends Phaser.Scene {
     });
     this.#press("back", () => this.#close());
     stops.set("back", { rect: backRect, activate: () => this.#close() });
+    // Back is 36px tall: a 44px press area around it, inside the header.
+    this.#press("back:hit", () => this.#close());
+    b.tap("back:hit", hitRectAround(backRect, hit.target, layout.header));
     b.text(
       backRect.x + backRect.width + 14,
       layout.header.y + layout.header.height / 2,

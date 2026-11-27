@@ -54,6 +54,16 @@ export const McGameLogStyles = css`
     width: 150px;
     height: 38px;
   }
+  /* The close is 38px tall: a transparent 44px press area over it (the 50px header leaves room), same width and place. */
+  .close-hit {
+    position: absolute;
+    right: 16px;
+    top: 3px;
+    width: 150px;
+    height: 44px;
+    cursor: pointer;
+    z-index: 1;
+  }
   mc-glyph {
     position: absolute;
   }

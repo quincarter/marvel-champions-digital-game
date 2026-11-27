@@ -14,6 +14,7 @@
  * scrolls natively, and the scene keeps the focus route (ring in the panel layer, `dom/dom-ring.ts`), the press shield
  * and the entrance and exit motion.
  */
+import { hitRectAround } from "../view/hit-rect.js";
 import Phaser from "phaser";
 import { drawControllerSheet } from "../dom/controller-sheet.js";
 import { domFocusRing } from "../dom/dom-ring.js";
@@ -23,7 +24,7 @@ import { t } from "../i18n/translate.js";
 import { onLanguageChange } from "../language-change.js";
 import { onInputDeviceChange, inputDevice } from "../platform/input-device.js";
 import { appSession } from "../session.js";
-import { ink, minType, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { hit, ink, minType, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { notifyHintSettingsChanged } from "../ui/input-hints.js";
 import { OverlayMotion } from "../ui/transitions.js";
@@ -355,6 +356,9 @@ export class ControlsOverlay extends Phaser.Scene {
     );
     this.#press("back", () => this.#close());
     stops.set("back", { rect: layout.close, activate: () => this.#close() });
+    // The drawn ✕ is small: a 44px press area around it, inside the header.
+    this.#press("back:hit", () => this.#close());
+    b.tap("back:hit", hitRectAround(layout.close, hit.target, header));
 
     // The tab rail: a recessed strip of equal cells, the active one an ink fill.
     b.box(layout.tabs, { fill: surface.parchment.hex, stroke: surface.ink.hex, strokeWidth: 2 });
