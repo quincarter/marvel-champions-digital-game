@@ -20,6 +20,7 @@ import type { McDeckDetails, McDeckGrid, McSearchField, McSheet } from "@mc/ui";
 import type { Deck } from "@mc/content";
 import { PackLeases, refreshPackArt } from "../art/pack-art.js";
 import { currentDeps, currentPool, POOL_VERSION } from "../content/pool.js";
+import { gatePanels } from "../dom/busy-gate.js";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { deckDetailsModelOf, deckGridModelOf } from "../dom/room-deck-panels.js";
@@ -538,9 +539,18 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#veil.setRect(full);
     this.#veil.element.nodes = b.nodes;
     renderNow(this.#veil.element);
+    // The panels under the veil take no input until the answer: armed presses are dropped, fields lose the caret.
+    gatePanels(this.#underVeil(), true);
+  }
+
+  #underVeil(): HTMLElement[] {
+    return [this.#region?.element, this.#gridRegion?.element, this.#panelRegion?.element].filter(
+      (element): element is NonNullable<typeof element> => element !== undefined,
+    );
   }
 
   #hideBusy(): void {
+    gatePanels(this.#underVeil(), false);
     this.#veil?.destroy();
     this.#veil = null;
   }
@@ -559,8 +569,8 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   /** Wires a panel's region: presses reach `#actions`, a stale pack picture asks again, the mouse reaches the hover popover. */
   #wire<E extends McSheet | McDeckGrid | McDeckDetails>(element: E, rect: Rect): DomRegion<E> {
     element.addEventListener("mc-activate", (event) => {
-      // Leaving already: a second tap must not act.
-      if (this.#leaving) return;
+      // Leaving already, or a deck is on its way: a second tap must not act.
+      if (this.#leaving || this.#picking) return;
       this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
     });
     // A pack picture's blob URL went stale before its lazy image loaded: read it again, once.
@@ -783,6 +793,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#bound.add(element);
     element.addEventListener("mc-search", (event) => {
       const { key, value: text } = (event as CustomEvent<{ key: string; value: string }>).detail;
+      if (this.#picking) return;
       if (key === SEARCH) {
         this.#query = text;
         this.#listFromTop = true;
@@ -791,6 +802,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     });
     element.addEventListener("mc-submit", (event) => {
       const { key, value: text } = (event as CustomEvent<{ key: string; value: string }>).detail;
+      if (this.#picking) return;
       if (key === IMPORT_FIELD) {
         this.#importText = text;
         void this.#import();
@@ -849,7 +861,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
 
   /** The deck builder on a new deck; Back (or a Save then Back) returns here on the deck just built, ready to Pick. */
   #build(): void {
-    if (this.#leaving || this.#importFlight.busy) return;
+    if (this.#leaving || this.#picking || this.#importFlight.busy) return;
     this.#leaving = true;
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.deckBuilder, {
@@ -869,7 +881,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
 
   /** Fetches the MarvelCDB deck typed in the link row, saves it on this device and opens its details. */
   async #import(): Promise<void> {
-    if (this.#importFlight.busy || this.#leaving) return;
+    if (this.#importFlight.busy || this.#leaving || this.#picking) return;
     const gen = ++this.#importGen;
     // Busy until the deck is saved and the list reloaded, not just until MarvelCDB answers: a second Enter during a
     // slow write would otherwise store the deck twice (`view/import-flight.ts`).
@@ -955,7 +967,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
 
   /** The deck builder on this deck; Back (or a Save then Back) returns here with its details open. */
   #edit(row: PickerRow): void {
-    if (this.#preview || this.#leaving) return;
+    if (this.#preview || this.#leaving || this.#picking) return;
     this.#leaving = true;
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.deckBuilder, {

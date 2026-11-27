@@ -18,6 +18,8 @@ import Phaser from "phaser";
 import { cardOf } from "@mc/engine";
 import { gameCardsById } from "../content/game-deps.js";
 import { artFor } from "../art/art-source.js";
+import { PackLeases, refreshPackArt } from "../art/pack-art.js";
+import { onArtChange } from "../language-change.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { PopupSheet } from "../dom/popup-sheet.js";
 import type { SheetBuilder } from "../dom/sheet-builder.js";
@@ -44,6 +46,7 @@ import { reachRows, remotePowerCommand } from "../view/epic-reach.js";
 import type { Rect } from "../view/layout.js";
 import type { BoardScene } from "./board.js";
 import { askToConfirm } from "./end-turn-confirm.js";
+import { epicRowKey } from "../view/epic-row-key.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
@@ -79,6 +82,10 @@ export class EpicSheetOverlay extends Phaser.Scene {
   #order: string[] = [];
   #stops = new Map<string, FocusStop>();
   readonly #actions = new Map<string, () => void>();
+  /** The pack pictures' blob URLs the list shows, held while their lazy images may still load them. */
+  readonly #leases = new PackLeases();
+  /** How far the pop-up has slid from its place now; the rename field's cutout moves with it. */
+  #slideDy = 0;
   #off: (() => void) | null = null;
 
   constructor() {
@@ -101,7 +108,12 @@ export class EpicSheetOverlay extends Phaser.Scene {
   create(): void {
     this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.(), undefined, {
       onDismiss: () => this.#close(),
-      onSlide: (dy) => this.#input?.slide(dy),
+      onSlide: (dy) => {
+        this.#slideDy = dy;
+        this.#input?.slide(dy);
+      },
+      // A pack picture's blob URL went stale before its lazy image loaded: read it again, once.
+      onImageError: (key, src) => refreshPackArt(key, src ?? undefined),
     });
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
@@ -122,7 +134,13 @@ export class EpicSheetOverlay extends Phaser.Scene {
         if (this.sys.isActive()) this.#draw();
       });
     }
+    // A pack picture that resolves later (its pack has loaded) fills in place of the missing word.
+    const offArt = onArtChange(() => {
+      if (this.sys.isActive()) this.#draw();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offArt();
+      this.#leases.dispose();
       this.scale.off("resize", redraw, this);
       this.#off?.();
       this.#hover?.destroy();
@@ -178,6 +196,7 @@ export class EpicSheetOverlay extends Phaser.Scene {
     this.#stops = new Map();
     this.#actions.clear();
     this.#fieldRect = null;
+    this.#leases.begin();
     const { width, height } = this.scale.gameSize;
     // Swallows every press that lands on no control of this pop-up's own.
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
@@ -218,12 +237,16 @@ export class EpicSheetOverlay extends Phaser.Scene {
     else this.#list(b, inner);
     this.#panel.mount(b, width, height, () => {
       const holes: Rect[] = [];
-      if (this.#input?.shown && this.#fieldRect) holes.push({ ...this.#fieldRect });
+      // The field slides with the box, so its cutout does; the hover popover's box is in screen space and stays.
+      if (this.#input?.shown && this.#fieldRect) {
+        holes.push({ ...this.#fieldRect, y: this.#fieldRect.y + this.#slideDy });
+      }
       const popover = this.#hover?.shownRect;
       if (popover) holes.push(popover);
       return holes;
     });
     this.#panel.forwardMouseMoves();
+    this.#leases.end();
     this.#route?.set(this.#order, this.#stops);
     this.#hover?.onDraw();
   }
@@ -274,6 +297,7 @@ export class EpicSheetOverlay extends Phaser.Scene {
   #fill(b: SheetBuilder, x: number, top: number, w: number, listTop: number): number {
     let y = top + 2;
     const row = (
+      id: string,
       label: string,
       run: () => void,
       kind: "primary" | "secondary" = "secondary",
@@ -282,7 +306,9 @@ export class EpicSheetOverlay extends Phaser.Scene {
     ): number => {
       const pos = at ?? y;
       const r: Rect = { x, y: pos, width: w, height: hit.target };
-      const key = `row${this.#order.length}`;
+      // A key names the command and the thing it acts on, never the row's place: a list that changes under a finger
+      // cannot hand that finger's press to another table, person or character.
+      const key = epicRowKey(...(id.split("|") as [string, ...string[]]));
       this.#actions.set(key, enabled ? run : () => undefined);
       b.button({ key, rect: r, label, look: kind, type: small, ...(enabled ? {} : { disabled: true as const }) });
       // The stop's box is read off the panel, so it follows the scroll; taking focus scrolls it into view.
@@ -311,9 +337,14 @@ export class EpicSheetOverlay extends Phaser.Scene {
       }
       if (people.size === 0) y += this.#text(b, x, y, t("epic.table.hostNobody"), 13, w).height + 8;
       for (const [id, name] of people) {
-        row(name, () => this.#hostIs(data.table, id), table?.host === id ? "primary" : "secondary");
+        row(
+          `host|${data.table}|${id}`,
+          name,
+          () => this.#hostIs(data.table, id),
+          table?.host === id ? "primary" : "secondary",
+        );
       }
-      if (table?.host) row(t("epic.table.hostTake"), () => this.#hostIs(data.table, null));
+      if (table?.host) row(`host|${data.table}|none`, t("epic.table.hostTake"), () => this.#hostIs(data.table, null));
       return y - top;
     }
     if (data.kind !== "tables" || !epic) return 0;
@@ -330,6 +361,7 @@ export class EpicSheetOverlay extends Phaser.Scene {
       if (activeReplay() && epic.myTable === null) {
         const following = Array.isArray(epic.following) && epic.following.includes(table.id);
         row(
+          `watch|${table.id}`,
           following ? t("epic.sheet.watching") : t("epic.sheet.watch"),
           () => void this.#watch(table.id),
           "secondary",
@@ -337,7 +369,12 @@ export class EpicSheetOverlay extends Phaser.Scene {
         );
       }
       if (epic.organizer && table.status === "waiting") {
-        row(t("epic.sheet.drop"), () => this.#askDrop(table.id, table.name, table.hostName ?? ""), "secondary");
+        row(
+          `drop|${table.id}`,
+          t("epic.sheet.drop"),
+          () => this.#askDrop(table.id, table.name, table.hostName ?? ""),
+          "secondary",
+        );
       }
       y += 4;
     }
@@ -357,7 +394,14 @@ export class EpicSheetOverlay extends Phaser.Scene {
     y0: number,
     w: number,
     listTop: number,
-    row: (label: string, run: () => void, kind?: "primary" | "secondary", enabled?: boolean, at?: number) => number,
+    row: (
+      id: string,
+      label: string,
+      run: () => void,
+      kind?: "primary" | "secondary",
+      enabled?: boolean,
+      at?: number,
+    ) => number,
   ): number {
     let y = y0;
     const epic = this.#state.epic;
@@ -377,9 +421,11 @@ export class EpicSheetOverlay extends Phaser.Scene {
     for (const r of rows) {
       const art: Rect = { x, y, width: 56, height: 78 };
       const card = gameCardsById().get(r.cardId);
+      const held = this.#leases.image(card ? artFor(card, { kind: "front" }) : null);
       b.pictureTile(art, {
         key: `reach:${r.key}`,
-        src: card ? (artFor(card, { kind: "front" })?.url ?? null) : null,
+        src: held.src,
+        ...(held.retry !== undefined ? { retry: held.retry } : {}),
         fit: "contain",
         frame: 0,
         missing: r.name,
@@ -395,7 +441,14 @@ export class EpicSheetOverlay extends Phaser.Scene {
       }
       for (const character of r.characters) {
         const label = t(r.power === "attack" ? "epic.sheet.attack" : "epic.sheet.thwart", { hero: character.name });
-        y = row(label, () => void this.#remote(r, target, character.instanceId), "primary", true, y);
+        y = row(
+          `remote|${r.key}|${character.instanceId}`,
+          label,
+          () => void this.#remote(r, target, character.instanceId),
+          "primary",
+          true,
+          y,
+        );
       }
     }
     return y + 6;

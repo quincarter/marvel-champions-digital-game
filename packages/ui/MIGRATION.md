@@ -170,3 +170,7 @@ Applied in the phase 3 merge; kept here so the same names are found if a later b
 | `mc-bar-chart`, `mc-stat-tiles`, `mc-line-list`, `mc-deck-grid`, `mc-deck-details`                        | added as they were (the grid and details now compose `mc-picture-card`, `mc-list-row`, `mc-picture-tile`, `mc-section-header`, `mc-empty-state`, `mc-action-bar`)                                             |
 | `shared/text-line.ts`, `text-line.types.ts`, `fit-text.ts`                                                | added as they were (`TextLine`, `lineOf`, `sizeCss`, `fitTextWithin`); `shared/crop.ts` holds the centered crop math both the tile and `mc-sheet` use                                                         |
 | `SheetButton.pressable`, `mc-button` `pressable`, `SheetImage.cover.centered`                             | added as they were                                                                                                                                                                                            |
+
+### Engine reasons (deck picker)
+
+`DeckOption.blockedReason` is English from the deck list or the engine. The short verdicts ("Not ready yet", "This deck is not legal.", "Checking this deck...") are translated at presentation (`view/deck-reason.ts`). A legality problem's own message (`validateDeck`) is still English until the engine carries structured problem codes with parameters.
