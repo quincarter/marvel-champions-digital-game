@@ -119,7 +119,7 @@ import { isDesktopType } from "../ui/desktop-type.js";
 import { cardArt, type ArtRedraw } from "../art/card-art.js";
 import { artFor, artLanguageNow, type ArtSource } from "../art/art-source.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import { artKeyFor, drawArt } from "../art/card-art.js";
+import { artKeyFor } from "../art/card-art.js";
 import { drawArtSlot } from "../art/art-slot.js";
 import { markRenderDirty } from "../ui/idle-render.js";
 import { browsablePool, duplicateDeck, subtitleCutFrom, type PoolFilter } from "../view/deck-builder-model.js";
@@ -192,13 +192,7 @@ import { deckKeyToString, resultsHistoryOf, type DeckKey, type ResultsHistory } 
 import { CHIP_GAP, chipsFitBesideHeading, minChipCellWidth } from "../view/chip-layout.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
-import {
-  HoverPreview,
-  hoverCardIdsOf,
-  noteHoverCardId,
-  resetHoverCards,
-  screenHoverArea,
-} from "../ui/card-hover-preview.js";
+import { HoverPreview, hoverCardIdsOf, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import {
   NOTHING_STANDS_OUT,
   againstVillainOf,
@@ -226,7 +220,6 @@ import {
   paintPanel,
   sectionHeader,
   STAMP_CHIP_TYPE,
-  fitWrapped,
 } from "../ui/widgets.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { appSession, deckStorage } from "../session.js";
@@ -889,18 +882,6 @@ export class DecksScene extends Phaser.Scene {
     }
     this.#poolList?.refreshRows();
     markRenderDirty();
-  }
-
-  /** A scan outside the pool grid; one still on its way marks the screen to be drawn again when it lands. */
-  #drawPaneArt(source: ArtSource | null | undefined, rect: Rect): void {
-    const art = cardArt(this);
-    const image = drawArt(this, art.request(this, source ?? null), rect);
-    if (image) {
-      // The drawn image's own texture: the full-size copy for a big rect, not necessarily the table key's.
-      if (source) this.#paneArt.push({ source, rect, texture: image.texture });
-      return;
-    }
-    if (source && !art.isMissing(source.key)) this.#paneArtMissing = true;
   }
 
   #rebuild(): void {
@@ -2490,19 +2471,28 @@ export class DecksScene extends Phaser.Scene {
   }
 
   /** The stats pane's card view: the card, what your games say about it, the decks that hold it, and Inspect. */
-  #drawPaneCard(rect: Rect, left: number, column: number, top: number, card: AnyCard, deck: Deck): void {
+  #drawPaneCard(
+    b: SheetBuilder,
+    rect: Rect,
+    left: number,
+    column: number,
+    top: number,
+    card: AnyCard,
+    deck: Deck,
+  ): void {
     let y = top;
     const backRect: Rect = { x: left, y, width: column, height: this.#row };
     const back = (byFocus = false): void => this.#closePaneCard(byFocus);
-    const backButton = new McButton(this, {
-      kind: "onInk",
-      label: "◂ Deck stats",
-      type: typeRole.label,
+    this.#glyphs.button(b, {
+      key: "card-back",
       rect: backRect,
-      onClick: () => back(),
+      label: t("decks.card.back"),
+      look: "onInk",
+      type: typeRole.label,
+      ids: ["cancel"],
+      ground: "ink",
     });
-    this.#buttons.push(backButton);
-    this.#hints.button(backButton, ["cancel"], "ink");
+    this.#actions.set("card-back", () => back());
     this.#stops.set("card-back", {
       rect: backRect,
       activate: () => back(true),
@@ -2518,26 +2508,27 @@ export class DecksScene extends Phaser.Scene {
       width: Math.min(130, column * 0.42),
       height: Math.min(130, column * 0.42) * (88 / 63),
     };
-    this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-    this.#drawPaneArt(artFor(card, { kind: "front" }), pic);
-    noteHoverCardId(this, card.id as string, pic, true);
+    b.image(pic, {
+      src: artFor(card, { kind: "front" })?.url ?? null,
+      fill: surface.parchment.hex,
+      missing: t("rules.noScan"),
+      color: surface.ink.hex,
+      key: "card-pic",
+    });
+    this.#paneThumbs.push({ cardId: card.id as string, slot: hoverSlotOf(card.id as string, "paneCard"), rect: pic });
     const textX = pic.x + pic.width + 10;
     const textWidth = left + column - textX;
-    const name = this.add.text(textX, y, card.name, {
-      ...textStyle(typeRole.barTitle, surface.paper.hex),
-      fontSize: "20px",
+    const name = b.text(textX, y, card.name, typeRole.barTitle, {
+      size: 20,
+      color: surface.paper.hex,
+      wrapWidth: textWidth,
+      maxLines: 2,
     });
-    fitWrapped(name, textWidth, 2, 14);
-    const kind = label(
-      this,
-      textX,
-      y + name.height + 4,
-      card.type.replace(/_/g, " ").toUpperCase(),
-      typeRole.label,
-      surface.paper.hex,
-      ink.label,
-    );
-    fitText(kind, textWidth, typeRole.label.size);
+    b.text(textX, y + name.height + 4, card.type.replace(/_/g, " ").toUpperCase(), typeRole.label, {
+      color: surface.paper.hex,
+      alpha: ink.label,
+      fitWidth: textWidth,
+    });
     const factY = y + name.height + 24;
     const heroId = deck.identityCardId as string;
     const hero = this.#insights ? cardPlayOf(this.#insights, card.id as string, heroId, POOL_STATS_NAMES) : null;
@@ -2545,65 +2536,67 @@ export class DecksScene extends Phaser.Scene {
     y = Math.max(pic.y + pic.height, factY) + 12;
     const block = (title: string, lines: readonly { label: string; value: string }[] | null, empty: string): void => {
       if (y + 20 > inspectRect.y - 8) return;
-      label(this, left, y, title.toUpperCase(), typeRole.label, signal.caution.hex, 1);
+      b.text(left, y, title.toUpperCase(), typeRole.label, { color: signal.caution.hex });
       y += 18;
       if (!lines) {
-        const none = this.add
-          .text(left, y, empty, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
-          .setFontSize(12);
-        none.setWordWrapWidth(column);
+        const none = b.text(left, y, empty, typeRole.body, {
+          size: 12,
+          color: surface.paper.hex,
+          alpha: ink.secondary,
+          wrapWidth: column,
+        });
         y += none.height + 10;
         return;
       }
       for (const line of lines) {
         if (y + 16 > inspectRect.y - 8) return;
-        const l = this.add
-          .text(left, y, line.label, textStyle(typeRole.body, surface.paper.hex, ink.body))
-          .setFontSize(12);
-        const v = this.add
-          .text(left + column, y, line.value, textStyle(typeRole.rowTitle, surface.paper.hex, 1))
-          .setOrigin(1, 0)
-          .setFontSize(12);
-        fitText(v, column - l.width - 10, 12);
+        const l = b.text(left, y, line.label, typeRole.body, { size: 12, color: surface.paper.hex, alpha: ink.body });
+        b.text(left + column, y, line.value, typeRole.rowTitle, {
+          size: 12,
+          color: surface.paper.hex,
+          origin: [1, 0],
+          fitWidth: Math.max(20, column - l.width - 10),
+        });
         y += 18;
       }
       y += 8;
     };
-    if (!this.#insights) block("Your play", null, "Reading your games…");
+    if (!this.#insights) block(t("decks.card.yourPlay"), null, t("decks.games.reading"));
     else {
       const heroName = (currentCardsById().get(heroId)?.name ?? heroId).replace(/ \(.*\)$/, "");
-      block(`With ${heroName}`, hero, `Not in a ${heroName} deck in a finished game yet.`);
-      block("Every hero", all, "Not in a deck in a finished game yet.");
+      block(t("decks.card.withHero", { hero: heroName }), hero, t("decks.card.notWithHero", { hero: heroName }));
+      block(t("decks.card.everyHero"), all, t("decks.card.notYet"));
     }
     // Your decks that hold it.
     const holding = this.#deckOptions()
       .filter((option) => option.deck.cards.some((line) => line.cardId === card.id))
       .map((option) => option.deck.name);
     if (holding.length > 0 && y + 36 < inspectRect.y - 8) {
-      label(this, left, y, "IN YOUR DECKS", typeRole.label, signal.caution.hex, 1);
+      b.text(left, y, t("decks.card.inDecks").toUpperCase(), typeRole.label, { color: signal.caution.hex });
       y += 18;
-      const list = this.add
-        .text(
-          left,
-          y,
-          holding.slice(0, 4).join("\n") + (holding.length > 4 ? `\n+${holding.length - 4} more` : ""),
-          textStyle(typeRole.body, surface.paper.hex, ink.body),
-        )
-        .setFontSize(12);
-      list.setWordWrapWidth(column);
       const room = inspectRect.y - 8 - y;
-      if (list.height > room) list.setCrop(0, 0, column, room);
+      b.scroll("card-holding", { x: left, y, width: column, height: Math.max(0, room) }, 4 * 18 + 18, (inner) => {
+        inner.text(
+          left,
+          0,
+          holding.slice(0, 4).join("\n") +
+            (holding.length > 4 ? `\n${t("decks.card.more", { count: holding.length - 4 })}` : ""),
+          typeRole.body,
+          { size: 12, color: surface.paper.hex, alpha: ink.body, wrapWidth: column },
+        );
+      });
     }
     const inspect = (): void => this.#inspectCard(card);
-    const inspectButton = new McButton(this, {
-      kind: "onInk",
-      label: "Inspect",
-      type: typeRole.label,
+    this.#glyphs.button(b, {
+      key: "card-inspect",
       rect: inspectRect,
-      onClick: inspect,
+      label: t("decks.card.inspect"),
+      look: "onInk",
+      type: typeRole.label,
+      ids: ["inspect"],
+      ground: "ink",
     });
-    this.#buttons.push(inspectButton);
-    this.#hints.button(inspectButton, ["inspect"], "ink");
+    this.#actions.set("card-inspect", inspect);
     this.#stops.set("card-inspect", { rect: inspectRect, activate: inspect, inspect });
   }
 
@@ -2671,13 +2664,12 @@ export class DecksScene extends Phaser.Scene {
     y += 12;
 
     // Footer, pinned to the bottom of the pane regardless of how much the body above used.
-    const footerTop = this.#drawStatsFooter(b, rect, left, column, option);
+    this.#drawStatsFooter(b, rect, left, column, option);
 
     if (this.#paneCard && this.#paneCardDeckId !== (deck.id as string)) this.#paneCard = null;
     if (this.#paneCard) {
       // The card view is Phaser still: its body shows through a hole above the footer.
-      this.#holes.push({ x: rect.x, y, width: rect.width, height: footerTop - y });
-      this.#drawPaneCard(rect, left, column, y, this.#paneCard, deck);
+      this.#drawPaneCard(b, rect, left, column, y, this.#paneCard, deck);
       return;
     }
 
