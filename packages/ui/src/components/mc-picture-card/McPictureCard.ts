@@ -94,6 +94,11 @@ export class McPictureCard extends LitElement {
       this.picture ?? (m && m.src ? { src: m.src, cover: { x: 0.5, y: m.focusY } } : null);
     const gone = !picture?.src || picture.src === this.failedSrc;
     const stamps = m?.stamps ?? [];
+    const detailClass = m
+      ? ["detail", m.detailTone !== "meta" ? m.detailTone : "", m.detailLines === 2 ? "two" : ""]
+          .filter(Boolean)
+          .join(" ")
+      : "detail";
     return html`
       <div class="art" style=${art}>
         ${
@@ -145,14 +150,9 @@ export class McPictureCard extends LitElement {
               <div
                 class=${m.displayTitle ? "title display" : "title"}
                 style=${m.displayTitle ? `font-size:${m.displayTitle}px` : ""}
-              >
-                ${m.title}
-              </div>
-              <div
-                class=${`detail ${m.detailTone === "meta" ? "" : m.detailTone} ${m.detailLines === 2 ? "two" : ""}`.replace(/s+/g, " ").trim()}
-              >
-                ${m.detail}
-              </div>
+                .textContent=${m.title}
+              ></div>
+              <div class=${detailClass} .textContent=${m.detail}></div>
             </div>`
           : nothing
       }

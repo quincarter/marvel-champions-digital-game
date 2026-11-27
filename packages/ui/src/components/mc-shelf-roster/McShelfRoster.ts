@@ -66,6 +66,17 @@ export class McShelfRoster extends LitElement {
   #pending: ShelfRosterScroll | null = null;
   #observer: ResizeObserver | null = null;
   readonly #watched = new Set<HTMLElement>();
+  /**
+   * Which pictures are asked for. A shelf's cards are all in the page (a focus ring and a keyboard walk need them), but
+   * a picture's file is requested only for a shelf near the view and only as far along its row as it has been scrolled
+   * (plus two cards): the browser's own lazy loading reaches a thousand pixels past the view each way, which was every
+   * hero. Without `IntersectionObserver` (a test) every shelf counts as near.
+   */
+  readonly #near = new Set<string>();
+  /** How far along each row the picture requests reach, in px from its left. */
+  readonly #reach = new Map<string, number>();
+  #io: IntersectionObserver | null = null;
+  readonly #ioWatched = new Set<Element>();
 
   constructor() {
     super();
@@ -190,9 +201,70 @@ export class McShelfRoster extends LitElement {
     this.#observer?.disconnect();
     this.#observer = null;
     this.#watched.clear();
+    this.#io?.disconnect();
+    this.#io = null;
+    this.#ioWatched.clear();
+  }
+
+  /** Watches each shelf's nearness to the view, so its pictures are asked for only then. */
+  #watchShelves(): void {
+    if (typeof IntersectionObserver === "undefined") return;
+    const scroller = this.scroller;
+    if (!scroller) return;
+    this.#io ??= new IntersectionObserver(
+      (entries) => {
+        let changed = false;
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.shelf;
+          if (id === undefined) continue;
+          if (entry.isIntersecting ? !this.#near.has(id) : this.#near.has(id)) {
+            if (entry.isIntersecting) this.#near.add(id);
+            else this.#near.delete(id);
+            changed = true;
+          }
+        }
+        if (changed) this.requestUpdate();
+      },
+      { root: scroller, rootMargin: "400px 0px" },
+    );
+    const shelves = new Set(this.renderRoot.querySelectorAll(".shelf"));
+    for (const shelf of this.#ioWatched) {
+      if (!shelves.has(shelf)) {
+        this.#io.unobserve(shelf);
+        this.#ioWatched.delete(shelf);
+      }
+    }
+    for (const shelf of shelves) {
+      if (!this.#ioWatched.has(shelf)) {
+        this.#io.observe(shelf);
+        this.#ioWatched.add(shelf);
+      }
+    }
+  }
+
+  /** Whether card `index` of shelf `id` has its picture asked for now. */
+  #loaded(id: string, index: number): boolean {
+    if (typeof IntersectionObserver === "undefined") return true;
+    if (!this.#near.has(id)) return false;
+    const { cardWidth, gap } = this.model;
+    const reach = this.#reach.get(id) ?? Math.max(this.clientWidth, 600);
+    return (index + 1) * (cardWidth + gap) <= reach + 2 * (cardWidth + gap);
+  }
+
+  /** A row scrolled: its picture requests reach as far as the row now shows. */
+  #scrolled(row: HTMLElement): void {
+    this.#syncChevrons(row);
+    const id = row.dataset.shelf;
+    if (id === undefined) return;
+    const reach = row.scrollLeft + row.clientWidth;
+    if (reach > (this.#reach.get(id) ?? 0)) {
+      this.#reach.set(id, reach);
+      this.requestUpdate();
+    }
   }
 
   protected override updated(): void {
+    this.#watchShelves();
     const rows = new Set(this.renderRoot.querySelectorAll<HTMLElement>(".row[data-shelf]"));
     for (const row of this.#watched) {
       if (!rows.has(row)) {
@@ -210,7 +282,7 @@ export class McShelfRoster extends LitElement {
     this.#restore();
   }
 
-  #card(card: ShelfRosterCard) {
+  #card(card: ShelfRosterCard, loaded = true) {
     const { cardWidth, cardHeight } = this.model;
     return html`<div
       class="cell"
@@ -222,7 +294,11 @@ export class McShelfRoster extends LitElement {
         () => this.#emit("mc-inspect", card.key),
       )}
     >
-      <mc-picture-card data-card=${card.cardId} .model=${card.model} .picture=${card.picture ?? null}></mc-picture-card>
+      <mc-picture-card
+        data-card=${card.cardId}
+        .model=${card.model}
+        .picture=${loaded || !card.picture ? (card.picture ?? null) : { ...card.picture, src: null }}
+      ></mc-picture-card>
     </div>`;
   }
 
@@ -248,7 +324,10 @@ export class McShelfRoster extends LitElement {
       ${tapped(() => {
         const row = this.rowOf(shelf.id);
         if (!row) return;
-        row.scrollBy({ left: (direction === "prev" ? -1 : 1) * this.#pageWidth(row), behavior: "smooth" });
+        row.scrollBy({
+          left: (direction === "prev" ? -1 : 1) * this.#pageWidth(row),
+          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        });
       })}
     >
       ${direction === "prev" ? "‹" : "›"}
@@ -285,11 +364,16 @@ export class McShelfRoster extends LitElement {
         folded
           ? nothing
           : html`<div class="rowbox" style=${`margin-top:${SHELF_HEADER_GAP}px;--mc-chevron:${SHELF_CHEVRON}px`}>
-              <div class="row" data-shelf=${shelf.id} style=${`gap:${gap}px;height:${cardHeight}px`}>
+              <div
+                class="row"
+                data-shelf=${shelf.id}
+                style=${`gap:${gap}px;height:${cardHeight}px`}
+                @scroll=${(event: Event) => this.#scrolled(event.currentTarget as HTMLElement)}
+              >
                 ${repeat(
                   shelf.cards,
                   (card) => card.key,
-                  (card) => this.#card(card),
+                  (card, index) => this.#card(card, this.#loaded(shelf.id, index)),
                 )}
               </div>
               ${this.#chevron(shelf, "prev")}${this.#chevron(shelf, "next")}

@@ -1,0 +1,134 @@
+import { expect, test, type Page } from "@playwright/test";
+import { pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { hook, openApp } from "./wave6-helpers-b.js";
+
+/**
+ * Take your seats as Lit panels over the canvas: the fixed parts (an `mc-sheet`), the hero roster (`mc-shelf-roster`),
+ * hero tiles that show the small copy of each picture, taps that seat a hero, a drag that ends over a tile seating
+ * nothing (the "no tap on finger lift" rule, issue #227), the search field narrowing the tiles, and "See all" opening a
+ * pack as a full grid. Runs on the desktop and phone projects.
+ */
+
+const seats = async (page: Page): Promise<string[]> => (await hook<string[]>(page, "__mcSeatsDebug", "seats")) ?? [];
+
+interface HeroPicture {
+  readonly src: string | null;
+  readonly loaded: boolean;
+  readonly width: number;
+}
+
+const pictures = async (page: Page): Promise<HeroPicture[]> =>
+  (await hook<HeroPicture[]>(page, "__mcSeatsDebug", "heroPictures")) ?? [];
+
+async function open(page: Page): Promise<void> {
+  await openApp(page, "screen=seats&players=1", { landing: "Seats" });
+  await waitFor(async () => ((await pictures(page)).length > 0 ? true : null), "the hero tiles", 30_000);
+  await settle(page);
+}
+
+test.describe("Take your seats panels", () => {
+  test("the screen is panels, and the tiles load the small copy of each hero picture", async ({ page }) => {
+    test.setTimeout(120_000);
+    const errors = trackPageErrors(page);
+    await open(page);
+    const regions = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('#mc-ui > [data-scene="Seats"]')).map(
+        (wrap) => wrap.firstElementChild?.tagName,
+      ),
+    );
+    expect(regions).toContain("MC-SHEET");
+    expect(regions).toContain("MC-SHELF-ROSTER");
+    // Pictures load lazily: wait for the ones in view, then check none is a full-size 4000 px picture.
+    await waitFor(async () => ((await pictures(page)).some((p) => p.loaded) ? true : null), "a loaded picture", 30_000);
+    const loaded = (await pictures(page)).filter((p) => p.loaded);
+    expect(loaded.length).toBeGreaterThan(0);
+    for (const picture of loaded) expect(picture.width, picture.src ?? "").toBeLessThanOrEqual(1400);
+    expect(errors).toEqual([]);
+  });
+
+  test("a tap on a hero tile seats it, and a drag that ends over a tile seats nothing", async ({ page }) => {
+    test.setTimeout(120_000);
+    const errors = trackPageErrors(page);
+    await open(page);
+    const before = await seats(page);
+    const stops = (await hook<{ key: string; x: number; y: number; width: number; height: number }[]>(
+      page,
+      "__mcSeatsDebug",
+      "stops",
+    ))!;
+    const list = (await hook<{ x: number; y: number; width: number; height: number }>(
+      page,
+      "__mcSeatsDebug",
+      "listRect",
+    ))!;
+    const tile = stops.find(
+      (s) =>
+        s.key.startsWith("hero:") &&
+        s.x > list.x + 20 &&
+        s.x + s.width < list.x + list.width - 20 &&
+        s.y > list.y &&
+        s.y + s.height < list.y + list.height,
+    );
+    expect(tile, "a hero tile fully in view").toBeTruthy();
+    // A press that wanders well past the tap slop and lifts over the tile presses nothing.
+    const cx = tile!.x + tile!.width / 2;
+    const cy = tile!.y + tile!.height / 2;
+    await page.mouse.move(cx - 60, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, cy, { steps: 6 });
+    await page.mouse.up();
+    await settle(page);
+    expect(await seats(page)).toEqual(before);
+    // A tap seats it (a hero with several decks opens the deck submenu instead; it is then picked there).
+    await pressHookStop(page, "__mcSeatsDebug", "hero-random");
+    await waitFor(
+      async () => ((await seats(page)).length > before.length || (await seats(page))[0] !== before[0] ? true : null),
+      "a hero seated",
+      15_000,
+    );
+    expect(errors).toEqual([]);
+  });
+
+  test("the search field narrows the tiles", async ({ page }, info) => {
+    test.setTimeout(120_000);
+    test.skip(
+      info.project.name === "phone",
+      "the phone's search field is behind its toggle (covered by the e2e filter specs)",
+    );
+    const errors = trackPageErrors(page);
+    await open(page);
+    const count = async (): Promise<number> => (await pictures(page)).length;
+    const all = await count();
+    const field = page.locator('#mc-ui [data-scene="Seats"] mc-sheet').first().locator("mc-search-field input");
+    await field.click();
+    await field.fill("spider");
+    await waitFor(async () => ((await count()) < all ? true : null), "fewer tiles", 15_000);
+    expect(await count()).toBeGreaterThan(0);
+    expect(errors).toEqual([]);
+  });
+
+  test("See all opens a pack as a grid, and Back to all packs returns", async ({ page }) => {
+    test.setTimeout(120_000);
+    const errors = trackPageErrors(page);
+    await open(page);
+    const link = page
+      .locator('#mc-ui [data-scene="Seats"] mc-shelf-roster')
+      .first()
+      .locator('[data-key^="see-all:"]')
+      .first();
+    await link.scrollIntoViewIfNeeded();
+    await link.click();
+    await waitFor(
+      async () => ((await hook<string | null>(page, "__mcSeatsDebug", "drilledPack")) ? true : null),
+      "a pack open",
+      15_000,
+    );
+    await pressHookStop(page, "__mcSeatsDebug", "drill-back");
+    await waitFor(
+      async () => ((await hook<string | null>(page, "__mcSeatsDebug", "drilledPack")) === null ? true : null),
+      "all packs",
+      15_000,
+    );
+    expect(errors).toEqual([]);
+  });
+});
