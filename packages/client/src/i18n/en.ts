@@ -347,7 +347,7 @@ export const en = {
   "decks.community.notesHeading": "From the author · how it plays",
   "decks.community.scroll": "Scroll ▾",
   "decks.community.noNotes": "No notes were saved with this deck. The author's write-up is on MarvelCDB.",
-  "decks.community.added": 'Added "{name}" {credit} to your decks. Edit it like any deck.',
+  "decks.community.added": "Added “{name}” {credit} to your decks. Edit it like any deck.",
   "decks.community.noClipboard": "Clipboard access isn't available here. The deck is at {url}",
   "decks.community.copied": "Copied the MarvelCDB link for “{name}”.",
   "decks.community.copyFailed": "Couldn't copy to the clipboard. The deck is at {url}",
