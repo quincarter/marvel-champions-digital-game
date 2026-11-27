@@ -471,6 +471,10 @@ export class McSheet extends LitElement {
           ?still=${node.still ?? false}
           ?disabled=${node.disabled !== undefined}
           ?pressable=${node.pressable ?? false}
+          ?row=${node.row ?? false}
+          ?subtitle-label=${node.subtitleLabel ?? false}
+          ?chevron=${node.chevron ?? false}
+          .subtitle=${node.subtitle ?? ""}
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
           aria-keyshortcuts=${node.keyshortcuts ?? nothing}
           aria-label=${node.aria ?? nothing}
@@ -807,6 +811,18 @@ export class McSheet extends LitElement {
           ${tapped(() => this.#activate(node.key))}
         ></mc-media-row>`;
       }
+      case "group":
+        return html`<div
+          class=${`part group${node.sticky ? " sticky" : ""}${node.fade ? " fades" : ""}`}
+          data-key=${node.key}
+          style=${`${
+            node.sticky
+              ? `margin-top:${node.rect.y}px;margin-left:${node.rect.x}px;width:${node.rect.width}px;height:${node.rect.height}px`
+              : px(node.rect)
+          }${node.fade ? `;--mc-fade:${node.fade}px` : ""}`}
+        >
+          ${repeat(node.nodes, keyOf, (child) => this.#node(child))}
+        </div>`;
       case "scroll":
         return html`<div class="part scroller" data-key=${node.key} style=${px(scrollBox(node))}>
           <div class="content" style=${`height:${node.height}px`}>

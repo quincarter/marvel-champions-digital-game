@@ -111,4 +111,30 @@ describe("mc-button", () => {
     expect(presses()).toBe(1);
     element.remove();
   });
+  it("is a row button with a subtitle and a chevron, and still presses like any button", async () => {
+    const { element, presses } = await button();
+    element.row = true;
+    element.label = "Read issue #3";
+    element.subtitle = "Taskmaster";
+    element.chevron = true;
+    await element.updateComplete;
+    const root = element.shadowRoot!;
+    expect(root.querySelector(".label")?.textContent).toBe("Read issue #3");
+    expect(root.querySelector(".sub")?.textContent).toBe("Taskmaster");
+    expect(root.querySelector(".chevron")?.textContent).toBe("▸");
+    element.dispatchEvent(pointer("pointerdown", 10, 10));
+    element.dispatchEvent(pointer("pointerup", 10, 10));
+    expect(presses()).toBe(1);
+    element.remove();
+  });
+
+  it("draws no subtitle or chevron outside a row", async () => {
+    const { element } = await button();
+    element.subtitle = "ignored";
+    element.chevron = true;
+    await element.updateComplete;
+    expect(element.shadowRoot!.querySelector(".sub")).toBeNull();
+    expect(element.shadowRoot!.querySelector(".chevron")).toBeNull();
+    element.remove();
+  });
 });

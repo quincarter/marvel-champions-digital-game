@@ -469,29 +469,6 @@ export function stamp(
 
 export type PipState = "done" | "current" | "empty";
 
-/** The five issue pips under a campaign's name (C00b, C01): paper done, red current (paper ring), outlined empty. */
-export function issuePips(
-  scene: Phaser.Scene,
-  rect: Rect,
-  pips: readonly PipState[],
-  onInk = true,
-): Phaser.GameObjects.Graphics {
-  const g = scene.add.graphics();
-  const gap = 5;
-  const count = Math.max(1, pips.length);
-  const width = (rect.width - gap * (count - 1)) / count;
-  const fg = onInk ? surface.paper.hex : surface.ink.hex;
-  pips.forEach((state, index) => {
-    const x = rect.x + index * (width + gap);
-    if (state === "done") g.fillStyle(fg, 1).fillRect(x, rect.y, width, rect.height);
-    else if (state === "current") {
-      g.fillStyle(fg, 1).fillRect(x - 2, rect.y - 2, width + 4, rect.height + 4);
-      g.fillStyle(accent.heroRed.hex, 1).fillRect(x, rect.y, width, rect.height);
-    } else g.lineStyle(2, fg, 0.35).strokeRect(x + 1, rect.y + 1, width - 2, rect.height - 2);
-  });
-  return g;
-}
-
 /** The design's "Panel art: …" placeholder: a small picture glyph over a centered note. */
 export function artNote(scene: Phaser.Scene, rect: Rect, note: string, onInk = false): Phaser.GameObjects.GameObject[] {
   const color = onInk ? surface.paper.hex : surface.ink.hex;

@@ -114,6 +114,12 @@ export interface SheetButton {
   readonly opacity?: number;
   /** The button name for assistive tech when its label is a symbol ("+"), already translated. */
   readonly aria?: string;
+  /** A row button: the label at the left over `subtitle`, with a `chevron` at the right (a call to action with a second line). */
+  readonly row?: boolean;
+  readonly subtitle?: string;
+  /** The subtitle as a small tracked caption rather than a sentence. */
+  readonly subtitleLabel?: boolean;
+  readonly chevron?: boolean;
 }
 
 /** An aspect chip (`mc-aspect-chip`) with its top left at `x`, `y`: decorative, the row it sits on takes the press. */
@@ -498,7 +504,23 @@ export interface SheetScroll {
   readonly nodes: readonly SheetNode[];
 }
 
+/**
+ * A group of parts with a place of their own inside a scrolling region (`SheetScroll`): the children are placed from the
+ * group's top left. `sticky` pins it under the region's top edge once the content has scrolled its place past (a compact
+ * header that stays while the page scrolls); `fade` fades it out as the region scrolls its first `fade` px (a picture that
+ * collapses), where the browser has scroll-driven animations.
+ */
+export interface SheetGroup {
+  readonly kind: "group";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly nodes: readonly SheetNode[];
+  readonly sticky?: boolean;
+  readonly fade?: number;
+}
+
 export type SheetNode =
+  | SheetGroup
   | SheetBox
   | SheetDots
   | SheetText

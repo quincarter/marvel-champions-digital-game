@@ -1,17 +1,16 @@
 /**
- * Composite buttons the Saga/Cover/Roster screens (C00b/C01/C02) share: a left-aligned title with an optional
- * subtitle and chevron ("READ ISSUE #3 / Taskmaster · …"), and a dark grid tile ("VOL. 2 / GALAXY'S MOST WANTED /
- * WIN VOL. 1 TO OPEN"). Built on `McButton` for the state matrix, hover and click handling it already implements —
+ * Composite buttons the Roster screen (C02) shares: a left-aligned title with an optional
+ * subtitle and chevron ("READ ISSUE #3 / Taskmaster · …"). The Saga and the Cover draw theirs as `mc-button` rows in a
+ * panel. Built on `McButton` for the state matrix, hover and click handling it already implements —
  * this only adds the extra left-aligned text `McButton`'s own centered label doesn't cover, parented into the same
  * container so it moves and destroys with the button.
  */
 import Phaser from "phaser";
-import type { Picture } from "../art/pictures.js";
-import { accent, ink, signal, surface, typeRole } from "../tokens.js";
+import { ink, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import { bangers, drawPicture } from "./campaign-chrome.js";
+import { bangers } from "./campaign-chrome.js";
 import { cssOf, skin, textStyle, type WidgetKind } from "./theme.js";
-import { McButton, paintDotGrid } from "./widgets.js";
+import { McButton } from "./widgets.js";
 
 export interface CampaignActionButtonOptions {
   readonly kind: WidgetKind;
@@ -108,151 +107,4 @@ export function campaignActionButton(scene: Phaser.Scene, options: CampaignActio
   };
   applyState(options.enabled === false ? "unavailable" : "rest");
   return button;
-}
-
-export type CampaignTileStatus = "done" | "live" | "fresh" | "sealed";
-
-export interface CampaignTileOptions {
-  readonly rect: Rect;
-  readonly eyebrow: string;
-  readonly title: string;
-  readonly subtitle?: string;
-  readonly chip: string;
-  /** A second chip beside the first, in caution amber ("ADJUSTED" on a volume won only by adjusted runs, issue #869). */
-  readonly flag?: string;
-  /** The chip's short form ("✓" for "✓ Complete"), used when the chip and `flag` don't fit side by side in full. */
-  readonly compactChip?: string;
-  readonly status: CampaignTileStatus;
-  /** A dimmed thumbnail behind the text, when this volume has villain art. */
-  readonly art?: Picture | null;
-  /** Called once the art texture finishes loading, so the caller can redraw with it in place. */
-  readonly onArtReady?: () => void;
-  /** The red ring — this is the currently featured tile. */
-  readonly selected?: boolean;
-  readonly onClick: () => void;
-}
-
-const TILE_CHIP_COLOR: Readonly<Record<CampaignTileStatus, { readonly fill: number | null; readonly text: number }>> = {
-  done: { fill: signal.heal.hex, text: surface.paper.hex },
-  live: { fill: accent.heroRed.hex, text: surface.paper.hex },
-  fresh: { fill: signal.caution.hex, text: surface.inkOnHue.hex },
-  sealed: { fill: null, text: surface.paper.hex },
-};
-
-/**
- * A dark grid tile on the shelf ("ALL VOLUMES ───"): box code, a huge "VOL. N", the box's name, a status chip
- * (color by status; an outline for sealed) and — when the box has villain art — a dimmed thumbnail behind it all.
- * Always clickable, so the shelf can feature any volume tapped, sealed or not; `selected` draws the red ring
- * around whichever tile is currently featured.
- */
-export function campaignTile(
-  scene: Phaser.Scene,
-  options: CampaignTileOptions,
-): {
-  readonly objects: readonly Phaser.GameObjects.GameObject[];
-  readonly zone: Phaser.GameObjects.Zone;
-} {
-  const { rect } = options;
-  const objects: Phaser.GameObjects.GameObject[] = [];
-  const g = scene.add.graphics();
-  g.fillStyle(0x0b0906, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-  objects.push(g);
-  objects.push(paintDotGrid(scene, rect, "ink", { spacing: 6, radius: 1, alpha: 0.1 }));
-
-  if (options.art) {
-    const image = drawPicture(scene, options.art, rect, () => options.onArtReady?.(), { focusY: 0.15, alpha: 0.5 });
-    if (image) objects.push(image);
-  }
-
-  const eyebrow = scene.add
-    .text(
-      rect.x + 11,
-      rect.y + 9,
-      options.eyebrow.toUpperCase(),
-      textStyle(typeRole.label, surface.paper.hex, ink.meta),
-    )
-    .setLetterSpacing(1);
-  objects.push(eyebrow);
-
-  const chipColor = TILE_CHIP_COLOR[options.status];
-  // The chip's words wrap inside the tile ("NOT IN THIS BUILD" is wider than a narrow tile) and the chip grows a line.
-  // Added before the label, so the fill is drawn under it.
-  const chipBg = scene.add.graphics();
-  // The flag (issue #869) always sits just after the chip on its line, so the tile's layout never changes height. In a
-  // narrow tile (a phone's two-column Grid View, a landscape tablet) the chip gives way to its short form to make room.
-  const flagLabel = options.flag
-    ? scene.add
-        .text(0, 0, options.flag.toUpperCase(), textStyle(typeRole.label, surface.inkOnHue.hex, 1))
-        .setLetterSpacing(0.9)
-    : null;
-  const fitsBeside = (chipWidth: number): boolean =>
-    flagLabel === null || 11 + chipWidth + 14 + 6 + flagLabel.width + 14 <= rect.width - 11;
-  const chipLabel = scene.add
-    .text(0, 0, options.chip.toUpperCase(), textStyle(typeRole.label, chipColor.text, 1))
-    .setLetterSpacing(0.9)
-    .setAlign("left")
-    .setWordWrapWidth(Math.max(40, rect.width - 22 - 14 - 8));
-  if (!fitsBeside(chipLabel.width) && options.compactChip) chipLabel.setText(options.compactChip.toUpperCase());
-  const chipHeight = Math.max(19, chipLabel.height + 7);
-  const chipY = rect.y + rect.height - 10 - chipHeight;
-  const titleSize = Math.min(46, rect.width * 0.24, rect.height * 0.24);
-
-  // Laid out bottom-up (chip, then subtitle, then title) so a two-line box name never collides with the chip below
-  // it — text height is only known once the object exists, so this measures each before placing the one above it.
-  let subtitle: Phaser.GameObjects.Text | null = null;
-  if (options.subtitle) {
-    subtitle = scene.add.text(rect.x + 11, 0, options.subtitle.toUpperCase(), {
-      ...textStyle(bangers(Math.min(20, rect.width * 0.1), 1), surface.paper.hex),
-      wordWrap: { width: rect.width - 22, useAdvancedWrap: true },
-    });
-    subtitle.setY(chipY - 14 - subtitle.height);
-    objects.push(subtitle);
-  }
-  const title = scene.add.text(rect.x + 11, 0, options.title.toUpperCase(), {
-    ...textStyle(bangers(titleSize, 1), surface.paper.hex),
-  });
-  title.setY((subtitle ? subtitle.y : chipY - 6) - 2 - title.height);
-  objects.push(title);
-
-  const chipRect: Rect = { x: rect.x + 11, y: chipY, width: chipLabel.width + 14, height: chipHeight };
-  if (chipColor.fill !== null)
-    chipBg.fillStyle(chipColor.fill, 1).fillRect(chipRect.x, chipRect.y, chipRect.width, chipRect.height);
-  else
-    chipBg
-      .lineStyle(1.5, surface.paper.hex, 0.45)
-      .strokeRect(chipRect.x + 0.75, chipRect.y + 0.75, chipRect.width - 1.5, chipRect.height - 1.5);
-  chipLabel.setPosition(chipRect.x + 7, chipRect.y + chipRect.height / 2).setOrigin(0, 0.5);
-  objects.push(chipBg, chipLabel);
-  if (flagLabel) {
-    const flagBg = scene.add.graphics();
-    const flagRect: Rect = {
-      x: chipRect.x + chipRect.width + 6,
-      y: chipRect.y,
-      width: flagLabel.width + 14,
-      height: chipRect.height,
-    };
-    flagBg.fillStyle(signal.caution.hex, 1).fillRect(flagRect.x, flagRect.y, flagRect.width, flagRect.height);
-    flagLabel.setPosition(flagRect.x + 7, flagRect.y + flagRect.height / 2).setOrigin(0, 0.5);
-    scene.children.bringToTop(flagLabel); // made before its fill, which would otherwise cover it
-    objects.push(flagBg, flagLabel);
-  }
-
-  if (options.status === "sealed") {
-    const dim = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex, 0.4).setOrigin(0, 0);
-    objects.push(dim);
-  }
-  if (options.selected) {
-    const ring = scene.add.graphics();
-    ring.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
-    ring.lineStyle(2, surface.paper.hex, 1).strokeRect(rect.x + 5, rect.y + 5, rect.width - 10, rect.height - 10);
-    objects.push(ring);
-  }
-
-  const zone = scene.add
-    .zone(rect.x, rect.y, rect.width, rect.height)
-    .setOrigin(0, 0)
-    .setInteractive({ useHandCursor: true })
-    .on("pointerup", () => options.onClick());
-  objects.push(zone);
-  return { objects, zone };
 }

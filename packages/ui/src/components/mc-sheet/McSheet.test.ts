@@ -865,4 +865,47 @@ describe("mc-sheet kit parts", () => {
     expect(sheet.elementOf("img")!.querySelector("img")!.style.opacity).toBe("0.3");
     sheet.remove();
   });
+  it("draws a group from its own corner: a sticky one in the flow by its margin, a fading one placed and told its range", async () => {
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "scroll",
+        key: "page",
+        rect: rect(0, 0, 300, 200),
+        height: 600,
+        nodes: [
+          {
+            kind: "group",
+            key: "art",
+            rect: rect(16, 16, 200, 100),
+            fade: 100,
+            nodes: [{ kind: "box", key: "frame", rect: rect(0, 0, 200, 100), fill: "red" }],
+          },
+          {
+            kind: "group",
+            key: "pinned",
+            rect: rect(16, 120, 200, 60),
+            sticky: true,
+            nodes: [{ kind: "tap", key: "inside", rect: rect(10, 10, 50, 20) }],
+          },
+        ],
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const art = sheet.elementOf("art")!;
+    expect(art.classList.contains("fades")).toBe(true);
+    expect(art.style.top).toBe("16px");
+    expect(art.style.getPropertyValue("--mc-fade")).toBe("100px");
+    const pinned = sheet.elementOf("pinned")!;
+    expect(pinned.classList.contains("sticky")).toBe(true);
+    expect(pinned.style.marginTop).toBe("120px");
+    expect(pinned.style.height).toBe("60px");
+    // A tap inside a group says its own key.
+    const keys: string[] = [];
+    sheet.addEventListener("mc-activate", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
+    tap(sheet.elementOf("inside")!);
+    expect(keys).toEqual(["inside"]);
+    sheet.remove();
+  });
 });

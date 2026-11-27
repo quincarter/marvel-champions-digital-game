@@ -1,4 +1,4 @@
-import { html, LitElement, type PropertyDeclarations } from "lit";
+import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { onTap } from "../../shared/tap.js";
 import type { McButtonKind } from "../../shared/button.types.js";
@@ -18,6 +18,8 @@ import { McButtonStyles } from "./mc-button.styles.js";
  * @attr pressable - With `disabled`: still dimmed, but a tap raises `mc-press` (the screen says why it does nothing).
  * @attr framed - The inner paper frame an "on" switch carries.
  * @attr display - A Bangers label.
+ * @attr row - A call to action with a second line: the label at the left over `subtitle`, a `chevron` at the right.
+ * @attr subtitle-label - A row's subtitle as a small tracked caption.
  * @attr plain - A label in its own case, with no tracking (a row title, as against the capitals of a label).
  * @fires mc-press - A tap on an enabled button.
  */
@@ -36,6 +38,10 @@ export class McButton extends LitElement {
     wrap: { type: Boolean, reflect: true },
     still: { type: Boolean, reflect: true },
     reason: { type: String },
+    row: { type: Boolean, reflect: true },
+    subtitle: { type: String },
+    subtitleLabel: { type: Boolean, reflect: true, attribute: "subtitle-label" },
+    chevron: { type: Boolean },
   };
 
   declare kind: McButtonKind;
@@ -51,6 +57,14 @@ export class McButton extends LitElement {
   /** No label slide (reduced motion). */
   declare still: boolean;
   declare reason: string;
+  /** A row button (a call to action with a second line): the title at the left over an optional subtitle, a chevron at the right. */
+  declare row: boolean;
+  /** A row's second line, under its title. */
+  declare subtitle: string;
+  /** The second line as a small tracked caption rather than a sentence. */
+  declare subtitleLabel: boolean;
+  /** A row's "▸" at the right end. */
+  declare chevron: boolean;
   #stopTap: (() => void) | null = null;
   #resize: ResizeObserver | null = null;
 
@@ -67,6 +81,10 @@ export class McButton extends LitElement {
     this.wrap = false;
     this.still = false;
     this.reason = "";
+    this.row = false;
+    this.subtitle = "";
+    this.subtitleLabel = false;
+    this.chevron = false;
   }
 
   override connectedCallback(): void {
@@ -109,7 +127,8 @@ export class McButton extends LitElement {
     label.style.fontSize = "";
     const style = getComputedStyle(label);
     const floor = parseFloat(style.getPropertyValue("--mc-small-8")) || 8;
-    const room = this.clientWidth - 16;
+    // A row keeps its padding and the chevron's room clear as well.
+    const room = this.clientWidth - (this.row ? (this.chevron ? 64 : 40) : 16);
     let size = parseFloat(style.fontSize);
     if (this.wrap) {
       // Two lines at most: a step smaller until the label's height fits the button.
@@ -134,7 +153,14 @@ export class McButton extends LitElement {
       aria-disabled=${this.disabled ? "true" : "false"}
       title=${this.disabled && this.reason ? this.reason : ""}
     >
-      <span class="label">${this.label}</span>
+      ${
+        this.row
+          ? html`<span class="text"
+                ><span class="label">${this.label}</span
+                >${this.subtitle ? html`<span class="sub">${this.subtitle}</span>` : nothing}</span
+              >${this.chevron ? html`<span class="chevron" aria-hidden="true">▸</span>` : nothing}`
+          : html`<span class="label">${this.label}</span>`
+      }
     </button>`;
   }
 }

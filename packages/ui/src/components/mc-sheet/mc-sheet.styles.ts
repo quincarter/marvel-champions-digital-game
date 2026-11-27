@@ -70,6 +70,27 @@ export const McSheetStyles = css`
   }
   .content {
     position: relative;
+    /* A flow root, so a sticky group's margin (its place) does not collapse through and move the content. */
+    display: flow-root;
+  }
+  /* Pinned under the scroller's top edge once its place has scrolled past: in the flow (its place is a margin) so sticky works. */
+  .group.sticky {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+  }
+  /* Fades out over the first --mc-fade px of the scroller's scroll, where the browser links animations to scroll. */
+  @supports (animation-timeline: scroll()) {
+    .group.fades {
+      animation: mc-fade linear both;
+      animation-timeline: scroll(nearest block);
+      animation-range: 0 var(--mc-fade);
+    }
+  }
+  @keyframes mc-fade {
+    to {
+      opacity: 0;
+    }
   }
   /* A stepped slider: the track takes sideways drags itself and leaves the page's vertical scroll to the browser. */
   .slider-track {

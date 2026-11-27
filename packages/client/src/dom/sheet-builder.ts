@@ -275,6 +275,11 @@ export class SheetBuilder {
     readonly alpha?: number;
     /** The button name for assistive tech when its label is a symbol ("+"). */
     readonly aria?: string;
+    /** A row button: `label` at the left over `subtitle`, with a `chevron` at the right. */
+    readonly row?: boolean;
+    readonly subtitle?: string;
+    readonly subtitleLabel?: boolean;
+    readonly chevron?: boolean;
   }): void {
     const type = options.type;
     this.nodes.push({
@@ -282,6 +287,10 @@ export class SheetBuilder {
       ...(options.still ? { still: true } : {}),
       ...(options.keyshortcuts ? { keyshortcuts: options.keyshortcuts } : {}),
       ...(options.aria ? { aria: options.aria } : {}),
+      ...(options.row ? { row: true } : {}),
+      ...(options.subtitle ? { subtitle: options.subtitle } : {}),
+      ...(options.subtitleLabel ? { subtitleLabel: true } : {}),
+      ...(options.chevron ? { chevron: true } : {}),
       ...(options.alpha !== undefined ? { opacity: options.alpha } : {}),
       kind: "button",
       key: options.key,
@@ -720,6 +729,28 @@ export class SheetBuilder {
       ground: options.ground,
       ...(options.dimmed ? { dimmed: true } : {}),
       stepLabels: options.stepLabels,
+    });
+  }
+
+  /**
+   * A group of parts placed inside a scrolling region's content (see `SheetGroup`): `rect` is in the same space as the
+   * region's own parts (the screen's x, the content's y), and so are the parts `build` draws.
+   */
+  group(
+    key: string,
+    rect: Rect,
+    options: { readonly sticky?: boolean; readonly fade?: number },
+    build: (inner: SheetBuilder) => void,
+  ): void {
+    const inner = new SheetBuilder(this.#game, { x: rect.x, y: rect.y }, this.#desktop);
+    build(inner);
+    this.nodes.push({
+      kind: "group",
+      key,
+      rect: this.#rect(rect),
+      nodes: inner.nodes,
+      ...(options.sticky ? { sticky: true } : {}),
+      ...(options.fade ? { fade: options.fade } : {}),
     });
   }
 

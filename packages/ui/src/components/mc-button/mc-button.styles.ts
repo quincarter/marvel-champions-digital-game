@@ -74,6 +74,55 @@ export const McButtonStyles = css`
     line-height: 1.2;
     text-overflow: clip;
   }
+  /*
+   * A row button (a call to action with a second line, the Saga's and the Cover's): the title at the left over the
+   * subtitle, a chevron at the right. The text takes the button's own ink, so it follows hover and unavailable.
+   */
+  :host([row]) button {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 14px 0 16px;
+  }
+  .text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  :host([row]) .label {
+    margin-left: 0;
+    transform: none;
+    max-width: 100%;
+  }
+  .sub {
+    color: var(--ink);
+    opacity: calc(var(--ink-alpha) * 0.75);
+    font-family: var(--mc-font-body);
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 1.4;
+    margin-top: 2px;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  :host([subtitle-label]) .sub {
+    font-weight: 800;
+    font-size: var(--mc-small-9, 9px);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: calc(var(--ink-alpha) * 0.5);
+  }
+  .chevron {
+    flex: 0 0 auto;
+    color: var(--ink);
+    opacity: var(--ink-alpha);
+    font-family: var(--mc-font-display);
+    font-size: 20px;
+    line-height: 1;
+  }
   /* Room kept clear at the left edge (an icon beside the label): the label centres in what is left. */
   .label {
     margin-left: var(--mc-label-inset, 0px);
