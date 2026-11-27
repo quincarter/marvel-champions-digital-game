@@ -13,7 +13,7 @@ describe("heroPictureOf", () => {
     const plain = [...HERO_ART.heroes].find(([, pictures]) => pictures[0]?.focus === undefined);
     expect(plain, "a hero picture with no focus.json").toBeTruthy();
     const picture = heroPictureOf(card(plain![0]), leases);
-    expect(picture.src).toBe(plain![1][0]!.url);
+    expect(picture.src).toBe(plain![1][0]!.tileUrl ?? plain![1][0]!.url);
     expect(picture.cover).toEqual({ x: 0.5, y: 0.22, centered: false });
   });
 
@@ -27,5 +27,15 @@ describe("heroPictureOf", () => {
 
   it("has no picture to show for an unknown identity", () => {
     expect(heroPictureOf(undefined, leases).src).toBeNull();
+  });
+});
+
+describe("heroPictureOf sizes", () => {
+  it("uses the tile copy for a tile and the original for a large picture, and falls back when there is no copy", () => {
+    const [id, pictures] = [...HERO_ART.heroes][0]!;
+    const leases = new PackLeases();
+    const original = pictures[0]!;
+    expect(heroPictureOf(card(id), leases, "large").src).toBe(original.url);
+    expect(heroPictureOf(card(id), leases).src).toBe(original.tileUrl ?? original.url);
   });
 });
