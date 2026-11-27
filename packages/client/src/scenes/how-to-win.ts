@@ -59,7 +59,7 @@ import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { SheetBuilder, sheetColor } from "../dom/sheet-builder.js";
 import { SheetGlyphs } from "../dom/sheet-glyphs.js";
-import { t } from "../i18n/translate.js";
+import { t, tPlural } from "../i18n/translate.js";
 import { onArtChange, onLanguageChange } from "../language-change.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -502,7 +502,7 @@ export class HowToWinScene extends Phaser.Scene {
         b.text(
           x,
           y,
-          t("howToWin.win.body", {
+          tPlural("howToWin.win.body", content.stageCount, {
             villain: this.#nameOf(content.villainCardId, content.villainName),
             stages: content.stageCount,
           }),
