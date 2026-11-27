@@ -14,3 +14,12 @@ packages.
   exported from there rather than coupled to a component module.
 - `src/index.ts` exports types with `export type { ... } from "./.../*.types.js"`, never through a component module.
   A component's registering file (`mc-thing.ts`) only defines the element and re-exports the class.
+
+## One component per concept, composed from small parts
+
+The list-and-panel kit (`mc-picture-tile`, `mc-picture-card`, `mc-media-row`, `mc-list-row`, `mc-section-header`,
+`mc-empty-state`, `mc-search-field`, `mc-tab-rail`, `mc-filter-chip`, `mc-filter-bar`, `mc-article`) has exactly one
+component per concept. Before adding a new one, check it is not a variant of one of these: extend its API instead, and
+compose bigger pieces from the small ones (`mc-picture-card` and `mc-media-row` are built from `mc-picture-tile`).
+Each has a sheet node of the same name (`pictureTile`, `sectionHeader`, `filterBar`, ...) and a `SheetBuilder` method.
+`MIGRATION.md` maps the names parallel branches used onto this kit.

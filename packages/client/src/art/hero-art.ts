@@ -30,6 +30,8 @@ export interface HeroArtCatalog {
 export function parseHeroArt(
   files: Readonly<Record<string, string>>,
   focusFiles: Readonly<Record<string, unknown>> = {},
+  /** The small copies (`?roster` imports) by the same full path as `files`. */
+  tileFiles: Readonly<Record<string, string>> = {},
 ): HeroArtCatalog {
   const heroes = new Map<string, Picture[]>();
   const unrecognized: string[] = [];
@@ -53,7 +55,13 @@ export function parseHeroArt(
     const identityId = parts[1]!.split("-")[0]!;
     const entry = heroes.get(identityId) ?? [];
     const focus = focusOf.get(identityId);
-    entry.push({ key: `scene-art:${underArt}`, url: files[fullPath]!, ...(focus ? { focus } : {}) });
+    const tileUrl = tileFiles[fullPath];
+    entry.push({
+      key: `scene-art:${underArt}`,
+      url: files[fullPath]!,
+      ...(tileUrl ? { tileUrl } : {}),
+      ...(focus ? { focus } : {}),
+    });
     heroes.set(identityId, entry);
   }
   return { heroes, unrecognized };
@@ -102,5 +110,13 @@ const focusFiles = import.meta.glob("../../../../art/heroes/*/focus.json", {
   import: "default",
 }) as Record<string, unknown>;
 
+// Small WebP copies for the tiles and rows (`vite-roster-art.ts`): a phone does not fetch and decode a 3840 px
+// picture for a card-sized tile.
+const tileFiles = import.meta.glob("../../../../art/heroes/*/*.{png,jpg,jpeg,webp,avif}", {
+  eager: true,
+  query: "?roster",
+  import: "default",
+}) as Record<string, string>;
+
 /** Everything in `art/heroes/`. */
-export const HERO_ART: HeroArtCatalog = parseHeroArt(files, focusFiles);
+export const HERO_ART: HeroArtCatalog = parseHeroArt(files, focusFiles, tileFiles);

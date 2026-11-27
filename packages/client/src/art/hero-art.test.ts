@@ -191,3 +191,18 @@ describe("hero tile art is found and intact on a case-sensitive disk", () => {
     expect(bad).toEqual([]);
   });
 });
+
+describe("parseHeroArt tile copies", () => {
+  it("carries the small copy of a picture as tileUrl, by the same path", () => {
+    const catalog = parseHeroArt(
+      {
+        "../../../../art/heroes/01001a-spider-man/hero.jpg": "/full.jpg",
+        "../../../../art/heroes/01002a-x/hero.jpg": "/x.jpg",
+      },
+      {},
+      { "../../../../art/heroes/01001a-spider-man/hero.jpg": "/tile.webp" },
+    );
+    expect(catalog.heroes.get("01001a")?.[0]).toMatchObject({ url: "/full.jpg", tileUrl: "/tile.webp" });
+    expect(catalog.heroes.get("01002a")?.[0]?.tileUrl).toBeUndefined();
+  });
+});
