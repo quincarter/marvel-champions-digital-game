@@ -13,6 +13,8 @@ export { McListRow } from "./components/mc-list-row/mc-list-row.js";
 export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
 export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
 export { McArticle } from "./components/mc-article/mc-article.js";
+export { McPictureRow } from "./components/mc-picture-row/mc-picture-row.js";
+export type { McPictureRowModel, McPictureRowStamp } from "./components/mc-picture-row/mc-picture-row.types.js";
 export { McFilterBar } from "./components/mc-filter-bar/mc-filter-bar.js";
 export { McFilterChip } from "./components/mc-filter-bar/mc-filter-chip.js";
 export type {
@@ -66,6 +68,7 @@ export type {
   SheetArticle,
   SheetEmptyState,
   SheetFilterBar,
+  SheetPictureRow,
   SheetSearch,
   SheetImage,
   SheetListRow,

@@ -15,6 +15,7 @@ import type {
   McArticleModel,
   McFilterBarModel,
   McListRowModel,
+  McPictureRowModel,
   McPictureTileModel,
   McTabRailTab,
   SheetNode,
@@ -528,6 +529,11 @@ export class SheetBuilder {
   /** A filter bar (`mc-filter-bar`) filling `rect`; presses arrive as `mc-activate` keys `chip:<id>`, `filters`, `sort`. */
   filterBar(rect: Rect, key: string, model: McFilterBarModel, row: number): void {
     this.nodes.push({ kind: "filterBar", key, rect: this.#rect(rect), model, row });
+  }
+
+  /** A picture row (`mc-picture-row`) filling `rect`; decorative, put a `tap` over it. */
+  pictureRow(rect: Rect, model: McPictureRowModel, key?: string): void {
+    this.nodes.push({ kind: "pictureRow", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
   }
 
   /** The quiet empty-list line (`mc-empty-state`) at `x`, `y`. */

@@ -1,5 +1,6 @@
 import type { McArticleModel } from "../components/mc-article/mc-article.types.js";
 import type { McFilterBarModel } from "../components/mc-filter-bar/mc-filter-bar.types.js";
+import type { McPictureRowModel } from "../components/mc-picture-row/mc-picture-row.types.js";
 import type { McListRowModel } from "../components/mc-list-row/mc-list-row.types.js";
 import type { McPictureTileModel } from "../components/mc-picture-tile/mc-picture-tile.types.js";
 import type { McTabRailTab } from "../components/mc-tab-rail/mc-tab-rail.types.js";
@@ -350,6 +351,14 @@ export interface SheetFilterBar {
   readonly row: number;
 }
 
+/** A picture row (`mc-picture-row`) filling `rect`: decorative, a tap area over it takes the press. */
+export interface SheetPictureRow {
+  readonly kind: "pictureRow";
+  readonly key?: string;
+  readonly rect: SheetRect;
+  readonly model: McPictureRowModel;
+}
+
 /** The quiet line of an empty list (`mc-empty-state`) at `x`, `y`. */
 export interface SheetEmptyState {
   readonly kind: "emptyState";
@@ -388,5 +397,6 @@ export type SheetNode =
   | SheetEmptyState
   | SheetSearch
   | SheetFilterBar
+  | SheetPictureRow
   | SheetArticle
   | SheetScroll;
