@@ -15,6 +15,7 @@ import { McButtonStyles } from "./mc-button.styles.js";
  * @attr selected - The control's on / chosen state.
  * @attr still - No label slide when a glyph makes room (reduced motion).
  * @attr disabled - Unavailable: kept in place, dimmed, presses do nothing. `reason` says why, as a tooltip.
+ * @attr pressable - With `disabled`: still dimmed, but a tap raises `mc-press` (the screen says why it does nothing).
  * @attr framed - The inner paper frame an "on" switch carries.
  * @attr display - A Bangers label.
  * @attr plain - A label in its own case, with no tracking (a row title, as against the capitals of a label).
@@ -28,6 +29,7 @@ export class McButton extends LitElement {
     label: { type: String },
     selected: { type: Boolean, reflect: true },
     disabled: { type: Boolean, reflect: true },
+    pressable: { type: Boolean, reflect: true },
     framed: { type: Boolean, reflect: true },
     display: { type: Boolean, reflect: true },
     plain: { type: Boolean, reflect: true },
@@ -39,6 +41,7 @@ export class McButton extends LitElement {
   declare label: string;
   declare selected: boolean;
   declare disabled: boolean;
+  declare pressable: boolean;
   declare framed: boolean;
   declare display: boolean;
   declare plain: boolean;
@@ -54,6 +57,7 @@ export class McButton extends LitElement {
     this.label = "";
     this.selected = false;
     this.disabled = false;
+    this.pressable = false;
     this.framed = false;
     this.display = false;
     this.plain = false;
@@ -66,7 +70,7 @@ export class McButton extends LitElement {
     this.#stopTap = onTap(
       this,
       () => this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true })),
-      { enabled: () => !this.disabled },
+      { enabled: () => !this.disabled || this.pressable },
     );
     // The label is fitted to the button's own width, so a button sized after the fact (by its sheet) refits.
     if (typeof ResizeObserver !== "undefined") {
