@@ -304,10 +304,18 @@ export function guardStops(event: Event, takes: boolean): boolean {
   return true;
 }
 
+/** The element holding the caret now, through any shadow roots (a field inside a panel's component). */
+function deepActiveElement(): HTMLElement | null {
+  let active: Element | null = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return (active as HTMLElement | null) ?? null;
+}
+
 /**
- * Guards `wrap` (a region's box): every guarded event is stopped in the capture phase while `takes()` says no, and the
- * box is inert while it does not, so a field that kept the caret under a modal loses it and takes no key or composition.
- * Returns the function that applies the inert state; call it each time the answer may have changed.
+ * Guards `wrap` (a region's box): every guarded event is stopped in the capture phase while `takes()` says no, and a
+ * field of the box that holds the caret then lets go of it, so a field that kept the caret under a modal takes no
+ * more keys or composition. (The box is not made inert: a press must still land on it, not fall through to the panel
+ * of a screen below.) Returns the function that applies the blur; call it each time the answer may have changed.
  */
 export function guardRegion(wrap: HTMLElement, takes: () => boolean, destroyed: () => boolean): () => void {
   for (const name of GUARDED_EVENTS)
@@ -319,8 +327,9 @@ export function guardRegion(wrap: HTMLElement, takes: () => boolean, destroyed: 
       true,
     );
   return () => {
-    const inert = !takes();
-    if (wrap.inert !== inert) wrap.inert = inert;
+    if (takes()) return;
+    const active = document.activeElement;
+    if (active && wrap.contains(active)) deepActiveElement()?.blur();
   };
 }
 
@@ -398,7 +407,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     // Every panel's `mc-activate`, `mc-inspect`, `mc-slide`, `mc-step` (a card hold's timer fires it) and its fields'
     // `mc-input` are stopped here, before its scene hears them, while the scene isn't taking presses (stopped, paused,
     // input off for an exit) or its panel is covered by another modal: `pointer-events` follows the scene only at
-    // `postupdate`, so a tap in that gap would otherwise still act. The box is also inert then (`guardRegion`).
+    // `postupdate`, so a tap in that gap would otherwise still act. A field holding the caret lets go of it then (`guardRegion`).
     this.#applyInert = guardRegion(
       this.#wrap,
       () => this.#takesEvents(),
