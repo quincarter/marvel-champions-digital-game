@@ -82,7 +82,7 @@ export function sheetTopBar(b: SheetBuilder, glyphs: SheetGlyphs, options: Sheet
     width: frame.width,
     textLeft: x,
     textRight: x + titleWidth,
-    textTop: height / 2 - titleSize / 2,
+    textTop: (below ? 40 : height / 2) - titleSize / 2,
     textHeight: titleSize,
     barHeight: height,
   });
@@ -90,7 +90,7 @@ export function sheetTopBar(b: SheetBuilder, glyphs: SheetGlyphs, options: Sheet
     color: surface.paper.hex,
     origin: [0, 0.5],
     letterSpacing: 1,
-    fitWidth: maxRight === null ? room : Math.max(40, Math.min(room, maxRight - x)),
+    fitWidth: below || maxRight === null ? room : Math.max(40, Math.min(room, maxRight - x)),
   });
   return { height, backRect };
 }
