@@ -40,7 +40,7 @@ import {
   packNameOf,
 } from "../content/pool.js";
 import { PackLeases, packPictureFor, refreshPackArt } from "../art/pack-art.js";
-import { CUSTOM_BADGE } from "../view/custom-content.js";
+import { customBadge } from "../view/custom-content.js";
 import { placeScenarioShelves } from "../packs/custom-placement.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import { customContentPrefsNow } from "../packs/custom-content-prefs.js";
@@ -66,9 +66,7 @@ import { padInputTracked } from "../platform/input-device.js";
 import { resultsHistoryOf, type ScenarioRecord } from "../view/results-history.js";
 import { setScenario, setScenarioFilter, clearScenarioFilter, type SetupDraft } from "../view/setup-draft.js";
 import {
-  BUILD_YOUR_OWN_SUBTITLE,
   isCivilWarScenario,
-  BUILD_YOUR_OWN_TITLE,
   customizeEntryOf,
   enterBuilder,
   setBuilderOrigin,
@@ -281,7 +279,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       this.#search.destroy();
       // The panels go with the scene (`DomRegion`); the next visit makes new ones.
       const rows = this.#roster?.element.readScroll();
-      if (rows && !this.#leaving) scrollMemory = rows;
+      if (rows) scrollMemory = rows;
       this.#sheet = null;
       this.#roster = null;
     });
@@ -491,7 +489,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const region = new DomRegion<E>(this, element, rect);
     // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas; the popover itself is
     // drawn in the canvas, so its box is left out of the panel.
-    region.forwardMouseMoves();
+    region.forwardMouseMoves(() => this.#hover?.suppress());
     region.setHoles(() => {
       const popover = this.#hover?.shownRect;
       return popover ? [popover] : [];
@@ -533,7 +531,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // A chosen chip leads with a check, which the packing leaves room for.
     const chipDefs = scenarioProductsOf(currentScenarios(), placement.shelfOf, placement.order).map((code) => ({
       id: `product:${code}`,
-      text: `${code === CUSTOM_SHELF_ID ? "Custom packs" : packNameOf(code)}✓ `,
+      text: `${code === CUSTOM_SHELF_ID ? t("scenario.customPacks") : packNameOf(code)}✓ `,
       selected: this.#draft.scenarioFilter.product === code,
       onClick: () => {
         this.#draft = setScenarioFilter(this.#draft, {
@@ -1112,7 +1110,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // A pack's scenario says so in words, beside SELECTED when both apply.
     const tag = lock
       ? t("scenario.locked")
-      : [custom ? CUSTOM_BADGE : null, selected ? t("scenario.selected") : null].filter(Boolean).join(" · ");
+      : [custom ? customBadge() : null, selected ? t("scenario.selected") : null].filter(Boolean).join(" · ");
     if (import.meta.env.DEV) {
       this.#tileDebug.set(s.id as string, {
         id: s.id as string,
@@ -1166,9 +1164,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
         dim: false,
         chip: t("scenario.builder"),
         chipTone: "action",
-        title: BUILD_YOUR_OWN_TITLE,
+        title: t("scenario.buildYourOwnTitle"),
         titleDisplay: true,
-        detail: BUILD_YOUR_OWN_SUBTITLE,
+        detail: t("scenario.buildYourOwnSubtitle"),
         detailLines: 2,
         detailTone: "meta",
         initial: "+",
@@ -1321,7 +1319,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   /**
-   * Where each scenario is shelved: installed packs' scenarios on a "Custom packs" shelf first or last, or beside the
+   * Where each scenario is shelved: installed packs' scenarios on a t("scenario.customPacks") shelf first or last, or beside the
    * wave the pack names (issue #734). The product chips are these shelves too (issue #966).
    */
   #placement(): { readonly order: readonly string[]; readonly shelfOf: (scenario: Scenario) => string } {
@@ -1363,7 +1361,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const shelves = shelvesOf(
       candidates,
       placed.order,
-      (code) => (code === CUSTOM_SHELF_ID ? "Custom packs" : packNameOf(code)),
+      (code) => (code === CUSTOM_SHELF_ID ? t("scenario.customPacks") : packNameOf(code)),
       "",
     );
     // A search puts the best match first, within each shelf and among the shelves.

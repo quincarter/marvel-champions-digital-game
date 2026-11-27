@@ -37,6 +37,8 @@ function seatFace(b: SheetBuilder, rect: Rect, frame: SeatFrame, wide: boolean):
 export interface SeatCardArgs {
   readonly rect: Rect;
   readonly index: number;
+  /** The deck seated here, which the ✕ names so a press clears that deck and no other. */
+  readonly deckId: string | null;
   readonly frame: SeatFrame;
   /** The seat label ("SEAT 1 · YOU", "SEAT 2 · PICKING"). */
   readonly label: string;
@@ -54,7 +56,7 @@ export interface SeatCardArgs {
 /**
  * One seat card (the wide layout): a portrait thumbnail, the red seat label, the Bangers hero name, a meta line, a heavy
  * red frame when active, dashed when empty (the active empty seat red), dimmed when it cannot be reached yet. A reachable
- * seat takes a press (`seat:<index>`); a filled one carries its ✕ (`seat-clear:<index>`). The frame is the state's shape:
+ * seat takes a press (`seat:<index>`); a filled one carries its ✕ (`seat-clear:<deck id>`). The frame is the state's shape:
  * solid, dashed and thin are told apart without the color.
  */
 export function drawSeatCard(b: SheetBuilder, a: SeatCardArgs): void {
@@ -108,7 +110,7 @@ export function drawSeatCard(b: SheetBuilder, a: SeatCardArgs): void {
   if (frame !== "locked") b.tap(`seat:${a.index}`, rect);
   if (filled && a.clearLabel !== null) {
     b.button({
-      key: `seat-clear:${a.index}`,
+      key: `seat-clear:${a.deckId ?? a.index}`,
       rect: {
         x: rect.x + rect.width - SEAT_CLEAR_SIZE - 3,
         y: rect.y + 3,

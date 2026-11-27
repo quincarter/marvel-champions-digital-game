@@ -4,9 +4,13 @@
  * screens ask these rather than each testing for `x.` themselves.
  */
 import { isCustomCardCode, type Deck } from "@mc/content";
+import { t } from "../i18n/translate.js";
 
 /** The badge's words: a text label, never color alone. "MOD PACK", the owner's pick (issue #734). */
 export const CUSTOM_BADGE = "MOD PACK";
+
+/** The badge in the current language ("MOD PACK", "PACK MOD"). */
+export const customBadge = (): string => t("custom.badge");
 
 /** Why a deck with custom cards cannot be exported (the button's `reason`). */
 export const CUSTOM_EXPORT_REASON = "This deck has custom pack cards, which MarvelCDB does not know.";

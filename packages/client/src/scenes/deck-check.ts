@@ -311,7 +311,7 @@ export class DeckCheckScene extends Phaser.Scene {
     });
     const region = new DomRegion<E>(this, element, rect);
     // The hover popover is drawn in the canvas, so its box is left out of the panel.
-    region.forwardMouseMoves();
+    region.forwardMouseMoves(() => this.#hover?.suppress());
     region.setHoles(() => {
       const popover = this.#hover?.shownRect;
       return popover ? [popover] : [];
@@ -429,7 +429,6 @@ export class DeckCheckScene extends Phaser.Scene {
       this.#view = { x: 0, y: 0, width: 0, height: 0 };
     }
     // The sheet's buttons keep their fixed rects; the sort button lives where it was drawn.
-    void sortRect;
     this.#route?.set(
       deckCheckFocusOrder({
         wide: layout.wide,
@@ -670,7 +669,11 @@ export class DeckCheckScene extends Phaser.Scene {
       type: typeRole.barTitle,
       ...(canStart ? {} : { disabled: t("deckCheck.startUnavailable") }),
     });
-    const start = (): void => this.#onStartGame?.(this);
+    const start = (): void => {
+      if (this.#leaving) return;
+      this.#leaving = true;
+      this.#onStartGame?.(this);
+    };
     this.#actions.set("start", start);
     this.#stops.set("start", { rect: startRect, activate: start });
   }
@@ -826,11 +829,10 @@ export class DeckCheckScene extends Phaser.Scene {
     // The identity's faces and every multi-faced card's, above the cards; a type filter narrows to cards alone.
     const faceWidth = rect.width - 8 - FACES_INSET * 2;
     if (this.#typeFilter === null) {
-      deckFaceGroups(this.#deck, currentCardsById()).forEach((group, groupIndex) => {
+      deckFaceGroups(this.#deck, currentCardsById()).forEach((group, _groupIndex) => {
         const layout = deckFaceGroupLayout(faceWidth, group.tiles.length);
         const count = group.tiles.length;
         const art = layout.art[0];
-        const gap = layout.art[1] ? layout.art[1].x - art!.x - art!.width : 8;
         sections.push({
           kind: "faces",
           title: group.identity
@@ -839,14 +841,13 @@ export class DeckCheckScene extends Phaser.Scene {
           tileWidth: art?.width ?? 84,
           tileHeight: art?.height ?? 118,
           tiles: group.tiles.map((tile, i) => {
-            const id = `${groupIndex}.${i}`;
+            const id = `${group.cardId}:${(tile.face as { kind?: string } | undefined)?.kind ?? "front"}:${i}`;
             faceIds.push(id);
             this.#faces.set(`face:${id}`, { cardId: group.cardId, face: tile.face });
             this.#actions.set(`face:${id}`, () => this.#inspectFace(`face:${id}`));
             return { id, cardId: group.cardId, picture: this.#pictureOf(tile.art), label: tile.label, name: tile.name };
           }),
         });
-        void gap;
       });
     }
     // The identity's faces stay on screen when the card list is empty; the message goes under them.

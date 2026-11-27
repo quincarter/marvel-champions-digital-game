@@ -15,7 +15,7 @@ import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { customSagaVolumes, packCampaignEntryOf } from "../../campaign/pack-campaigns.js";
 import { packFileArt } from "../../art/pack-art.js";
 import { loadedPacks } from "../../packs/pack-registry.js";
-import { CUSTOM_BADGE } from "../../view/custom-content.js";
+import { customBadge } from "../../view/custom-content.js";
 import { rebuildOnPackChange } from "../../ui/pack-redraw.js";
 import { campaignCardsById } from "../../content/campaign-pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
@@ -92,7 +92,7 @@ const volumeArtOf = (volume: SagaVolume) => {
 };
 
 /** "VOL. 3" for a base box; a pack campaign says CUSTOM in words (never a number past the base game's). */
-const volumeTagOf = (volume: SagaVolume): string => (volume.custom ? CUSTOM_BADGE : `VOL. ${volume.number}`);
+const volumeTagOf = (volume: SagaVolume): string => (volume.custom ? customBadge() : `VOL. ${volume.number}`);
 
 const CUSTOM_HEADER_HEIGHT = 34;
 
@@ -366,7 +366,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     return campaignTile(this, {
       rect,
       eyebrow: tileRow.volume.custom ? tileRow.volume.custom.packName : tileRow.volume.boxCode,
-      title: tileRow.volume.custom ? CUSTOM_BADGE : `Vol. ${tileRow.volume.number}`,
+      title: tileRow.volume.custom ? customBadge() : `Vol. ${tileRow.volume.number}`,
       subtitle: tileRow.volume.name,
       chip: this.#gridChip(tileRow),
       ...(tileRow.status === "done" && tileRow.wonAdjustedOnly ? { flag: "Adjusted", compactChip: "✓" } : {}),
@@ -506,7 +506,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       .text(
         rowRect.x + blockW / 2,
         rowRect.y + rowRect.height / 2,
-        row.volume.custom ? `${CUSTOM_BADGE}\n▸` : `VOL.\n${row.volume.number}`,
+        row.volume.custom ? `${customBadge()}\n▸` : `VOL.\n${row.volume.number}`,
         {
           ...textStyle(bangers(15, 1), surface.paper.hex),
           align: "center",
@@ -673,7 +673,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       .text(
         footerRect.x + pad,
         y,
-        `${copy.status} · ${row.volume.custom ? `${CUSTOM_BADGE} · ${row.volume.custom.packName}` : row.volume.boxCode}`.toUpperCase(),
+        `${copy.status} · ${row.volume.custom ? `${customBadge()} · ${row.volume.custom.packName}` : row.volume.boxCode}`.toUpperCase(),
         textStyle(typeRole.label, signal.caution.hex, 1),
       )
       .setLetterSpacing(1);

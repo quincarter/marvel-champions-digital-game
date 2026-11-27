@@ -85,7 +85,7 @@ import {
   testedSearchFieldsOf,
   testedSubtitleOf,
 } from "../view/community-decks-model.js";
-import { CUSTOM_BADGE, customBadgeOf, isCustomCard } from "../view/custom-content.js";
+import { customBadge, customBadgeOf, isCustomCard } from "../view/custom-content.js";
 import { shortWarningOf, type DeckOption } from "../view/deck-list-model.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import { rankShelvesByScore, type SearchDocument } from "../view/deck-search.js";
@@ -793,7 +793,7 @@ export class SeatsScene extends Phaser.Scene {
     const region = new DomRegion<E>(this, element, rect);
     // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas; the popover itself is
     // drawn in the canvas, so its box is left out of the panel.
-    region.forwardMouseMoves();
+    region.forwardMouseMoves(() => this.#hover?.suppress());
     region.setHoles(() => {
       const popover = this.#hover?.shownRect;
       return popover ? [popover] : [];
@@ -1155,6 +1155,7 @@ export class SeatsScene extends Phaser.Scene {
         drawSeatCard(b, {
           rect,
           index,
+          deckId: slot.deckId,
           frame,
           label: seatLabelOf(youWords, frame, index),
           name: slot.identityName,
@@ -1170,7 +1171,10 @@ export class SeatsScene extends Phaser.Scene {
           clearLabel: slot.deckId ? t("seats.clearSeat") : null,
         });
         if (slot.deckId) {
-          this.#actions.set(`seat-clear:${index}`, () => {
+          const clearing = slot.deckId;
+          this.#actions.set(`seat-clear:${clearing}`, () => {
+            // The seat may have changed under a slow press: clear only the deck the ✕ named.
+            if (this.#draft.seats[index] !== clearing) return;
             this.#draft = clearSeat(this.#draft, index);
             this.#rebuild();
           });
@@ -1884,7 +1888,7 @@ export class SeatsScene extends Phaser.Scene {
           : blockedBy
             ? blockedTagOf(blockedBy)
             : // A custom hero says so and still says how many decks it has.
-              [decks.some((d) => customBadgeOf(d.deck) !== null) ? CUSTOM_BADGE : null, countTag]
+              [decks.some((d) => customBadgeOf(d.deck) !== null) ? customBadge() : null, countTag]
                 .filter((part) => part !== null)
                 .join(" · ") || null;
     const rec = this.#insights?.analysis.get(option.deck.id as string);
@@ -2336,11 +2340,6 @@ export class SeatsScene extends Phaser.Scene {
     const deckOptions = this.#deckOptions();
     const active = this.#activeRoster(deckOptions);
     const identityId = group.rep.deck.identityCardId as string;
-    const picture = heroTilePictureOf(
-      this.#heroPictureFor(identityId),
-      currentCardsById().get(identityId),
-      this.#leases,
-    );
     const rows = group.decks.map((option) => {
       const entry = active.get(option.deck.id as string);
       const deck = option.deck;
@@ -2367,7 +2366,7 @@ export class SeatsScene extends Phaser.Scene {
       from: this.scene.key,
       heroName: group.rep.identityName ?? group.rep.deck.name,
       identityCardId: identityId,
-      picture,
+      picture: this.#heroPictureFor(identityId),
       rows,
       onPick: (deckId) => {
         if (!this.sys.isActive()) return;

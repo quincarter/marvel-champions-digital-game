@@ -1478,6 +1478,11 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "seats.aspectInfo": "Sobre {aspect}",
   "seats.shelfPrevious": "Héroes anteriores",
   "seats.shelfNext": "Más héroes",
+  "scenario.customPacks": "Packs personalizados",
+  "scenario.buildYourOwnTitle": "Crea tu propio escenario de Civil War",
+  "scenario.buildYourOwnSubtitle":
+    "Elige un bando, un líder, dos etapas de plan principal y tres o cuatro conjuntos modulares.",
+  "custom.badge": "PACK MOD",
   "aspectTip.justice.tagline": "Frustrar — mantiene la amenaza lejos del complot",
   "aspectTip.justice.tip": "Elígela cuando el villano trama deprisa. Una primera opción segura.",
   "aspectTip.aggression.tagline": "Atacar y pelear",

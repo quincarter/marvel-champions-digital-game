@@ -168,7 +168,7 @@ export class McShelfRoster extends LitElement {
   declare model: ShelfRosterModel;
   /** The tiles that have been near the box: their pictures load (and stay loaded). */
   readonly #near = new Set<string>();
-  readonly #watched = new WeakSet<Element>();
+  #watched = new WeakSet<Element>();
   #observer: IntersectionObserver | null = null;
   /** Without an `IntersectionObserver` every tile loads at once. */
   readonly #windowed = typeof IntersectionObserver !== "undefined";
@@ -193,6 +193,8 @@ export class McShelfRoster extends LitElement {
     super.disconnectedCallback();
     this.#observer?.disconnect();
     this.#observer = null;
+    // Reconnected, the tiles are watched afresh by a new observer.
+    this.#watched = new WeakSet<Element>();
   }
 
   protected override updated(): void {

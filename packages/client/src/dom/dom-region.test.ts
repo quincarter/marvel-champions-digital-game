@@ -30,6 +30,7 @@ describe("regionTakesEvents", () => {
       "mc-step",
       "mc-search",
       "mc-submit",
+      "mc-info",
       "mc-sort",
       "mc-filter-sheet",
     ]);

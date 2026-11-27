@@ -13,8 +13,12 @@
  * canvas and seen through a hole.
  */
 import Phaser from "phaser";
+import type { Picture } from "../art/pictures.js";
+import { PackLeases, refreshPackArt } from "../art/pack-art.js";
+import { currentCardsById } from "../content/pool.js";
+import { onArtChange } from "../language-change.js";
 import { domFocusRing } from "../dom/dom-ring.js";
-import type { HeroPicture } from "../dom/hero-picture.js";
+import { heroTilePictureOf } from "../dom/hero-picture.js";
 import { PopupSheet } from "../dom/popup-sheet.js";
 import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { t } from "../i18n/translate.js";
@@ -38,8 +42,8 @@ export interface HeroDecksSheetData {
   readonly heroName: string;
   /** The hero's identity card, which the pictures' hover popover shows. */
   readonly identityCardId: string;
-  /** The hero's picture (the tile copy where there is one), cropped around its subject. */
-  readonly picture: HeroPicture;
+  /** The picture the screen chose for the hero (its tile copy is used); null: the identity's printed scan. The sheet holds its own leases on it. */
+  readonly picture: Picture | null;
   readonly rows: readonly HeroDecksSheetRow[];
   /** The player chose a deck: the sheet is already closed. */
   readonly onPick: (deckId: string) => void;
@@ -67,6 +71,8 @@ export class HeroDecksSheet extends Phaser.Scene {
   #thumbs: Rect[] = [];
   #listRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
   #from: Phaser.Scene | null = null;
+  /** The hero picture's blob URL, held while the rows' lazy images may still load it. */
+  readonly #leases = new PackLeases();
 
   constructor() {
     super(SCENES.heroDecks);
@@ -79,6 +85,8 @@ export class HeroDecksSheet extends Phaser.Scene {
     this.input.enabled = true;
     this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.(), undefined, {
       onDismiss: () => this.#close(),
+      // A pack picture's URL went stale before its lazy image loaded: read it again.
+      onImageError: (key, src) => refreshPackArt(key, src ?? undefined),
     });
     this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.scale.on("resize", this.#draw, this);
@@ -96,7 +104,13 @@ export class HeroDecksSheet extends Phaser.Scene {
       },
       onScroll: (_dx, dy) => this.#scroller()?.scrollBy({ top: dy }),
     });
+    // A picture that resolves later (a pack's) draws in place of the plain ground.
+    const offArt = onArtChange(() => {
+      if (this.sys.isActive()) this.#draw();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offArt();
+      this.#leases.dispose();
       this.#glyphs.dispose();
       this.scale.off("resize", this.#draw, this);
       this.#hover?.destroy();
@@ -139,6 +153,12 @@ export class HeroDecksSheet extends Phaser.Scene {
   }
 
   #draw(): void {
+    this.#leases.begin();
+    const picture = heroTilePictureOf(
+      this.#data.picture,
+      currentCardsById().get(this.#data.identityCardId),
+      this.#leases,
+    );
     this.#glyphs.reset();
     this.#actions = new Map();
     this.#thumbs = [];
@@ -193,7 +213,6 @@ export class HeroDecksSheet extends Phaser.Scene {
         list.box(body, { stroke: surface.ink.hex, strokeWidth: 2 });
         const thumb: Rect = { x: body.x + ROW_PAD, y: top + ROW_PAD, width: THUMB_WIDTH, height: THUMB_HEIGHT };
         this.#thumbs.push(thumb);
-        const picture = this.#data.picture;
         list.image(thumb, {
           src: picture.src,
           fill: surface.parchment.hex,
@@ -285,6 +304,7 @@ export class HeroDecksSheet extends Phaser.Scene {
       return popover ? [popover] : [];
     });
     this.#panel.forwardMouseMoves();
+    this.#leases.end();
     this.#route?.set(order, stops);
     this.#hover?.onDraw();
   }

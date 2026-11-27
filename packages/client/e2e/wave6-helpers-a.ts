@@ -192,10 +192,6 @@ export async function clickStop(page: Page, key: string, sceneKey?: string, time
   // Let the screen finish redrawing, then aim at where the control is now: a press that straddles a redraw is lost.
   await settle(page, { quietMs: 150, maxMs: 500 });
   const now = (await routeStops(page, sceneKey))?.stops.find((s) => s.key === key) ?? stop;
-  // Rest the pointer on the control for a frame first: a card hover popover left over from the last control cuts a
-  // hole in a Lit panel, and a press that lands in the hole before the popover has gone reaches the canvas instead.
-  await page.mouse.move(now.rect.x + now.rect.width / 2, now.rect.y + now.rect.height / 2);
-  await page.waitForTimeout(120);
   await pressAt(page, now.rect.x + now.rect.width / 2, now.rect.y + now.rect.height / 2, {
     verify: !FOCUS_ONLY_STOP.test(key),
   });

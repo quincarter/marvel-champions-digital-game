@@ -10,6 +10,7 @@
  * rules for when it may show, how big it is and where it sits are in `view/card-hover.ts`.
  */
 
+import { resyncLiveRegions } from "../dom/dom-region.js";
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
@@ -500,6 +501,16 @@ export class HoverPreview {
     this.#visual = null;
     this.#waitingKey = null;
     if (!this.#destroyed) this.#coverFields();
+    // A Lit panel cuts the popover's box out of itself (`DomRegion.setHoles`) and reads it once a frame: read it now, or a
+    // press that follows at once lands in the stale hole, on the canvas, and is lost.
+    resyncLiveRegions();
+  }
+
+  /** A press began on a panel over the canvas (it never reaches Phaser's pointer-down): the popover goes down and stays down for this card. */
+  suppress(): void {
+    if (this.#pinned || this.#destroyed) return;
+    this.#suppressed = this.#shownId ?? this.#pendingId ?? this.#suppressed;
+    this.#clear();
   }
 
   /** The popover for one card: its scan (or a plain frame when the scan is missing) with the state strip under it. */
