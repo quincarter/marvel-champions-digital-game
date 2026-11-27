@@ -1453,6 +1453,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "deckCheck.tabCards": "Cartas",
   "deckCheck.tabAspect": "Aspecto",
   "deckCheck.editDeck": "Editar mazo",
+  "deckCheck.startUnavailable": "Abre este mazo desde Elegir héroes para empezar una partida con él.",
   "deckCheck.startGame": "Empezar partida ▸",
   "deckCheck.unknown": "Desconocido",
   "deckCheck.yourDeckCount": "Tu mazo · {count}",

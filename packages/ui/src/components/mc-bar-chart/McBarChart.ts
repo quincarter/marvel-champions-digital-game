@@ -63,7 +63,7 @@ export class McBarChart extends LitElement {
         html`<div class="column">
           <div
             class=${bar.highlight ? "bar highlight" : "bar"}
-            style=${`height:${Math.max(2, Math.round((bar.count / max) * (this.height - 18)))}px`}
+            style=${`height:${Math.max(2, Math.round((bar.count / max) * (this.height - 18)))}px${bar.tint ? `;background:${bar.tint}` : ""}`}
           ></div>
           <div class="axis">${bar.label}</div>
         </div>`,

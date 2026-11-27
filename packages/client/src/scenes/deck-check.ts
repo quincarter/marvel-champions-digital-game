@@ -476,7 +476,8 @@ export class DeckCheckScene extends Phaser.Scene {
     b.text(titleX, layout.headerBar.height / 2, title, typeRole.pageTitle, {
       color: surface.paper.hex,
       origin: [0, 0.5],
-      fitWidth: badge.x - titleX - 16,
+      // Clear of the dark mode toggle at the bar's centre when there is room left of it (a tablet's long title shrinks).
+      fitWidth: Math.min(badge.x - titleX - 16, Math.max(260, layout.headerBar.width / 2 - 30 - titleX)),
     });
   }
 
@@ -488,12 +489,19 @@ export class DeckCheckScene extends Phaser.Scene {
     status: ReturnType<typeof deckStatusOf>,
     inFlow: boolean,
   ): void {
+    // On a phone the title sits below the dark mode tab that hangs from the top edge, as Scenario select's does.
+    const phone = layout.headerBar.width < 600;
     b.text(
       titleX,
-      layout.headerBar.height / 2,
+      phone ? 44 : layout.headerBar.height / 2,
       t("deckCheck.yourDeckCount", { count: this.#verdict?.counted ?? stats.countedCards }),
       typeRole.pageTitle,
-      { color: surface.paper.hex, origin: [0, 0.5], fitWidth: layout.meta.x - titleX - 12 },
+      {
+        color: surface.paper.hex,
+        origin: [0, 0.5],
+        fitWidth: layout.meta.x - titleX - 12,
+        ...(phone ? { size: 18 } : {}),
+      },
     );
     const count = this.#verdict?.count ?? deckCountText(stats, artLanguageNow());
     const metaWords = inFlow ? "3/4" : `${count.toUpperCase()} · ${status.text.toUpperCase()}`;
@@ -622,11 +630,17 @@ export class DeckCheckScene extends Phaser.Scene {
     b.barChart({ x: left, y: curveTop + 16, width: column, height: chartHeight }, this.#barsOf(stats));
   }
 
-  /** The cost curve as bars, its commonest cost standing out in red. */
-  #barsOf(stats: ReturnType<typeof deckStatsOf>): readonly BarChartBar[] {
+  /** The cost curve as bars, its commonest cost standing out in red (or, with `rainbow`, each in its cost's own hue). */
+  #barsOf(stats: ReturnType<typeof deckStatsOf>, rainbow = false): readonly BarChartBar[] {
     const bars = costCurveBars(stats);
     const peak = Math.max(0, ...bars.map((bar) => bar.count));
-    return bars.map((bar) => ({ label: bar.label, count: bar.count, highlight: peak > 0 && bar.count === peak }));
+    return bars.map((bar, cost) => ({
+      label: bar.label,
+      count: bar.count,
+      highlight: !rainbow && peak > 0 && bar.count === peak,
+      // P04's per-bucket bars: each in its own printed-cost hue.
+      ...(rainbow ? { tint: sheetColor(costPipColor(cost), "fill") } : {}),
+    }));
   }
 
   /** The card list's sort (issue #594), the builder's own kept setting. */
@@ -654,7 +668,7 @@ export class DeckCheckScene extends Phaser.Scene {
       label: t("deckCheck.startGame"),
       look: "primary",
       type: typeRole.barTitle,
-      ...(canStart ? {} : { disabled: "Setup flow isn't built yet — coming with the title-menu rework (W2)." }),
+      ...(canStart ? {} : { disabled: t("deckCheck.startUnavailable") }),
     });
     const start = (): void => this.#onStartGame?.(this);
     this.#actions.set("start", start);
@@ -736,7 +750,7 @@ export class DeckCheckScene extends Phaser.Scene {
     }
     b.barChart(
       { x: chart.x + 12, y: chart.y + 38, width: chart.width - 24, height: chart.height - 44 },
-      this.#barsOf(stats),
+      this.#barsOf(stats, true),
     );
     let y = chart.y + chart.height + 12;
     const tile = (label: string, count: number): StatTile => ({ id: label, text: `${label} ${count}` });
