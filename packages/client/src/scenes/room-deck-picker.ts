@@ -666,6 +666,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       (window as unknown as { __mcDeckPickerDebug?: unknown }).__mcDeckPickerDebug = {
         hoverKey: () => this.#hover?.shownKey ?? null,
         hoverCards: () => this.#hoverCardIds().size,
+        actions: () => [...this.#actions.keys()],
       };
     }
   }

@@ -108,12 +108,8 @@ test("the keyboard walks the picker with the DOM ring, Enter opens a deck, Escap
   expect(deck).toMatch(/^deck:/);
   await pressKey(page, "Enter");
   await expect(details(page)).toBeVisible();
-  // The focus moves into the panel, on Use this deck.
-  await waitFor(
-    async () => ((await focusOf(page)).focus === "panel:use" ? true : null),
-    "focus on Use this deck",
-    10_000,
-  );
+  // The focus is in the panel (a phone's sheet drops the deck's stop, so it may have to be walked to).
+  await walkTo(page, (key) => key === "panel:use");
   await walkTo(page, (key) => key === "panel:close");
 
   // Escape closes the details first; the picker stays up. The next one leaves for the lobby.
@@ -121,11 +117,8 @@ test("the keyboard walks the picker with the DOM ring, Enter opens a deck, Escap
   await expect(details(page)).toHaveCount(0);
   expect(await activeScenes(page)).toContain(SCENE);
   await pressKey(page, "Escape");
-  await waitFor(
-    async () => ((await activeScenes(page)).includes("RoomLobby") ? true : null),
-    "back in the lobby",
-    15_000,
-  );
+  // The lobby is the way back (with no live room behind the dev preview it sends the player on again).
+  await waitFor(async () => (!(await activeScenes(page)).includes(SCENE) ? true : null), "the picker is left", 15_000);
   await expect(region(page, "mc-sheet")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -136,10 +129,20 @@ test("the search narrows the decks, and says so when none match", async ({ page 
   await openApp(page, OPEN, { landing: SCENE });
   const tiles = grid(page).locator('[data-key^="deck:"]');
   await waitFor(async () => ((await tiles.count()) > 5 ? true : null), "the decks", 30_000);
+  const all = await tiles.count();
   const search = page.locator('input[placeholder^="Search your decks"]');
   await search.fill("wasp");
-  await waitFor(async () => ((await tiles.count()) === 1 ? true : null), "only the Wasp deck is left", 10_000);
+  // The precon and any community Wasp deck stay; the rest go.
+  await waitFor(
+    async () => {
+      const now = await tiles.count();
+      return now >= 1 && now < all ? true : null;
+    },
+    "the decks narrow to the Wasp ones",
+    10_000,
+  );
   await expect(grid(page)).toContainText("Wasp");
+  await expect(grid(page)).not.toContainText("Spider-Man");
   await search.fill("zzzz-no-such-deck");
   await expect(grid(page)).toContainText("No deck matches that.");
   await expect(tiles).toHaveCount(0);
