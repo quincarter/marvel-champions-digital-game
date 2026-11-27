@@ -114,6 +114,8 @@ for (const inline of [false, true])
   for (const view of VIEWS)
     for (const screen of SCREENS) {
       if (inline && view.name === "1440p, locked tiles") continue;
+      // Scenario select has no card-face baker any more (its tiles are panels): nothing there paints on the main thread.
+      if (inline && screen.scene === "ScenarioSelect") continue;
       test.describe(`${view.name}${inline ? ", card faces painted on the main thread" : ""}`, () => {
         test.use({ viewport: view.size, deviceScaleFactor: view.scale });
         test(`${screen.name}: Y with the list scrolled far down opens the Filters and the page keeps rendering`, async ({

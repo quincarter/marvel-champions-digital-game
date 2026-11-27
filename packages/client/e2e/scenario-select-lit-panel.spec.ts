@@ -57,6 +57,8 @@ test("a tap picks a villain, SELECTED says so, and Choose heroes goes on to Take
   test.setTimeout(120_000);
   await openScreen(page);
   expect(await selected(page)).not.toBe("klaw");
+  // On a phone the second tile of the row starts past the screen edge: bring it in, as a swipe would.
+  await page.locator(`${panel} [data-key="entry:klaw"]`).first().scrollIntoViewIfNeeded();
   await clickStop(page, "scenario:klaw", "ScenarioSelect");
   await waitFor(async () => ((await selected(page)) === "klaw" ? true : null), "Klaw is picked", 10_000);
   expect(await findText(page, "Selected", "ScenarioSelect")).not.toHaveLength(0);
