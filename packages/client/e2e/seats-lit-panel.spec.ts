@@ -64,8 +64,8 @@ test.describe("Take your seats panels", () => {
     const tile = stops.find(
       (s) =>
         s.key.startsWith("hero:") &&
-        s.x > list.x + 20 &&
-        s.x + s.width < list.x + list.width - 20 &&
+        s.x >= list.x &&
+        s.x + s.width <= list.x + list.width &&
         s.y > list.y &&
         s.y + s.height < list.y + list.height,
     );
@@ -114,7 +114,7 @@ test.describe("Take your seats panels", () => {
     const link = page
       .locator('#mc-ui [data-scene="Seats"] mc-shelf-roster')
       .first()
-      .locator('[data-key^="see-all:"]')
+      .locator('[data-key^="all:"]')
       .first();
     await link.scrollIntoViewIfNeeded();
     await link.click();

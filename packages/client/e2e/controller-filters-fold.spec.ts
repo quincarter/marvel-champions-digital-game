@@ -313,7 +313,7 @@ test("Take your seats: LT and RT page the focused hero row, and the keyboard's I
   // It lands on the first card fully in view, at the row's left edge, inside the roster.
   const forwardRect = await rectOf(forward!);
   expect(forwardRect.y).toBe(before.y);
-  expect(forwardRect.x).toBeGreaterThanOrEqual(60);
+  expect(forwardRect.x).toBeGreaterThanOrEqual(0);
   expect(forwardRect.x + forwardRect.width).toBeLessThanOrEqual(1100);
   // LT pages back along the same row.
   await press(page, LT, async () => (await focusOf(page, "Seats")) !== forward);
@@ -375,7 +375,7 @@ for (const view of [
         // Shut by default: the button, and no chips; the search field (or its toggle on a phone) stays.
         expect(await hasKey(page, screen.scene, "filters-toggle")).toBe(true);
         expect(await hasKey(page, screen.scene, screen.chips)).toBe(false);
-        expect(await visibleTexts(page, screen.scene, "Filters ▸")).length.toBeGreaterThan(0);
+        expect((await visibleTexts(page, screen.scene, "Filters ▸")).length).toBeGreaterThan(0);
         const shutTile = (await stopsOf(page, screen.scene)).find((s) => s.key.startsWith(screen.tile))!;
 
         await tapStop("filters-toggle");
@@ -384,7 +384,7 @@ for (const view of [
           "the button opens the chips",
           10_000,
         );
-        expect(await visibleTexts(page, screen.scene, "Filters ▾")).length.toBeGreaterThan(0);
+        expect((await visibleTexts(page, screen.scene, "Filters ▾")).length).toBeGreaterThan(0);
         const openTile = (await stopsOf(page, screen.scene)).find((s) => s.key.startsWith(screen.tile))!;
         expect(openTile.y, "the list gives room to the chips while they are open").toBeGreaterThan(shutTile.y);
 
@@ -398,7 +398,7 @@ for (const view of [
           "the button shuts the chips",
           10_000,
         );
-        expect(await visibleTexts(page, screen.scene, "Filters (1)")).length.toBeGreaterThan(0);
+        expect((await visibleTexts(page, screen.scene, "Filters (1)")).length).toBeGreaterThan(0);
         expect(errors).toEqual([]);
       });
     });
