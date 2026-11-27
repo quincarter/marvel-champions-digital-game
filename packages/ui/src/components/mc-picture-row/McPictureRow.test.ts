@@ -42,7 +42,8 @@ describe("mc-picture-row", () => {
   });
 
   it("marks a chosen, a problem and a faded row with classes the stylesheet reads", async () => {
-    const chosen = await row({ ...model, group: undefined, selected: true });
+    const { group: _group, ...ungrouped } = model;
+    const chosen = await row({ ...ungrouped, selected: true });
     expect(chosen.shadowRoot!.querySelector(".card")!.classList.contains("selected")).toBe(true);
     expect(chosen.shadowRoot!.querySelector<HTMLElement>(".card")!.style.top).toBe("2px");
     const bad = await row({ ...model, alert: true, dim: true });
