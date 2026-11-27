@@ -644,6 +644,26 @@ export class SheetBuilder {
     this.nodes.push({ kind: "mediaRow", key, rect: this.#rect(rect), ...row });
   }
 
+  /** A text field (`mc-text-field`) filling `rect`; listen for `mc-input` and `mc-field-focus`. */
+  textField(
+    rect: Rect,
+    options: {
+      readonly key: string;
+      readonly value: string;
+      readonly placeholder: string;
+      readonly multiline?: boolean;
+    },
+  ): void {
+    this.nodes.push({
+      kind: "textField",
+      key: options.key,
+      rect: this.#rect(rect),
+      value: options.value,
+      placeholder: options.placeholder,
+      ...(options.multiline ? { multiline: true } : {}),
+    });
+  }
+
   /** A picture row (`mc-picture-row`) filling `rect`; decorative, put a `tap` over it. */
   pictureRow(rect: Rect, model: McPictureRowModel, key?: string): void {
     this.nodes.push({ kind: "pictureRow", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });

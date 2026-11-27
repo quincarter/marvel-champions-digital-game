@@ -451,6 +451,16 @@ export interface SheetPictureRow {
   readonly model: McPictureRowModel;
 }
 
+/** A text field (`mc-text-field`) filling `rect`: one line or `multiline`; raises `mc-input` and `mc-field-focus`. */
+export interface SheetTextField {
+  readonly kind: "textField";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly value: string;
+  readonly placeholder: string;
+  readonly multiline?: boolean;
+}
+
 export interface SheetMediaRow {
   readonly kind: "mediaRow";
   readonly key: string;
@@ -501,5 +511,6 @@ export type SheetNode =
   | SheetEmptyState
   | SheetFilterBar
   | SheetMediaRow
+  | SheetTextField
   | SheetPictureRow
   | SheetScroll;

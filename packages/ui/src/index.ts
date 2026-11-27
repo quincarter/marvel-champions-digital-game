@@ -35,6 +35,8 @@ export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
 export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
 export { McArticle } from "./components/mc-article/mc-article.js";
 export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
+export { McTextField } from "./components/mc-text-field/mc-text-field.js";
+export type { McFieldFocusDetail, McInputDetail } from "./components/mc-text-field/mc-text-field.types.js";
 export { McPictureRow } from "./components/mc-picture-row/mc-picture-row.js";
 export type { McPictureRowModel, McPictureRowStamp } from "./components/mc-picture-row/mc-picture-row.types.js";
 export { McMediaRow } from "./components/mc-media-row/mc-media-row.js";
@@ -81,6 +83,7 @@ export type {
   SheetImage,
   SheetListRow,
   SheetMediaRow,
+  SheetTextField,
   SheetPictureRow,
   SheetNode,
   SheetPictureCard,

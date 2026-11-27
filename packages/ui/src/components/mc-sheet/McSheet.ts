@@ -10,6 +10,7 @@ import "../mc-glyph/mc-glyph.js";
 import "../mc-section-header/mc-section-header.js";
 import "../mc-tab-rail/mc-tab-rail.js";
 import "../mc-picture-row/mc-picture-row.js";
+import "../mc-text-field/mc-text-field.js";
 import "../mc-picture-tile/mc-picture-tile.js";
 import "../mc-picture-card/mc-picture-card.js";
 import "../mc-list-row/mc-list-row.js";
@@ -714,6 +715,15 @@ export class McSheet extends LitElement {
           .pictureMax=${node.pictureMax}
           .pad=${node.pad}
         ></mc-article>`;
+      case "textField":
+        return html`<mc-text-field
+          class="part"
+          data-key=${node.key}
+          style=${px(node.rect)}
+          .value=${node.value}
+          .placeholder=${node.placeholder}
+          ?multiline=${node.multiline ?? false}
+        ></mc-text-field>`;
       case "pictureRow":
         return html`<mc-picture-row
           class="part"
