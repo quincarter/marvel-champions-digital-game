@@ -86,6 +86,7 @@ Elektra and Iron Fist are playable, with their precon decks, their obligation an
 - Page panels keep their colors with the Dark Reader extension on (the game opts out of it; use the game's own dark mode).
 - The Rules reference closes on its own Escape instead of also leaving How to play, the notice's ring stays on the button it was moved to, and the game log's close button is found on its first draw
 - Every Lit sheet's close and back control now has a 44px press area around the drawn control, so the Pause, Settings, Rules reference, How to play, Controls, Save data, Unlocks and game log closes are easy to hit on a phone
+- Releases no longer rewrite the card-data SCHEMA_VERSION to the release number; it stays 1.0.0 and changes only on a breaking card-data shape change
 
 ### Engine
 
