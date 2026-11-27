@@ -407,7 +407,9 @@ test("the ring follows a Settings row that scrolls under it", async ({ page }) =
   await page.keyboard.press("Shift+Tab");
   await page.waitForTimeout(200);
   const before = (await stateOf(page, "SettingsOverlay"))?.ringRect;
-  await page.mouse.wheel(0, -200);
+  // A short scroll: the focused row stays inside the Settings box (a longer one carries it below the box, where the
+  // ring hides on purpose), and it is a DOM scroll, so the row moves exactly as far as the wheel says.
+  await page.mouse.wheel(0, -60);
   await page.waitForTimeout(600);
   const after = (await stateOf(page, "SettingsOverlay")) as FocusState;
   expect(after.ringShown).toBe(true);

@@ -29,6 +29,8 @@ test("Art & Credits is a Lit panel that scrolls, takes focus and leaves with its
   );
 
   // The keyboard walks the entries; the ring is drawn in the DOM, over the panel.
+  // The first arrow takes the first stop (Back, as on every screen), the next one walks down to an entry.
+  await pressKey(page, "ArrowDown");
   await pressKey(page, "ArrowDown");
   await waitFor(
     async () => {

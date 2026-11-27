@@ -156,7 +156,6 @@ export class LogPanel {
   }
 
   draw(scene: Phaser.Scene, rect: Rect, log: LogState, options: LogPanelOptions): void {
-    this.#rect = rect;
     this.#onClose = options.onClose;
     // The ground stays in Phaser too: while the panel is hidden under a scene's scrim (the decision sheet), the dimmed
     // panel is still there rather than a hole in the table.
@@ -166,6 +165,8 @@ export class LogPanel {
     addPressShield(scene, rect);
 
     if (this.#scene !== scene) this.#mount(scene, rect);
+    // After the mount: a new mount tears the old panel down first, which forgets where it was drawn.
+    this.#rect = rect;
     const region = this.#region!;
     region.setRect(rect);
     region.setHidden(false);
