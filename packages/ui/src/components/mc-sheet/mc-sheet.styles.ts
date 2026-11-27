@@ -16,6 +16,10 @@ export const McSheetStyles = css`
     position: absolute;
     box-sizing: border-box;
   }
+  /* A drawing is decoration: a press goes through it to the control under it (a magnifier on its button). */
+  svg.part {
+    pointer-events: none;
+  }
   .text {
     line-height: 1.2;
     pointer-events: none;

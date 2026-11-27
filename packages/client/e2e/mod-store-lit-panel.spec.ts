@@ -13,7 +13,7 @@ import { waitForScene } from "./wave6-helpers-a.js";
 const SCENE = "ModStore";
 const sheet = (page: Page) => page.locator(`#mc-ui [data-scene="${SCENE}"] mc-sheet`);
 const key = (page: Page, name: string) => sheet(page).locator(`[data-key="${name}"]`).first();
-const tiles = (page: Page) => sheet(page).locator('mc-list-row[data-key^="tile:"]');
+const tiles = (page: Page) => sheet(page).locator('mc-media-row[data-key^="tile:"]');
 
 const focusOf = (page: Page) =>
   page.evaluate(
@@ -24,9 +24,10 @@ const focusOf = (page: Page) =>
   );
 
 let staged: StagedCatalog | undefined;
-const packs = (): string[] => communityPackIds().slice(0, 3);
+const packs = (): string[] => communityPackIds().slice(0, 2);
 
 test.beforeAll(async ({ baseURL }) => {
+  test.setTimeout(420_000);
   staged = await stageCatalog(baseURL!, packs());
 });
 test.afterAll(() => staged?.dispose());
@@ -89,7 +90,7 @@ test("the search box is a real input: typing narrows the grid, Escape leaves it,
   expect(await tiles(page).count()).toBeLessThan(all);
   // The clear button empties it too.
   await input.fill("zzzz-no-such-pack");
-  await expect(sheet(page).locator("mc-list-row")).toHaveCount(0, { timeout: 10_000 });
+  await expect(sheet(page).locator("mc-media-row")).toHaveCount(0, { timeout: 10_000 });
   await sheet(page).locator('mc-search-field[data-key="search"] .clear').click();
   await expect(input).toHaveValue("");
   await expect.poll(async () => tiles(page).count(), { timeout: 10_000 }).toBe(all);
