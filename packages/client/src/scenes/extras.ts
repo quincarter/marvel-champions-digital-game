@@ -14,48 +14,57 @@
  *   A promo card's viewer is where it is picked for use, and it tells this scene to redraw (`PROMO_CHANGED`).
  * - **Music** plays the song through the music controller's jukebox, until Title (or any other screen) asks for its
  *   own music again. With shuffle on (#191) the shuffle carries on from it instead.
+ *
+ * **One Lit panel over the canvas** (`mc-sheet`, `dom/sheet-builder.ts`, as `scenes/how-to-play.ts` is) at the rects
+ * `view/extras-model.ts` gives: the ink top bar (`dom/sheet-top-bar.ts`), the two doors, the tab rail and one natively
+ * scrolling shelf of tiles whose pictures are lazy `<img>`s (a locked tile's a gray, faded ghost). The Music tab's
+ * player stays a Phaser widget (`ui/now-playing-panel.ts`: a progress bar that moves every frame, a volume slider
+ * shared with the jukebox popover) shown through a hole in the panel, so it behaves as it always did. The scene keeps
+ * the focus route (its ring drawn in the DOM, `dom/dom-ring.ts`), the card hover popover over the promo tiles (shown
+ * through a hole too), navigation and the music controller's wiring.
  */
 import Phaser from "phaser";
-import { accent, hit, ink, surface, typeRole } from "../tokens.js";
-import { bangers, campaignFrame, drawPicture, drawTopBar, drawnPictureKey } from "../ui/campaign-chrome.js";
+import "@mc/ui";
+import type { McSheet } from "@mc/ui";
+import { hit, minType, surface, typeRole } from "../tokens.js";
+import { campaignFrame } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McTabs, fitText } from "../ui/widgets.js";
-import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
+import { isDesktopType } from "../ui/desktop-type.js";
+import { cssOf } from "../ui/theme.js";
+import type { McButton } from "../ui/widgets.js";
 import { drawNowPlayingPanel, type NowPlayingPanel } from "../ui/now-playing-panel.js";
 import { earnedSongsOf } from "../view/music-player.js";
-import { fadeScreenIn, goToScreen, holdScreenFor, isScreenHeld, revealWhenPainted } from "../ui/transitions.js";
-import { paintScrolledIn } from "../ui/lazy-text.js";
-import { ListScroll } from "../view/list-scroll.js";
+import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
 import type { Rect } from "../view/layout.js";
 import {
   extrasGridOf,
   extrasRowCount,
   extrasSummaryOf,
   extrasTabsOf,
-  extrasTileAt,
   extrasTileRect,
   extrasTilesOf,
-  type ExtrasGrid,
   type ExtrasTileView,
 } from "../view/extras-model.js";
 import { EXTRAS_TABS, type ExtrasTab } from "../progression/extras.js";
 import { extras, refreshUnlocks } from "../progression/progression.js";
 import { appSession } from "../session.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder } from "../dom/sheet-builder.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { sheetTopBar } from "../dom/sheet-top-bar.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
-import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
+import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { PROMO_SETS, promoFaceArt } from "../art/promo-art.js";
+import type { ArtSource } from "../art/art-source.js";
 import type { CampaignOpenerData } from "./campaign/routes.js";
 import type { ExtrasViewerData } from "./extras-viewer.js";
 import type { ExtrasReaderData } from "./extras-reader.js";
 import type { SideStoryReaderData } from "./side-story-reader.js";
 import { t } from "../i18n/translate.js";
-import { isPictureSettled, onPictureLoadFailed } from "../art/pictures.js";
-import { PictureWait } from "../ui/picture-wait.js";
-import { markRenderDirty } from "../ui/idle-render.js";
+import { onLanguageChange } from "../language-change.js";
 
 export interface ExtrasSceneData {
   /** The tab to open on: a story read comes back to Stories. Defaults to the tab open last time. */
@@ -63,44 +72,47 @@ export interface ExtrasSceneData {
 }
 
 const TAB_HEIGHT = 44;
-
-/**
- * The shelf's first build, while the screen is held on the void, draws rows for this long in a frame and the rest on
- * the frames after (issue #722): the whole window at once was a 30 ms frame on its own.
- */
-const FIRST_BUILD_BUDGET_MS = 4;
+/** The scrolling shelf's key in the panel. */
+const SHELF = "shelf";
 
 /** Emitted on this scene by the viewer when a promo card is picked or dropped. */
 export const PROMO_CHANGED = "promo-changed";
 
+/** A promo tile's place on the shelf (content space) and what its hover popover shows. */
+interface PromoTarget {
+  readonly cardId: string;
+  readonly art: ArtSource;
+  readonly rect: Rect;
+}
+
 export class ExtrasScene extends Phaser.Scene {
   #tab: ExtrasTab = "stories";
   /** One scroll position per tab, kept across visits (Phaser reuses this scene instance). */
-  readonly #scrolls = new Map<ExtrasTab, ListScroll>();
+  readonly #scrolls = new Map<ExtrasTab, number>();
+  /** The tab the panel's shelf is showing now, to tell a new tab (read from its own scroll) from a redraw (kept). */
+  #shownTab: ExtrasTab | null = null;
+  /** The Music tab's Phaser player, with its buttons. */
   #buttons: McButton[] = [];
-  #tabs: McTabs | null = null;
-  #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
-  #hints!: GlyphHints;
+  #glyphs!: SheetGlyphs;
   #obstacles: Rect[] = [];
   #redrawQueued = false;
-  /**
-   * The next draw shows a different tab's shelf: its tiles' labels are painted off the main thread and the shelf
-   * fades in once they are, so the tap that changes tab isn't held while some forty labels are painted.
-   */
-  #freshShelf = false;
   /** Between `create` and shutdown. Not `sys.isActive()`, which is still false while `create` itself draws. */
   #alive = false;
   /** The Music tab's expanded player (#191), whose progress bar moves every frame. */
   #player: NowPlayingPanel | null = null;
+  /** Where the player is on screen, left out of the panel to be seen through it. */
+  #playerRect: Rect | null = null;
   #unsubscribe: (() => void) | null = null;
   #hover: HoverPreview | null = null;
   /** The Promo Cards tab's tiles as drawn, for the hover popover: a locked one shows what there is to earn. */
-  #promoTiles: (() => ReadonlyMap<string, HoverCardIdRect>) | null = null;
-  /** Tiles drawn before their pictures loaded: the screen's entrance waits for them (issue #716). */
-  #pictures = new PictureWait(() => false);
-  /** True until the first draw of this visit: the one built while the screen is held on the void. */
-  #firstBuild = false;
+  #promoTargets = new Map<string, PromoTarget>();
+  /** The shelf's own box, which a hover rect is clipped to. */
+  #listRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  /** The screen, one Lit panel over the canvas; made on the first draw and kept, so the shelf's scroll stays. */
+  #region: DomRegion<McSheet> | null = null;
+  /** What each key in the panel does when tapped, this draw. */
+  #actions = new Map<string, () => void>();
 
   constructor() {
     super(SCENES.extras);
@@ -114,54 +126,56 @@ export class ExtrasScene extends Phaser.Scene {
     this.#tab = data.tab ?? this.#tab;
     this.#redrawQueued = false;
     this.#alive = true;
-    this.#pictures = new PictureWait((key) => isPictureSettled(this, key));
-    this.#firstBuild = true;
-    // A picture that fails to load is settled too: the wait checks again, rather than holding to the cap.
-    const offFailures = onPictureLoadFailed(() => this.#pictures.arrived());
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, offFailures);
+    this.#region = null;
+    this.#shownTab = null;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
+    const offLanguage = onLanguageChange(() => {
+      if (this.#alive) this.#draw();
+    });
     // A glyph that would hang over another control is not drawn (the phone's Back hint, over the Trophy Room button).
-    this.#hints = new GlyphHints(this, () => this.#obstacles);
+    this.#glyphs = new SheetGlyphs(
+      this,
+      () => this.#draw(),
+      () => this.#obstacles,
+    );
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       blocked: () => this.scene.isActive(SCENES.extrasViewer),
       onCancel: () => this.#back(),
       // LB / RB (and the zone keys) step the tabs along the top; Page Up / Down still page the shelf.
       onTab: (direction) => this.#stepTab(direction),
-      onPage: (direction) => this.#list?.scrollByPage(direction),
-      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      onPage: (direction) => this.#scroller()?.scrollBy({ top: direction * this.#listRect.height * 0.9 }),
+      onScroll: (_dx, dy) => this.#scroller()?.scrollBy({ top: dy }),
     });
     // A new song (the shuffle moving on, or Next) redraws the Music tab's player and its playing row.
     this.#unsubscribe = appSession().music?.onTrackStart(() => this.#requestRedraw()) ?? null;
+    resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
-      cardIds: () => this.#promoTiles?.() ?? new Map(),
+      cardIds: () => this.#hoverCards(),
       area: (pointer) => (this.scene.isActive(SCENES.extrasViewer) ? null : screenHoverArea(this, pointer)),
     });
     this.events.on(PROMO_CHANGED, this.#requestRedraw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      this.#scrolls.set(this.#tab, this.#scroller()?.scrollTop ?? this.#scrolls.get(this.#tab) ?? 0);
       this.#hover?.destroy();
       this.#hover = null;
       this.events.off(PROMO_CHANGED, this.#requestRedraw, this);
       this.scale.off("resize", this.#draw, this);
+      offLanguage();
       this.#unsubscribe?.();
       this.#unsubscribe = null;
-      this.#hints.dispose();
+      this.#glyphs.dispose();
       this.#destroyWidgets();
+      // The panel goes with the scene (`DomRegion`); the next open makes a new one.
+      this.#region = null;
     });
     this.#draw();
     fadeScreenIn(this);
-    // The shelf as the saves have it now: drawn before the screen fades in, rather than redrawn as it does. Its tiles'
-    // pictures are waited for too, so the screen arrives with them in place and their first upload and render happen
-    // while it is still on the void, not across the fade (issue #716). The hold is capped, so a slow picture can't
-    // keep the screen dark.
-    // The shelf's rows (built over a few frames, `FIRST_BUILD_BUDGET_MS`), then the pictures those rows asked for.
-    holdScreenFor(
-      this,
-      (this.#list?.ready ?? Promise.resolve()).then(() => this.#pictures.settled()),
-    );
-    // Drawn again only when the read changed something the shelf shows (an unlock, or Extras progress, which makes a
-    // new `extras()`): a redraw of the whole screen was a second long frame on every visit (issue #722).
+    // The shelf as the saves have it now: drawn before the screen fades in, rather than redrawn as it does. Drawn again
+    // only when the read changed something the shelf shows (an unlock, or Extras progress, which makes a new
+    // `extras()`): a redraw of the whole screen was a second long frame on every visit (issue #722).
     const shown = extras();
     holdScreenFor(
       this,
@@ -170,33 +184,24 @@ export class ExtrasScene extends Phaser.Scene {
         .then((changed) => {
           if (!changed && extras() === shown) return;
           this.#draw();
-          holdScreenFor(
-            this,
-            (this.#list?.ready ?? Promise.resolve()).then(() => this.#pictures.settled()),
-          );
         }),
     );
   }
 
-  /**
-   * Pictures arrived (once per batch, `ensurePictureLoaded`): the drawn tiles waiting for them fill themselves in
-   * (`McVirtualList#refreshRows`) rather than the whole screen being drawn again, which made the first fade into
-   * Extras step through 100–190 ms frames (issue #716). One stable function, so the loader tells it once per batch.
-   */
-  readonly #pictureArrived = (): void => {
-    if (!this.#alive) return;
-    this.#list?.refreshRows();
-    markRenderDirty();
-    this.#pictures.arrived();
-  };
+  #scroller(): HTMLElement | null {
+    return this.#region?.element.elementOf(SHELF) ?? null;
+  }
 
-  #scroll(tab: ExtrasTab): ListScroll {
-    let scroll = this.#scrolls.get(tab);
-    if (!scroll) {
-      scroll = new ListScroll();
-      this.#scrolls.set(tab, scroll);
+  /** The promo tiles in view, with their place on screen (the shelf's scroll applied), for the hover popover. */
+  #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const list = this.#listRect;
+    const scrolled = this.#scroller()?.scrollTop ?? 0;
+    for (const [slot, target] of this.#promoTargets) {
+      const shown = clipHoverRect({ ...target.rect, y: list.y + target.rect.y - scrolled }, list);
+      if (shown) found.set(slot, { ...shown, cardId: target.cardId, art: target.art, through: true });
     }
-    return scroll;
+    return found;
   }
 
   #back(): void {
@@ -206,8 +211,8 @@ export class ExtrasScene extends Phaser.Scene {
 
   #select(tab: ExtrasTab): void {
     if (tab === this.#tab) return;
+    this.#scrolls.set(this.#tab, this.#scroller()?.scrollTop ?? 0);
     this.#tab = tab;
-    this.#freshShelf = true;
     this.#draw();
   }
 
@@ -215,7 +220,10 @@ export class ExtrasScene extends Phaser.Scene {
   #stepTab(direction: 1 | -1): void {
     const at = EXTRAS_TABS.findIndex((tab) => tab.id === this.#tab);
     const next = EXTRAS_TABS[at + direction];
-    if (next) this.#select(next.id);
+    if (next) {
+      this.#select(next.id);
+      this.#route?.focusKey(`tab:${next.id}`);
+    }
   }
 
   /** A picture arriving redraws once, however many arrive in the same frame. */
@@ -266,10 +274,6 @@ export class ExtrasScene extends Phaser.Scene {
   #destroyWidgets(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.#tabs?.destroy();
-    this.#tabs = null;
-    this.#list?.destroy();
-    this.#list = null;
     this.#player = null;
   }
 
@@ -277,23 +281,34 @@ export class ExtrasScene extends Phaser.Scene {
     if (!this.#alive) return;
     this.#destroyWidgets();
     destroyChildren(this);
-    this.#hints.reset();
+    this.#glyphs.reset();
     this.#obstacles = [];
+    this.#actions = new Map();
+    this.#promoTargets = new Map();
+    this.#playerRect = null;
+    resetHoverCards(this);
 
     const frame = campaignFrame(this);
     const { width, height, phone, gutter } = frame;
     const current = extras();
     const stops = new Map<string, FocusStop>();
+    const b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
 
+    // The ground under the panel too: the chrome buttons' holes in the panel (the dark mode toggle) and the player's
+    // hole show the canvas.
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
-    const bar = drawTopBar(this, {
-      backLabel: phone ? "◂" : "◂ TITLE",
-      onBack: () => this.#back(),
-      title: "Extras",
+    this.add.rectangle(0, 0, width, frame.topBar, surface.ink.hex).setOrigin(0, 0);
+    b.box({ x: 0, y: 0, width, height }, { fill: surface.paper.hex });
+    const bar = sheetTopBar(b, this.#glyphs, {
+      frame,
+      backLabel: phone ? "◂" : t("extras.back"),
+      title: t("title.extras"),
       right: extrasSummaryOf(current),
     });
-    if (bar.back) this.#buttons.push(bar.back);
-    if (bar.backRect) stops.set("back", { rect: bar.backRect, activate: () => this.#back() });
+    if (bar.backRect) {
+      this.#actions.set("back", () => this.#back());
+      stops.set("back", { rect: bar.backRect, activate: () => this.#back() });
+    }
 
     // The Trophy Room and Art & Credits doors: beside the tabs on a wide screen, on a row of their own above them on a
     // phone. (The Mod Store moved to the main menu: issue #734; opening a replay file to Past games: #858.)
@@ -303,18 +318,9 @@ export class ExtrasScene extends Phaser.Scene {
     // The doors beside the tab strip leave it too narrow to print every tab's label whole at some widths (measured, not
     // guessed): then the doors take rows of their own above it, three across, or two to a row on a phone.
     const tabs = extrasTabsOf(current);
+    const tabType = { ...typeRole.label, size: Math.max(minType.phoneLabel, typeRole.label.size) };
     const widestTab = Math.max(
-      ...tabs.map((tab) => {
-        const probe = this.add.text(
-          0,
-          0,
-          (phone ? tab.name : tab.label).toUpperCase(),
-          textStyle(typeRole.label, surface.ink.hex),
-        );
-        const w = probe.width;
-        probe.destroy();
-        return w;
-      }),
+      ...tabs.map((tab) => b.measure((phone ? tab.name : tab.label).toUpperCase(), typeRole.label).width),
     );
     const besideTabsWidth = width - gutter * 2 - trophyWidth - 12;
     const stackDoors = phone || besideTabsWidth / tabs.length < widestTab + 24;
@@ -339,49 +345,51 @@ export class ExtrasScene extends Phaser.Scene {
       this.scale.off("resize", this.#draw, this);
       goToScreen(this, SCENES.credits);
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: phone ? t("extras.trophies") : `${t("title.trophyRoom")} ▸`,
-        type: typeRole.label,
-        rect: trophyRect,
-        onClick: openTrophies,
-      }),
-      new McButton(this, {
-        kind: "secondary",
-        label: "Credits ▸",
-        type: typeRole.label,
-        rect: creditsRect,
-        onClick: openCredits,
-      }),
-    );
+    b.button({
+      key: "trophies",
+      rect: trophyRect,
+      label: phone ? t("extras.trophies") : `${t("title.trophyRoom")} ▸`,
+      look: "secondary",
+      type: typeRole.label,
+    });
+    b.button({
+      key: "credits",
+      rect: creditsRect,
+      label: t("extras.credits"),
+      look: "secondary",
+      type: typeRole.label,
+    });
+    this.#actions.set("trophies", openTrophies);
+    this.#actions.set("credits", openCredits);
     stops.set("trophies", { rect: trophyRect, activate: openTrophies });
     stops.set("credits", { rect: creditsRect, activate: openCredits });
 
     const tabRect: Rect = stackDoors
       ? { x: gutter, y: doorsBottom + 8, width: width - gutter * 2, height: TAB_HEIGHT }
       : { x: gutter, y: bar.height + 12, width: width - gutter * 2 - trophyWidth - 12, height: TAB_HEIGHT };
-    this.#tabs = new McTabs(this, {
-      rect: tabRect,
+    // The tab rail (`mc-tab-rail`): a recessed strip of equal cells, the active one an ink fill.
+    b.tabRail(tabRect, {
       tabs: tabs.map((tab) => ({ id: tab.id, label: phone ? tab.name : tab.label })),
-      activeId: this.#tab,
-      onSelect: (id) => this.#select(id as ExtrasTab),
+      selected: this.#tab,
+      size: tabType.size,
     });
-    // LB / RB, pad only, in the gap under the strip's right end.
-    this.#hints.custom(
-      (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
-      16,
-      ({ width }) => ({ x: tabRect.x + tabRect.width - width, y: tabRect.y + tabRect.height + 11 }),
-      { avoidObstacles: true },
-    );
-    this.#obstacles.push(trophyRect, creditsRect, tabRect);
-    if (bar.back) this.#hints.button(bar.back, ["cancel"], "paper");
     const tabWidth = tabRect.width / tabs.length;
     tabs.forEach((tab, index) => {
-      stops.set(`tab:${tab.id}`, {
-        rect: { x: tabRect.x + index * tabWidth, y: tabRect.y, width: tabWidth, height: tabRect.height },
-        activate: () => this.#select(tab.id),
-      });
+      const cell: Rect = { x: tabRect.x + index * tabWidth, y: tabRect.y, width: tabWidth, height: tabRect.height };
+      this.#actions.set(`tab:${tab.id}`, () => this.#select(tab.id));
+      stops.set(`tab:${tab.id}`, { rect: cell, activate: () => this.#select(tab.id) });
+    });
+    this.#obstacles.push(trophyRect, creditsRect, tabRect);
+    // LB / RB, pad only, in the gap under the strip's right end.
+    this.#glyphs.hint(b, {
+      key: "tab-step",
+      x: tabRect.x + tabRect.width,
+      y: tabRect.y + tabRect.height + 11 + 8,
+      ids: ["zonePrevious", "zoneNext"],
+      idsNow: (set) => (set === "pad" ? ["zonePrevious", "zoneNext"] : null),
+      height: 16,
+      ground: "paper",
+      alignRight: true,
     });
 
     // 22px under the strip: room for the LB / RB hint (14px tall) in the gap.
@@ -398,6 +406,7 @@ export class ExtrasScene extends Phaser.Scene {
         onChange: () => this.#draw(),
       });
       this.#player = player;
+      this.#playerRect = { x: gutter, y: listTop, width: width - gutter * 2, height: player.height };
       this.#buttons.push(...player.buttons);
       for (const stop of player.stops) {
         stops.set(`player:${stop.id}`, { rect: stop.rect, activate: stop.activate });
@@ -411,6 +420,7 @@ export class ExtrasScene extends Phaser.Scene {
       width: width - gutter * 2,
       height: Math.max(60, height - listTop - gutter),
     };
+    this.#listRect = listRect;
     // The scrollbar sits in the list's own right edge; keep tiles clear of it.
     const gridWidth = listRect.width - 12;
     const grid = extrasGridOf(gridWidth, this.#tab, phone);
@@ -418,232 +428,133 @@ export class ExtrasScene extends Phaser.Scene {
     const rows = extrasRowCount(tiles.length, grid);
     const playing = appSession().music?.nowPlaying()?.key ?? null;
 
-    const fresh = this.#freshShelf;
-    this.#freshShelf = false;
-    // The first build, and any other while the screen is still held (a resize, the redraw after the progress read).
-    const firstBuild = this.#firstBuild || isScreenHeld(this);
-    this.#firstBuild = false;
-    const appearing: Phaser.GameObjects.GameObject[] = [];
-    let collecting = fresh;
-    const makeList = (): McVirtualList =>
-      new McVirtualList(this, {
-        rect: listRect,
-        rowHeight: grid.rowHeight,
-        count: rows,
-        scroll: this.#scroll(this.#tab),
-        background: false,
-        ...(firstBuild ? { buildBudgetMs: FIRST_BUILD_BUDGET_MS } : {}),
-        renderRow: (rowIndex, rect) => {
-          const row = this.#renderRow(tiles, rowIndex, rect, grid, playing);
-          if (collecting) appearing.push(...row.objects);
-          return row;
-        },
-        onRowActivate: (rowIndex, pointer) => {
-          const index = extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length);
-          if (index !== null) this.#activate(tiles[index]!);
-        },
-        rowPressableAt: (rowIndex, pointer) =>
-          extrasTileAt(pointer.x, rowIndex, grid, listRect.x, tiles.length) !== null,
+    b.scroll(SHELF, listRect, rows * grid.rowHeight, (inner) => {
+      tiles.forEach((tile, index) => {
+        const rowIndex = Math.floor(index / grid.columns);
+        const rect = extrasTileRect(index, grid, { x: listRect.x, y: rowIndex * grid.rowHeight });
+        if (this.#tab === "music") this.#drawTrackRow(inner, tile, rect, playing);
+        else this.#drawTile(inner, tile, rect);
+        const key = `tile:${tile.id}`;
+        inner.tap(key, rect);
+        this.#actions.set(key, () => this.#activate(tile));
+        stops.set(
+          key,
+          this.#tileStop(key, () => this.#activate(tile)),
+        );
+        if (this.#tab !== "promos") return;
+        const set = PROMO_SETS.find((one) => `promo:${one.id}` === tile.id);
+        if (set) {
+          this.#promoTargets.set(hoverSlotOf(set.cardId, `promo${index}`), {
+            cardId: set.cardId,
+            art: promoFaceArt(set, set.faces[0]!),
+            rect,
+          });
+        }
       });
-    const list = fresh ? paintScrolledIn(makeList) : makeList();
-    collecting = false;
-    if (fresh) revealWhenPainted(this, appearing);
-    this.#list = list;
-    this.#promoTiles =
-      this.#tab === "promos"
-        ? () => {
-            const found = new Map<string, HoverCardIdRect>();
-            tiles.forEach((tile, index) => {
-              const set = PROMO_SETS.find((one) => `promo:${one.id}` === tile.id);
-              if (!set) return;
-              const rowRect = list.rectFor(Math.floor(index / grid.columns));
-              const shown = clipHoverRect(extrasTileRect(index, grid, rowRect), listRect);
-              if (!shown) return;
-              found.set(hoverSlotOf(set.cardId, `promo${index}`), {
-                ...shown,
-                cardId: set.cardId,
-                art: promoFaceArt(set, set.faces[0]!),
-                through: true,
-              });
-            });
-            return found;
-          }
-        : null;
-
-    const order = [
-      ...(bar.backRect ? ["back"] : []),
-      "trophies",
-      "credits",
-      ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`),
-      ...playerStops,
-    ];
-    tiles.forEach((tile, index) => {
-      const rowIndex = Math.floor(index / grid.columns);
-      order.push(`tile:${tile.id}`);
-      stops.set(`tile:${tile.id}`, {
-        rect: () => extrasTileRect(index, grid, list.rectFor(rowIndex)),
-        activate: () => this.#activate(tile),
-        ensureVisible: () => list.scrollIntoView(rowIndex),
-      });
+      if (tiles.length === 0) inner.emptyState(listRect.x, 0, t("extras.empty"));
     });
 
-    if (tiles.length === 0) {
-      this.add
-        .text(listRect.x, listRect.y, "Nothing here yet.", textStyle(typeRole.body, surface.ink.hex, ink.secondary))
-        .setFontSize(14);
-    }
+    this.#mount(width, height, b);
+    this.#hover?.onDraw();
 
-    this.#route?.set(order, stops);
+    this.#route?.set(
+      [
+        ...(bar.backRect ? ["back"] : []),
+        "trophies",
+        "credits",
+        ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`),
+        ...playerStops,
+        ...tiles.map((tile) => `tile:${tile.id}`),
+      ],
+      stops,
+    );
   }
 
-  #renderRow(
-    tiles: readonly ExtrasTileView[],
-    rowIndex: number,
-    rect: Rect,
-    grid: ExtrasGrid,
-    playing: string | null,
-  ): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const waiting: (() => void)[] = [];
-    for (let column = 0; column < grid.columns; column += 1) {
-      const index = rowIndex * grid.columns + column;
-      const tile = tiles[index];
-      if (!tile) break;
-      const tileRect = extrasTileRect(index, grid, rect);
-      if (this.#tab === "music") objects.push(...this.#drawTrackRow(tile, tileRect, playing));
-      else objects.push(...this.#drawTile(tile, tileRect, waiting));
-    }
-    return waiting.length > 0 ? { objects, refresh: () => waiting.forEach((fill) => fill()) } : { objects };
-  }
-
-  #drawTile(tile: ExtrasTileView, rect: Rect, waiting: (() => void)[]): Phaser.GameObjects.GameObject[] {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const captionHeight = 52;
-    const art: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - captionHeight };
-
-    const ground = this.add.graphics();
-    ground.fillStyle(surface.ink.hex, 1).fillRect(art.x, art.y, art.width, art.height);
-    ground.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, art.y + art.height, rect.width, captionHeight);
-    objects.push(ground);
-
-    const portrait = this.#tab === "heroes" || this.#tab === "villains" || this.#tab === "promos";
-    const pictureOptions = {
-      focusY: portrait ? 0.2 : 0.4,
-      // Locked: a gray ghost of the picture on the ink ground, so the shelf shows what there is to earn.
-      ...(tile.open ? {} : { grayscale: true, alpha: 0.3 }),
-      // A shelf of tiles, each a large picture drawn small (issue #722).
-      scaleToSlot: true,
+  /** A stop inside the scrolling shelf: its box is read off the panel, so it follows the scroll, and taking focus scrolls it into view. */
+  #tileStop(key: string, activate: () => void): FocusStop {
+    const region = (): DomRegion<McSheet> | null => this.#region;
+    return {
+      rect: () => {
+        const found = region()?.element.elementOf(key);
+        return found ? region()!.rectOf(found) : this.#listRect;
+      },
+      view: () => {
+        const found = region()?.element.elementOf(SHELF);
+        return found ? region()!.rectOf(found) : this.#listRect;
+      },
+      activate,
+      ensureVisible: () => region()?.element.elementOf(key)?.scrollIntoView({ block: "nearest" }),
     };
-    const image = drawPicture(this, tile.thumb, art, this.#pictureArrived, pictureOptions);
-    if (image) {
-      objects.push(image);
-    } else {
-      // No picture yet: the entry's initial, big and faint, so the shelf still reads as a shelf, in a slot the picture
-      // takes over in place when it arrives.
-      const initial = this.add
-        .text(art.x + art.width / 2, art.y + art.height / 2, tile.title.charAt(0).toUpperCase(), {
-          ...textStyle(bangers(Math.round(art.height * 0.5)), surface.paper.hex, 0.18),
-        })
-        .setOrigin(0.5);
-      const slot = this.add.container(0, 0, [initial]);
-      objects.push(slot);
-      // Only a picture whose load was started is waited for (an empty slot starts none).
-      if (tile.thumb && art.width > 0 && art.height > 0) {
-        const key = drawnPictureKey(tile.thumb, art, !tile.open, true);
-        if (key) this.#pictures.expect(key);
-        waiting.push(() => {
-          if (!slot.active || slot.list[0] !== initial) return;
-          const arrived = drawPicture(this, tile.thumb, art, this.#pictureArrived, pictureOptions);
-          if (arrived) slot.removeAll(true).add(arrived);
-        });
-      }
-    }
-
-    // The status chip, top-left: what a tap does, or that it's locked.
-    const chipText = this.add
-      .text(0, 0, tile.open ? `${tile.action} ▸` : "LOCKED", textStyle(typeRole.label, surface.paper.hex, 1))
-      .setOrigin(0, 0);
-    const chipBox = this.add.graphics();
-    chipBox
-      .fillStyle(tile.open ? accent.heroRed.hex : surface.ink.hex, 1)
-      .fillRect(art.x + 8, art.y + 8, chipText.width + 12, chipText.height + 8);
-    if (!tile.open)
-      chipBox
-        .lineStyle(1, surface.paper.hex, 0.7)
-        .strokeRect(art.x + 8, art.y + 8, chipText.width + 12, chipText.height + 8);
-    chipText.setPosition(art.x + 14, art.y + 12);
-    objects.push(chipBox, chipText);
-
-    const frame = this.add.graphics();
-    frame.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
-    objects.push(frame);
-
-    const textWidth = rect.width - 16;
-    const title = this.add
-      .text(rect.x + 8, art.y + art.height + 7, tile.title, textStyle(typeRole.rowTitle, surface.ink.hex))
-      .setFontSize(13);
-    fitText(title, textWidth, 13);
-    const detail = this.add
-      .text(
-        rect.x + 8,
-        art.y + art.height + 27,
-        tile.open ? tile.subtitle : (tile.hint ?? ""),
-        textStyle(typeRole.body, tile.open ? surface.ink.hex : accent.heroRed.hex, tile.open ? ink.secondary : 1),
-      )
-      .setFontSize(10);
-    fitText(detail, textWidth, 10);
-    objects.push(title, detail);
-    return objects;
   }
 
-  #drawTrackRow(tile: ExtrasTileView, rect: Rect, playing: string | null): Phaser.GameObjects.GameObject[] {
-    const objects: Phaser.GameObjects.GameObject[] = [];
+  /** Hands the built parts to the panel (made once, so the shelf's scroll survives a redraw) and renders them now. */
+  #mount(width: number, height: number, builder: SheetBuilder): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      element.addEventListener("mc-activate", (event) => {
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#region = new DomRegion(this, element, { x: 0, y: 0, width, height });
+      // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas.
+      this.#region.forwardMouseMoves();
+    }
+    const region = this.#region;
+    region.setRect({ x: 0, y: 0, width, height });
+    // The Music tab's player and the hover popover are drawn in the canvas: left out of the panel to be seen through it.
+    region.setHoles(() => {
+      const holes: Rect[] = [];
+      if (this.#playerRect) holes.push(this.#playerRect);
+      const popover = this.#hover?.shownRect;
+      if (popover) holes.push(popover);
+      return holes;
+    });
+    region.element.nodes = builder.nodes;
+    renderNow(region.element);
+    // A tab opens where it was left; a redraw of the same tab keeps the scroll the panel already has.
+    if (this.#shownTab !== this.#tab) {
+      const scroller = this.#scroller();
+      if (scroller) scroller.scrollTop = this.#scrolls.get(this.#tab) ?? 0;
+      this.#shownTab = this.#tab;
+    }
+  }
+
+  #drawTile(b: SheetBuilder, tile: ExtrasTileView, rect: Rect): void {
+    const portrait = this.#tab === "heroes" || this.#tab === "villains" || this.#tab === "promos";
+    b.pictureTile(
+      rect,
+      {
+        src: tile.thumb?.url ?? null,
+        focusY: portrait ? 0.2 : 0.4,
+        // Locked: a gray ghost of the picture on the ink ground, so the shelf shows what there is to earn.
+        dim: !tile.open,
+        chip: tile.open ? `${tile.action} ▸` : t("extras.locked"),
+        chipTone: tile.open ? "action" : "locked",
+        title: tile.title,
+        detail: tile.open ? tile.subtitle : (tile.hint ?? ""),
+        detailTone: tile.open ? "meta" : "alert",
+        initial: tile.title.charAt(0).toUpperCase(),
+      },
+      `thumb:${tile.id}`,
+    );
+  }
+
+  #drawTrackRow(b: SheetBuilder, tile: ExtrasTileView, rect: Rect, playing: string | null): void {
     const content = tile.entry.content;
     const isPlaying = content.kind === "track" && playing === content.track.key;
-    const row: Rect = { x: rect.x, y: rect.y + 3, width: rect.width, height: rect.height - 6 };
-
-    const g = this.add.graphics();
-    g.fillStyle(isPlaying ? surface.ink.hex : surface.parchment.hex, 1).fillRect(row.x, row.y, row.width, row.height);
-    g.lineStyle(2, surface.ink.hex, tile.open ? 1 : 0.35).strokeRect(
-      row.x + 1,
-      row.y + 1,
-      row.width - 2,
-      row.height - 2,
+    b.listRow(
+      { x: rect.x, y: rect.y + 3, width: rect.width, height: rect.height - 6 },
+      {
+        leading: isPlaying ? "■" : "▶",
+        title: tile.title,
+        detail: tile.open
+          ? isPlaying
+            ? t("extras.nowPlaying", { detail: tile.subtitle })
+            : tile.subtitle
+          : (tile.hint ?? ""),
+        open: tile.open,
+        active: isPlaying,
+      },
+      `row:${tile.id}`,
     );
-    objects.push(g);
-
-    const fg = isPlaying ? surface.paper.hex : surface.ink.hex;
-    const buttonSize = row.height - 16;
-    const cx = row.x + 8 + buttonSize / 2;
-    const cy = row.y + row.height / 2;
-    const disc = this.add.graphics();
-    disc
-      .fillStyle(tile.open ? accent.heroRed.hex : surface.ink.hex, tile.open ? 1 : 0.25)
-      .fillCircle(cx, cy, buttonSize / 2);
-    objects.push(disc);
-    objects.push(
-      this.add
-        .text(cx + (isPlaying ? 0 : 1), cy, isPlaying ? "■" : "▶", textStyle(typeRole.rowTitle, surface.paper.hex))
-        .setFontSize(14)
-        .setOrigin(0.5),
-    );
-
-    const textX = row.x + 16 + buttonSize;
-    const textWidth = row.width - (textX - row.x) - 12;
-    const title = this.add
-      .text(textX, row.y + 8, tile.title, textStyle(typeRole.rowTitle, fg, tile.open ? 1 : 0.45))
-      .setFontSize(14);
-    fitText(title, textWidth, 14);
-    const detail = this.add
-      .text(
-        textX,
-        row.y + row.height - 20,
-        tile.open ? (isPlaying ? `Now playing · ${tile.subtitle}` : tile.subtitle) : (tile.hint ?? ""),
-        textStyle(typeRole.body, tile.open ? fg : accent.heroRed.hex, tile.open ? ink.secondary : 1),
-      )
-      .setFontSize(10);
-    fitText(detail, textWidth, 10);
-    objects.push(title, detail);
-    return objects;
   }
 }

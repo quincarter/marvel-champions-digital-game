@@ -166,6 +166,10 @@ export class SheetGlyphs {
       readonly ids: readonly ShortcutId[];
       readonly height: number;
       readonly ground?: McGlyphGround;
+      /** `x` is the glyph's right edge, not its left (a hint at the end of a strip). */
+      readonly alignRight?: boolean;
+      /** Which shortcuts the glyph shows for an input set (null: none), when that differs between keyboard and pad. */
+      readonly idsNow?: SheetGlyphButton["idsNow"];
     },
   ): void {
     const registered: Registered = {
@@ -175,6 +179,7 @@ export class SheetGlyphs {
         label: "",
         look: "onInk",
         ids: entry.ids,
+        ...(entry.idsNow ? { idsNow: entry.idsNow } : {}),
       },
       drawn: null,
     };
@@ -186,11 +191,13 @@ export class SheetGlyphs {
     registered.drawn = specs ? specsSignature(specs) : null;
     if (!specs) return;
     this.#hadGlyph = true;
+    const height = scaledGlyphHeight(entry.height, snapshot.settings.glyphSize);
+    const x = entry.alignRight ? entry.x - layoutGlyph(specs.map(uiSpecOf), height, BODY_MEASURE).fullWidth : entry.x;
     builder.glyph({
-      x: entry.x,
+      x,
       y: entry.y,
       specs: specs.map(uiSpecOf),
-      height: scaledGlyphHeight(entry.height, snapshot.settings.glyphSize),
+      height,
       ground: entry.ground ?? "ink",
       openness: glyphsExpanded(snapshot.state) ? 1 : 0,
       still: snapshot.settings.reducedMotion,

@@ -54,6 +54,7 @@ import { isAdjustedCampaign } from "../engine/campaign-storage.js";
 import { isAdjustedSave, isCompetitiveSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import { mergeRoomGames } from "./room-seats.js";
 import { ACHIEVEMENTS } from "./achievements.js";
+import { t } from "../i18n/translate.js";
 import { TEAM_UP_TROPHIES, teamUpPairLabel, teamUpTrophyId, type TeamUpTrophy } from "./team-up-trophies.js";
 import { SHADOWLAND_COMIC_CREDIT, SHADOWLAND_EXTRAS } from "./shadowland-extras.js";
 
@@ -351,53 +352,62 @@ export function unlockHint(unlock: ExtrasUnlock, wins: number | null = null): st
   const soFar = wins === null || !("wins" in unlock) ? "" : `${wins}/${unlock.wins}: `;
   switch (unlock.kind) {
     case "heroWins":
-      return `${soFar}Win ${unlock.wins} games as ${heroName(unlock.identityCardId)}`;
+      return `${soFar}${t("extras.hint.heroWins", { wins: unlock.wins, hero: heroName(unlock.identityCardId) })}`;
     case "scenarioWins": {
       const names = unlock.scenarioIds.map((id) => scenarioNamedHint(id));
       return names.every((name) => name !== null)
-        ? `${soFar}Win ${names.join(" or ")} ${unlock.wins} times`
-        : `${soFar}Beat ${villainLabelOf(unlock.scenarioIds[0]!)} ${unlock.wins} times`;
+        ? `${soFar}${t("extras.hint.scenarioWinsNamed", { names: names.join(t("extras.hint.or")), wins: unlock.wins })}`
+        : `${soFar}${t("extras.hint.scenarioWinsBeat", { villain: villainLabelOf(unlock.scenarioIds[0]!), wins: unlock.wins })}`;
     }
     case "cardWins":
-      return `${soFar}Win ${unlock.wins} games with ${cardName(unlock.cardIds[0]!)} in a deck`;
+      return `${soFar}${t("extras.hint.cardWins", { wins: unlock.wins, card: cardName(unlock.cardIds[0]!) })}`;
     case "always":
-      return "Open from the start";
+      return t("extras.hint.always");
     case "heroPlayed":
-      return `Finish a game as ${cardName(unlock.identityCardId)}`;
+      return t("extras.hint.heroPlayed", { hero: cardName(unlock.identityCardId) });
     case "scenarioPlayed": {
       const named = scenarioNamedHint(unlock.scenarioId);
-      return named ? `Finish a game of ${named}` : `Finish a game against ${villainLabelOf(unlock.scenarioId)}`;
+      return named
+        ? t("extras.hint.scenarioPlayedNamed", { scenario: named })
+        : t("extras.hint.scenarioPlayedVillain", { villain: villainLabelOf(unlock.scenarioId) });
     }
     case "scenarioWon": {
       const named = scenarioNamedHint(unlock.scenarioId);
-      return named ? `Win ${named}` : `Beat ${villainLabelOf(unlock.scenarioId)}`;
+      return named
+        ? t("extras.hint.scenarioWonNamed", { scenario: named })
+        : t("extras.hint.scenarioWonVillain", { villain: villainLabelOf(unlock.scenarioId) });
     }
     case "scenarioLost": {
       const named = scenarioNamedHint(unlock.scenarioId);
-      return named ? `Lose ${named}` : `Lose to ${villainLabelOf(unlock.scenarioId)}`;
+      return named
+        ? t("extras.hint.scenarioLostNamed", { scenario: named })
+        : t("extras.hint.scenarioLostVillain", { villain: villainLabelOf(unlock.scenarioId) });
     }
     case "packWon":
-      return `Win a scenario from ${packName(unlock.packCode)}`;
+      return t("extras.hint.packWon", { pack: packName(unlock.packCode) });
     case "packLost":
-      return `Lose a scenario from ${packName(unlock.packCode)}`;
+      return t("extras.hint.packLost", { pack: packName(unlock.packCode) });
     case "anyWin":
-      return "Win any game";
+      return t("extras.hint.anyWin");
     case "anyLoss":
-      return "Lose any game";
+      return t("extras.hint.anyLoss");
     case "issueReached":
       return unlock.issue <= 1
-        ? `Start ${campaignName(unlock.campaignId)}`
-        : `Reach issue #${unlock.issue} of ${campaignName(unlock.campaignId)}`;
+        ? t("extras.hint.campaignStart", { campaign: campaignName(unlock.campaignId) })
+        : t("extras.hint.issueReached", { issue: unlock.issue, campaign: campaignName(unlock.campaignId) });
     case "campaignStarted":
-      return `Start ${campaignName(unlock.campaignId)}`;
+      return t("extras.hint.campaignStart", { campaign: campaignName(unlock.campaignId) });
     case "campaignWon": {
       const name = campaignName(unlock.campaignId);
-      return `Complete ${name.startsWith("The ") ? "" : "the "}${name} campaign`;
+      // English prints "Complete The Rise of Red Skull campaign", not "the The Rise".
+      return t(name.startsWith("The ") ? "unlock.completeCampaignThe" : "unlock.completeCampaign", { campaign: name });
     }
     case "achievement":
-      return `Earn the ${ACHIEVEMENTS.find((a) => a.id === unlock.achievementId)?.name ?? unlock.achievementId} achievement`;
+      return t("extras.hint.achievement", {
+        achievement: ACHIEVEMENTS.find((a) => a.id === unlock.achievementId)?.name ?? unlock.achievementId,
+      });
     case "any":
-      return unlock.of.length > 0 ? unlockHint(unlock.of[0]!) : "Open from the start";
+      return unlock.of.length > 0 ? unlockHint(unlock.of[0]!) : t("extras.hint.always");
   }
 }
 
