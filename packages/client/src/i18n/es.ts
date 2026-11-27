@@ -418,6 +418,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "scenario.seeAll": "VER TODO",
   "scenario.randomBox": "Pack aleatorio",
   "scenario.randomScenario": "Escenario aleatorio",
+  "scenario.rowPrevious": "Desplazar este estante a la izquierda",
+  "scenario.rowNext": "Desplazar este estante a la derecha",
   "seats.randomHero": "Aleatorio",
   "seats.randomHeroNone": "Ningún otro héroe encaja con los filtros y la mesa ahora mismo.",
   "seats.randomHeroSearching": "Esperando a que termine la búsqueda.",

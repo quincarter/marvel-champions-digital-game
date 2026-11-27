@@ -9,10 +9,16 @@ import "../mc-picture-tile/mc-picture-tile.js";
 import "../mc-section-header/mc-section-header.js";
 import type { McPictureCard } from "../mc-picture-card/McPictureCard.js";
 import { SCROLL_GUTTER } from "../mc-sheet/McSheet.js";
+import type { PictureSource } from "../../shared/picture.types.js";
 import type { ShelfRosterItem, ShelfRosterModel, ShelfRosterShelf } from "./mc-shelf-roster.types.js";
 
 /** A shelf header's height: one touch target. */
 const HEAD = 44;
+/**
+ * How far outside the box a tile may be and still load its picture, px: a tile loads when a finger's flick or a few
+ * arrow presses away, so the first screen fetches the pictures it shows and not every shelf's.
+ */
+const NEAR = "160px 320px";
 /** A page of a row, as a share of its width. */
 const PAGE = 0.85;
 
@@ -31,9 +37,6 @@ const styles = css`
   }
   .shelf {
     padding-bottom: 20px;
-    /* A shelf below the fold is not laid out until it scrolls near. */
-    content-visibility: auto;
-    contain-intrinsic-size: auto 300px;
   }
   .head {
     display: flex;
@@ -94,6 +97,7 @@ const styles = css`
   .chevrons mc-button {
     width: 44px;
     height: 44px;
+    --mc-button-size: 24px;
   }
   @media (pointer: fine) {
     .chevrons {
@@ -131,7 +135,8 @@ const styles = css`
  *
  * A tap on a tile raises `mc-activate` with `entry:<id>`, a hold or a right-click `mc-inspect` with the same key; the header
  * raises `fold:<shelf>`, its "See all" `all:<shelf>`, the empty state's button `clear` (a swipe's lift raises none).
- * `elementOf` finds each by key, `hoverFaces()` gives the pictures a hover popover wants, `pageShelf` scrolls a row by a page.
+ * A tile's picture is fetched once the tile is near the box (`IntersectionObserver`, `NEAR`), then kept; before that the tile
+ * shows its plain ground. `elementOf` finds each by key, `hoverFaces()` gives the pictures a hover popover wants, `pageShelf` scrolls a row by a page.
  *
  * @element mc-shelf-roster
  * @prop model - What to draw (`ShelfRosterModel`).
@@ -144,6 +149,12 @@ export class McShelfRoster extends LitElement {
   static override properties: PropertyDeclarations = { model: { attribute: false } };
 
   declare model: ShelfRosterModel;
+  /** The tiles that have been near the box: their pictures load (and stay loaded). */
+  readonly #near = new Set<string>();
+  readonly #watched = new WeakSet<Element>();
+  #observer: IntersectionObserver | null = null;
+  /** Without an `IntersectionObserver` every tile loads at once. */
+  readonly #windowed = typeof IntersectionObserver !== "undefined";
 
   constructor() {
     super();
@@ -159,6 +170,42 @@ export class McShelfRoster extends LitElement {
       emptyText: null,
       clearLabel: "",
     };
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#observer?.disconnect();
+    this.#observer = null;
+  }
+
+  protected override updated(): void {
+    if (!this.#windowed) return;
+    const root = this.scroller;
+    if (!root) return;
+    this.#observer ??= new IntersectionObserver(
+      (entries) => {
+        let fresh = false;
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.key?.replace(/^entry:/, "");
+          if (!entry.isIntersecting || id === undefined || this.#near.has(id)) continue;
+          this.#near.add(id);
+          this.#observer?.unobserve(entry.target);
+          fresh = true;
+        }
+        if (fresh) this.requestUpdate();
+      },
+      { root, rootMargin: NEAR },
+    );
+    for (const card of this.renderRoot.querySelectorAll("mc-picture-card")) {
+      if (this.#watched.has(card)) continue;
+      this.#watched.add(card);
+      this.#observer.observe(card);
+    }
+  }
+
+  /** The tile's picture, or its plain ground until the tile has been near the box. */
+  #pictureOf(item: ShelfRosterItem): PictureSource {
+    return !this.#windowed || this.#near.has(item.id) ? item.picture : { ...item.picture, src: null };
   }
 
   /** The element that scrolls down. */
@@ -234,7 +281,7 @@ export class McShelfRoster extends LitElement {
       data-key=${`entry:${item.id}`}
       data-card=${item.cardId}
       style=${`width:${cardWidth}px;height:${cardHeight}px`}
-      .picture=${item.picture}
+      .picture=${this.#pictureOf(item)}
       .model=${item.card}
       ?selected=${item.selected}
       activate-key=${`entry:${item.id}`}

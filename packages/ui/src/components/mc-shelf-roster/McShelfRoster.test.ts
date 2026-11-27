@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import "./mc-shelf-roster.js";
 import type { ShelfRosterItem, ShelfRosterModel, ShelfRosterShelf } from "./mc-shelf-roster.types.js";
 
@@ -119,5 +119,37 @@ describe("mc-shelf-roster", () => {
     expect(el.canPageShelf("core", -1)).toBe(false);
     expect(el.pageShelf("core", 1)).toBeNull();
     expect(el.readScroll()).toEqual({ top: 0, rows: {} });
+  });
+
+  it("loads a tile picture only once the tile has been near the box, and keeps it", async () => {
+    const observed: Element[] = [];
+    let report: (entries: { target: Element; isIntersecting: boolean }[]) => void = () => undefined;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: (entries: { target: Element; isIntersecting: boolean }[]) => void) {
+          report = callback;
+        }
+        observe(target: Element): void {
+          observed.push(target);
+        }
+        unobserve(): void {}
+        disconnect(): void {}
+      },
+    );
+    try {
+      const withSource = (id: string) => item(id, { picture: { src: `/${id}.webp` } });
+      const el = await mount(model({ shelves: [shelf("core", { items: [withSource("a"), withSource("b")] })] }));
+      const srcOf = (id: string): string | null =>
+        (el.elementOf(`entry:${id}`) as unknown as { picture: { src: string | null } }).picture.src;
+      expect(observed).toHaveLength(2);
+      expect(srcOf("a")).toBeNull();
+      report([{ target: el.elementOf("entry:a")!, isIntersecting: true }]);
+      await el.updateComplete;
+      expect(srcOf("a")).toBe("/a.webp");
+      expect(srcOf("b")).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -19,6 +19,11 @@ export interface SheetTopBarOptions {
   readonly title: string;
   /** The small uppercase label at the right edge ("12 OF 64 OPEN"). */
   readonly right?: string;
+  /**
+   * A long title on a phone: smaller and lower, clear of the dark mode tab that hangs from the top edge (20px, centered:
+   * `view/theme-button.ts`), which a 22px title centered in the 52px bar would run under.
+   */
+  readonly titleBelowTab?: boolean;
 }
 
 export interface SheetTopBar {
@@ -63,7 +68,8 @@ export function sheetTopBar(b: SheetBuilder, glyphs: SheetGlyphs, options: Sheet
       letterSpacing: 1.1,
     });
   }
-  b.text(x, height / 2, options.title.toUpperCase(), bangers(frame.phone ? 22 : 28), {
+  const below = options.titleBelowTab === true && frame.phone;
+  b.text(x, below ? 29 : height / 2, options.title.toUpperCase(), bangers(below ? 18 : frame.phone ? 22 : 28), {
     color: surface.paper.hex,
     origin: [0, 0.5],
     letterSpacing: 1,

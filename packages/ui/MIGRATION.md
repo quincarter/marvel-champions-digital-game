@@ -170,3 +170,13 @@ Applied in the phase 3 merge; kept here so the same names are found if a later b
 | `mc-bar-chart`, `mc-stat-tiles`, `mc-line-list`, `mc-deck-grid`, `mc-deck-details`                        | added as they were (the grid and details now compose `mc-picture-card`, `mc-list-row`, `mc-picture-tile`, `mc-section-header`, `mc-empty-state`, `mc-action-bar`)                                             |
 | `shared/text-line.ts`, `text-line.types.ts`, `fit-text.ts`                                                | added as they were (`TextLine`, `lineOf`, `sizeCss`, `fitTextWithin`); `shared/crop.ts` holds the centered crop math both the tile and `mc-sheet` use                                                         |
 | `SheetButton.pressable`, `mc-button` `pressable`, `SheetImage.cover.centered`                             | added as they were                                                                                                                                                                                            |
+
+## scenario select (`feature/lit-panels-phase5-scenario`)
+
+Additions only; nothing is renamed.
+
+| Added                                                                            | Is                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mc-shelf-roster` (`ShelfRosterModel`, `ShelfRosterShelf`, `ShelfRosterItem`)    | Pack shelves: a header (cover, title and rule, count, fold chevron, "See all", row chevrons) over a sideways row of `mc-picture-card`s, scrolling down inside; `mode: "grid"` wraps one shelf's tiles. A tile's picture loads once it is near |
+| `mc-picture-card` `selected`, `inspect-key`; model `titleDisplay`, `detailLines` | The chosen card (4px red frame), a hold or right-click raising `mc-inspect`, a display-face title, a two-line detail; an empty `chip` draws none                                                                                              |
+| `mc-filter-bar` `rail`, `FilterBarModel.rail`, `b.filterBar(..., { rail })`      | One row that scrolls sideways instead of wrapping (a phone's chip strip)                                                                                                                                                                      |

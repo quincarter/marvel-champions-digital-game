@@ -74,7 +74,12 @@ function slotOf<S extends string>(stem: string, slots: readonly S[]): S | null {
 export function parseArtCatalog(
   files: Readonly<Record<string, string>>,
   focusFiles: Readonly<Record<string, unknown>> = {},
+  tileFiles: Readonly<Record<string, string>> = {},
 ): ArtCatalog {
+  // The roster-size copies, by the path under `art/` of the picture they shrink.
+  const tileOf = new Map(
+    Object.entries(tileFiles).map(([path, url]) => [path.slice(path.lastIndexOf("art/") + "art/".length), url]),
+  );
   const focusOf = new Map<string, PictureFocus>();
   for (const [fullPath, raw] of Object.entries(focusFiles)) {
     const folder = fullPath.slice(fullPath.indexOf("art/scenarios/") + "art/scenarios/".length).split("/")[0] ?? "";
@@ -96,7 +101,12 @@ export function parseArtCatalog(
     const parts = underArt.split("/");
     const file = parts[parts.length - 1] ?? "";
     const stem = file.slice(0, file.lastIndexOf("."));
-    const picture: Picture = { key: `scene-art:${underArt}`, url: files[fullPath]! };
+    const tileUrl = tileOf.get(underArt);
+    const picture: Picture = {
+      key: `scene-art:${underArt}`,
+      url: files[fullPath]!,
+      ...(tileUrl !== undefined ? { tileUrl } : {}),
+    };
 
     if (parts[0] === "scenarios" && parts.length === 3) {
       if (parts[1]!.startsWith("_")) continue;
@@ -229,10 +239,21 @@ const files = {
   }) as Record<string, string>),
 };
 
+// The roster-size copies a tile draws instead of the full picture (`vite-roster-art.ts`): a villain's picture, a pack's cover.
+const tileFiles = import.meta.glob(
+  [
+    "../../../../art/scenarios/*/villain.{png,jpg,jpeg,webp,avif}",
+    "../../../../art/scenarios/*/villain-[0-9]*.{png,jpg,jpeg,webp,avif}",
+    "../../../../art/packs/*/cover.{png,jpg,jpeg,webp,avif}",
+    "../../../../art/packs/*/cover-[0-9]*.{png,jpg,jpeg,webp,avif}",
+  ],
+  { eager: true, query: "?roster", import: "default" },
+) as Record<string, string>;
+
 const focusFiles = import.meta.glob("../../../../art/scenarios/*/focus.json", {
   eager: true,
   import: "default",
 }) as Record<string, unknown>;
 
 /** Everything in `art/scenarios/`, `art/outcomes/` and `art/packs/`. */
-export const ART_CATALOG: ArtCatalog = parseArtCatalog(files, focusFiles);
+export const ART_CATALOG: ArtCatalog = parseArtCatalog(files, focusFiles, tileFiles);

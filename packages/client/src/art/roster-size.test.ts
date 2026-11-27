@@ -27,6 +27,9 @@ describe("hasCopy", () => {
     expect(hasCopy("roster", "scenarios/rhino/villain-2.png")).toBe(true);
     expect(hasCopy("roster", "scenarios/rhino/villain-wins.jpg")).toBe(false);
     expect(hasCopy("roster", "scenarios/rhino/intro.jpg")).toBe(false);
+    expect(hasCopy("roster", "packs/core/cover.jpg")).toBe(true);
+    expect(hasCopy("roster", "packs/core/cover-2.png")).toBe(true);
+    expect(hasCopy("roster", "packs/core/notes.txt")).toBe(false);
   });
   it("covers title pictures for display copies only", () => {
     expect(hasCopy("display", "title/wallpaper-1.jpg")).toBe(true);

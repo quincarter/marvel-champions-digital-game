@@ -23,6 +23,16 @@ const catalog = parseArtCatalog({
 const first = (): number => 0;
 
 describe("parseArtCatalog", () => {
+  test("a picture carries the roster-size copy made of it, by its path under art/", () => {
+    const tiled = parseArtCatalog(
+      { "../../art/scenarios/ultron/villain.jpg": "/u.jpg", "../../art/packs/core/cover.jpg": "/c.jpg" },
+      {},
+      { "../../../../art/scenarios/ultron/villain.jpg": "/u.roster.webp" },
+    );
+    expect(tiled.scenarios.get("ultron")!.villain[0]!.tileUrl).toBe("/u.roster.webp");
+    expect(tiled.packs.get("core")!.cover[0]).not.toHaveProperty("tileUrl");
+  });
+
   test("files land in the slot their name says, variants included", () => {
     const ultron = catalog.scenarios.get("ultron")!;
     expect(ultron.villain.map((p) => p.url)).toEqual(["/u2.png", "/u.jpg"]);
