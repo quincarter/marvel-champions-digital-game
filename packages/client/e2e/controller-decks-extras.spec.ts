@@ -182,7 +182,13 @@ test("Decks: A on the search field puts the caret in, B takes it out, and the D-
   const errors = trackPageErrors(page);
   await page.setViewportSize({ width: 1280, height: 800 });
   await open(page, "decks", "Decks");
-  const typing = (): Promise<boolean> => page.evaluate(() => document.activeElement?.tagName === "INPUT");
+  // The field is a real input inside the panel's shadow roots: follow the focus down to it.
+  const typing = (): Promise<boolean> =>
+    page.evaluate(() => {
+      let element: Element | null = document.activeElement;
+      while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+      return element?.tagName === "INPUT";
+    });
   await walkTo(page, "Decks", "deck-search");
   expect(await focusOf(page, "Decks")).toBe("deck-search");
   await press(page, A, typing);
