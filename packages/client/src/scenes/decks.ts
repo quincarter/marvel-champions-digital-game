@@ -2937,12 +2937,25 @@ export class DecksScene extends Phaser.Scene {
     });
 
     // The author's own write-up: how they play the deck. A long one scrolls natively.
-    small(t("decks.community.notesHeading"), y);
     const notesHeadingY = y;
-    y += 18;
-    const notesBottom = linkRowY - 22 - 10;
-    const notesHeight = Math.max(0, notesBottom - y);
+    const notesY = y + 18;
+    const notesHeight = Math.max(0, linkRowY - 22 - 10 - notesY);
     const paragraphs = communityNotesOf(entry.description);
+    const notes = paragraphs.join("\n\n");
+    const noteStyle = { color: surface.paper.hex, alpha: ink.secondary, wrapWidth: column - 8 } as const;
+    const total =
+      paragraphs.length === 0 ? 0 : Math.ceil(b.measure(notes, typeRole.body, { wrapWidth: column - 8 }).height) + 4;
+    const scrolls = paragraphs.length > 0 && notesHeight >= NOTES_LINE_HEIGHT * 2 && total > notesHeight;
+    // A write-up longer than its pane scrolls; the cue sits at the heading's right edge so nothing reads as cut, and the
+    // heading gives it room by shrinking, never by being cut ("HOW IT P…").
+    const cue = t("decks.community.scroll").toUpperCase();
+    const cueWidth = scrolls ? b.measure(cue, typeRole.label).width + 10 : 0;
+    b.text(left, notesHeadingY, t("decks.community.notesHeading").toUpperCase(), typeRole.label, {
+      color: surface.paper.hex,
+      alpha: ink.label,
+      fitWidth: column - cueWidth,
+    });
+    y = notesY;
     if (paragraphs.length === 0) {
       b.text(left, y, t("decks.community.noNotes"), typeRole.body, {
         color: surface.paper.hex,
@@ -2952,12 +2965,8 @@ export class DecksScene extends Phaser.Scene {
       return;
     }
     if (notesHeight < NOTES_LINE_HEIGHT * 2) return;
-    const notes = paragraphs.join("\n\n");
-    const noteStyle = { color: surface.paper.hex, alpha: ink.secondary, wrapWidth: column - 8 } as const;
-    const total = Math.ceil(b.measure(notes, typeRole.body, { wrapWidth: column - 8 }).height) + 4;
-    // A write-up longer than its pane scrolls; the cue sits at the heading's right edge so nothing reads as cut.
-    if (total > notesHeight) {
-      b.text(left + column, notesHeadingY, t("decks.community.scroll").toUpperCase(), typeRole.label, {
+    if (scrolls) {
+      b.text(left + column, notesHeadingY, cue, typeRole.label, {
         color: surface.paper.hex,
         alpha: ink.body,
         origin: [1, 0],
