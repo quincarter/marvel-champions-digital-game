@@ -110,7 +110,8 @@ const focusFiles = import.meta.glob("../../../../art/heroes/*/focus.json", {
   import: "default",
 }) as Record<string, unknown>;
 
-// Small WebP copies for the tiles and rows (`vite-roster-art.ts`): a phone does not fetch and decode a 3840 px picture for a card-sized tile.
+// Small WebP copies for the tiles and rows (`vite-roster-art.ts`): a phone does not fetch and decode a 3840 px
+// picture for a card-sized tile.
 const tileFiles = import.meta.glob("../../../../art/heroes/*/*.{png,jpg,jpeg,webp,avif}", {
   eager: true,
   query: "?roster",

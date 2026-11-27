@@ -65,7 +65,35 @@ export class McFilterBar extends LitElement {
   }
 
   /** Marks the chips that fall past the last allowed row: hidden from the eye and the focus ring both. */
-  override updated(): void {
+  #resize: ResizeObserver | null = null;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    // The bar's width changes which chips fall past the last row.
+    if (typeof ResizeObserver !== "undefined") {
+      this.#resize = new ResizeObserver(() => this.#markClipped());
+      this.#resize.observe(this);
+    }
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#resize?.disconnect();
+    this.#resize = null;
+  }
+
+  override async updated(): Promise<void> {
+    this.#markClipped();
+    // The chips lay themselves out after they render: look again once they have.
+    await Promise.all(
+      [...this.renderRoot.querySelectorAll<HTMLElement & { updateComplete?: Promise<unknown> }>(".chip")].map(
+        (c) => c.updateComplete,
+      ),
+    );
+    this.#markClipped();
+  }
+
+  #markClipped(): void {
     const bar = this.renderRoot.querySelector<HTMLElement>(".bar");
     if (!bar) return;
     const limited = this.rows > 0 && this.rowHeight > 0;

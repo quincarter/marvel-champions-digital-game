@@ -43,15 +43,27 @@ describe("mc-search-field edge cases", () => {
     expect(seen).toEqual(["thor"]);
   });
 
-  it("drops a pending search when the client empties a field nobody holds", async () => {
+  it("drops a pending search when the client changes the value to empty", async () => {
     vi.useFakeTimers();
     const { el, seen, input } = await mounted();
+    el.value = "old";
+    await el.updateComplete;
     type(input, "wa");
     el.value = "";
-    el.requestUpdate();
     await el.updateComplete;
     vi.advanceTimersByTime(300);
     expect(seen).toEqual([]);
     expect(el.text).toBe("");
+  });
+
+  it("keeps typed text when the caret leaves and the client's value is still the empty string", async () => {
+    vi.useFakeTimers();
+    const { el, input } = await mounted();
+    type(input, "https://marvelcdb.com/deck/1");
+    input.dispatchEvent(new Event("blur"));
+    el.requestUpdate();
+    await el.updateComplete;
+    expect(el.text).toBe("https://marvelcdb.com/deck/1");
+    expect(input.value).toBe("https://marvelcdb.com/deck/1");
   });
 });

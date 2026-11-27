@@ -42,7 +42,7 @@ export function themeIconOf(scheme: ColorScheme): "moon" | "sun" {
   return scheme === "light" ? "moon" : "sun";
 }
 
-/** The short tab the toggle hangs from the very top edge as, centred: it clears a title set below it (`topBarThemePlan`). */
+/** The short tab the toggle hangs from the top edge as, centred: it clears a title set below it (`topBarThemePlan`). */
 export function themeTabSlot(screen: { readonly width: number }): Rect {
   return { x: Math.round(screen.width / 2 - 17), y: 0, width: 34, height: 20 };
 }
@@ -53,8 +53,8 @@ const THEME_CLEARANCE = 6;
 /**
  * Where the toggle goes for a top bar whose words (back label, chip, title, tag) span `textLeft` to `textRight` and are
  * `textHeight` tall, centred in a bar `barHeight` tall: the toggle must never sit on them. When its floating slot
- * (`floatingThemeSlot`) clears the words it stays (`slot` null); otherwise it hangs from the top edge as a short tab and
- * the words drop by `drop` px to sit under it, never past the bar's foot. Pure, so the no-overlap rule is tested.
+ * (`floatingThemeSlot`) clears the words it stays (`slot` null); otherwise it hangs from the top edge as a short tab
+ * and the words drop by `drop` px to sit under it, never past the bar's foot. Pure, so the no-overlap rule is tested.
  */
 export function topBarThemePlan(args: {
   readonly width: number;
@@ -74,5 +74,10 @@ export function topBarThemePlan(args: {
   const tab = themeTabSlot({ width });
   const wanted = tab.y + tab.height + THEME_CLEARANCE - top;
   const room = Math.max(0, barHeight - 2 - bottom);
-  return { slot: tab, drop: Math.max(0, Math.min(wanted, room)) };
+  const drop = Math.max(0, Math.min(wanted, room));
+  // When the words cannot drop far enough for the whole tab, the tab is drawn shorter (never under 12px) so it still
+  // ends above them; the toggle's own hit area stays at least a touch target (`scenes/theme-button.ts`).
+  const height = Math.min(tab.height, top + drop - THEME_CLEARANCE);
+  if (height < 12) return { slot: null, drop: 0 };
+  return { slot: { ...tab, height }, drop };
 }

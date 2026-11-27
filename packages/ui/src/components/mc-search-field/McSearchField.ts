@@ -124,10 +124,9 @@ export class McSearchField extends LitElement {
   }
 
   protected override willUpdate(changed: PropertyValues): void {
-    // Adopted when the client changes it, or empties a field nobody is typing in (a client clear while a debounce is
-    // pending cancels it); never while the typist holds the caret, where a redraw may hand in the stale query.
-    const cleared = this.value === "" && this.#text !== "" && !this.focused;
-    if ((changed.has("value") || cleared) && this.value !== this.#text) {
+    // Adopted only when the client changes `value`: a redraw that hands in the same (stale) value never wipes what the
+    // typist holds. A real change (a client clear, say) also cancels a pending debounce.
+    if (changed.has("value") && this.value !== this.#text) {
       this.#text = this.value;
       this.#emitted = this.value;
       clearTimeout(this.#timer);

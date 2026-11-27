@@ -1426,8 +1426,8 @@ export class RoomLobbyScene extends Phaser.Scene {
           run: () => this.#setUpTable(),
         });
         y += hit.target + 10;
-        // The seat count sits right under Set up, before the table plan: it is a control, so it is on the first screen of the
-        // panel at every size (a short panel scrolls, and the plan below it is only to read).
+        // The seat count sits right under Set up, before the table plan: it is a control, so it is
+        // on the first screen of the panel at every size (a short panel scrolls, and the plan below it is only to read).
         y = this.#drawSeatCount(x, y, w) + 14;
         y = this.#drawTablePlan(x, y, w) + 6;
       } else {

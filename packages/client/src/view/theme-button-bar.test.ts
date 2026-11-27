@@ -7,9 +7,9 @@ const overlaps = (a: { x: number; y: number; width: number; height: number }, b:
 /** A title of `chars` letters at `size` (Bangers is about 0.5em a letter, plus the 1px tracking). */
 const titleBox = (left: number, chars: number, size: number, barHeight: number, drop: number) => ({
   x: left,
-  y: barHeight / 2 - (size * 1.1) / 2 + drop,
+  y: barHeight / 2 - (size * 1.3) / 2 + drop,
   width: chars * (size * 0.5 + 1),
-  height: size * 1.1,
+  height: size * 1.3,
 });
 
 describe("topBarThemePlan", () => {
@@ -48,7 +48,7 @@ describe("topBarThemePlan", () => {
 
   it("hangs the toggle as a short tab from the top edge when the title runs under it", () => {
     const plan = topBarThemePlan({ width: 375, barHeight: 52, textLeft: 70, textRight: 250, textHeight: 24 });
-    expect(plan.slot).toEqual(themeTabSlot({ width: 375 }));
+    expect(plan.slot).toMatchObject({ x: themeTabSlot({ width: 375 }).x, y: 0, width: 34 });
     expect(plan.drop).toBeGreaterThan(0);
   });
 });
