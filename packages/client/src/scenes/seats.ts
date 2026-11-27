@@ -1132,7 +1132,9 @@ export class SeatsScene extends Phaser.Scene {
     const stepRight = layout.step.x + layout.step.width;
     const seatCount = this.#draft.seats.length;
     const title = t("seats.title");
-    const titleWidth = b.measure(title, typeRole.pageTitle).width;
+    // A phone's title is smaller, so it fits under the dark mode tab (the shared rule drops it there) without ending before it.
+    const titleSize = layout.wide ? 28 : 22;
+    const titleWidth = b.measure(title, typeRole.pageTitle, { size: titleSize }).width;
     const widthOf = (text: string): number => b.measure(text, typeRole.label).width;
     let stepText = tPlural("seats.stepFilled", seatCount);
     // The title keeps its name whole; on a narrow header it is the step line that gives way, to its short form.
@@ -1146,7 +1148,7 @@ export class SeatsScene extends Phaser.Scene {
       fitWidth: layout.step.width,
     });
     // The dark mode tab hangs from the top centre: the shared rule drops the title under it or ends it before it.
-    const titleHeight = typeRole.pageTitle.size ?? 28;
+    const titleHeight = titleSize;
     const { drop, maxRight } = sheetThemeFor(this, {
       width,
       textLeft: titleX,
@@ -1157,6 +1159,7 @@ export class SeatsScene extends Phaser.Scene {
     });
     const titleRoom = stepRight - stepWidth - titleX - 12;
     b.text(titleX, barHeight / 2 + drop, title, typeRole.pageTitle, {
+      size: titleSize,
       color: surface.paper.hex,
       origin: [0, 0.5],
       fitWidth: maxRight === null ? titleRoom : Math.max(40, Math.min(titleRoom, maxRight - titleX)),
