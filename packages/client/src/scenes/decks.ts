@@ -72,6 +72,7 @@
  * never decides whether a deck is legal or what its record is.
  */
 
+import { sheetThemeFor } from "../ui/campaign-chrome.js";
 import { t } from "../i18n/translate.js";
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import type { DeckActionId } from "../view/deck-actions.js";
@@ -353,6 +354,9 @@ function packChipsNatural(
  * This screen opts out of the desktop type bump (`ui/desktop-type.ts`) to keep its card grid tight, so its reading text
  * sizes up here: `px` on a phone or tablet, two sizes up on a desktop.
  */
+/** How far the ink header bar reaches below the header row: short of the panes' top (`decks-layout.ts`'s GAP of 16), so a pane's first line (its heading and chips) is not set against the bar. */
+const HEADER_FOOT = 8;
+
 const readingSize = (px: number): number => (isDesktopType() ? px + 2 : px);
 
 /** How tall the compact Import/Export box needs to be at `column` px wide, in its current accordion state — used both to reserve room above it and to draw it, so the two can't drift apart. */
@@ -955,12 +959,20 @@ export class DecksScene extends Phaser.Scene {
 
     // The ink chrome bar behind Back and the title, over the paper ground everything else draws on.
     const chrome = this.add.graphics();
-    paintPanel(chrome, { x: 0, y: 0, width, height: layout.header.y + layout.header.height + 16 }, "onInk", "rest");
+    paintPanel(
+      chrome,
+      { x: 0, y: 0, width, height: layout.header.y + layout.header.height + HEADER_FOOT },
+      "onInk",
+      "rest",
+    );
 
     // The panel's ground and the ink chrome bar over it; the Phaser panes show through the holes cut below.
     b.box({ x: 0, y: 0, width, height }, { fill: surface.paper.hex });
     b.dots({ x: 0, y: 0, width, height }, "paper", 6, 1, 0.1);
-    b.box({ x: 0, y: 0, width, height: layout.header.y + layout.header.height + 16 }, { fill: surface.ink.hex });
+    b.box(
+      { x: 0, y: 0, width, height: layout.header.y + layout.header.height + HEADER_FOOT },
+      { fill: surface.ink.hex },
+    );
     const backRect: Rect = { x: layout.header.x, y: layout.header.y, width: 100, height: layout.header.height };
     const goBack = (): void => {
       goToScreen(this, SCENES.title);
@@ -1014,20 +1026,27 @@ export class DecksScene extends Phaser.Scene {
       });
     }
 
-    // A large Bangers screen title beside the Back button.
-    b.text(
-      backRect.x + backRect.width + 12,
-      layout.header.y + layout.header.height / 2,
-      t("decks.title"),
-      typeRole.barTitle,
-      {
-        size: 28,
-        color: surface.paper.hex,
-        origin: [0, 0.5],
-        fitWidth:
-          layout.header.width - backRect.width - 24 - statsWidth - 16 - (poolMetaWidth ? poolMetaWidth + 16 : 0),
-      },
-    );
+    // A large Bangers screen title beside the Back button, set under the dark mode tab when it would run under it.
+    const titleLeft = backRect.x + backRect.width + 12;
+    const titleRoom =
+      layout.header.width - backRect.width - 24 - statsWidth - 16 - (poolMetaWidth ? poolMetaWidth + 16 : 0);
+    const titleWidth = Math.min(titleRoom, b.measure(t("decks.title"), typeRole.barTitle, { size: 28 }).width);
+    const titleSize = 28;
+    const titleTop = layout.header.y + layout.header.height / 2 - titleSize / 2;
+    const { drop: titleDrop, maxRight } = sheetThemeFor(this, {
+      width,
+      textLeft: titleLeft,
+      textRight: titleLeft + titleWidth,
+      textTop: titleTop,
+      textHeight: titleSize,
+      barHeight: layout.header.y + layout.header.height + HEADER_FOOT,
+    });
+    b.text(titleLeft, layout.header.y + layout.header.height / 2 + titleDrop, t("decks.title"), typeRole.barTitle, {
+      size: titleSize,
+      color: surface.paper.hex,
+      origin: [0, 0.5],
+      fitWidth: maxRight === null ? titleRoom : Math.max(40, Math.min(titleRoom, maxRight - titleLeft)),
+    });
 
     // The player's own list (precons and saved decks), then the community decks: recommendations that can be
     // selected and previewed like any deck, and added as an editable copy rather than played or edited in place.
@@ -2292,7 +2311,10 @@ export class DecksScene extends Phaser.Scene {
     // On a phone the chips would be drawn over the heading ("CARD POOL" clipped to "CA" behind the first chip), so
     // they fold behind a Filters button beside it, and open onto their own row(s) under it, left-aligned.
     const toggleWidth = 124;
-    const headingY = beside ? y : y + (chipHeight - headingSize.height) / 2;
+    // The heading and the chips share one line as tall as the taller of them, each centred on it: chips taller than
+    // the heading must not start above the line (they were cut off under the header bar).
+    const lineHeight = Math.max(headingSize.height, chipHeight);
+    const headingY = y + (lineHeight - headingSize.height) / 2;
     b.text(left, headingY, title, typeRole.barTitle, { size: 19, color: surface.ink.hex });
     if (!beside) {
       const active = (this.#poolAspectFilter ? 1 : 0) + (this.#poolSortByCost ? 1 : 0);
@@ -2312,7 +2334,7 @@ export class DecksScene extends Phaser.Scene {
       this.#actions.set("pool-chip:filters", toggle);
       this.#stops.set("pool-chip:filters", { rect, activate: toggle });
     }
-    const chipY = beside ? y + (headingSize.height - chipHeight) / 2 : y + chipHeight + 8;
+    const chipY = beside ? y + (lineHeight - chipHeight) / 2 : y + chipHeight + 8;
     const shownChips = beside || this.#poolFiltersOpen ? chipDefs : [];
     const packed = packChipsNatural(shownChips, left, chipY, column, chipHeight, beside ? "right" : "left", widthOf);
     for (const { chip, rect: cell } of packed.placed) {
@@ -2342,7 +2364,7 @@ export class DecksScene extends Phaser.Scene {
       );
     }
     if (!beside) return (shownChips.length > 0 ? packed.bottom : y + chipHeight) + 12;
-    return Math.max(y + headingSize.height, packed.bottom + chipHeight) + 12;
+    return Math.max(y + lineHeight, packed.bottom) + 12;
   }
 
   /** D14's own pool filter chips: the deck's own chosen aspect(s), Basic, Hero — one active at a time, click again to clear back to "everything" — then a Cost sort toggle. Deviation from the mock's own static screenshot, noted in this scene's header comment: D14 draws its "Aggression" chip pre-filled while the grid still shows Basic/Hero cards too, which reads as a static label rather than a working filter; here every chip (aspect included) is a real, symmetric toggle. */
@@ -2690,13 +2712,29 @@ export class DecksScene extends Phaser.Scene {
       stats.averageCost === null ? "" : ` · ${t("decks.stats.avg", { avg: oneDecimal(stats.averageCost) })}`;
     small(`${t("decks.stats.curve")}${avgText}`.toUpperCase(), y);
     y += 16;
-    const chartHeight = 84;
+    // A short screen (a phone's Stats tab) cannot fit all of it above the pinned footer: the chart gives up height
+    // first, then the tiles get shorter, and "Recently changed" (the least needed) is left out last.
+    const tileCount = compositionTilesOf(stats).length;
+    const tileRows = Math.ceil(tileCount / 3);
+    const footerTop = rect.y + rect.height - hit.primary - 16 - 13 - 8;
+    const belowChart = (tileHeight: number): number =>
+      16 + (tileRows === 0 ? 0 : tileRows * (tileHeight + 7) - 7) + 12 + this.#row + 14;
+    const recentlyHeight = 16 + 22;
+    const roomFor = (tileHeight: number): number => footerTop - y - belowChart(tileHeight) - 16;
+    let tileHeight = 46;
+    let showRecently = roomFor(tileHeight) - recentlyHeight >= 40;
+    let chartHeight = Math.min(84, Math.max(40, roomFor(tileHeight) - (showRecently ? recentlyHeight : 0)));
+    if (roomFor(tileHeight) < 40) {
+      tileHeight = 40;
+      showRecently = false;
+      chartHeight = Math.min(84, Math.max(32, roomFor(tileHeight)));
+    }
     this.#drawStatCurveBars(b, left, y, column, chartHeight, costCurveBars(stats));
     y += chartHeight + 16;
 
     small(t("decks.stats.composition").toUpperCase(), y);
     y += 16;
-    y = this.#drawStatTiles(b, left, y, column, compositionTilesOf(stats)) + 12;
+    y = this.#drawStatTiles(b, left, y, column, compositionTilesOf(stats), tileHeight) + 12;
 
     // Check/Edit/Delete: real, needed actions D14 itself doesn't draw: a row of small buttons, so the footer below still
     // ends in exactly Duplicate + the red Play button.
@@ -2741,6 +2779,7 @@ export class DecksScene extends Phaser.Scene {
     y += this.#row + 14;
 
     // "Recently changed" (W9/S1): the minimal honest version, one timestamp and no revision history.
+    if (!showRecently) return;
     small(t("decks.stats.recently").toUpperCase(), y);
     y += 16;
     if (deck.updatedAt) {
@@ -3100,11 +3139,17 @@ export class DecksScene extends Phaser.Scene {
   }
 
   /** Composition tiles D14's own way: a small uppercase label over a Bangers number, three per row. Returns the next free `y`. */
-  #drawStatTiles(b: SheetBuilder, left: number, y: number, column: number, tiles: readonly CompositionTile[]): number {
+  #drawStatTiles(
+    b: SheetBuilder,
+    left: number,
+    y: number,
+    column: number,
+    tiles: readonly CompositionTile[],
+    cellHeight = 46,
+  ): number {
     const perRow = 3;
     const gap = 7;
     const cellWidth = (column - (perRow - 1) * gap) / perRow;
-    const cellHeight = 46;
     tiles.forEach((tile, index) => {
       const row = Math.floor(index / perRow);
       const col = index % perRow;

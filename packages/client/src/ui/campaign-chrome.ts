@@ -25,7 +25,7 @@ import { McButton, fitText } from "./widgets.js";
 import { reportSlots } from "./report-slot.js";
 import { musicSlots } from "./music-slot.js";
 import { setThemeSlot } from "./theme-slot.js";
-import { topBarThemePlan } from "../view/theme-button.js";
+import { sheetThemePlan, topBarThemePlan } from "../view/theme-button.js";
 
 /** Heights the canvases draw at: 60px chrome on desktop/tablet ("60px chrome to match Screens - Desktop"), 52 on phone. */
 export const CAMPAIGN_TOP_BAR = { wide: 60, phone: 52 } as const;
@@ -95,6 +95,60 @@ export interface TopBar {
 /** Room a back button reserves for its Cancel glyph: the glyph (a keycap at the widest), its gap and edge padding. */
 const BACK_GLYPH_ROOM = 64;
 
+/**
+ * The one rule that keeps the dark mode toggle off the words of a top bar, for the Phaser bar (`drawTopBar`) and every
+ * panel bar (`dom/sheet-top-bar.ts`, the Decks, Deck builder and How to win headers): asks `topBarThemePlan` where
+ * the toggle goes for words spanning `textLeft` to `textRight`, tells the toggle (`setThemeSlot`, cleared when the
+ * scene shuts down) and returns how far the words drop to sit under it. A screen carrying the chrome cluster (Report,
+ * music, language) keeps the toggle beside it, and its words stay put.
+ */
+export function themeDropFor(
+  scene: Phaser.Scene,
+  args: { width: number; barHeight: number; textLeft: number; textRight: number; textHeight: number },
+): number {
+  const key = scene.sys.settings.key;
+  if (reportSlots().has(key) || musicSlots().has(key)) return 0;
+  const plan = topBarThemePlan(args);
+  setThemeSlot(key, plan.slot);
+  if (!scene.data.get("mc-topbar-theme")) {
+    scene.data.set("mc-topbar-theme", true);
+    scene.events.once("shutdown", () => {
+      setThemeSlot(key, null);
+      scene.data.set("mc-topbar-theme", false);
+    });
+  }
+  return plan.drop;
+}
+
+/**
+ * `themeDropFor` for words drawn in a panel (`sheetThemePlan`): the toggle's whole press area is cut out of the panel, so
+ * the words drop under it or end before it. Returns how far to drop and where to stop (null: no limit).
+ */
+export function sheetThemeFor(
+  scene: Phaser.Scene,
+  args: {
+    width: number;
+    textLeft: number;
+    textRight: number;
+    textTop: number;
+    textHeight: number;
+    barHeight?: number;
+  },
+): { drop: number; maxRight: number | null } {
+  const key = scene.sys.settings.key;
+  if (reportSlots().has(key) || musicSlots().has(key)) return { drop: 0, maxRight: null };
+  const plan = sheetThemePlan(args);
+  setThemeSlot(key, plan.slot);
+  if (!scene.data.get("mc-topbar-theme")) {
+    scene.data.set("mc-topbar-theme", true);
+    scene.events.once("shutdown", () => {
+      setThemeSlot(key, null);
+      scene.data.set("mc-topbar-theme", false);
+    });
+  }
+  return { drop: plan.drop, maxRight: plan.maxRight };
+}
+
 /** The ink top bar: boxed back button, Bangers title, right-aligned label. */
 export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar {
   const frame = campaignFrame(scene);
@@ -132,28 +186,17 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
   const wordsFrom = scene.children.list.length;
   const wordsLeft = x;
   const clearOfToggle = (wordsRight: number, textHeight: number): TopBar => {
-    const key = scene.sys.settings.key;
-    // A screen with the chrome cluster (Report, music, language) carries the toggle beside it, not in the middle.
-    if (reportSlots().has(key) || musicSlots().has(key)) return { height, back, backRect };
-    const plan = topBarThemePlan({
+    const drop = themeDropFor(scene, {
       width: frame.width,
       barHeight: height,
       textLeft: wordsLeft,
       textRight: wordsRight,
       textHeight,
     });
-    setThemeSlot(key, plan.slot);
-    if (!scene.data.get("mc-topbar-theme")) {
-      scene.data.set("mc-topbar-theme", true);
-      scene.events.once("shutdown", () => {
-        setThemeSlot(key, null);
-        scene.data.set("mc-topbar-theme", false);
-      });
-    }
-    if (plan.drop > 0) {
+    if (drop > 0) {
       for (const object of scene.children.list.slice(wordsFrom)) {
         const placed = object as unknown as { y?: number };
-        if (typeof placed.y === "number") placed.y += plan.drop;
+        if (typeof placed.y === "number") placed.y += drop;
       }
     }
     return { height, back, backRect };

@@ -28,6 +28,7 @@ const { CardPoolSearch, createPoolDocumentCache, poolSearchDocuments } = await i
 import type { PoolSearchClient } from "./card-pool-search.js";
 import type { RankedDocument, SearchDocument } from "./deck-search.js";
 import { DeckSearchClient } from "./deck-search-client.js";
+import { es } from "../i18n/es.js";
 
 const card = (id: string, name: string, text = ""): AnyCard =>
   ({ id, name, type: "event", setCode: "core", ...(text ? { text } : {}) }) as unknown as AnyCard;
@@ -210,5 +211,49 @@ describe("the search documents", () => {
     s.request("telarana");
     expect(s.ranking?.has("web")).toBe(true);
     expect(s.ranking?.has("shield")).toBe(false);
+  });
+});
+
+describe("what the Spanish search matches", () => {
+  /** Names in Spanish once loaded; traits and rules text only in English (the Spanish card data does not index them). */
+  const pool = (): AnyCard[] => [
+    { ...card("web", "Web-Swing"), traits: ["Avenger"] } as unknown as AnyCard,
+    card("shield", "Energy Shield", "Prevent all damage."),
+  ];
+  const searchIn = (text: string): ReadonlySet<string> | null => {
+    const cache = createPoolDocumentCache();
+    const s = new CardPoolSearch(
+      {
+        alive: () => true,
+        language: () => "es",
+        documents: () => ({ docs: poolSearchDocuments(pool(), "es", () => undefined, cache), version: "pool" }),
+        onChange: () => undefined,
+      },
+      new DeckSearchClient(),
+    );
+    s.request(text);
+    const ranking = s.ranking;
+    return ranking === null ? null : new Set(ranking.keys());
+  };
+
+  it("finds a card by its Spanish name, accents or not, once the names are in", () => {
+    names.ready.add("es");
+    expect(searchIn("telaraña")?.has("web")).toBe(true);
+    expect(searchIn("telarana")?.has("web")).toBe(true);
+    expect(searchIn("telarana")?.has("shield")).toBe(false);
+  });
+
+  it("finds a card by its English trait and rules text, and not by the Spanish word for them", () => {
+    names.ready.add("es");
+    expect(searchIn("avenger")?.has("web")).toBe(true);
+    expect(searchIn("prevent")?.has("shield")).toBe(true);
+    // The Spanish trait and text are not indexed: the placeholder says so (Nombre (ES/EN), rasgos y texto (EN)).
+    expect(searchIn("vengador")?.has("web") ?? false).toBe(false);
+    expect(searchIn("prevenir")?.has("shield") ?? false).toBe(false);
+  });
+
+  it("says so at the field: the Spanish placeholders name the Spanish names and the English traits and text", () => {
+    expect(es["decks.poolSearch"]).toBe("Nombre (ES/EN), rasgos y texto (EN)");
+    expect(es["deckBuilder.searchPlaceholder"]).toMatch(/^Nombre \(ES\/EN\), rasgos \(EN\)/);
   });
 });

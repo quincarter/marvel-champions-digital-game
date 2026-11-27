@@ -203,6 +203,7 @@ export class ExtrasReaderScene extends Phaser.Scene {
     const showToc = wide || this.#pane === "toc";
     const showText = wide || this.#pane === "section";
     const bar = sheetTopBar(b, this.#glyphs, {
+      scene: this,
       frame,
       backLabel: wide ? t("reader.back") : "◂",
       title: book?.title ?? t("reader.rulebook"),

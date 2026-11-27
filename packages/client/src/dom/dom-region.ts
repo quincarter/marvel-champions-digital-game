@@ -279,7 +279,11 @@ export function forwardMouseMoves(
   return () => source.removeEventListener("pointermove", onMove);
 }
 
-/** The panel events that act on the game or the settings (a slider drag included): stopped at the region while its scene isn't the one taking input. */
+/**
+ * The panel events that act on the game or the settings (a slider drag included): stopped at the region while its scene
+ * isn't the one taking input. A text field's own events are among them (`mc-input`, a late `compositionend` included):
+ * a field that kept the caret when a modal opened over it must not change the scene's state.
+ */
 export const GUARDED_EVENTS = [
   "mc-activate",
   "mc-inspect",
@@ -290,7 +294,41 @@ export const GUARDED_EVENTS = [
   "mc-info",
   "mc-sort",
   "mc-filter-sheet",
+  "mc-input",
+  "mc-field-focus",
+  "mc-search-focus",
 ] as const;
+
+/** The guarded events that say the caret went into or left a field: its leaving (`focused: false`) always gets through, so the scene never keeps a stale "typing" flag. */
+const FOCUS_EVENTS: ReadonlySet<string> = new Set(["mc-field-focus", "mc-search-focus"]);
+
+/** Whether a guarded `event` is stopped, given whether the region takes events now. */
+export function guardStops(event: Event, takes: boolean): boolean {
+  if (takes) return false;
+  if (FOCUS_EVENTS.has(event.type) && (event as CustomEvent<{ focused?: boolean }>).detail?.focused === false)
+    return false;
+  return true;
+}
+
+/**
+ * Guards `wrap` (a region's box): every guarded event is stopped in the capture phase while `takes()` says no, and the
+ * box is inert while it does not, so a field that kept the caret under a modal loses it and takes no key or composition.
+ * Returns the function that applies the inert state; call it each time the answer may have changed.
+ */
+export function guardRegion(wrap: HTMLElement, takes: () => boolean, destroyed: () => boolean): () => void {
+  for (const name of GUARDED_EVENTS)
+    wrap.addEventListener(
+      name,
+      (event) => {
+        if (destroyed() || guardStops(event, takes())) event.stopPropagation();
+      },
+      true,
+    );
+  return () => {
+    const inert = !takes();
+    if (wrap.inert !== inert) wrap.inert = inert;
+  };
+}
 
 /**
  * Whether a panel's guarded event may reach its scene: the scene takes presses (`sceneTakesPresses`) and its panel is
@@ -363,18 +401,15 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     this.#wrap.dataset.scene = scene.sys.settings.key;
     Object.assign(this.#wrap.style, { position: "absolute", pointerEvents: "auto", opacity: "0" });
     this.#wrap.append(element);
-    // Every panel's `mc-activate`, `mc-inspect`, `mc-slide` and `mc-step` (a card hold's timer fires it) is stopped here, before its scene
-    // hears it, while the scene isn't taking presses (stopped, paused, input off for an exit) or its panel is covered
-    // by another modal: `pointer-events` follows the scene only at `postupdate`, so a tap in that gap would otherwise
-    // still act.
-    for (const name of GUARDED_EVENTS)
-      this.#wrap.addEventListener(
-        name,
-        (event) => {
-          if (this.#destroyed || !this.#takesEvents()) event.stopPropagation();
-        },
-        true,
-      );
+    // Every panel's `mc-activate`, `mc-inspect`, `mc-slide`, `mc-step` (a card hold's timer fires it) and its fields'
+    // `mc-input` are stopped here, before its scene hears them, while the scene isn't taking presses (stopped, paused,
+    // input off for an exit) or its panel is covered by another modal: `pointer-events` follows the scene only at
+    // `postupdate`, so a tap in that gap would otherwise still act. The box is also inert then (`guardRegion`).
+    this.#applyInert = guardRegion(
+      this.#wrap,
+      () => this.#takesEvents(),
+      () => this.#destroyed,
+    );
     this.#layer.append(this.#wrap);
     this.setRect(rect);
     this.#sync();
@@ -456,6 +491,8 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   }
 
   /** Whether the scene and the panel's cover state let an event through right now (read live, not at the last frame). */
+  #applyInert: () => void = () => undefined;
+
   #takesEvents(): boolean {
     return regionTakesEvents(
       sceneTakesPresses(this.#scene) && !sceneInputCovered(this.#scene, this.#shownUnder),
@@ -509,6 +546,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
       this.#live = live;
       this.#wrap.style.pointerEvents = live ? "auto" : "none";
     }
+    this.#applyInert();
     const clip = shown
       ? clipWithHoles(this.#rect, [
           ...chromeBoxes(this.#scene.game, this.#rect),

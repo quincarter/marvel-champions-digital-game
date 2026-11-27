@@ -31,6 +31,7 @@
  * searchable tiles, then starts from an empty deck or a copy of one of that hero's precons.
  */
 
+import { sheetThemeFor } from "../ui/campaign-chrome.js";
 import "@mc/ui";
 import type { McSearchDetail, McSearchFocusDetail, McSearchField, McSheet } from "@mc/ui";
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
@@ -956,6 +957,19 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Campaign mode's title (the run's own name plus the seat and its identity, `scenes/campaign/deck-edit.ts`) can
     // run to two lines on a narrow layout, so the next row is placed from the title's own measured height.
     const titleText = this.#campaign ? this.#campaign.title.toUpperCase() : t("deckBuilder.title").toUpperCase();
+    const titleSize = phone ? 28 : 38;
+    // The longest line the title sets (a wrapped measure answers with the wrap width, not the words').
+    const titleLine = b.measure(titleText, typeRole.screenTitle, { size: titleSize, letterSpacing: 2 });
+    const titleWidth = Math.min(titleLine.width, column - 108);
+    // The dark mode toggle floats at the top centre: a long title that runs under it drops below its tab.
+    const { drop: titleDrop } = sheetThemeFor(this, {
+      width,
+      textLeft: left,
+      textRight: left + titleWidth,
+      textTop: y,
+      textHeight: titleLine.height,
+    });
+    y += titleDrop;
     const title = b.text(left, y, titleText, typeRole.screenTitle, {
       color: surface.ink.hex,
       size: phone ? 28 : 38,

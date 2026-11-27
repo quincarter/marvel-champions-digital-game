@@ -161,10 +161,16 @@ function gridCell(
     fitWidth: cardRect.width - 12,
     key: `name:${cardId}`,
   });
+  // The caption keeps its tracking while it fits; a narrow cell tightens it before the sheet shrinks the type or cuts
+  // the words ("EVENT · 0 OF 3 IN DE…").
+  const captionRoom = cardRect.width - 12;
+  // (A letter of the tracked caption is about 8px at the largest size: an estimate, so no text is measured here.)
+  const captionTight = card.caption.length * 8 > captionRoom;
   b.text(cardRect.x + 6, captionY + b.typeSize(11) * 1.25 + 2, card.caption, typeRole.label, {
     color: surface.ink.hex,
     alpha: card.captionStrong ? ink.label : ink.meta,
-    fitWidth: cardRect.width - 12,
+    ...(captionTight ? { letterSpacing: card.caption.length * 7 > captionRoom ? 0 : 0.2 } : {}),
+    fitWidth: captionRoom,
     key: `caption:${cardId}`,
   });
   // A tap on the picture or caption opens Inspect (a hold or a right-click does too).

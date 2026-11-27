@@ -20,9 +20,10 @@
  */
 import Phaser from "phaser";
 import "@mc/ui";
-import type { McSheet } from "@mc/ui";
+import type { McSearchDetail, McSearchField, McSheet } from "@mc/ui";
 import type { AnyCard } from "@mc/content";
 import type { PackRuntime } from "../packs/pack-runtime.js";
+import { inputDevice } from "../platform/input-device.js";
 import { onArtChange } from "../language-change.js";
 import { artLanguageNow } from "../art/art-source.js";
 import { heroSourceOf, villainSourceOf } from "../art/matchup-pictures.js";
@@ -39,7 +40,7 @@ import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { addPressShield } from "../ui/press-shield.js";
 import { cssOf } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { McButton, McTabs, McTextInput } from "../ui/widgets.js";
+import { McButton, McTabs } from "../ui/widgets.js";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { SheetBuilder } from "../dom/sheet-builder.js";
@@ -86,7 +87,6 @@ import { ReplayOpenError } from "../replay/replay-core.js";
 import { exportPastGame, sharePastGame, type PastGameActionDeps } from "../replay/past-game-actions.js";
 import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../replay/replay-share.js";
 import { appSession, deckStorage } from "../session.js";
-import { drawSearchField } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { introReplay } from "./replay-entry.js";
 import { drawOpenFileIcon } from "../ui/open-file-icon.js";
@@ -127,6 +127,9 @@ interface PanelContext {
   readonly height: number;
   readonly gutter: number;
   readonly areaTop: number;
+  /** The search field's box, and the export button's when the field sits beside it (a hole the panel leaves). */
+  readonly searchRect: Rect;
+  readonly exportHole: Rect | null;
   readonly contentWidth: number;
   readonly listRect: Rect;
   /** A row's height with the gap under it. */
@@ -189,9 +192,10 @@ export class PastGamesScene extends Phaser.Scene {
   /** Every save on the device, or null while they are read. */
   #saves: readonly SaveMeta[] | null = null;
   #rows: readonly PastGameRow[] = [];
-  /** What the search box says. Kept across visits like the filter; the DOM field outlives a redraw (`#draw`). */
+  /** What the search box says. Kept across visits like the filter. The field is a part of the panel (`mc-search-field`). */
   #query = "";
-  #searchInput: McTextInput | null = null;
+  /** The caret is in the search field: the screen's keyboard route stands aside. */
+  #searchFocused = false;
   /** Kept across visits (Phaser reuses the instance): a replay's Exit comes back to the same filter, place and game. */
   #filter: PastGameFilter = "all";
   /** Where the list was left: kept across visits (Phaser reuses the instance) and put back when the panel is made again. */
@@ -210,7 +214,6 @@ export class PastGamesScene extends Phaser.Scene {
   #built: { readonly from: number; readonly to: number } | null = null;
   #actions = new Map<string, () => void>();
   #hoverTargets = new Map<string, HoverTarget>();
-  #searchRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
   /** The game whose details show (the side panel), or whose popup is open (a phone); null for none. */
   #selectedId: string | null = null;
   /** A game to scroll to once the saves have loaded (`PastGamesSceneData.gameId`). */
@@ -281,12 +284,12 @@ export class PastGamesScene extends Phaser.Scene {
     // A pad that put the caret in the search box can take it out again. Bound before the route (`text-field-escape.ts`).
     bindTextFieldEscape(
       this,
-      () => this.#searchInput,
+      () => this.#searchField(),
       () => this.#popupOpen,
     );
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
-      blocked: () => this.#searchInput?.focused ?? false,
+      blocked: () => this.#searchFocused,
       onCancel: () => this.#cancel(),
       onTab: (direction) => {
         if (!this.#popupOpen) this.#stepFilter(direction);
@@ -328,8 +331,6 @@ export class PastGamesScene extends Phaser.Scene {
       this.#destroyWidgets();
       // The panel goes with the scene (`DomRegion`); the next visit makes a new one.
       this.#region = null;
-      this.#searchInput?.destroy();
-      this.#searchInput = null;
     });
     this.#draw();
     // The type measured before the fonts were in: lay the words out again once they are.
@@ -698,11 +699,7 @@ export class PastGamesScene extends Phaser.Scene {
   #draw(): void {
     if (!this.#alive) return;
     this.#destroyWidgets();
-    // The search box's DOM field outlives a redraw, so its caret and what is typed stay put.
-    const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
-    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
-    for (const node of kept) this.children.add(node);
     this.#hints.reset();
     this.#obstacles = [];
 
@@ -826,21 +823,8 @@ export class PastGamesScene extends Phaser.Scene {
           height: hit.target,
         }
       : { x: left, y: exportRect.y + exportRect.height + 6, width: contentWidth, height: hit.target };
-    this.#searchInput = drawSearchField(
-      this,
-      searchRect,
-      "search",
-      this.#query,
-      t("pastGames.search"),
-      (value) => {
-        this.#query = value;
-        this.#resetScroll();
-        this.#draw();
-      },
-      this.#searchInput,
-      stops,
-    );
-    this.#searchRect = searchRect;
+    // A real field in the panel (`#paintPanel`): the focus route enters it, and a keyboard or pad user types into it.
+    stops.set("search", { rect: searchRect, activate: () => this.#searchField()?.focusInput() });
     this.#obstacles.push(searchRect);
 
     const areaTop = Math.max(exportRect.y + exportRect.height, searchRect.y + searchRect.height) + 10;
@@ -853,8 +837,6 @@ export class PastGamesScene extends Phaser.Scene {
     // Until the saves load there are no rows to find a linked game in: keep the id for the draw that has them.
     if (!selected && this.#saves !== null) this.#selectedId = null;
     this.#popupOpen = !layout.side && selected !== null;
-    // The popup sits over the screen; the DOM field would show through it.
-    this.#searchInput.setVisible(!this.#popupOpen);
 
     const empty =
       this.#saves === null || rows.length === 0
@@ -869,6 +851,8 @@ export class PastGamesScene extends Phaser.Scene {
       height,
       gutter,
       areaTop,
+      searchRect,
+      exportHole: besideExport ? exportRect : null,
       contentWidth,
       listRect: layout.list,
       rowHeight: pastGameRowHeight(layout.list.width - 20) + ROW_GAP,
@@ -961,12 +945,22 @@ export class PastGamesScene extends Phaser.Scene {
     this.#actions = new Map();
     this.#hoverTargets = new Map();
     this.#glyphs.reset();
-    // The panel's box: everything below the controls, or (a phone's popup) the whole screen, which its scrim covers.
+    // The panel's box: the search field and everything below it, or (a phone's popup) the whole screen, which its
+    // scrim covers. Beside the export button the field's row also holds that button: a hole in the panel shows it.
     const region: Rect = ctx.popup
       ? { x: 0, y: 0, width: ctx.width, height: ctx.height }
-      : { x: 0, y: ctx.areaTop, width: ctx.width, height: Math.max(0, ctx.height - ctx.areaTop) };
+      : { x: 0, y: ctx.searchRect.y, width: ctx.width, height: Math.max(0, ctx.height - ctx.searchRect.y) };
     const b = new SheetBuilder(this.game, { x: region.x, y: region.y }, isDesktopType);
     const rows = this.#rows;
+    const steam = inputDevice().mode === "pad" && inputDevice().pad?.steam === true;
+    b.search(ctx.searchRect, {
+      key: "search",
+      value: this.#query,
+      placeholder: t("pastGames.search"),
+      clearLabel: t("decks.clearSearch"),
+      escapeClears: true,
+      ...(steam ? { focusPlaceholder: t("reader.steamKeyboard") } : {}),
+    });
 
     if (ctx.empty !== null) {
       const emptyWidth = Math.min(ctx.contentWidth, 560) - 24;
@@ -995,12 +989,27 @@ export class PastGamesScene extends Phaser.Scene {
     this.#mount(region, b);
   }
 
+  /** The search field (`mc-search-field`), while it is drawn. */
+  #searchField(): McSearchField | null {
+    return (this.#region?.element.elementOf("search") as McSearchField | null) ?? null;
+  }
+
   /** Hands the built parts to the panel (made once, so the list's scroll survives a redraw) and renders them now. */
   #mount(rect: Rect, b: SheetBuilder): void {
     if (!this.#region) {
       const element = document.createElement("mc-sheet") as McSheet;
       // A pack scan that fails to load reads its file again (`mc-image-error` from a part with a retry key).
       this.#pictures.watch(element);
+      element.addEventListener("mc-search", (event) => {
+        const { value } = (event as CustomEvent<McSearchDetail>).detail;
+        if (value === this.#query) return;
+        this.#query = value;
+        this.#resetScroll();
+        this.#draw();
+      });
+      element.addEventListener("mc-search-focus", (event) => {
+        this.#searchFocused = (event as CustomEvent<{ focused: boolean }>).detail.focused;
+      });
       element.addEventListener("mc-activate", (event) => {
         // Leaving already (the fade runs): a second tap must not act.
         if (this.#leaving) return;
@@ -1012,11 +1021,12 @@ export class PastGamesScene extends Phaser.Scene {
     }
     const region = this.#region;
     region.setRect(rect);
-    // The search field is a Phaser DOM element and the hover popover is drawn in the canvas: both are left out of the
-    // panel to be seen through it. The field only while it shows (a popup hides it, as does a scene above).
+    // The export button (beside the search field) and the hover popover are drawn in the canvas: both are left out of
+    // the panel to be seen through it.
     region.setHoles(() => {
       const holes: Rect[] = [];
-      if (this.#searchInput?.shown && !this.#popupOpen) holes.push(this.#searchRect);
+      const now = this.#ctx;
+      if (now?.exportHole && !now.popup) holes.push(now.exportHole);
       const popover = this.#hover?.shownRect;
       if (popover) holes.push(popover);
       return holes;

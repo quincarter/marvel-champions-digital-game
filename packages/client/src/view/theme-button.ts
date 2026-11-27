@@ -81,3 +81,41 @@ export function topBarThemePlan(args: {
   if (height < 12) return { slot: null, drop: 0 };
   return { slot: { ...tab, height }, drop };
 }
+
+/** The toggle's press area: a touch target wide and at least 32px tall, even where it is drawn as a short tab. */
+export function themeHitRect(slot: Rect): Rect {
+  const width = Math.max(slot.width, 44);
+  return { x: slot.x - (width - slot.width) / 2, y: slot.y, width, height: Math.max(slot.height, 32) };
+}
+
+/**
+ * The same rule for the words of a bar or heading drawn in a panel (`mc-sheet`), where the toggle's whole press area
+ * is cut out of the panel (`dom/chrome-holes.ts`), not just the tab drawn in it: text under that area is cut off. The
+ * words start `textTop` px down, are `textHeight` tall and span `textLeft` to `textRight`; `barHeight` (omit for a
+ * heading on the page) is the bar they must stay inside. They keep clear of the press area by dropping below it when the
+ * bar has the room (`drop`), else by ending before it (`maxRight`: fit the words to that edge). `slot` is where the
+ * toggle goes (null: it floats where it does).
+ */
+export function sheetThemePlan(args: {
+  readonly width: number;
+  readonly textLeft: number;
+  readonly textRight: number;
+  readonly textTop: number;
+  readonly textHeight: number;
+  readonly barHeight?: number;
+}): { readonly slot: Rect | null; readonly drop: number; readonly maxRight: number | null } {
+  const { width, textLeft, textRight, textTop, textHeight, barHeight } = args;
+  const floating = themeHitRect(floatingThemeSlot({ width }));
+  // Beside the press area the words may end right at its edge (it is a cut-out, not a drawn frame); under it they keep a gap.
+  const clears =
+    textRight <= floating.x ||
+    textLeft >= floating.x + floating.width ||
+    textTop >= floating.y + floating.height + THEME_CLEARANCE;
+  if (clears) return { slot: null, drop: 0, maxRight: null };
+  const tab = themeTabSlot({ width });
+  const press = themeHitRect(tab);
+  const wanted = Math.max(0, press.y + press.height + THEME_CLEARANCE - textTop);
+  const room = barHeight === undefined ? Infinity : barHeight - 2 - (textTop + textHeight);
+  if (wanted <= room) return { slot: tab, drop: wanted, maxRight: null };
+  return { slot: tab, drop: 0, maxRight: press.x - THEME_CLEARANCE };
+}

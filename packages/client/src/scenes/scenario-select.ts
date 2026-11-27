@@ -587,6 +587,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     b.box({ x: 0, y: 0, width, height }, { fill: surface.paper.hex });
     b.dots({ x: 0, y: frame.topBar, width, height: height - frame.topBar }, "paper", 6, 1, 0.1);
     const bar = sheetTopBar(b, this.#glyphs, {
+      scene: this,
       frame,
       backLabel: t("scenario.back"),
       title: t("scenario.title"),

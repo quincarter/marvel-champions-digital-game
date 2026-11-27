@@ -5,7 +5,10 @@
  * - Thwart: intervención / intervenir (INT). Recover: recuperación (REC). Attack: ataque (ATQ).
  * - Encounter deck: mazo de Encuentros. Boost icon: icono de Aumento. Star (boost) icon: icono de Estrella.
  * - Facedown / face up: boca abajo / boca arriba ("poner boca arriba", never "voltear" for an encounter card).
- * - Threat: Amenaza. Main scheme: plan principal.
+ * - Threat: Amenaza. Main scheme: plan principal. Minion: esbirro. Wild resource: recurso Universal.
+ * - Aspects: Agresividad, Justicia, Liderazgo, Protección. Each player: cada jugador.
+ * Where the guide has no term (Undo, Skirmish) the word is the plain Spanish one: Deshacer, Escaramuza.
+ * `terminology-es.test.ts` pins these and fails on the words the guide never uses (frustrar, complot, secuaz, comodín).
  */
 import type { en } from "./en.js";
 
@@ -105,6 +108,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Esta versión solo puede reproducir los primeros {n} movimientos de esa partida, así que su registro termina ahí.",
   "pastGames.result.unfinished": "Sin terminar",
   "pastGames.reason.villainDefeated": "Villano derrotado",
+  "pastGames.working": "…",
   "pastGames.reason.schemeCompleted": "Se completó el plan principal",
   "pastGames.reason.heroesDefeated": "Todos los héroes fueron derrotados",
   "pastGames.reason.conceded": "Los jugadores se rindieron",
@@ -181,7 +185,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "trophies.family.together": "Jugar juntos",
   "trophies.family.epic": "Multijugador épico",
   "trophies.family.competitive": "Civil War competitivo",
-  "trophies.family.hosting": "Mirar y anfitrionar",
+  "trophies.family.hosting": "Espectadores y anfitriones",
   "trophies.family.decks": "Construcción de mazos",
   "trophies.family.teamups": "Historias de equipo",
   "trophies.family.funny": "Los graciosos",
@@ -300,7 +304,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "decks.search": "buscar mazos…",
   "decks.cardPool": "Reserva de cartas",
   "decks.deckList": "Lista del mazo",
-  "decks.poolSearch": "Buscar cartas: nombre, rasgo, texto",
+  "decks.poolSearch": "Nombre (ES/EN), rasgos y texto (EN)",
   "decks.poolSelectDeck": "Elige un mazo para explorar su reserva de cartas.",
   "decks.poolNoIdentity": "La carta de identidad de este mazo no está en la reserva.",
   "decks.poolNoMatch": "Ninguna carta coincide con este filtro.",
@@ -1732,7 +1736,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "deckBuilder.icon.physical": "Físico",
   "deckBuilder.icon.mental": "Mental",
   "deckBuilder.icon.energy": "Energía",
-  "deckBuilder.icon.wild": "Comodín",
+  "deckBuilder.icon.wild": "Universal",
   "deckBuilder.oddsEmpty": "Añade cartas para ver sus probabilidades.",
   "deckBuilder.oddsDraw": "Roba {count}",
   "deckBuilder.oddsDrawOpening": "Roba {count} (mano inicial)",
@@ -1754,7 +1758,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "deckBuilder.saveChanges": "Guardar cambios",
   "deckBuilder.saveDeck": "Guardar mazo",
   "deckBuilder.saved": "Guardado ✓",
-  "deckBuilder.searchPlaceholder": "Busca, o o:2 t:ally",
+  "deckBuilder.searchPlaceholder": "Nombre (ES/EN), rasgos (EN), o:2 t:ally",
   "deckBuilder.clearSearch": "Borrar",
   "searchHelp.how": "Cómo funciona",
   "searchHelp.looks":
