@@ -326,6 +326,19 @@ export type SheetNode =
 const keyOf = (node: SheetNode, index: number): string =>
   "key" in node && node.key !== undefined ? `${node.kind}:key:${node.key}` : `${node.kind}:${index}`;
 
+/**
+ * The room a scrolling region's scrollbar takes beside its parts: 6px (`--mc-scrollbar-width`; Firefox's thin bar is
+ * about 8px). The region is drawn this much wider than its rect when its content scrolls, so the gutter comes out of
+ * that extra width and the parts keep the rect's width. Without it the gutter cut into the parts' client width, the
+ * content overflowed sideways and its right edge hid under the bar.
+ */
+export const SCROLL_GUTTER = 8;
+
+/** The box a scrolling region is drawn in: its rect, widened by the scrollbar's gutter while its content scrolls. */
+export function scrollBox(node: Pick<SheetScroll, "rect" | "height">): SheetRect {
+  return node.height > node.rect.height ? { ...node.rect, width: node.rect.width + SCROLL_GUTTER } : node.rect;
+}
+
 const px = (rect: SheetRect): string =>
   `left:${rect.x}px;top:${rect.y}px;width:${rect.width}px;height:${rect.height}px`;
 
@@ -824,7 +837,7 @@ export class McSheet extends LitElement {
       case "slider":
         return this.#slider(node);
       case "scroll":
-        return html`<div class="part scroller" data-key=${node.key} style=${px(node.rect)}>
+        return html`<div class="part scroller" data-key=${node.key} style=${px(scrollBox(node))}>
           <div class="content" style=${`height:${node.height}px`}>
             ${repeat(node.nodes, keyOf, (child) => this.#node(child))}
           </div>

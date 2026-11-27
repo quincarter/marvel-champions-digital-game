@@ -65,6 +65,8 @@ export class OptionNoticeOverlay extends Phaser.Scene {
   /** A stable identity per notice, so a button's DOM key says which notice it belongs to. */
   readonly #ids = new WeakMap<OptionNotice, number>();
   #nextId = 1;
+  /** The notice the ring was last put on OK for: a redraw of the same one (a glyph changing) keeps the ring where it is. */
+  #ringedFor: OptionNotice | null = null;
   #route: FocusRoute | null = null;
   #panel!: PopupSheet;
   #glyphs!: SheetGlyphs;
@@ -294,7 +296,11 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     }
     this.#panel.mount(b, width, height);
     this.#route?.set(neverRect ? ["never", "ok"] : ["ok"], stops);
-    // Opening (and each next notice) puts the ring on OK, so A answers at once.
-    this.#route?.focusKey("ok");
+    // Opening (and each next notice) puts the ring on OK, so A answers at once. A redraw of the same notice (the ring
+    // moving to "Don't show again" changes the glyphs, which redraws) must not take it back.
+    if (this.#ringedFor !== notice) {
+      this.#ringedFor = notice;
+      this.#route?.focusKey("ok");
+    }
   }
 }

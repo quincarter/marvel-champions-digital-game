@@ -90,7 +90,9 @@ test("a tap flips a switch; a swipe that lifts over one only scrolls", async ({ 
   if (phone) expect(await scrollTop()).toBeGreaterThan(scrolledBefore);
   expect(await switchLabel(page, "confirm-end-turn")).toBe(before);
 
-  // A tap flips it.
+  // A tap flips it. The swipe carried the row up under the panel's header (the player scrolls it back to press it).
+  await toggle.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(200);
   const now = (await toggle.boundingBox())!;
   if (phone) await page.touchscreen.tap(now.x + now.width / 2, now.y + now.height / 2);
   else await page.mouse.click(now.x + now.width / 2, now.y + now.height / 2);

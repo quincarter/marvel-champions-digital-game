@@ -30,7 +30,7 @@ export const ThemeStyles = css`
   .scroller {
     outline: none;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: clip;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }

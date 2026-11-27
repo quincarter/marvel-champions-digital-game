@@ -60,7 +60,7 @@ export const McSheetStyles = css`
   }
   /* A scrolling region keeps its parts inside its rect and scrolls the rest, vertically only. */
   .scroller {
-    overflow-x: hidden;
+    overflow-x: clip;
     overflow-y: auto;
     overscroll-behavior: contain;
   }

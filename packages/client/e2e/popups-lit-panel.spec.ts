@@ -132,10 +132,17 @@ test("the Board's End turn confirm is a panel and ends the turn from its button"
   );
   await expect(confirmSheet(page)).toHaveCount(0);
   // It ended the turn (not just closed): the villain phase comes up.
+  // Ending the turn can raise the fixture's own "Discard any cards?" decision first: it is declined, as a player would.
   await waitFor(
-    async () => ((await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null),
+    async () => {
+      const scenes = await activeScenes(page);
+      if (scenes.includes("VillainPhaseOverlay")) return true;
+      if (scenes.includes("ChoiceOverlay"))
+        await clickText(page, "Decline", { sceneKey: "ChoiceOverlay", timeoutMs: 3000 }).catch(() => undefined);
+      return null;
+    },
     "the villain phase follows",
-    20_000,
+    30_000,
   );
   expect(errors).toEqual([]);
 });

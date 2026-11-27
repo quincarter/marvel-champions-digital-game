@@ -14,6 +14,13 @@ export const McSettingsBodyStyles = css`
   }
   .scroller {
     height: 100%;
+    /* The rows are placed to fit the scroller's client width (the region is as wide as the rows plus the scrollbar's
+       gutter), so nothing should ever scroll sideways: clip, unlike hidden, also refuses a programmatic scroll
+       (scrollIntoView on a focused row), which is what once left the labels cut at the left edge. */
+    overflow-x: clip;
+  }
+  .content {
+    width: 100%;
   }
   .content {
     position: relative;

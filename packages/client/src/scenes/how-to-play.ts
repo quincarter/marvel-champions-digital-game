@@ -117,6 +117,8 @@ export class HowToPlayScene extends Phaser.Scene {
     });
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
+      // The Rules reference opens over this hub and owns Escape and the pad until it has closed (it leaves on a motion).
+      blocked: () => this.scene.isActive(SCENES.rules),
       onCancel: () => this.#leave(),
       // Start is "forward": it presses Continue learning, the hub's one primary action.
       primary: () => "continue-learning",

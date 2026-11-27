@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import "./mc-sheet.js";
-import type { SheetNode } from "./McSheet.js";
+import { SCROLL_GUTTER, scrollBox, type SheetNode } from "./McSheet.js";
 
 const rect = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
 
@@ -550,5 +550,13 @@ describe("mc-sheet drawings, QR codes and sliders", () => {
     expect(chip.style.left).toBe("16px");
     expect((chip as unknown as { label: string }).label).toBe("Liderazgo");
     sheet.remove();
+  });
+});
+
+describe("scrollBox", () => {
+  it("widens a region by the scrollbar's gutter only while its content scrolls", () => {
+    const r = rect(10, 20, 300, 100);
+    expect(scrollBox({ rect: r, height: 400 })).toEqual({ ...r, width: 300 + SCROLL_GUTTER });
+    expect(scrollBox({ rect: r, height: 100 })).toBe(r);
   });
 });
