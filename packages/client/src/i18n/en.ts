@@ -1538,6 +1538,7 @@ export const en = {
   "deckCheck.tabAspect": "Aspect",
   "deckCheck.editDeck": "Edit deck",
   "deckCheck.startGame": "Start game ▸",
+  "deckCheck.startUnavailable": "Open this deck from Take your seats to start a game with it.",
   "deckCheck.unknown": "Unknown",
   "deckCheck.yourDeckCount": "Your deck · {count}",
   "deckCheck.yourDeck": "Your deck",

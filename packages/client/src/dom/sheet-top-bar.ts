@@ -69,7 +69,7 @@ export function sheetTopBar(b: SheetBuilder, glyphs: SheetGlyphs, options: Sheet
     });
   }
   const below = options.titleBelowTab === true && frame.phone;
-  b.text(x, below ? 29 : height / 2, options.title.toUpperCase(), bangers(below ? 18 : frame.phone ? 22 : 28), {
+  b.text(x, below ? 40 : height / 2, options.title.toUpperCase(), bangers(below ? 16 : frame.phone ? 22 : 28), {
     color: surface.paper.hex,
     origin: [0, 0.5],
     letterSpacing: 1,
