@@ -9,14 +9,3 @@ declare global {
 }
 
 export { McSettingsBody };
-export type {
-  BodyButton,
-  BodyCell,
-  BodyControl,
-  BodyField,
-  BodyHeading,
-  BodyList,
-  BodyRect,
-  BodyRow,
-  SettingsBodyModel,
-} from "./McSettingsBody.js";

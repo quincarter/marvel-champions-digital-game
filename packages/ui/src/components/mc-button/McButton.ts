@@ -1,9 +1,8 @@
 import { html, LitElement, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { onTap } from "../../shared/tap.js";
+import type { McButtonKind } from "../../shared/button.types.js";
 import { McButtonStyles } from "./mc-button.styles.js";
-
-export type McButtonKind = "primary" | "secondary" | "quiet" | "onInk" | "rail";
 
 /**
  * # Button

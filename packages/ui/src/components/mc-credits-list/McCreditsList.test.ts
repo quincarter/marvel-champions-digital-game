@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import "./mc-credits-list.js";
-import type { CreditsListRow } from "./McCreditsList.js";
+import type { CreditsListRow } from "./mc-credits-list.types.js";
 
 const rows: CreditsListRow[] = [
   { kind: "notice", text: "A fan project." },

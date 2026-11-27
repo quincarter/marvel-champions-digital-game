@@ -5,13 +5,10 @@
  * finger lifts over. A bare `click` would fire for a swipe that started and ended on the same control.
  */
 
+import type { TapOptions } from "./tap.types.js";
+
 /** As the client's `view/press-arm.ts`. */
 export const TAP_SLOP_PX = 10;
-
-export interface TapOptions {
-  /** Read at the press: false makes this press do nothing (a disabled control). */
-  readonly enabled?: () => boolean;
-}
 
 /**
  * Whether the point is inside `rect`. A box with no size (a host drawn as `display: contents`, or no layout at all) can't

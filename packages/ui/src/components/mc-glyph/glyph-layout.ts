@@ -4,34 +4,7 @@
  * layout, so the two can never disagree about a width.
  */
 
-/** The PlayStation face symbols the fonts lack: drawn as shapes. */
-export type GlyphSymbol = "cross" | "circle" | "square" | "triangle";
-
-export interface GlyphKeySpec {
-  readonly kind: "key";
-  readonly label: string;
-}
-
-export interface GlyphPadArt {
-  /** The family's picture of this button: raw SVG with its BODY / CUT placeholders. Trusted, bundled SVG only: it is drawn as markup. */
-  readonly source: string;
-  /** Xbox / PlayStation face buttons keep their own colors, with no outline. */
-  readonly colored: boolean;
-}
-
-export interface GlyphPadSpec {
-  readonly kind: "pad";
-  readonly label: string;
-  /** "face" is a round disc; every other shape is a square pill. */
-  readonly shape: string;
-  readonly symbol?: GlyphSymbol | null;
-  /** Xbox face letters only: the letter's CSS color, drawn on an ink disc. */
-  readonly color?: string;
-  /** The picture drawn in place of the shape, where the family's set has one. */
-  readonly art?: GlyphPadArt;
-}
-
-export type GlyphSpec = GlyphKeySpec | GlyphPadSpec;
+import type { ArtPicture, GlyphLayout, GlyphSpec, GlyphTextMeasure, LaidCell } from "../../shared/glyph.types.js";
 
 export const GLYPH_TAB_WIDTH = 6;
 export const GLYPH_CHORD_GAP = 4;
@@ -42,9 +15,6 @@ export const GLYPH_ART_OUTLINE = 1.5;
 
 /** The font a glyph draws in when the page does not say (the client's body font). */
 export const GLYPH_FONT_FAMILY = '"Public Sans", sans-serif';
-
-/** Width in px of `label` set in Public Sans 800 at `size`. */
-export type GlyphTextMeasure = (label: string, size: number) => number;
 
 let context: CanvasRenderingContext2D | null | undefined;
 
@@ -63,13 +33,6 @@ export const measureGlyphText = (label: string, size: number, family = GLYPH_FON
   const width = context.measureText(label).width;
   return width > 0 ? width : rough;
 };
-
-export interface ArtPicture {
-  /** The picture's markup between its outer svg tags, placeholders still in. */
-  readonly inner: string;
-  /** The picture's own box: x, y, width, height. */
-  readonly box: readonly [number, number, number, number];
-}
 
 /** Reads a raw glyph SVG: its viewBox and what is inside it. */
 export function parseArt(source: string): ArtPicture {
@@ -104,22 +67,6 @@ export function artMarkup(inner: string, uid: string): string {
     out = out.replaceAll(`id="${id}"`, `id="${uid}-${id}"`).replaceAll(`url(#${id})`, `url(#${uid}-${id})`);
   }
   return out;
-}
-
-export interface LaidCell {
-  readonly spec: GlyphSpec;
-  readonly width: number;
-  readonly height: number;
-  readonly round: boolean;
-  /** The label's font size in px. */
-  readonly fontSize: number;
-  readonly art: { readonly picture: ArtPicture; readonly outline: number; readonly colored: boolean } | null;
-}
-
-export interface GlyphLayout {
-  readonly cells: readonly LaidCell[];
-  /** The width when fully open: the cells and the gaps between them. */
-  readonly fullWidth: number;
 }
 
 /** A picture's drawn size for a glyph of height `h`: an outlined face disc is `h` across and nothing runs past `h`. */

@@ -1,19 +1,9 @@
 import { html, LitElement, nothing, svg, type PropertyDeclarations, type TemplateResult } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import {
-  GLYPH_TAB_WIDTH,
-  artDrawSize,
-  artMarkup,
-  layoutGlyph,
-  measureGlyphText,
-  type GlyphSpec,
-  type GlyphSymbol,
-  type LaidCell,
-} from "./glyph-layout.js";
+import { GLYPH_TAB_WIDTH, artDrawSize, artMarkup, layoutGlyph, measureGlyphText } from "./glyph-layout.js";
+import type { GlyphSpec, GlyphSymbol, LaidCell, McGlyphGround } from "../../shared/glyph.types.js";
 import { McGlyphStyles } from "./mc-glyph.styles.js";
-
-export type McGlyphGround = "ink" | "paper";
 
 /** The fold's durations, as the Phaser glyph's `glyphOpenness` ran them. */
 export const GLYPH_COLLAPSE_MS = 140;

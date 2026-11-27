@@ -9,4 +9,3 @@ declare global {
 }
 
 export { McGameLog };
-export type { GameLogClose, GameLogLine, GameLogTag, GameLogVoice } from "./McGameLog.js";

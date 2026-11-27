@@ -2,17 +2,7 @@ import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { McCreditsListStyles } from "./mc-credits-list.styles.js";
 
-/** One row of the Art & Credits list, already worded and translated by the client (`view/credits-model.ts`). */
-export type CreditsListRow =
-  | { readonly kind: "notice"; readonly text: string }
-  | { readonly kind: "section"; readonly title: string; readonly count: string }
-  | {
-      readonly kind: "entry";
-      readonly title: string;
-      /** The lines under the title, in order: "body" for the credit itself, "small" for the rest. */
-      readonly lines: readonly { readonly text: string; readonly tone: "body" | "small" }[];
-    };
-
+import type { CreditsListRow } from "./mc-credits-list.types.js";
 /**
  * # Credits list
  * The Art & Credits screen's scrolling list: the fan-project notice, then a titled section per group, each entry a

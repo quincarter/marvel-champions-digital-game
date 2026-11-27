@@ -4,34 +4,8 @@ import "../mc-button/mc-button.js";
 import "../mc-glyph/mc-glyph.js";
 import { tapped } from "../../shared/tapped.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import type { SheetGlyph } from "../mc-sheet/mc-sheet.js";
+import type { GameLogClose, GameLogLine } from "./mc-game-log.types.js";
 import { McGameLogStyles } from "./mc-game-log.styles.js";
-
-/** Whose beat a line was: the rule down its left edge. */
-export type GameLogVoice = "player" | "villain" | "scenario" | "win" | "loss";
-
-/** A status a line gave or took off, as a chip; `spent` once it has been used up (struck through and faded). */
-export interface GameLogTag {
-  readonly status: string;
-  readonly spent: boolean;
-}
-
-/** One line of the log, as the client's `view/log-lines.ts` words it. */
-export interface GameLogLine {
-  readonly id: string;
-  /** The beat reference over the line ("R3.5"). */
-  readonly ref: string;
-  readonly text: string;
-  readonly voice: GameLogVoice;
-  readonly tags: readonly GameLogTag[];
-}
-
-/** The close button's glyph (the key or pad button the shortcut shows) and how its word makes room, from `SheetGlyphs`. */
-export interface GameLogClose {
-  readonly labelShift?: number;
-  readonly still?: boolean;
-  readonly glyph?: SheetGlyph;
-}
 
 /** How near the bottom counts as at the bottom: sub-pixel scroll positions and the scrollbar's rounding. */
 const BOTTOM_SLACK_PX = 6;

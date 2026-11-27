@@ -9,4 +9,3 @@ declare global {
 }
 
 export { McButton };
-export type { McButtonKind } from "./McButton.js";

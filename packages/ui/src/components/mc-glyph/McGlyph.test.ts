@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import "./mc-glyph.js";
-import { artMarkup, layoutGlyph, parseArt, type GlyphSpec } from "./glyph-layout.js";
+import { artMarkup, layoutGlyph, parseArt } from "./glyph-layout.js";
+import type { GlyphSpec } from "../../shared/glyph.types.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "./McGlyph.js";
 
 const measure = (label: string, size: number): number => label.length * size * 0.5;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import "./mc-settings-body.js";
-import type { SettingsBodyModel } from "./McSettingsBody.js";
+import type { SettingsBodyModel } from "./mc-settings-body.types.js";
 
 const rect = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
 

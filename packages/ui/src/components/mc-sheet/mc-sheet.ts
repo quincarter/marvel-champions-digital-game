@@ -9,23 +9,3 @@ declare global {
 }
 
 export { McSheet };
-export type {
-  SheetBox,
-  SheetButton,
-  SheetChip,
-  SheetDots,
-  SheetGlyph,
-  SheetHalftone,
-  SheetImage,
-  SheetNode,
-  SheetPoly,
-  SheetQr,
-  SheetRect,
-  SheetScroll,
-  SheetSlider,
-  SheetSvg,
-  SheetTap,
-  SheetText,
-  SvgOp,
-  SvgStyle,
-} from "./McSheet.js";

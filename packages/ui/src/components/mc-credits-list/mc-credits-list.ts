@@ -9,4 +9,3 @@ declare global {
 }
 
 export { McCreditsList };
-export type { CreditsListRow } from "./McCreditsList.js";

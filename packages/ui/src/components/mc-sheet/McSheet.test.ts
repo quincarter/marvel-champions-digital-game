@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import "./mc-sheet.js";
-import { SCROLL_GUTTER, scrollBox, type SheetNode } from "./McSheet.js";
+import { SCROLL_GUTTER, scrollBox } from "./McSheet.js";
+import type { SheetNode } from "../../shared/sheet.types.js";
 
 const rect = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
 

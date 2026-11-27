@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import "./mc-game-log.js";
-import type { GameLogLine } from "./McGameLog.js";
+import type { GameLogLine } from "./mc-game-log.types.js";
 
 const pointer = (type: string, x = 10, y = 10): PointerEvent =>
   new PointerEvent(type, { bubbles: true, composed: true, clientX: x, clientY: y, pointerId: 1, button: 0 });
