@@ -958,18 +958,16 @@ export class DeckBuilderScene extends Phaser.Scene {
     // run to two lines on a narrow layout, so the next row is placed from the title's own measured height.
     const titleText = this.#campaign ? this.#campaign.title.toUpperCase() : t("deckBuilder.title").toUpperCase();
     const titleSize = phone ? 28 : 38;
-    const titleMeasure = b.measure(titleText, typeRole.screenTitle, {
-      size: titleSize,
-      wrapWidth: column - 108,
-      letterSpacing: 2,
-    });
+    // The longest line the title sets (a wrapped measure answers with the wrap width, not the words').
+    const titleLine = b.measure(titleText, typeRole.screenTitle, { size: titleSize, letterSpacing: 2 });
+    const titleWidth = Math.min(titleLine.width, column - 108);
     // The dark mode toggle floats at the top centre: a long title that runs under it drops below its tab.
     const { drop: titleDrop } = sheetThemeFor(this, {
       width,
       textLeft: left,
-      textRight: left + titleMeasure.width,
+      textRight: left + titleWidth,
       textTop: y,
-      textHeight: titleMeasure.height,
+      textHeight: titleLine.height,
     });
     y += titleDrop;
     const title = b.text(left, y, titleText, typeRole.screenTitle, {
