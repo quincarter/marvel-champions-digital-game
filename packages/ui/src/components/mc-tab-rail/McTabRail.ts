@@ -26,12 +26,15 @@ export class McTabRail extends LitElement {
     selected: { type: String, reflect: true },
     prefix: { type: String },
     size: { type: Number },
+    label: { type: String },
   };
 
   declare tabs: readonly TabRailTab[];
   declare selected: string;
   declare prefix: string;
   declare size: number;
+  /** The rail's accessible name ("Filter by type"), already translated. */
+  declare label: string;
 
   constructor() {
     super();
@@ -39,11 +42,17 @@ export class McTabRail extends LitElement {
     this.selected = "";
     this.prefix = "tab:";
     this.size = 0;
+    this.label = "";
   }
 
   override connectedCallback(): void {
     super.connectedCallback();
     this.setAttribute("role", "tablist");
+  }
+
+  protected override updated(): void {
+    if (this.label) this.setAttribute("aria-label", this.label);
+    else this.removeAttribute("aria-label");
   }
 
   #press(tab: TabRailTab): void {
@@ -81,7 +90,9 @@ export class McTabRail extends LitElement {
             @mc-press=${() => this.#press(tab)}
           ></mc-button>
           ${
-            tab.badge && tab.badge > 0 && !chosen ? html`<span class="badge">${Math.min(9, tab.badge)}</span>` : nothing
+            tab.badge && tab.badge > 0 && !chosen
+              ? html`<span class="badge">${tab.badge > 9 ? "9+" : tab.badge}</span>`
+              : nothing
           }
         </div>`;
       },

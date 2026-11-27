@@ -32,7 +32,7 @@ describe("mc-tab-rail", () => {
     expect(cells[1]!.getAttribute("role")).toBe("tab");
     expect([...cells].map((c) => c.getAttribute("data-key"))).toEqual(["tab:seats", "tab:chat"]);
     expect(cells[0]!.hasAttribute("selected")).toBe(true);
-    expect([...rail.shadowRoot!.querySelectorAll(".badge")].map((b) => b.textContent)).toEqual(["9"]);
+    expect([...rail.shadowRoot!.querySelectorAll(".badge")].map((b) => b.textContent)).toEqual(["9+"]);
   });
 
   it("takes the chosen tab from the rail selected id as well", async () => {

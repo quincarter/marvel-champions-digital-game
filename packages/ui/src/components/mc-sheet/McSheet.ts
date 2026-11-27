@@ -36,7 +36,8 @@ const keyOf = (node: SheetNode, index: number): string =>
  * that extra width and the parts keep the rect's width. Without it the gutter cut into the parts' client width, the
  * content overflowed sideways and its right edge hid under the bar.
  */
-export const SCROLL_GUTTER = 8;
+import { SCROLL_GUTTER } from "../../shared/scroll.js";
+export { SCROLL_GUTTER };
 
 /** The box a scrolling region is drawn in: its rect, widened by the scrollbar's gutter while its content scrolls. */
 export function scrollBox(node: Pick<SheetScroll, "rect" | "height">): SheetRect {

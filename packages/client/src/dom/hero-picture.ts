@@ -24,12 +24,17 @@ export interface HeroPicture {
 }
 
 /** `identity`'s picture. A hero printed more than once shares the picture filed under any of its identity cards. */
-export function heroPictureOf(identity: AnyCard | undefined, leases: PackLeases): HeroPicture {
+export function heroPictureOf(
+  identity: AnyCard | undefined,
+  leases: PackLeases,
+  /** "tile": the small copy where there is one (tiles, rows, a panel header); "large": the original. */
+  size: "tile" | "large" = "tile",
+): HeroPicture {
   const picture = identity ? heroArtForIdentity(HERO_ART, identity.id, POOL_CARDS, () => 0) : null;
   if (picture) {
     const focus = picture.focus;
     return {
-      src: picture.url,
+      src: size === "tile" ? (picture.tileUrl ?? picture.url) : picture.url,
       // A focus centers the crop on the point (as `coverFit` does); with none, the crop starts a fifth of the way down.
       cover:
         focus?.y !== undefined
