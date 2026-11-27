@@ -106,6 +106,23 @@ test("a deck row selects its deck, the stats rail follows, and a thumbnail shows
   const second = rows(page).nth(1);
   await expect(page.locator(`${PANEL} [data-key^="row:"] img`).first()).toHaveCount(1);
   if (info.project.name !== "phone") {
+    // The mouse over a row's thumbnail opens the hero's card popover (a thumbnail is placed from the list's own left).
+    const thumb = page.locator(`${PANEL} [data-key^="row:"]`).first().locator("mc-picture-tile").first();
+    const box = (await thumb.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await waitFor(
+      async () =>
+        (await page.evaluate(
+          () =>
+            (window as unknown as { __mcDecksDebug?: { hoverShown(): string | null } }).__mcDecksDebug?.hoverShown() ??
+            null,
+        )) !== null
+          ? true
+          : null,
+      "the hero popover over a row thumbnail",
+      10_000,
+    );
+    await page.mouse.move(2, 2);
     // A click on a row of a precon opens its Check (the first look at a deck).
     await second.click();
     await waitFor(async () => ((await activeScenes(page)).includes("DeckCheck") ? true : null), "Check opens", 15_000);
@@ -145,4 +162,34 @@ test("on a phone, the tab rail switches panes and a swipe over the deck list ope
     "the Cards pane is up",
     15_000,
   );
+});
+
+test("the card pool's free-word search still narrows the pool on a second visit to Decks", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "the wide layout shows the pool beside the list");
+  test.setTimeout(150_000);
+  const errors = trackPageErrors(page);
+  await openDecks(page);
+  const cells = (): Promise<number> => page.locator(`${PANEL} [data-key^="cell:"]`).count();
+  await waitFor(async () => ((await cells()) > 3 ? true : null), "the pool cards", 30_000);
+  // Leave for the Title and come back: the scene (and its search worker) is made again.
+  await page.locator(`${PANEL} [data-key="back"]`).click();
+  await waitFor(async () => ((await activeScenes(page)).includes("Title") ? true : null), "the Title", 30_000);
+  await page.evaluate(() =>
+    (window as unknown as { __mcGame: { scene: { start(key: string): void } } }).__mcGame.scene.start("Decks"),
+  );
+  await waitFor(async () => ((await rows(page).count()) > 3 ? true : null), "the deck rows again", 30_000);
+  await waitFor(async () => ((await cells()) > 3 ? true : null), "the pool cards again", 30_000);
+  const all = await cells();
+  const field = page.locator(`${PANEL} mc-search-field[data-key="pool-search"] input`);
+  await field.click();
+  await page.keyboard.type("spider");
+  await waitFor(
+    async () => {
+      const now = await cells();
+      return now > 0 && now < all ? now : null;
+    },
+    "the free word narrows the pool",
+    15_000,
+  );
+  expect(errors).toEqual([]);
 });

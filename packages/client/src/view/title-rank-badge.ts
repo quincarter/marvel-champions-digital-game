@@ -3,6 +3,7 @@
  * and the thin bar to the next rank, plus whether the Title should announce a rank-up. What the rank is, is
  * `progression/achievements.ts`'s; this only words it. Like the rest of progression it never touches a game.
  */
+import { formatCount } from "./number-format.js";
 import { rankProgressOf } from "../progression/achievements.js";
 import { t } from "../i18n/translate.js";
 
@@ -25,7 +26,7 @@ export interface TitleRankBadge {
 
 export function titleRankBadgeOf(lifetimePoints: number): TitleRankBadge {
   const progress = rankProgressOf(lifetimePoints);
-  const grouped = (n: number): string => n.toLocaleString("en-US");
+  const grouped = (n: number): string => formatCount(n);
   const pointsLabel = t("title.rankPoints", { points: grouped(lifetimePoints) });
   const nextLabel = progress.next
     ? t("title.rankToNext", { points: grouped(progress.next.threshold - lifetimePoints), name: progress.next.title })

@@ -137,7 +137,8 @@ function gridCell(
     height: geometry.artHeight - 6,
   };
   b.image(artRect, {
-    src: card.imageUrl,
+    src: card.image.src,
+    ...(card.image.retry !== undefined ? { retry: card.image.retry } : {}),
     fill: surface.parchment.hex,
     missing: card.missing,
     key: `art:${cardId}`,
@@ -208,7 +209,13 @@ function listRow(
   b.box(row, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2, key: `row:${cardId}` });
   b.image(
     { x: row.x + 6, y: row.y + 6, width: thumbWidth, height: row.height - 12 },
-    { src: card.imageUrl, fill: surface.parchment.hex, missing: card.missing, key: `art:${cardId}` },
+    {
+      src: card.image.src,
+      ...(card.image.retry !== undefined ? { retry: card.image.retry } : {}),
+      fill: surface.parchment.hex,
+      missing: card.missing,
+      key: `art:${cardId}`,
+    },
   );
   const textX = row.x + 6 + thumbWidth + 10;
   const controlsWidth = card.controls ? POOL_ROW_CONTROLS_WIDTH : 0;

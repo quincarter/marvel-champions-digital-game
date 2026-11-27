@@ -34,7 +34,6 @@
 import "@mc/ui";
 import type { McSearchDetail, McSearchFocusDetail, McSearchField, McSheet } from "@mc/ui";
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
-import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck, Trait } from "@mc/content";
 import { DECK_MIN_CARDS, requiredIdentitySet, type CampaignDeckContext, type CampaignGrant } from "@mc/engine";
@@ -53,7 +52,6 @@ import { loadedPacks } from "../packs/pack-registry.js";
 import { isHouseRulePack } from "../packs/pack-runtime.js";
 import { cardDisplayName, qualifiedHeroName } from "../view/hero-names.js";
 import { artFor, artLanguageNow } from "../art/art-source.js";
-import { packPictureFor } from "../art/pack-art.js";
 import { customCardBadgeOf, isCustomCard } from "../view/custom-content.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { cardInspectModel } from "../view/inspect-model.js";
@@ -186,6 +184,9 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-model.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
+import type { Picture } from "../art/pictures.js";
+import { PictureLeases } from "../dom/picture-leases.js";
+import { heroPictureOf, type HeroPicture } from "../dom/hero-picture.js";
 import { drawTintButton } from "../dom/tint-button.js";
 import {
   drawCardPool,
@@ -497,8 +498,10 @@ export class DeckBuilderScene extends Phaser.Scene {
   #campaignRows: ReadonlyMap<string, CampaignDeckEditRow> = new Map();
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
-  /** `#identityArtUrl`, per visit, so a redraw never reshuffles a hero with several pictures. */
-  readonly #identityArt = new Map<string, { url: string | null; focus?: PictureFocus }>();
+  /** The bundled picture chosen per hero this visit, so a redraw never reshuffles a hero with several pictures. */
+  readonly #identityArt = new Map<string, Picture | null>();
+  /** The leases this screen holds on its mounted card and hero pictures (`dom/picture-leases.ts`). */
+  readonly #pictures = new PictureLeases();
   /** The narrow layout's tab (issue #544). The wide layout's rail tab is `#railTab`; `#setTab` keeps the two in step. */
   #tab: DeckBuilderTab = "pool";
   /** A phone folds the pool's filters behind a Filters chip; whether it is open. */
@@ -682,6 +685,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#hover?.destroy();
       this.#hover = null;
       this.#glyphs.dispose();
+      this.#pictures.dispose();
       this.#poolSearch?.destroy();
       this.#poolSearch = null;
       this.#heroSearch?.destroy();
@@ -927,6 +931,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   #rebuild(): void {
     if (!this.#alive) return;
+    this.#pictures.begin();
     this.#hoverLists = [];
     this.#deckLines = [];
     this.#railStops = [];
@@ -1089,6 +1094,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   #finish(area: Rect): void {
     if (!this.#region) {
       const element = document.createElement("mc-sheet") as McSheet;
+      // A pack scan that fails to load reads its file again (`mc-image-error` from a part with a retry key).
+      this.#pictures.watch(element);
       const keyOf = (event: Event): string => (event as CustomEvent<{ key: string }>).detail.key;
       element.addEventListener("mc-activate", (event) => this.#press(keyOf(event)));
       element.addEventListener("mc-inspect", (event) => {
@@ -1136,6 +1143,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#region.setRect(area);
     this.#region.element.nodes = this.#b.nodes;
     renderNow(this.#region.element);
+    // The new parts are mounted: the pictures the last pass held (rows scrolled out of the window) are given back now.
+    this.#pictures.end();
     this.#afterMount();
   }
 
@@ -2128,7 +2137,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const record = await campaignService().load(campaign.runId);
     if (!record) {
       this.#busy = false;
-      this.#status = "This campaign run is gone — nothing was saved.";
+      this.#status = t("deckBuilder.campaignGone");
       this.#rebuild();
       return;
     }
@@ -2136,7 +2145,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       await campaignService().setSeatRewardIncluded(record, campaign.seatNumber, cardId, included);
     } catch (error) {
       this.#busy = false;
-      this.#status = error instanceof Error ? error.message : "This reward could not be changed.";
+      this.#status = error instanceof Error ? error.message : t("deckBuilder.rewardFailed");
       this.#rebuild();
       return;
     }
@@ -2468,8 +2477,10 @@ export class DeckBuilderScene extends Phaser.Scene {
         if (y + thumb.height > limit) return;
         const card = cardById().get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
+        const held = this.#pictures.image(card ? artFor(card, { kind: "front" }) : null);
         b.image(pic, {
-          src: card ? (artFor(card, { kind: "front" })?.url ?? null) : null,
+          src: held.src,
+          ...(held.retry !== undefined ? { retry: held.retry } : {}),
           fill: surface.parchment.hex,
           key: `games-art:${id}:${entry.cardId}`,
         });
@@ -3125,6 +3136,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         () => {
           const row = this.#campaignRowFor(cardId);
           if (
+            this.#busy ||
             (this.#campaignModel?.editingDisabled ?? false) ||
             (row?.refused ?? false) ||
             this.#ruleRefusal(deck, card.id, 1)
@@ -3211,11 +3223,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     // The rule settings (issue #531) only matter where nothing else already disables the button.
     const minusRefused = quantity > 0 ? this.#ruleRefusal(deck, card.id, -1) : null;
     const plusRefused = this.#ruleRefusal(deck, card.id, 1);
-    const minusOff = !(quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null);
+    // A save in flight: the deck being written must not change under it.
+    const saving = this.#busy;
+    const minusOff = saving || !(quantity > 0 && !(campaignRow?.locked ?? false) && !frozen && minusRefused === null);
     const minusReason = frozen
       ? (this.#campaignModel?.editingDisabledReason ?? undefined)
       : (campaignRow?.lockedReason ?? minusRefused ?? undefined);
-    const plusOff = (campaignRow?.refused ?? false) || frozen || plusRefused !== null;
+    const plusOff = saving || (campaignRow?.refused ?? false) || frozen || plusRefused !== null;
     const plusReason = frozen
       ? (this.#campaignModel?.editingDisabledReason ?? undefined)
       : (campaignRow?.refusedReason ?? plusRefused ?? undefined);
@@ -3228,7 +3242,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#actions.set(`open:${cardId}`, () => this.#inspect(card, campaignRow?.face ?? null));
     return {
       cardId,
-      imageUrl: artFor(card, { kind: "front" })?.url ?? null,
+      image: this.#pictures.image(artFor(card, { kind: "front" })),
       missing: localizedLabelOf(card, lang),
       title: shown,
       cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
@@ -3251,10 +3265,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     };
   }
 
-  /** The focal point to crop a hero's picture around: its `focus.json`, else the face-and-shoulders default. */
-  #focusOf(identity: HeroIdentityCard): { readonly x: number; readonly y: number } {
-    const focus = this.#identityArtFocus(identity);
-    return { x: focus?.x ?? 0.5, y: focus?.y ?? 0.25 };
+  /** The focal point to crop a hero's picture around (its `focus.json`, else the face-and-shoulders default). */
+  #focusOf(identity: HeroIdentityCard): HeroPicture["cover"] {
+    return this.#identityPicture(identity).cover;
   }
 
   /**
@@ -3337,7 +3350,10 @@ export class DeckBuilderScene extends Phaser.Scene {
         this.#b.pictureTile(
           { x: tile.x + 3, y: tile.y + 3, width: tile.width - 6, height: artHeight - 3 },
           {
-            src: this.#identityArtUrl(identity),
+            src: this.#identityPicture(identity).src,
+            ...(this.#identityPicture(identity).retry !== undefined
+              ? { retry: this.#identityPicture(identity).retry }
+              : {}),
             fit: "cover",
             focus: this.#focusOf(identity),
             frame: 0,
@@ -3431,7 +3447,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     const bannerHeight = Math.round(width / 2.4);
     const bannerRect: Rect = { x: left, y, width, height: bannerHeight };
     this.#b.pictureTile(bannerRect, {
-      src: this.#identityArtUrl(identity),
+      src: this.#identityPicture(identity).src,
+      ...(this.#identityPicture(identity).retry !== undefined ? { retry: this.#identityPicture(identity).retry } : {}),
       fit: "cover",
       focus: this.#focusOf(identity),
       frame: 2,
@@ -3489,7 +3506,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       height: thumbHeight,
     };
     b.pictureTile(thumbRect, {
-      src: this.#identityArtUrl(identity),
+      src: this.#identityPicture(identity).src,
+      ...(this.#identityPicture(identity).retry !== undefined ? { retry: this.#identityPicture(identity).retry } : {}),
       fit: "cover",
       focus: this.#focusOf(identity),
       frame: 0,
@@ -3522,31 +3540,22 @@ export class DeckBuilderScene extends Phaser.Scene {
     return rowRect.y + rowRect.height + 12;
   }
 
-  /** The identity row's picture: the hero's own art (`art/heroes/`), else the identity card's scan, else none. */
-  #identityArtUrl(identity: HeroIdentityCard): string | null {
-    return this.#identityArtOf(identity).url;
-  }
-
-  /** The hero art's focus point (`focus.json`); none for the identity card's own scan. */
-  #identityArtFocus(identity: HeroIdentityCard): PictureFocus | undefined {
-    return this.#identityArtOf(identity).focus;
-  }
-
-  #identityArtOf(identity: HeroIdentityCard): { url: string | null; focus?: PictureFocus } {
+  /**
+   * The identity picture as the panel draws it: the hero's own art (`art/heroes/`, the one chosen this visit), else the
+   * identity card's scan, an installed pack's hero picture leased by its key (`dom/hero-picture.ts`).
+   */
+  #identityPicture(identity: HeroIdentityCard): HeroPicture {
     const id = identity.id as string;
+    let chosen: Picture | null | undefined;
     // An installed pack hero's picture arrives after the first draw, so it is not remembered here.
-    if (isCustomCard(id)) {
-      return { url: packPictureFor("hero", id)?.url ?? artFor(identity, { kind: "hero" })?.url ?? null };
+    if (!isCustomCard(id)) {
+      chosen = this.#identityArt.get(id);
+      if (chosen === undefined) {
+        chosen = heroArtForIdentity(HERO_ART, id, currentPool());
+        this.#identityArt.set(id, chosen);
+      }
     }
-    let art = this.#identityArt.get(id);
-    if (!art) {
-      const picture = heroArtForIdentity(HERO_ART, id, currentPool());
-      art = picture
-        ? { url: picture.url, ...(picture.focus ? { focus: picture.focus } : {}) }
-        : { url: artFor(identity, { kind: "hero" })?.url ?? null };
-      this.#identityArt.set(id, art);
-    }
-    return art;
+    return heroPictureOf(identity, this.#pictures, "tile", chosen);
   }
 
   /**
@@ -3583,7 +3592,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     if (!this.#deleteArmed) {
       this.#deleteArmed = true;
       this.#leaveArmed = false;
-      this.#status = `Press Confirm delete to remove “${saved.name}” from your decks. This can't be undone.`;
+      this.#status = t("decks.stats.confirmMessage", { name: saved.name });
       this.#rebuild();
       return;
     }
@@ -3622,7 +3631,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#leaveArmed = false;
     this.#deleteArmed = false;
     this.#busy = false;
-    this.#status = "Saved to your decks.";
+    this.#status = t("deckBuilder.savedNote");
     this.#rebuild();
   }
 
@@ -3636,7 +3645,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const record = await campaignService().load(campaign.runId);
     if (!record) {
       this.#busy = false;
-      this.#status = "This campaign run is gone — nothing was saved.";
+      this.#status = t("deckBuilder.campaignGone");
       this.#rebuild();
       return;
     }
@@ -3644,7 +3653,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       await campaignService().setSeatDeck(record, campaign.seatNumber, deck);
     } catch (error) {
       this.#busy = false;
-      this.#status = error instanceof Error ? error.message : "This deck could not be saved.";
+      this.#status = error instanceof Error ? error.message : t("deckBuilder.saveFailed");
       this.#rebuild();
       return;
     }

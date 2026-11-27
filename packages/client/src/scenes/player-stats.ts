@@ -27,7 +27,14 @@ import { artFor, type ArtSource } from "../art/art-source.js";
 import type { AnyCard } from "@mc/content";
 import { cardArt } from "../art/card-art.js";
 import { cardFaces } from "../art/card-face-baker.js";
-import { heroFocusOf, heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
+import {
+  heroFocusOf,
+  heroPictureOf,
+  heroSourceOf,
+  villainPictureOf,
+  villainSourceOf,
+} from "../art/matchup-pictures.js";
+import { PictureLeases, type LeasedPicture } from "../dom/picture-leases.js";
 import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { TITLE_ART, pickTitleArtFor, titleArtSizeOf, type TitleArt } from "../art/title-art.js";
@@ -278,7 +285,13 @@ const statCardArt = (card: AnyCard | undefined): ArtSource | null =>
   card?.type === "hero_identity"
     ? (artFor(card, { kind: "hero" }) ?? artFor(card, { kind: "front" }))
     : artFor(card, { kind: "front" });
+/** `heroPicture`'s source: what a mounted `<img>` leases (a Mod Store hero's picture is a blob URL the cache may revoke). */
+const heroSource = (identityId: string): ArtSource | null => heroSourceOf(identityId, loadedPacks());
 /** A scenario's villain picture, a custom scenario's from its installed pack (#966). */
+function villainSource(scenarioId: string): ArtSource | null {
+  const scenario = scenarioById(scenarioId);
+  return villainSourceOf(scenarioId, scenario ? scenarioCardIdOf(scenario) : null, loadedPacks());
+}
 function villainPicture(scenarioId: string): string | null {
   const scenario = scenarioById(scenarioId);
   return villainPictureOf(scenarioId, scenario ? scenarioCardIdOf(scenario) : null, loadedPacks());
@@ -335,6 +348,8 @@ export class PlayerStatsScene extends Phaser.Scene {
   /** Each tab keeps its own scroll. */
   readonly #scrolls = new Map<string, ListScroll>();
   #offArt: (() => void)[] = [];
+  /** The leases this screen holds on its mounted card and hero pictures (`dom/picture-leases.ts`). */
+  readonly #pictures = new PictureLeases();
   #redrawQueued = false;
   /** This visit's backdrop (a title wallpaper), picked once per open so a redraw keeps it. */
   #backdrop: TitleArt | null = null;
@@ -443,6 +458,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      this.#pictures.dispose();
       for (const off of this.#offArt) off();
       this.#offArt = [];
       this.#hints.dispose();
@@ -913,6 +929,14 @@ export class PlayerStatsScene extends Phaser.Scene {
     return heroPicture(id);
   }
 
+  /** `#pictureOf`'s source, for the panel's `<img>`s (leased and re-resolved by key, not just a URL). */
+  #pictureSourceOf(axis: "row" | "column", id: string): ArtSource | null {
+    const scenarios = (axis === "row") !== gridFlipped;
+    if (scenarios) return villainSource(id);
+    if (lastGrid !== "heroes") return null;
+    return heroSource(id);
+  }
+
   /** The card a row's or a column's picture stands for, for the hover: the axes read as in `#pictureOf`. */
   #cardOf(axis: "row" | "column", id: string): string | null {
     const scenarios = (axis === "row") !== gridFlipped;
@@ -1151,6 +1175,7 @@ export class PlayerStatsScene extends Phaser.Scene {
 
   #draw(): void {
     if (!this.#alive) return;
+    this.#pictures.begin();
     this.#destroyWidgets();
     destroyChildren(this);
 
@@ -1662,6 +1687,8 @@ export class PlayerStatsScene extends Phaser.Scene {
   #mount(rect: Rect, b: SheetBuilder, key: string): void {
     if (!this.#region) {
       const element = document.createElement("mc-sheet") as McSheet;
+      // A pack scan that fails to load reads its file again (`mc-image-error` from a part with a retry key).
+      this.#pictures.watch(element);
       element.addEventListener("mc-activate", (event) => {
         this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
       });
@@ -1682,6 +1709,8 @@ export class PlayerStatsScene extends Phaser.Scene {
     });
     region.element.nodes = b.nodes;
     renderNow(region.element);
+    // The new parts are mounted: the pictures the last pass held are given back now.
+    this.#pictures.end();
     const scroller = this.#scroller();
     if (!scroller) return;
     // Each tab keeps its own place: the scroller is one element, so another tab's place is put back on the way in.
@@ -1749,11 +1778,12 @@ export class PlayerStatsScene extends Phaser.Scene {
   #picture(
     b: SheetBuilder,
     rect: Rect,
-    src: string | null,
+    held: LeasedPicture,
     options: { readonly cover?: { readonly x: number; readonly y: number }; readonly missing?: string } = {},
   ): void {
     b.image(rect, {
-      src,
+      src: held.src,
+      ...(held.retry !== undefined ? { retry: held.retry } : {}),
       fill: surface.parchment.hex,
       cover: options.cover ?? { x: 0.5, y: 0.2 },
       ...(options.missing ? { missing: options.missing } : {}),
@@ -1825,7 +1855,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         for (const card of row.cards) {
           const pic: Rect = { x: rect.x + card.x, y: rect.y + 4, width: row.cardWidth, height: row.cardHeight };
           const record = currentCardsById().get(card.cardId);
-          this.#picture(b, pic, statCardArt(record)?.url ?? null, { missing: record?.name ?? card.cardId });
+          this.#picture(b, pic, this.#pictures.image(statCardArt(record)), { missing: record?.name ?? card.cardId });
           b.box(pic, { stroke: inkHex, strokeWidth: 2 });
           b.text(pic.x, pic.y + pic.height + 6, card.value, typeRole.rowTitle, {
             size: 14,
@@ -1934,7 +1964,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     const card = row.cardId ? currentCardsById().get(row.cardId) : undefined;
     if (card) {
       const pic = statRowPicture(box);
-      this.#picture(b, pic, statCardArt(card)?.url ?? null, { missing: card.name });
+      this.#picture(b, pic, this.#pictures.image(statCardArt(card)), { missing: card.name });
       left = pic.x + pic.width + 10;
     }
     const linked = this.#gameLinkOf(row);
@@ -2024,7 +2054,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     const hero = "hero" in tile.art ? tile.art.hero : null;
     const pictureRect: Rect = { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 };
     const focus = (hero ? heroFocusOf(hero) : null) ?? undefined;
-    this.#picture(b, pictureRect, hero ? heroPicture(hero) : null, {
+    this.#picture(b, pictureRect, this.#pictures.image(hero ? heroSource(hero) : null), {
       cover: { x: focus?.x ?? 0.5, y: focus?.y ?? 0.2 },
     });
     const pad = 18;
@@ -2140,8 +2170,8 @@ export class PlayerStatsScene extends Phaser.Scene {
         const pictureRect: Rect = wide
           ? { x: box.x + 2, y: box.y + 2, width: Math.round(box.width * (phone ? 0.34 : 0.4)), height: box.height - 4 }
           : { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: Math.round(box.height * 0.45) };
-        const url = "hero" in tile.art ? heroPicture(tile.art.hero) : villainPicture(tile.art.scenario);
-        this.#picture(b, pictureRect, url);
+        const source = "hero" in tile.art ? heroSource(tile.art.hero) : villainSource(tile.art.scenario);
+        this.#picture(b, pictureRect, this.#pictures.image(source));
         const tx = wide ? pictureRect.x + pictureRect.width + pad : box.x + pad;
         const ty = wide ? box.y + pad : pictureRect.y + pictureRect.height + 8;
         const tw = wide ? box.x + box.width - pad - tx : inner;
@@ -2189,7 +2219,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     if (matchup.kind === "shelf") {
       const { shelf } = matchup;
       const id = this.#matchup().rows[shelf.row]!.id;
-      drawShelfNodes(b, shelf, { ...rect, width }, this.#pictureOf("row", id), phone);
+      drawShelfNodes(b, shelf, { ...rect, width }, this.#pictures.image(this.#pictureSourceOf("row", id)), phone);
       const key = `row:matchup:${shelf.row}`;
       b.tap(key, { x: rect.x, y: rect.y + 3, width, height: rect.height - 6 });
       this.#press(key, () => this.#openFocus(shelf.row, false));
@@ -2201,7 +2231,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         b,
         tile,
         { x: rect.x + tile.x, y: rect.y, width: matchup.tileWidth, height: matchup.tileHeight },
-        this.#pictureOf("column", columns[tile.column]!.id),
+        this.#pictures.image(this.#pictureSourceOf("column", columns[tile.column]!.id)),
         phone,
       );
     }

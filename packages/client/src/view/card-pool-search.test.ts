@@ -82,4 +82,15 @@ describe("CardPoolSearch", () => {
     expect(s.ranking).toBeNull();
     expect(changes.length).toBeGreaterThanOrEqual(0);
   });
+
+  it("answers again when reset after destroy (a second visit to the screen)", () => {
+    const { s, changes } = search();
+    s.request("web");
+    s.destroy();
+    s.reset();
+    const seen = changes.length;
+    s.request("energy");
+    expect(s.ranking?.has("shield")).toBe(true);
+    expect(changes.length).toBeGreaterThan(seen);
+  });
 });

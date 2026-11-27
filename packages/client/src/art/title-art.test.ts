@@ -142,10 +142,9 @@ describe("displayCopyOf", () => {
     const name = Object.keys(TITLE_ART_SIZES)[0]!;
     const art: TitleArt = { key: `title-art:${name}`, url: "/full" };
     const copy = displayCopyOf(art);
-    if (copy !== art) {
-      expect(copy.key).toBe(`title-art:${name}:display`);
-      expect(copy.url).not.toBe("/full");
-    }
+    expect(copy).not.toBe(art);
+    expect(copy.key).toBe(`title-art:${name}:display`);
+    expect(copy.url).not.toBe("/full");
     expect(titleArtSizeOf(copy)).toEqual(TITLE_ART_SIZES[name]);
   });
   test("a picture with no copy comes back as it was", () => {

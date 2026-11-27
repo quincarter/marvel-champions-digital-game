@@ -1,3 +1,4 @@
+import type { LeasedPicture } from "./picture-leases.js";
 import type { PoolGridGeometry } from "../view/deck-pool-grid.js";
 import type { Rect } from "../view/layout.js";
 
@@ -12,8 +13,11 @@ export interface CardPoolButton {
 /** A card as the pool draws it: everything is already worded, so the drawing has no rules of its own. */
 export interface CardPoolCard {
   readonly cardId: string;
-  /** The card scan, or null (then `missing` says so). */
-  readonly imageUrl: string | null;
+  /**
+   * The card scan as a leased picture (`PictureLeases.image(artFor(card, ...))`): its URL, held while the row is
+   * mounted, and the key to re-resolve a pack scan by when the lazy image fails. `src` null: `missing` says so.
+   */
+  readonly image: LeasedPicture;
   /** What the picture box says with no scan: the card name. */
   readonly missing: string;
   /** The name, fitted to its width by the caller. */

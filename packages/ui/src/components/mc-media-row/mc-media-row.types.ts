@@ -33,6 +33,8 @@ export interface McMediaRowModel {
   readonly retry?: string;
   readonly focusX?: number;
   readonly focusY?: number;
+  /** The crop is centered on the focal point and kept inside the picture (a hero `focus.json`), not a share of the overflow. */
+  readonly focusCentered?: boolean;
   readonly fit?: PictureFit;
   /** `pack` (default) or `deck`. */
   readonly look?: "pack" | "deck";

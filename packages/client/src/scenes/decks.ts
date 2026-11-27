@@ -119,11 +119,16 @@ import { artFor, artLanguageNow, type ArtSource } from "../art/art-source.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { artKeyFor } from "../art/card-art.js";
 import { markRenderDirty } from "../ui/idle-render.js";
-import { browsablePool, duplicateDeck, subtitleCutFrom, type PoolFilter } from "../view/deck-builder-model.js";
+import {
+  browsablePool,
+  duplicateDeck,
+  subtitleCutFrom,
+  typeWordOf,
+  type PoolFilter,
+} from "../view/deck-builder-model.js";
 import {
   exportDecklistText,
   importFromPasteText,
-  MARVELCDB_FIELD_PLACEHOLDER,
   type ImportEnv,
   type ImportOutcome,
 } from "../view/deck-import-model.js";
@@ -206,6 +211,11 @@ import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { drawCardPool, poolWindowKey } from "../dom/card-pool-sheet.js";
 import type { CardPoolCard, CardPoolLayout } from "../dom/card-pool-sheet.types.js";
+import type { Picture } from "../art/pictures.js";
+import { deckReasonText } from "../view/deck-reason.js";
+import { oneDecimal } from "../view/number-format.js";
+import { PictureLeases } from "../dom/picture-leases.js";
+import { heroPictureOf, type HeroPicture } from "../dom/hero-picture.js";
 import { drawTintButton } from "../dom/tint-button.js";
 import { CardPoolSearch, poolSearchDocuments } from "../view/card-pool-search.js";
 import { accent, border, hit, ink, minType, signal, surface, typeRole } from "../tokens.js";
@@ -388,15 +398,7 @@ export class DecksScene extends Phaser.Scene {
   #askingStatuses = false;
   #rebuildTimer: ReturnType<typeof setTimeout> | null = null;
   /** The pool search: `field:value` terms filter here, the free words are ranked by the worker (`view/card-pool-search.ts`). */
-  readonly #poolSearch = new CardPoolSearch({
-    alive: () => this.sys.isActive(),
-    language: () => artLanguageNow(),
-    documents: () => this.#poolDocuments(),
-    onChange: () => {
-      this.#poolFromTop = true;
-      this.#rebuild();
-    },
-  });
+  #poolSearch!: CardPoolSearch;
   #poolDocsVersion: string | null = null;
   /** The deck and identity the pool pane draws now: what the search worker ranks. */
   #poolContext: { readonly deck: Deck; readonly identity: HeroIdentityCard } | null = null;
@@ -421,6 +423,10 @@ export class DecksScene extends Phaser.Scene {
   #selectedDeckId: string | null = null;
   /** `#deckArtOf`, per identity. */
   readonly #deckArt = new Map<string, { url: string | null; tileUrl?: string; focus?: PictureFocus }>();
+  /** The bundled hero picture chosen per identity this visit (a hero with several keeps one). */
+  readonly #deckPictures = new Map<string, Picture | null>();
+  /** The leases this screen holds on its mounted card and hero pictures (`dom/picture-leases.ts`). */
+  readonly #pictures = new PictureLeases();
   #activeTab: DecksTab = "decks";
   #history: ResultsHistory | null = null;
   /** What each deck's finished games say (`view/deck-insights.ts`), folded in the stats worker; null until it answers. */
@@ -510,7 +516,16 @@ export class DecksScene extends Phaser.Scene {
     this.#deckSearch.cancel();
     this.#deckRanking = null;
     this.#deckDocsVersion = null;
-    this.#poolSearch.reset();
+    // A fresh search (and its worker) each visit: the last one was ended when the screen shut down.
+    this.#poolSearch = new CardPoolSearch({
+      alive: () => this.sys.isActive(),
+      language: () => artLanguageNow(),
+      documents: () => this.#poolDocuments(),
+      onChange: () => {
+        this.#poolFromTop = true;
+        this.#rebuild();
+      },
+    });
     this.#poolDocsVersion = null;
     this.#poolContext = null;
     this.#deleteArmedId = null;
@@ -556,6 +571,7 @@ export class DecksScene extends Phaser.Scene {
       if (this.#rebuildTimer !== null) clearTimeout(this.#rebuildTimer);
       this.#rebuildTimer = null;
       this.#deckSearch.destroy();
+      this.#pictures.dispose();
       this.#poolSearch.destroy();
       this.#hints.dispose();
       this.#glyphs.dispose();
@@ -681,6 +697,8 @@ export class DecksScene extends Phaser.Scene {
   #mount(width: number, height: number, builder: SheetBuilder): void {
     if (!this.#region) {
       const element = document.createElement("mc-sheet") as McSheet;
+      // A pack scan that fails to load reads its file again (`mc-image-error` from a part with a retry key).
+      this.#pictures.watch(element);
       element.addEventListener("mc-activate", (event) => {
         this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
       });
@@ -724,6 +742,8 @@ export class DecksScene extends Phaser.Scene {
     });
     region.element.nodes = builder.nodes;
     renderNow(region.element);
+    // The new parts are mounted: the pictures the last pass held are given back now.
+    this.#pictures.end();
     const pool = this.#poolScroller();
     if (pool) {
       if (!this.#poolHooked.has(pool)) {
@@ -751,10 +771,7 @@ export class DecksScene extends Phaser.Scene {
     if (!scroller || !view) return [];
     const found: (readonly [string, HoverCardIdRect])[] = [];
     for (const target of this.#thumbTargets) {
-      const rect = clipHoverRect(
-        { ...target.rect, x: view.x + (target.rect.x - 0), y: view.y + target.rect.y - scroller.scrollTop },
-        view,
-      );
+      const rect = clipHoverRect({ ...target.rect, y: view.y + target.rect.y - scroller.scrollTop }, view);
       if (rect) found.push([target.slot, { ...rect, cardId: target.cardId, through: true }]);
     }
     return found;
@@ -894,6 +911,7 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #rebuild(): void {
+    this.#pictures.begin();
     this.#paneArtMissing = false;
     this.#paneArt = [];
     // The deck's options, when up, redraw with this draw's statuses (#958 review).
@@ -1052,6 +1070,8 @@ export class DecksScene extends Phaser.Scene {
             cardCount: o.deck.cards.reduce((sum, entry) => sum + entry.quantity, 0),
           })),
         status: () => this.#status,
+        /** The card the hover popover is showing, or null (a mouse over a deck row thumbnail or a pool card). */
+        hoverShown: () => this.#hover?.shownKey ?? null,
         /** The tab shown on a phone or tablet; null on desktop, where every pane is up. */
         tab: () => (this.#tabsShown ? this.#activeTab : null),
         /** True while any listed deck's status is still on its way from the worker. */
@@ -1263,8 +1283,10 @@ export class DecksScene extends Phaser.Scene {
         const card = currentCardsById().get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         // The card scan, fitted whole in a lazy `<img>`; the hover popover shows the card from it.
+        const held = this.#pictures.image(card ? artFor(card, { kind: "front" }) : null);
         b.image(pic, {
-          src: artFor(card, { kind: "front" })?.url ?? null,
+          src: held.src,
+          ...(held.retry !== undefined ? { retry: held.retry } : {}),
           fill: surface.parchment.hex,
           cover: { x: 0.5, y: 0.2 },
           key: `games-card:${entry.cardId}`,
@@ -1557,7 +1579,7 @@ export class DecksScene extends Phaser.Scene {
     const thumbHeight = cardHeight - 12;
     // Capped in a narrow column (desktop's left pane) so the title and meta line keep most of the row.
     const thumbWidth = Math.round(Math.min(thumbHeight * DECK_THUMB_ASPECT, (rect.width - 8) * 0.26));
-    const art = this.#deckArtOf(option.deck.identityCardId as string);
+    const picture = this.#deckPicture(option.deck.identityCardId as string);
     const css = (hex: number): string => `#${hex.toString(16).padStart(6, "0")}`;
     const textWidth = rect.width - 8 - 6 - thumbWidth - 10 - 10;
     const metaOptions = row.offer ? communityMetaCandidates(row.offer) : deckMetaCandidates(option, currentPool());
@@ -1581,10 +1603,12 @@ export class DecksScene extends Phaser.Scene {
       look: "deck",
       heading: cardTitleOf(option),
       meta,
-      // The roster-size copy where the picture has one (a hero's tile), else the picture itself.
-      src: art.tileUrl ?? art.url,
-      focusX: art.focus?.x ?? 0.5,
-      focusY: art.focus?.y ?? 0.2,
+      // The roster-size copy where the picture has one (a hero's tile), else the picture itself; a pack's is leased.
+      src: picture.src,
+      ...(picture.retry !== undefined ? { retry: picture.retry } : {}),
+      focusX: picture.cover.x,
+      focusY: picture.cover.y,
+      ...(picture.cover.centered ? { focusCentered: true } : {}),
       fit: "cover",
       artWidth: thumbWidth,
       stamps: aspectStampsOf(option.deck.aspects, artLanguageNow()).map((stamp) => ({
@@ -1845,6 +1869,19 @@ export class DecksScene extends Phaser.Scene {
     writeLastDeckList(list);
   }
 
+  /** A deck row's hero picture: the bundled one chosen this visit, else a pack's or the identity scan, leased by its key. */
+  #deckPicture(identityId: string): HeroPicture {
+    let chosen: Picture | null | undefined;
+    if (!isCustomCard(identityId)) {
+      chosen = this.#deckPictures.get(identityId);
+      if (chosen === undefined) {
+        chosen = heroArtForIdentity(HERO_ART, identityId, currentPool());
+        this.#deckPictures.set(identityId, chosen);
+      }
+    }
+    return heroPictureOf(currentCardsById().get(identityId), this.#pictures, "tile", chosen);
+  }
+
   /** A deck row's picture, per visit, so a redraw never reshuffles a hero with several pictures. */
   #deckArtOf(identityId: string): { url: string | null; tileUrl?: string; focus?: PictureFocus } {
     // An installed pack hero's picture arrives after the first draw, so it is not remembered here.
@@ -1950,7 +1987,7 @@ export class DecksScene extends Phaser.Scene {
       b.textField(pasteRect, {
         key: "paste-field",
         value: this.#pasteText,
-        placeholder: "Hero: Spider-Man\nAspect: Justice\n2x Web-Shooter\n...",
+        placeholder: t("decks.io.pastePlaceholder"),
         multiline: true,
       });
       this.#stops.set("paste-field", {
@@ -1979,7 +2016,7 @@ export class DecksScene extends Phaser.Scene {
       b.textField(mcdbFieldRect, {
         key: "marvelcdb-field",
         value: this.#marvelcdbText,
-        placeholder: MARVELCDB_FIELD_PLACEHOLDER,
+        placeholder: t("decks.io.linkPlaceholder"),
       });
       this.#stops.set("marvelcdb-field", {
         rect: mcdbFieldRect,
@@ -2191,12 +2228,12 @@ export class DecksScene extends Phaser.Scene {
     const have = deck.cards.find((c) => (c.cardId as string) === cardId)?.quantity ?? 0;
     const lang = artLanguageNow();
     const title = localizedLabelOf(card, lang);
-    const typeLabel = `${subtitleCutFrom(card, title) ? `${subtitleCutFrom(card, title)} · ` : ""}${card.type.replace(/_/g, " ")}`;
+    const typeLabel = `${subtitleCutFrom(card, title) ? `${subtitleCutFrom(card, title)} · ` : ""}${typeWordOf(card.type, lang)}`;
     this.#actions.set(`open:${cardId}`, () => this.#showPaneCard(card));
     this.#inspects.set(`open:${cardId}`, () => this.#inspectCard(card));
     return {
       cardId,
-      imageUrl: artFor(card, { kind: "front" })?.url ?? null,
+      image: this.#pictures.image(artFor(card, { kind: "front" })),
       missing: t("deckCheck.noScan"),
       title,
       cost:
@@ -2442,8 +2479,10 @@ export class DecksScene extends Phaser.Scene {
       width: Math.min(130, column * 0.42),
       height: Math.min(130, column * 0.42) * (88 / 63),
     };
+    const held = this.#pictures.image(artFor(card, { kind: "front" }));
     b.image(pic, {
-      src: artFor(card, { kind: "front" })?.url ?? null,
+      src: held.src,
+      ...(held.retry !== undefined ? { retry: held.retry } : {}),
       fill: surface.parchment.hex,
       missing: t("rules.noScan"),
       color: surface.ink.hex,
@@ -2648,7 +2687,7 @@ export class DecksScene extends Phaser.Scene {
       b.text(left, at, text, typeRole.label, { color: surface.paper.hex, alpha: ink.label });
     };
     const avgText =
-      stats.averageCost === null ? "" : ` · ${t("decks.stats.avg", { avg: stats.averageCost.toFixed(1) })}`;
+      stats.averageCost === null ? "" : ` · ${t("decks.stats.avg", { avg: oneDecimal(stats.averageCost) })}`;
     small(`${t("decks.stats.curve")}${avgText}`.toUpperCase(), y);
     y += 16;
     const chartHeight = 84;
@@ -2758,7 +2797,9 @@ export class DecksScene extends Phaser.Scene {
       ...(canPlay
         ? {}
         : {
-            disabled: option.checking ? t("room.picker.checking") : (option.blockedReason ?? t("decks.stats.notLegal")),
+            disabled: option.checking
+              ? t("room.picker.checking")
+              : (deckReasonText(option.blockedReason) ?? t("decks.stats.notLegal")),
           }),
     });
     this.#actions.set("stats-play", () => {
@@ -2860,7 +2901,7 @@ export class DecksScene extends Phaser.Scene {
       const why = b.text(
         left,
         y,
-        offer.lock ?? (option.checking ? t("room.picker.checking") : option.blockedReason) ?? "",
+        offer.lock ?? (option.checking ? t("room.picker.checking") : deckReasonText(option.blockedReason)) ?? "",
         typeRole.body,
         { color: accent.heroRed.hex, wrapWidth: column },
       );
@@ -2909,7 +2950,7 @@ export class DecksScene extends Phaser.Scene {
         : {
             disabled:
               offer.lock ??
-              (option.checking ? t("room.picker.checking") : option.blockedReason) ??
+              (option.checking ? t("room.picker.checking") : deckReasonText(option.blockedReason)) ??
               t("decks.stats.notLegal"),
           }),
     });
@@ -3227,7 +3268,8 @@ export class DecksScene extends Phaser.Scene {
       card?.type === "villain"
         ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const)
         : ({ kind: "hero" } as const);
-    const note = (option.checking ? t("room.picker.checking") : option.blockedReason) ?? option.warning ?? null;
+    const note =
+      (option.checking ? t("room.picker.checking") : deckReasonText(option.blockedReason)) ?? option.warning ?? null;
     this.scene.launch(SCENES.inspect, {
       card: { cardId: option.deck.identityCardId, face },
       ...(note ? { note } : {}),
