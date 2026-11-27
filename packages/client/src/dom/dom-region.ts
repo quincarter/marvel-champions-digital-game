@@ -27,7 +27,7 @@ import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import { CHROME_SCENES } from "../scenes/keys.js";
 import { sceneTakesPresses } from "./activation-gate.js";
-import { cancelPressesWithin } from "@mc/ui";
+import { cancelPressesWithin } from "@mc/ui/tap";
 import { drawnChromeBoxes, type DrawnObject } from "./chrome-holes.js";
 import { uiLayer } from "./ui-layer.js";
 

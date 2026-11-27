@@ -11,7 +11,7 @@
  */
 import type Phaser from "phaser";
 import type { McGlyphGround } from "@mc/ui";
-import { layoutGlyph, measureGlyphText } from "@mc/ui";
+import { layoutGlyph, measureGlyphText } from "@mc/ui/glyph";
 import { font, typeRole, type TypeSpec } from "../tokens.js";
 import { bindInputHints, type InputHints, type InputHintsSnapshot } from "../ui/input-hints.js";
 import {

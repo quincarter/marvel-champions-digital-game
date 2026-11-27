@@ -16,7 +16,7 @@
  */
 
 import Phaser from "phaser";
-import "@mc/ui";
+import "@mc/ui/title";
 import type { AlertBannerModel, McTitlePanel, MenuButton, TitlePanelModel } from "@mc/ui";
 import { artLanguageNow } from "../art/art-source.js";
 import { accent, dotGrid, surface, typeRole, type TypeSpec } from "../tokens.js";
