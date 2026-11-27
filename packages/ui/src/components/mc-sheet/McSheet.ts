@@ -57,6 +57,7 @@ const px = (rect: SheetRect): string =>
  * @element mc-sheet
  * @fires mc-activate - `detail.key`: a button or tap area was tapped.
  * @fires mc-inspect - `detail.key`: a tap area with `inspect` was held or right-clicked.
+ * @fires mc-info - `detail.key`, `detail.id`: a filter bar chip's info segment was tapped.
  * @fires mc-image-error - `detail.key` (the image's `retry`), `detail.src`: a picture with `retry` failed to load, once per key until one loads.
  * @fires mc-search - `detail.key`, `detail.value`, `detail.immediate`: a search field text changed (debounced).
  * @fires mc-submit - `detail.key`, `detail.value`: Enter in a search field.
@@ -745,9 +746,14 @@ export class McSheet extends LitElement {
           .rows=${node.rows ?? 0}
           .rowHeight=${node.rowHeight ?? 0}
           .gap=${node.gap ?? 8}
+          ?sideways=${node.sideways ?? false}
           @mc-activate=${(event: CustomEvent<{ key: string }>) => {
             event.stopPropagation();
             this.#activate(event.detail.key);
+          }}
+          @mc-info=${(event: CustomEvent<{ key: string; id: string }>) => {
+            event.stopPropagation();
+            this.dispatchEvent(new CustomEvent("mc-info", { detail: event.detail, bubbles: true, composed: true }));
           }}
         ></mc-filter-bar>`;
       case "mediaRow": {

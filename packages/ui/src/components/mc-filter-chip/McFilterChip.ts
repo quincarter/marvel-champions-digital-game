@@ -16,6 +16,7 @@ import "../mc-button/mc-button.js";
  * @attr disabled - Unavailable; `reason` says why, as a tooltip.
  * @attr mark - Puts "✓ " before a chosen chip name (on by default; off for a chip with its own mark, like "by X ✕").
  * @attr size - The label size in px (11).
+ * @prop tint - Rest colors (`fill`, `ink`: CSS colors), an aspect chip in its printed frame color.
  * @attr value - What `mc-activate` reports as `detail.key`.
  * @fires mc-activate - A tap on an available chip: `detail.key` is `value`.
  */
@@ -32,6 +33,7 @@ export class McFilterChip extends LitElement {
     mark: { type: Boolean },
     size: { type: Number },
     value: { type: String },
+    tint: { attribute: false },
   };
 
   declare label: string;
@@ -43,6 +45,8 @@ export class McFilterChip extends LitElement {
   declare mark: boolean;
   declare size: number;
   declare value: string;
+  /** Rest colors (CSS): the fill and the word's ink; chosen and hover look as any chip. */
+  declare tint: { readonly fill: string; readonly ink: string } | undefined;
 
   constructor() {
     super();
@@ -55,6 +59,7 @@ export class McFilterChip extends LitElement {
     this.mark = true;
     this.size = 11;
     this.value = "";
+    this.tint = undefined;
   }
 
   /** The words on the chip. */
@@ -67,7 +72,7 @@ export class McFilterChip extends LitElement {
   override render() {
     return html`<mc-button
       kind="secondary"
-      style=${`--mc-button-size:${this.size}px;display:block;width:100%;height:100%`}
+      style=${`--mc-button-size:${this.size}px;display:block;width:100%;height:100%${this.tint ? `;--mc-tint-fill:${this.tint.fill};--mc-tint-ink:${this.tint.ink}` : ""}`}
       .label=${this.text}
       .reason=${this.reason}
       ?selected=${this.selected}

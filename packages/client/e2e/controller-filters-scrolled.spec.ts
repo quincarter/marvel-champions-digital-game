@@ -180,7 +180,8 @@ for (const inline of [false, true])
           expect(rect.y + rect.height).toBeLessThanOrEqual(size.h);
           expect(errors).toEqual([]);
           // The variant really did paint faces on the main thread; the ordinary run did not.
-          expect(inlineNotices.length > 0).toBe(inline);
+          // Take your seats is a Lit panel with no baked card faces: only Scenario select has the variant to check.
+          if (screen.name !== "Take your seats") expect(inlineNotices.length > 0).toBe(inline);
         });
       });
     }

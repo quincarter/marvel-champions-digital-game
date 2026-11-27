@@ -87,10 +87,18 @@ export class McPictureCard extends LitElement {
     if (!m && !this.picture) return nothing;
     const caption = m ? (m.captionHeight ?? 52) : 0;
     const art = this.artHeight > 0 ? `height:${this.artHeight}px` : `bottom:${caption}px`;
-    this.style.setProperty("--mc-card-border", this.heavy ? "5px" : "2px");
+    // The chosen card wears the heavy red frame; a heavy one (in use) the heavy ink frame.
+    this.style.setProperty("--mc-card-border", m?.selected ? "4px" : this.heavy ? "5px" : "2px");
+    this.style.setProperty("--mc-card-line", m?.selected ? "var(--mc-line-red)" : "var(--mc-line-ink)");
     const picture: PictureSource | null =
       this.picture ?? (m && m.src ? { src: m.src, cover: { x: 0.5, y: m.focusY } } : null);
     const gone = !picture?.src || picture.src === this.failedSrc;
+    const stamps = m?.stamps ?? [];
+    const detailClass = m
+      ? ["detail", m.detailTone !== "meta" ? m.detailTone : "", m.detailLines === 2 ? "two" : ""]
+          .filter(Boolean)
+          .join(" ")
+      : "detail";
     return html`
       <div class="art" style=${art}>
         ${
@@ -113,7 +121,21 @@ export class McPictureCard extends LitElement {
               >`
             : nothing
         }
-        ${m ? html`<span class=${m.chipTone === "locked" ? "chip locked" : "chip"}>${m.chip}</span>` : nothing}
+        ${m?.chip ? html`<span class=${m.chipTone === "locked" ? "chip locked" : "chip"}>${m.chip}</span>` : nothing}
+        ${m?.plate ? html`<span class="plate" data-fit>${m.plate}</span>` : nothing}
+        ${m?.tag ? html`<span class="tag">${m.tag}</span>` : nothing}
+        ${
+          stamps.length > 0
+            ? html`<span class="stamps"
+                >${stamps.map(
+                  (stamp) =>
+                    html`<span class="stamp" style=${`background:${stamp.fill};color:${stamp.ink}`}
+                      >${stamp.label}</span
+                    >`,
+                )}</span
+              >`
+            : nothing
+        }
       </div>
       ${
         this.stripe.length > 0
@@ -125,8 +147,12 @@ export class McPictureCard extends LitElement {
       ${
         m
           ? html`<div class="caption" style=${`height:${caption}px`}>
-              <div class="title">${m.title}</div>
-              <div class=${m.detailTone === "alert" ? "detail alert" : "detail"}>${m.detail}</div>
+              <div
+                class=${m.displayTitle ? "title display" : "title"}
+                style=${m.displayTitle ? `font-size:${m.displayTitle}px` : ""}
+                .textContent=${m.title}
+              ></div>
+              <div class=${detailClass} .textContent=${m.detail}></div>
             </div>`
           : nothing
       }

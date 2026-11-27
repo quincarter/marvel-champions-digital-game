@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, findText, trackPageErrors, waitFor } from "./helpers.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
@@ -93,6 +93,10 @@ const focusOf = (page: Page, scene: string): Promise<string | null> =>
 
 const hasKey = async (page: Page, scene: string, prefix: string): Promise<boolean> =>
   (await stopsOf(page, scene)).some((stop) => stop.key.startsWith(prefix));
+
+/** How many texts on `scene` (Phaser objects, or a Lit panel's) contain `substr` and are drawn. */
+const shownTexts = async (page: Page, scene: string, substr: string): Promise<number> =>
+  (await visibleTexts(page, scene, substr)).length + (await findText(page, substr, scene)).length;
 
 /** Texts on `scene` containing `substr` that are actually drawn (visible, not faded out), at any depth. */
 const visibleTexts = (page: Page, scene: string, substr: string): Promise<string[]> =>
@@ -344,7 +348,7 @@ for (const view of [
         // Shut by default: the button, and no chips; the search field (or its toggle on a phone) stays.
         expect(await hasKey(page, screen.scene, "filters-toggle")).toBe(true);
         expect(await hasKey(page, screen.scene, screen.chips)).toBe(false);
-        expect((await visibleTexts(page, screen.scene, "Filters ▸")).length).toBeGreaterThan(0);
+        expect(await shownTexts(page, screen.scene, "Filters ▸")).toBeGreaterThan(0);
         const shutTile = (await stopsOf(page, screen.scene)).find((s) => s.key.startsWith(screen.tile))!;
 
         await tapStop("filters-toggle");
@@ -353,7 +357,7 @@ for (const view of [
           "the button opens the chips",
           10_000,
         );
-        expect((await visibleTexts(page, screen.scene, "Filters ▾")).length).toBeGreaterThan(0);
+        expect(await shownTexts(page, screen.scene, "Filters ▾")).toBeGreaterThan(0);
         const openTile = (await stopsOf(page, screen.scene)).find((s) => s.key.startsWith(screen.tile))!;
         expect(openTile.y, "the list gives room to the chips while they are open").toBeGreaterThan(shutTile.y);
 
@@ -367,7 +371,7 @@ for (const view of [
           "the button shuts the chips",
           10_000,
         );
-        expect((await visibleTexts(page, screen.scene, "Filters (1)")).length).toBeGreaterThan(0);
+        expect(await shownTexts(page, screen.scene, "Filters (1)")).toBeGreaterThan(0);
         expect(errors).toEqual([]);
       });
     });

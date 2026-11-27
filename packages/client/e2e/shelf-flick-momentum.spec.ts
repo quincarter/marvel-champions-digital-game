@@ -7,7 +7,8 @@ import { SHOT } from "./x-men-helpers.js";
  * Issue #478: a sideways flick of a hero or scenario shelf stopped dead the moment the finger lifted, while a flick up
  * or down the column of shelves kept coasting. Now a sideways flick coasts along the shelf it flicked, on a phone and
  * with a mouse alike, and the release picks no card. A tap on the coasting shelf stops it, as a native scroller does,
- * and picks nothing either: the coast slides cards under a finger that never moved.
+ * and picks nothing either: the coast slides cards under a finger that never moved. Take your seats is a Lit panel whose
+ * shelves scroll natively (the browser's own momentum), so only Scenario select's Phaser shelves are driven here.
  */
 
 interface Stop extends Rect {
@@ -21,13 +22,6 @@ const SCREENS = [
     hook: "__mcScenarioSelectDebug",
     prefix: "scenario:",
     header: "scenario-shelf:",
-  },
-  {
-    scene: "Seats",
-    query: "screen=seats&unlock=all",
-    hook: "__mcSeatsDebug",
-    prefix: "hero:",
-    header: "hero-shelf:",
   },
 ] as const;
 

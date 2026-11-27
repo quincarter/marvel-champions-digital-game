@@ -102,3 +102,37 @@ describe("mc-filter-bar", () => {
     expect(bar.shadowRoot!.querySelector(".sheet")).toBeNull();
   });
 });
+
+describe("mc-filter-bar tint, info segment and sideways scroll", () => {
+  it("tints a chip, draws an info segment that raises mc-info and not mc-activate, and scrolls in one row", async () => {
+    const bar = document.createElement("mc-filter-bar");
+    bar.sideways = true;
+    bar.prefix = "hero-chip:";
+    bar.chips = [
+      {
+        id: "aspect:justice",
+        label: "Justice",
+        selected: false,
+        tint: { fill: "#f0c040", ink: "#111111" },
+        info: { open: false, label: "About Justice" },
+      },
+      { id: "playable-now", label: "Playable now", selected: true },
+    ];
+    document.body.append(bar);
+    await bar.updateComplete;
+    expect(bar.hasAttribute("sideways")).toBe(true);
+    const chip = bar.elementOf("hero-chip:aspect:justice") as HTMLElement & { tint: unknown };
+    expect(chip.tint).toEqual({ fill: "#f0c040", ink: "#111111" });
+    const info = bar.elementOf("hero-chip:aspect:justice:info")!;
+    expect(info).toBeTruthy();
+    expect(info.getAttribute("aria-label")).toBe("About Justice");
+    expect(bar.elementOf("hero-chip:playable-now:info")).toBeNull();
+    const heard: string[] = [];
+    bar.addEventListener("mc-info", (event) => heard.push(`info ${(event as CustomEvent<{ id: string }>).detail.id}`));
+    bar.addEventListener("mc-activate", () => heard.push("activate"));
+    info.dispatchEvent(new CustomEvent("mc-press", { bubbles: true }));
+    expect(heard).toEqual(["info aspect:justice"]);
+    expect(bar.scroller).toBeTruthy();
+    bar.remove();
+  });
+});

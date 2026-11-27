@@ -9,8 +9,9 @@ export const McButtonStyles = css`
   :host {
     display: block;
     --stroke: 2.5px;
-    --fill: var(--mc-fill-paper);
-    --ink: var(--mc-text-ink);
+    /* A screen may tint a resting button (an aspect chip in its printed frame color); chosen and hover look as ever. */
+    --fill: var(--mc-tint-fill, var(--mc-fill-paper));
+    --ink: var(--mc-tint-ink, var(--mc-text-ink));
     --line: var(--mc-line-ink);
     --ink-alpha: 1;
   }

@@ -44,6 +44,7 @@ export { McBarChart } from "./components/mc-bar-chart/mc-bar-chart.js";
 export { McStatTiles } from "./components/mc-stat-tiles/mc-stat-tiles.js";
 export { McLineList } from "./components/mc-line-list/mc-line-list.js";
 export { McDeckGrid } from "./components/mc-deck-grid/mc-deck-grid.js";
+export { McShelfRoster, SHELF_CHEVRON, SHELF_HEADER_GAP } from "./components/mc-shelf-roster/mc-shelf-roster.js";
 export { McDeckDetails } from "./components/mc-deck-details/mc-deck-details.js";
 export { fitTextWithin } from "./shared/fit-text.js";
 export { lineOf, sizeCss } from "./shared/text-line.js";
@@ -105,7 +106,15 @@ export type { FilterBarModel, FilterChip, FilterSort } from "./shared/filter.typ
 export type { PictureFit, PictureFocus, PictureGround, PictureSource } from "./shared/picture.types.js";
 export type { SectionHeaderLevel } from "./components/mc-section-header/mc-section-header.types.js";
 export type { PictureErrorDetail } from "./components/mc-picture-tile/mc-picture-tile.types.js";
-export type { McPictureCardModel } from "./components/mc-picture-card/mc-picture-card.types.js";
+export type { McPictureCardModel, PictureCardStamp } from "./components/mc-picture-card/mc-picture-card.types.js";
+export type {
+  ShelfRosterCard,
+  ShelfRosterHint,
+  ShelfRosterLink,
+  ShelfRosterModel,
+  ShelfRosterScroll,
+  ShelfRosterShelf,
+} from "./components/mc-shelf-roster/mc-shelf-roster.types.js";
 export type { McListRowModel } from "./components/mc-list-row/mc-list-row.types.js";
 export type {
   McSearchDetail,

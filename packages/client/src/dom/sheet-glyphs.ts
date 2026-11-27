@@ -128,6 +128,11 @@ export class SheetGlyphs {
     this.#binding.dispose();
   }
 
+  /** The input snapshot the glyphs last read (null until the device reports once): what a screen's own glyph, drawn outside the sheet, is made from. */
+  get snapshot(): InputHintsSnapshot | null {
+    return this.#snapshot;
+  }
+
   /** How many glyphs are registered (tests). */
   get count(): number {
     return this.#entries.length;

@@ -13,6 +13,13 @@ export interface FilterChip {
   readonly width?: number;
   /** False for a chip that carries its own mark ("by X ✕", Clear): no check before it when chosen. */
   readonly mark?: boolean;
+  /** The chip rests in these colors (CSS colors: an aspect's printed frame fill and the word's ink); chosen it is the ink fill as ever. */
+  readonly tint?: { readonly fill: string; readonly ink: string };
+  /**
+   * A second segment at the chip's right end, a button of its own (the aspect chips' "i" that opens a tip): a tap on it
+   * raises `mc-info` rather than `mc-activate`. `open` is its chosen state; `label` is its name for assistive tech.
+   */
+  readonly info?: { readonly open: boolean; readonly label: string };
 }
 
 /** A sort selector: the options, already translated, and the one in force. */
@@ -39,4 +46,6 @@ export interface FilterBarModel {
   readonly rowHeight?: number;
   /** The space between chips and rows in px (8). */
   readonly gap?: number;
+  /** One row that scrolls sideways instead of wrapping (a phone's chip rail); `rows` is then ignored. */
+  readonly sideways?: boolean;
 }
