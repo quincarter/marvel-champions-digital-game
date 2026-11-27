@@ -87,6 +87,18 @@ describe("mc-button", () => {
     element.remove();
   });
 
+  it("stays dimmed but still presses when pressable, so a screen can say why it does nothing", async () => {
+    const { element, presses } = await button();
+    element.disabled = true;
+    element.pressable = true;
+    await element.updateComplete;
+    element.dispatchEvent(pointer("pointerdown", 10, 10));
+    element.dispatchEvent(pointer("pointerup", 10, 10));
+    expect(presses()).toBe(1);
+    expect(element.hasAttribute("disabled")).toBe(true);
+    element.remove();
+  });
+
   it("is a tab cell as kind rail: selected reflects for the ink fill, and it presses like any button", async () => {
     const { element, presses } = await button();
     element.kind = "rail";

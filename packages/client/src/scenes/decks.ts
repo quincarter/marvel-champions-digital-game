@@ -684,10 +684,9 @@ export class DecksScene extends Phaser.Scene {
     return this.#region?.element.elementOf("deck-list") ?? null;
   }
 
-  /** A cell of a filter bar in the panel (a chip, the Filters button), on screen now, or null. */
-  #barCell(barKey: string, cellKey: string): Rect | null {
-    const bar = this.#region?.element.elementOf(barKey);
-    const cell = bar?.shadowRoot?.querySelector(`[data-key="${CSS.escape(cellKey)}"]`);
+  /** A chip of a filter bar in the panel, on screen now, or null (the sheet finds it inside the bar). */
+  #barCell(_barKey: string, cellKey: string): Rect | null {
+    const cell = this.#region?.element.elementOf(cellKey);
     return cell ? this.#region!.rectOf(cell) : null;
   }
 
@@ -1145,15 +1144,15 @@ export class DecksScene extends Phaser.Scene {
       this.#tabsShown = true;
       const tabRect = layout.tabs!;
       const tabType = { ...typeRole.label, size: Math.max(minType.phoneLabel, typeRole.label.size) };
-      b.tabRail(tabRect, {
-        tabs: [
+      b.tabRail(
+        tabRect,
+        [
           { id: "decks", label: t("decks.tab.decks") },
           { id: "cards", label: t("decks.tab.cards") },
           { id: "stats", label: t("decks.tab.stats") },
         ],
-        selected: this.#activeTab,
-        size: tabType.size,
-      });
+        { selected: this.#activeTab, size: tabType.size },
+      );
       const tabCell = (index: number): Rect => ({
         ...layout.tabs!,
         x: layout.tabs!.x + (index * layout.tabs!.width) / 3,
@@ -1432,12 +1431,14 @@ export class DecksScene extends Phaser.Scene {
       this.#filtersExpanded = !this.#filtersExpanded;
       this.#rebuild();
     };
-    b.filterBar(
-      filtersToggleRect,
-      "deck-filters",
-      { chips: [], filters: { label: t("decks.filters"), open: this.#filtersExpanded } },
-      this.#row,
-    );
+    b.button({
+      key: "filters",
+      rect: filtersToggleRect,
+      label: this.#filtersExpanded ? `${t("decks.filters")} ▴` : `${t("decks.filters")} ▾`,
+      look: "secondary",
+      type: typeRole.label,
+      selected: this.#filtersExpanded,
+    });
     this.#actions.set("filters", toggleFilters);
     this.#stops.set("filters-toggle", { rect: filtersToggleRect, activate: toggleFilters });
     y += this.#row + 8;
@@ -1449,19 +1450,11 @@ export class DecksScene extends Phaser.Scene {
         Math.ceil(b.measure(caseOf(STAMP_CHIP_TYPE, chip.text), STAMP_CHIP_TYPE, { letterSpacing: 1.1 }).width) + 44;
       const packed = packChipsNatural(chipDefs, left, y, column, this.#row, "left", widthOf);
       const barRect: Rect = { x: left, y, width: column, height: Math.max(this.#row, packed.bottom - y) };
-      const css = (hex: number): string => `#${hex.toString(16).padStart(6, "0")}`;
       b.filterBar(
-        barRect,
         "deck-chips",
-        {
-          chips: chipDefs.map((chip) => ({
-            id: chip.id,
-            label: chip.text,
-            selected: chip.selected,
-            ...(chip.tint ? { tint: { fill: css(chip.tint.fill), ink: css(chip.tint.ink) } } : {}),
-          })),
-        },
-        this.#row,
+        barRect,
+        chipDefs.map((chip) => ({ id: chip.id, label: chip.text, selected: chip.selected })),
+        { prefix: "chip:", rowHeight: this.#row, gap: CHIP_GAP },
       );
       for (const chip of chipDefs) {
         this.#actions.set(`chip:${chip.id}`, chip.onClick);

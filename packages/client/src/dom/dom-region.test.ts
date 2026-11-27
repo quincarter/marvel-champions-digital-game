@@ -23,7 +23,7 @@ describe("regionTakesEvents", () => {
   });
 
   it("guards the inspect a hold raises as well as the activation", () => {
-    expect(GUARDED_EVENTS).toEqual(["mc-activate", "mc-inspect", "mc-slide", "mc-step"]);
+    expect(GUARDED_EVENTS).toEqual(["mc-activate", "mc-inspect", "mc-slide", "mc-step", "mc-search", "mc-submit"]);
   });
 });
 

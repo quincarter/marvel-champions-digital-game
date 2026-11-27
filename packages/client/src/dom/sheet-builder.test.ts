@@ -121,3 +121,118 @@ describe("SheetBuilder chips", () => {
     ]);
   });
 });
+
+describe("SheetBuilder scrollFit", () => {
+  const builder = (): SheetBuilder => new SheetBuilder({} as never, { x: 10, y: 20 }, () => false);
+
+  it("takes the content height from what the build says it used, never less than the box", () => {
+    const outer = builder();
+    outer.scrollFit("list", { x: 30, y: 60, width: 200, height: 100 }, (inner) => {
+      inner.box({ x: 30, y: 250, width: 50, height: 10 }, { fill: surface.ink.hex });
+      return 300.2;
+    });
+    outer.scrollFit("short", { x: 30, y: 60, width: 200, height: 100 }, () => 40);
+    const [tall, short] = outer.nodes;
+    expect(tall).toMatchObject({ kind: "scroll", key: "list", rect: { x: 20, y: 40 }, height: 301 });
+    // Parts inside sit in the region own space: `x` from the region left, `y` from its top.
+    expect(tall!.kind === "scroll" && tall.nodes[0]).toMatchObject({ rect: { x: 0, y: 250 } });
+    expect(short).toMatchObject({ kind: "scroll", height: 100 });
+  });
+});
+
+describe("SheetBuilder kit parts", () => {
+  const at = { x: 30, y: 50, width: 100, height: 40 };
+  const builder = (desktop = false): SheetBuilder => new SheetBuilder({} as never, { x: 10, y: 20 }, () => desktop);
+
+  it("builds a section header, leaving out what is not given", () => {
+    const b = builder();
+    b.sectionHeader(at, "Heroes", { count: "3 of 7", underline: true, level: "small", open: true, key: "h" });
+    b.sectionHeader(at, "Undo");
+    expect(b.nodes).toEqual([
+      {
+        kind: "sectionHeader",
+        rect: { x: 20, y: 30, width: 100, height: 40 },
+        label: "Heroes",
+        count: "3 of 7",
+        level: "small",
+        underline: true,
+        open: true,
+        key: "h",
+      },
+      { kind: "sectionHeader", rect: { x: 20, y: 30, width: 100, height: 40 }, label: "Undo" },
+    ]);
+  });
+
+  it("builds a tab rail, growing a small label on desktop only", () => {
+    const tabs = [{ id: "a", label: "A" }];
+    const phone = builder(false);
+    phone.tabRail(at, tabs, { selected: "a", size: 9, prefix: "p:" });
+    const desk = builder(true);
+    desk.tabRail(at, tabs, { size: 9 });
+    desk.tabRail(at, tabs);
+    expect(phone.nodes[0]).toMatchObject({ kind: "tabRail", selected: "a", size: 9, prefix: "p:" });
+    expect(desk.nodes[0]).toMatchObject({ size: 11 });
+    expect(desk.nodes[1]).not.toHaveProperty("size");
+  });
+
+  it("builds a picture tile and a picture card", () => {
+    const b = builder();
+    b.pictureTile(at, { src: "/a.png", fit: "contain", focus: { x: 0.5, y: 0.2 }, dim: true, retry: "r", key: "t" });
+    const model = {
+      src: null,
+      focusY: 0.3,
+      dim: false,
+      chip: "C",
+      chipTone: "action" as const,
+      title: "T",
+      detail: "D",
+      detailTone: "meta" as const,
+      initial: "T",
+    };
+    b.pictureCard(at, model, { key: "c", hover: "01001" });
+    expect(b.nodes[0]).toMatchObject({
+      kind: "pictureTile",
+      src: "/a.png",
+      fit: "contain",
+      dim: true,
+      retry: "r",
+      key: "t",
+    });
+    expect(b.nodes[1]).toEqual({
+      kind: "pictureCard",
+      rect: { x: 20, y: 30, width: 100, height: 40 },
+      model,
+      key: "c",
+      hover: "01001",
+    });
+  });
+
+  it("builds a list row, a search field, an article and a filter bar", () => {
+    const b = builder();
+    b.listRow(at, { leading: "▶", title: "S", detail: "d", open: true, active: false }, "row");
+    b.search(at, { key: "s", value: "", placeholder: "P", clearLabel: "C", escapeClears: true });
+    b.article(at, { key: "a", model: { title: "T", blocks: [] }, pictureMax: 400, pad: 16 });
+    b.filterBar("f", at, [{ id: "x", label: "X", selected: false, width: 50 }], { sheetLabel: "Filters", rows: 2 });
+    expect(b.nodes.map((n) => n.kind)).toEqual(["listRow", "search", "article", "filterBar"]);
+    expect(b.nodes[1]).toMatchObject({ escapeClears: true });
+    expect(b.nodes[3]).toMatchObject({ key: "f", sheetLabel: "Filters", rows: 2, rect: { x: 20, y: 30 } });
+  });
+
+  it("builds an empty state from a point or a box, and a media row", () => {
+    const b = builder();
+    b.emptyState({ x: 30, y: 50 }, "Nothing");
+    b.emptyState(at, "Nothing", { detail: "Clear a filter", align: "center", size: 11 });
+    b.mediaRow("m", at, { heading: "P", meta: "", summary: "", foot: "", badge: "", src: null, letter: "P" });
+    expect(b.nodes[0]).toEqual({ kind: "emptyState", x: 20, y: 30, message: "Nothing" });
+    expect(b.nodes[1]).toMatchObject({ width: 100, height: 40, detail: "Clear a filter", align: "center", size: 11 });
+    expect(b.nodes[2]).toMatchObject({ kind: "mediaRow", key: "m", rect: { x: 20, y: 30 } });
+  });
+
+  it("carries a button aria name and an image dim", () => {
+    const b = builder();
+    b.button({ key: "plus", rect: at, label: "+", look: "secondary", type: { size: 14 }, aria: "Add" } as never);
+    b.image(at, { src: "/a.png", dim: true });
+    expect(b.nodes[0]).toMatchObject({ kind: "button", aria: "Add" });
+    expect(b.nodes[1]).toMatchObject({ kind: "image", dim: true });
+  });
+});

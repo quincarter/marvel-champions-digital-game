@@ -10,17 +10,22 @@
  * - Coordinates are the screen's; the builder subtracts the sheet's own origin.
  */
 import type {
-  GlyphSpec as UiGlyphSpec,
-  McGlyphGround,
-  McArticleModel,
-  McFilterBarModel,
-  McListRowModel,
   McPictureRowModel,
-  McPictureTileModel,
-  McTabRailTab,
+  GlyphSpec as UiGlyphSpec,
+  FilterChip,
+  FilterSort,
+  McArticleModel,
+  McGlyphGround,
+  McListRowModel,
+  McPictureCardModel,
+  PictureFit,
+  PictureFocus,
+  PictureGround,
+  SectionHeaderLevel,
   SheetNode,
   SheetRect,
   SvgOp,
+  TabRailTab,
 } from "@mc/ui";
 import { accent, font, signal, status, surface, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
@@ -250,6 +255,8 @@ export class SheetBuilder {
     readonly look: "primary" | "secondary" | "quiet" | "onInk" | "rail";
     readonly selected?: boolean;
     readonly disabled?: string | true;
+    /** With `disabled`: dimmed, but a tap still presses (the scene says why it does nothing). */
+    readonly pressable?: boolean;
     readonly framed?: boolean;
     readonly type?: TypeSpec;
     /** The label slides right by this many px to make room for a glyph beside it. */
@@ -258,12 +265,15 @@ export class SheetBuilder {
     readonly still?: boolean;
     readonly keyshortcuts?: string;
     readonly alpha?: number;
+    /** The button name for assistive tech when its label is a symbol ("+"). */
+    readonly aria?: string;
   }): void {
     const type = options.type;
     this.nodes.push({
       ...(options.labelShift ? { labelShift: options.labelShift } : {}),
       ...(options.still ? { still: true } : {}),
       ...(options.keyshortcuts ? { keyshortcuts: options.keyshortcuts } : {}),
+      ...(options.aria ? { aria: options.aria } : {}),
       ...(options.alpha !== undefined ? { opacity: options.alpha } : {}),
       kind: "button",
       key: options.key,
@@ -272,6 +282,7 @@ export class SheetBuilder {
       look: options.look,
       ...(options.selected ? { selected: true } : {}),
       ...(options.disabled !== undefined ? { disabled: options.disabled } : {}),
+      ...(options.pressable ? { pressable: true } : {}),
       ...(options.framed ? { framed: true } : {}),
       ...(type?.family === font.display ? { display: true } : {}),
       ...(type && !type.uppercase && type.family !== font.display ? { plain: true } : {}),
@@ -386,7 +397,7 @@ export class SheetBuilder {
       /** The pack picture key the URL came from: a failed load asks the scene once to resolve it again (`mc-image-error`). */
       readonly retry?: string;
       /** Fills the box, cropped around this focal point (0 to 1 each way), instead of fitting the whole picture. */
-      readonly cover?: { readonly x: number; readonly y: number };
+      readonly cover?: PictureFocus;
       /** A gray, faded ghost of the picture on its ground (a locked tile). */
       readonly dim?: boolean;
     },
@@ -404,6 +415,238 @@ export class SheetBuilder {
       ...(options.key !== undefined ? { key: options.key } : {}),
       ...(options.retry !== undefined ? { retry: options.retry } : {}),
     });
+  }
+
+  /**
+   * A section heading (`mc-section-header`) in `rect`: the rule runs on to the end of the line, or with `underline`
+   * runs under the row with `count` at the right. `open` makes it a folding section with a chevron; put a `tap` over it.
+   */
+  sectionHeader(
+    rect: Rect,
+    label: string,
+    options: {
+      readonly count?: string;
+      readonly size?: number;
+      readonly level?: SectionHeaderLevel;
+      readonly rule?: boolean;
+      readonly underline?: boolean;
+      readonly open?: boolean;
+      readonly key?: string;
+    } = {},
+  ): void {
+    this.nodes.push({
+      kind: "sectionHeader",
+      rect: this.#rect(rect),
+      label,
+      ...(options.count ? { count: options.count } : {}),
+      ...(options.size !== undefined ? { size: options.size } : {}),
+      ...(options.level !== undefined ? { level: options.level } : {}),
+      ...(options.rule !== undefined ? { rule: options.rule } : {}),
+      ...(options.underline ? { underline: true } : {}),
+      ...(options.open !== undefined ? { open: options.open } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
+  }
+
+  /**
+   * A tab rail (`mc-tab-rail`) filling `rect`; a tap raises `mc-activate` with the key `<prefix><id>` (`tab:` by
+   * default). Name the chosen tab with `selected` (an id) or a tab own `selected`. A `size` of 12 or less grows on
+   * desktop like every small label.
+   */
+  tabRail(
+    rect: Rect,
+    tabs: readonly TabRailTab[],
+    options: {
+      readonly selected?: string;
+      readonly prefix?: string;
+      readonly size?: number;
+      readonly key?: string;
+    } = {},
+  ): void {
+    this.nodes.push({
+      kind: "tabRail",
+      rect: this.#rect(rect),
+      tabs,
+      ...(options.selected !== undefined ? { selected: options.selected } : {}),
+      ...(options.size !== undefined
+        ? { size: this.#desktop() && options.size <= 12 ? Math.min(13, options.size + 2) : options.size }
+        : {}),
+      ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
+  }
+
+  /** A framed picture (`mc-picture-tile`): cropped around `focus`, or `fit: "contain"`; `missing` says so when none. */
+  pictureTile(
+    rect: Rect,
+    options: {
+      readonly src: string | null;
+      readonly missing?: string;
+      readonly fit?: PictureFit;
+      readonly focus?: PictureFocus;
+      readonly frame?: number;
+      readonly ground?: PictureGround;
+      readonly dim?: boolean;
+      readonly hover?: string;
+      readonly retry?: string;
+      readonly key?: string;
+    },
+  ): void {
+    this.nodes.push({
+      kind: "pictureTile",
+      rect: this.#rect(rect),
+      src: options.src,
+      ...(options.missing !== undefined ? { missing: options.missing } : {}),
+      ...(options.fit ? { fit: options.fit } : {}),
+      ...(options.focus ? { focus: options.focus } : {}),
+      ...(options.frame !== undefined ? { frame: options.frame } : {}),
+      ...(options.ground ? { ground: options.ground } : {}),
+      ...(options.dim ? { dim: true } : {}),
+      ...(options.hover !== undefined ? { hover: options.hover } : {}),
+      ...(options.retry !== undefined ? { retry: options.retry } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
+  }
+
+  /** A captioned picture card (`mc-picture-card`) filling `rect`; decorative, put a `tap` over it. */
+  pictureCard(
+    rect: Rect,
+    model: McPictureCardModel,
+    options: { readonly key?: string; readonly hover?: string; readonly retry?: string } = {},
+  ): void {
+    this.nodes.push({
+      kind: "pictureCard",
+      rect: this.#rect(rect),
+      model,
+      ...(options.key !== undefined ? { key: options.key } : {}),
+      ...(options.hover !== undefined ? { hover: options.hover } : {}),
+      ...(options.retry !== undefined ? { retry: options.retry } : {}),
+    });
+  }
+
+  /** A list row (`mc-list-row`) filling `rect`; decorative, put a `tap` over it. */
+  listRow(rect: Rect, model: McListRowModel, key?: string): void {
+    this.nodes.push({ kind: "listRow", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
+  }
+
+  /** A search field (`mc-search-field`) filling `rect`; listen for `mc-search` (debounced text) and `mc-search-focus`. */
+  search(
+    rect: Rect,
+    options: {
+      readonly key: string;
+      readonly value: string;
+      readonly placeholder: string;
+      readonly clearLabel: string;
+      readonly focusPlaceholder?: string;
+      readonly debounce?: number;
+      readonly escapeClears?: boolean;
+      readonly maxLength?: number;
+      readonly keepFocus?: boolean;
+      readonly clearable?: boolean;
+    },
+  ): void {
+    this.nodes.push({
+      kind: "search",
+      key: options.key,
+      rect: this.#rect(rect),
+      value: options.value,
+      placeholder: options.placeholder,
+      clearLabel: options.clearLabel,
+      ...(options.focusPlaceholder ? { focusPlaceholder: options.focusPlaceholder } : {}),
+      ...(options.debounce !== undefined ? { debounce: options.debounce } : {}),
+      ...(options.escapeClears ? { escapeClears: true } : {}),
+      ...(options.maxLength !== undefined ? { maxLength: options.maxLength } : {}),
+      ...(options.keepFocus ? { keepFocus: true } : {}),
+      ...(options.clearable === false ? { clearable: false } : {}),
+    });
+  }
+
+  /** Reading text that scrolls natively (`mc-article`) in `rect`; `key` finds its scroller (`elementOf(key).scroller`). */
+  article(
+    rect: Rect,
+    options: {
+      readonly key: string;
+      readonly model: McArticleModel;
+      readonly pictureMax: number;
+      readonly pad: number;
+    },
+  ): void {
+    this.nodes.push({ ...options, kind: "article", rect: this.#rect(rect) });
+  }
+
+  /**
+   * The quiet line an empty list says (`mc-empty-state`) with its top left at `at`. With `at.width` (and `height`) it
+   * fills that box, so `align: "center"` centers in it.
+   */
+  emptyState(
+    at: { readonly x: number; readonly y: number; readonly width?: number; readonly height?: number },
+    message: string,
+    options: {
+      readonly detail?: string;
+      readonly size?: number;
+      readonly align?: "start" | "center";
+      readonly key?: string;
+    } = {},
+  ): void {
+    this.nodes.push({
+      kind: "emptyState",
+      x: at.x - this.#origin.x,
+      y: at.y - this.#origin.y,
+      ...(at.width !== undefined ? { width: at.width } : {}),
+      ...(at.height !== undefined ? { height: at.height } : {}),
+      message,
+      ...(options.detail ? { detail: options.detail } : {}),
+      ...(options.size !== undefined ? { size: options.size } : {}),
+      ...(options.align ? { align: options.align } : {}),
+      ...(options.key !== undefined ? { key: options.key } : {}),
+    });
+  }
+
+  /**
+   * A filter bar (`mc-filter-bar`) at `rect`: a tap on a chip raises `mc-activate` with `prefix + id` (`chip:` by
+   * default). Give chips a `width` and `rows` for the packed layout; leave them out to wrap without a limit. A `sort`
+   * raises `mc-sort`, a `sheetLabel` adds a button that raises `mc-filter-sheet`.
+   */
+  filterBar(
+    key: string,
+    rect: Rect,
+    chips: readonly FilterChip[],
+    options: {
+      readonly sort?: FilterSort;
+      readonly sheetLabel?: string;
+      readonly prefix?: string;
+      readonly rows?: number;
+      readonly rowHeight?: number;
+      readonly gap?: number;
+    } = {},
+  ): void {
+    this.nodes.push({ kind: "filterBar", key, rect: this.#rect(rect), chips, ...options });
+  }
+
+  /** A framed row (`mc-media-row`): a picture, a title, meta lines and a state badge; a tap raises `mc-activate`. */
+  mediaRow(
+    key: string,
+    rect: Rect,
+    row: {
+      readonly heading: string;
+      readonly meta: string;
+      readonly summary: string;
+      readonly foot: string;
+      readonly badge: string;
+      readonly solid?: boolean;
+      readonly src: string | null;
+      readonly letter: string;
+      readonly retry?: string;
+      readonly focusY?: number;
+      readonly fit?: PictureFit;
+    },
+  ): void {
+    this.nodes.push({ kind: "mediaRow", key, rect: this.#rect(rect), ...row });
+  }
+
+  /** A picture row (`mc-picture-row`) filling `rect`; decorative, put a `tap` over it. */
+  pictureRow(rect: Rect, model: McPictureRowModel, key?: string): void {
+    this.nodes.push({ kind: "pictureRow", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
   }
 
   /** A QR code (`uqr`'s rows of dark modules) filling `rect`, a light ground under the modules. */
@@ -457,94 +700,36 @@ export class SheetBuilder {
     });
   }
 
-  /** A tab rail (`mc-tab-rail`) filling `rect`; a tap raises `mc-activate` with the key `<prefix><id>` (`tab:` by default). */
-  tabRail(
-    rect: Rect,
-    options: {
-      readonly tabs: readonly McTabRailTab[];
-      readonly selected: string;
-      readonly size: number;
-      readonly prefix?: string;
-      readonly key?: string;
-    },
-  ): void {
-    this.nodes.push({
-      kind: "tabRail",
-      rect: this.#rect(rect),
-      tabs: options.tabs,
-      selected: options.selected,
-      size: this.#desktop() && options.size <= 12 ? Math.min(13, options.size + 2) : options.size,
-      ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
-      ...(options.key !== undefined ? { key: options.key } : {}),
-    });
-  }
-
-  /** A picture tile (`mc-picture-tile`) filling `rect`; decorative, put a `tap` over it. */
-  pictureTile(rect: Rect, model: McPictureTileModel, key?: string): void {
-    this.nodes.push({ kind: "pictureTile", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
-  }
-
-  /** A list row (`mc-list-row`) filling `rect`; decorative, put a `tap` over it. */
-  listRow(rect: Rect, model: McListRowModel, key?: string): void {
-    this.nodes.push({ kind: "listRow", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
-  }
-
-  /** A search field (`mc-search-field`) filling `rect`; listen for `mc-search` (debounced text) and `mc-search-focus`. */
-  search(
-    rect: Rect,
-    options: {
-      readonly key: string;
-      readonly value: string;
-      readonly placeholder: string;
-      readonly clearLabel: string;
-      readonly focusPlaceholder?: string;
-      readonly debounce?: number;
-    },
-  ): void {
-    this.nodes.push({
-      kind: "search",
-      key: options.key,
-      rect: this.#rect(rect),
-      value: options.value,
-      placeholder: options.placeholder,
-      clearLabel: options.clearLabel,
-      ...(options.focusPlaceholder ? { focusPlaceholder: options.focusPlaceholder } : {}),
-      ...(options.debounce !== undefined ? { debounce: options.debounce } : {}),
-    });
-  }
-
-  /** Reading text that scrolls natively (`mc-article`) in `rect`; `key` finds its scroller (`elementOf(key).scroller`). */
-  article(
-    rect: Rect,
-    options: {
-      readonly key: string;
-      readonly model: McArticleModel;
-      readonly pictureMax: number;
-      readonly pad: number;
-    },
-  ): void {
-    this.nodes.push({ ...options, kind: "article", rect: this.#rect(rect) });
-  }
-
-  /** A filter bar (`mc-filter-bar`) filling `rect`; presses arrive as `mc-activate` keys `chip:<id>`, `filters`, `sort`. */
-  filterBar(rect: Rect, key: string, model: McFilterBarModel, row: number): void {
-    this.nodes.push({ kind: "filterBar", key, rect: this.#rect(rect), model, row });
-  }
-
-  /** A picture row (`mc-picture-row`) filling `rect`; decorative, put a `tap` over it. */
-  pictureRow(rect: Rect, model: McPictureRowModel, key?: string): void {
-    this.nodes.push({ kind: "pictureRow", rect: this.#rect(rect), model, ...(key !== undefined ? { key } : {}) });
-  }
-
-  /** The quiet empty-list line (`mc-empty-state`) at `x`, `y`. */
-  emptyState(x: number, y: number, text: string, size = 14): void {
-    this.nodes.push({ kind: "emptyState", x: x - this.#origin.x, y: y - this.#origin.y, text, size });
-  }
-
   /** A scrolling region at `rect`, `height` tall inside, its parts built in its own content space (`y` from 0). */
   scroll(key: string, rect: Rect, height: number, build: (inner: SheetBuilder) => void): void {
     const inner = new SheetBuilder(this.#game, { x: rect.x, y: 0 }, this.#desktop);
     build(inner);
     this.nodes.push({ kind: "scroll", key, rect: this.#rect(rect), height, nodes: inner.nodes });
+  }
+
+  /**
+   * A scrolling region whose content height is known only once its parts are laid out: `build` draws them (its `y`
+   * from 0, `x` the screen) and returns how far down they reach. The region is never shorter than `rect`.
+   */
+  scrollFit(key: string, rect: Rect, build: (inner: SheetBuilder) => number): void {
+    const inner = new SheetBuilder(this.#game, { x: rect.x, y: 0 }, this.#desktop);
+    const used = build(inner);
+    if (import.meta.env?.DEV) {
+      // A picture or drawing with no key is matched by its place in the list: a part added before it makes it reload.
+      const loose = inner.nodes.filter(
+        (n) =>
+          (n.kind === "pictureTile" || n.kind === "pictureCard" || n.kind === "image" || n.kind === "svg") &&
+          n.key === undefined,
+      );
+      if (loose.length > 0)
+        console.warn(`SheetBuilder: ${loose.length} keyless picture part(s) in scroll region "${key}"`);
+    }
+    this.nodes.push({
+      kind: "scroll",
+      key,
+      rect: this.#rect(rect),
+      height: Math.max(rect.height, Math.ceil(used)),
+      nodes: inner.nodes,
+    });
   }
 }

@@ -1,108 +1,128 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
-import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import "./mc-filter-chip.js";
-import type { McFilterBarModel, McFilterChipModel } from "./mc-filter-bar.types.js";
+import type { FilterChip, FilterSort } from "../../shared/filter.types.js";
+import "../mc-button/mc-button.js";
+import "../mc-filter-chip/mc-filter-chip.js";
 import { McFilterBarStyles } from "./mc-filter-bar.styles.js";
 
 /**
  * # Filter bar
- * The row of quick filters over a list: toggle chips with counts, an optional Filters button that folds the chips away
- * until it is pressed, and an optional sort chip that steps through its options. Built from `mc-filter-chip` cells, so
- * every press follows the tap rule. The bar only reports presses; what a filter keeps or drops is the client own
- * (`view/roster-filter.ts`, `view/pool-query.ts`).
+ * A row of `mc-filter-chip`s with an optional sort selector and an optional button that opens a filter sheet. Two
+ * layouts from one component: a wrapping one (chips as wide as their words, no row limit: the default) and a packed one
+ * (chips at the widths the client measured, wrapped into at most `rows` rows of `row-height`; what does not fit is left
+ * out and the search box still finds it). Presentational: the client holds the filter and the sort, and answers each
+ * event with new properties. Pressed only by a tap.
  *
  * @element mc-filter-bar
- * @prop model - The chips, Filters button and sort (`McFilterBarModel`).
- * @attr row - The row height in px (28 on a desktop, 44 as a touch target).
- * @fires mc-activate - A press, as the sheet keys it: `detail.key` is `chip:<id>`, `filters` or `sort` (with `detail.id`
- *   the next sort option); `detail.id` is the chip id for a chip.
+ * @prop chips - The chips, in order (`FilterChip`).
+ * @prop sort - A sort selector (`FilterSort`); none when absent.
+ * @attr sheet-label - The filter sheet button word; no button when empty.
+ * @attr prefix - Put before a chip id in its `data-key` and in the reported key ("chip:").
+ * @attr rows - The most rows shown; 0 wraps without a limit.
+ * @attr row-height - A row height in px; 0 lets a chip be as tall as its own minimum.
+ * @attr gap - The space between chips and rows in px (8).
+ * @fires mc-activate - A tap on a chip: `detail.key` is `prefix + id`, `detail.id` the chip id.
+ * @fires mc-sort - `detail.value`: another sort was chosen.
+ * @fires mc-filter-sheet - The filter sheet button was tapped.
  */
 export class McFilterBar extends LitElement {
   static override styles = [ThemeStyles, McFilterBarStyles];
 
   static override properties: PropertyDeclarations = {
-    model: { attribute: false },
-    row: { type: Number },
+    chips: { attribute: false },
+    sort: { attribute: false },
+    sheetLabel: { type: String, attribute: "sheet-label" },
+    prefix: { type: String },
+    rows: { type: Number },
+    rowHeight: { type: Number, attribute: "row-height" },
+    gap: { type: Number },
   };
 
-  declare model: McFilterBarModel | null;
-  declare row: number;
+  declare chips: readonly FilterChip[];
+  declare sort: FilterSort | undefined;
+  declare sheetLabel: string;
+  declare prefix: string;
+  declare rows: number;
+  declare rowHeight: number;
+  declare gap: number;
 
   constructor() {
     super();
-    this.model = null;
-    this.row = 28;
+    this.chips = [];
+    this.sort = undefined;
+    this.sheetLabel = "";
+    this.prefix = "chip:";
+    this.rows = 0;
+    this.rowHeight = 0;
+    this.gap = 8;
   }
 
-  #emit(key: string, id?: string): void {
-    this.dispatchEvent(
-      new CustomEvent("mc-activate", {
-        detail: { key, ...(id !== undefined ? { id } : {}) },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+  /** The element drawn for a key (a chip), for a screen focus stops. */
+  elementOf(key: string): HTMLElement | null {
+    return this.renderRoot.querySelector(`[data-key="${CSS.escape(key)}"]`);
   }
 
-  #onChip = (event: Event): void => {
-    event.stopPropagation();
-    const id = (event as CustomEvent<{ id: string }>).detail.id;
-    this.#emit(`chip:${id}`, id);
-  };
+  #emit(name: string, detail: object = {}): void {
+    this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
+  }
 
   override render() {
-    const m = this.model;
-    if (!m) return nothing;
-    this.style.setProperty("--bar-row", `${this.row}px`);
-    this.style.setProperty("--bar-justify", m.align === "end" ? "flex-end" : "flex-start");
-    const showChips = m.filters === undefined || m.filters.open;
-    const filtersChip: McFilterChipModel | null = m.filters
-      ? {
-          id: "filters",
-          label: m.filters.active ? `${m.filters.label} ${m.filters.active}` : m.filters.label,
-          selected: m.filters.open,
-        }
-      : null;
-    return html`
+    const { rowHeight, gap, rows, sort } = this;
+    const limit = rows > 0 && rowHeight > 0 ? `;max-height:${rows * rowHeight + (rows - 1) * gap}px` : "";
+    const cell = rowHeight > 0 ? `height:${rowHeight}px` : "min-height:44px";
+    return html`<div class="bar" role="group" style=${`gap:${gap}px${limit}`}>
+      ${this.chips.map(
+        (chip) =>
+          html`<mc-filter-chip
+            class="chip"
+            data-key=${this.prefix + chip.id}
+            style=${`${chip.width !== undefined ? `width:${chip.width}px;` : ""}${cell}`}
+            .label=${chip.label}
+            .count=${chip.count}
+            .value=${this.prefix + chip.id}
+            .mark=${chip.mark ?? true}
+            ?selected=${chip.selected}
+            ?disabled=${chip.disabled !== undefined && chip.disabled !== false}
+            .reason=${typeof chip.disabled === "string" ? chip.disabled : ""}
+            @mc-activate=${(event: Event) => {
+              event.stopPropagation();
+              this.#emit("mc-activate", { key: this.prefix + chip.id, id: chip.id });
+            }}
+          ></mc-filter-chip>`,
+      )}
       ${
-        filtersChip
-          ? html`<span class="cell" data-key="filters"
-              ><mc-filter-chip
-                .model=${filtersChip}
-                @mc-chip=${(event: Event) => {
-                  event.stopPropagation();
-                  this.#emit("filters");
-                }}
-              ></mc-filter-chip
-            ></span>`
+        this.sheetLabel
+          ? html`<mc-button
+              class="sheet"
+              kind="secondary"
+              data-key="filter-sheet"
+              style=${cell}
+              .label=${this.sheetLabel}
+              @mc-press=${(event: Event) => {
+                event.stopPropagation();
+                this.#emit("mc-filter-sheet");
+              }}
+            ></mc-button>`
           : nothing
       }
       ${
-        showChips
-          ? repeat(
-              m.chips,
-              (chip) => chip.id,
-              (chip) =>
-                html`<span class="cell" data-key=${`chip:${chip.id}`}
-                  ><mc-filter-chip .model=${chip} @mc-chip=${this.#onChip}></mc-filter-chip
-                ></span>`,
-            )
+        sort
+          ? html`<label class="sort"
+              >${sort.label}
+              <select
+                .value=${sort.value}
+                @change=${(event: Event) => this.#emit("mc-sort", { value: (event.target as HTMLSelectElement).value })}
+              >
+                ${sort.options.map(
+                  (option) =>
+                    html`<option value=${option.value} ?selected=${option.value === sort.value}>
+                      ${option.label}
+                    </option>`,
+                )}
+              </select></label
+            >`
           : nothing
       }
-      ${
-        m.sort
-          ? html`<span class="cell" data-key="sort"
-              ><mc-filter-chip
-                .model=${{ id: "sort", label: m.sort.label, selected: false }}
-                @mc-chip=${(event: Event) => {
-                  event.stopPropagation();
-                  this.#emit("sort", m.sort!.nextId);
-                }}
-              ></mc-filter-chip
-            ></span>`
-          : nothing
-      }
-    `;
+    </div>`;
   }
 }

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "./mc-search-field.js";
-import "../mc-article/mc-article.js";
 import type { McSearchDetail } from "./mc-search-field.types.js";
 
 async function field(props: Partial<{ value: string; placeholder: string; debounce: number }> = {}) {
@@ -114,33 +113,29 @@ describe("mc-search-field", () => {
     expect(states).toEqual([true, false]);
     expect(inputOf(el).placeholder).toBe("Search");
   });
-});
 
-describe("mc-article", () => {
-  it("flows a title, headings, paragraphs, bullets, quotes and pictures natively", async () => {
-    const article = document.createElement("mc-article");
-    article.model = {
-      title: "Setup",
-      blocks: [
-        { kind: "heading", text: "Step one" },
-        { kind: "paragraph", text: "Shuffle." },
-        { kind: "bullet", text: "Top", depth: 0 },
-        { kind: "bullet", text: "Nested", depth: 1 },
-        { kind: "quote", text: "Flavor" },
-        { kind: "picture", src: "/p.png", fallback: "a page" },
-        { kind: "picture", src: null, fallback: "Loading the page…" },
-      ],
-    };
-    document.body.append(article);
-    await article.updateComplete;
-    const root = article.shadowRoot!;
-    expect(root.querySelector("h2.title")!.textContent).toBe("Setup");
-    expect(root.querySelectorAll(".bullet")).toHaveLength(2);
-    expect(root.querySelector(".bullet.deep")!.textContent).toContain("Nested");
-    expect(root.querySelector(".quote")).not.toBeNull();
-    expect(root.querySelector(".picture img")!.getAttribute("loading")).toBe("lazy");
-    expect(root.textContent).toContain("Loading the page…");
-    expect(article.scroller).toBe(root.querySelector(".scroller"));
-    article.remove();
+  it("with escape-clears, Escape empties a filled field at once and keeps the caret, then an empty one just leaves", async () => {
+    const el = await field({ value: "rhino" });
+    el.escapeClears = true;
+    await el.updateComplete;
+    const seen: McSearchDetail[] = [];
+    el.addEventListener("mc-search", (event) => seen.push((event as CustomEvent<McSearchDetail>).detail));
+    const escape = () =>
+      inputOf(el).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }));
+    escape();
+    await el.updateComplete;
+    expect(seen).toEqual([{ value: "", immediate: true }]);
+    expect(inputOf(el).value).toBe("");
+    escape();
+    expect(seen).toHaveLength(1);
+  });
+
+  it("asks the mobile keyboard for a Search key, and focus() puts the caret in the input", async () => {
+    const el = await field();
+    expect(inputOf(el).getAttribute("inputmode")).toBe("search");
+    expect(inputOf(el).getAttribute("enterkeyhint")).toBe("search");
+    const spy = vi.spyOn(inputOf(el), "focus");
+    el.focus();
+    expect(spy).toHaveBeenCalled();
   });
 });

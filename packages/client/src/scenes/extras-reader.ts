@@ -330,7 +330,7 @@ export class ExtrasReaderScene extends Phaser.Scene {
       height: rect.y + rect.height - y,
     };
     if (matches.length === 0) {
-      b.emptyState(rect.x + pad, y + 4, t("reader.noMatch"), 13);
+      b.emptyState({ x: rect.x + pad, y: y + 4 }, t("reader.noMatch"), { size: 13 });
       return;
     }
     const current = this.#current;

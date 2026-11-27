@@ -54,8 +54,24 @@ async function newPlayer(browser: Browser, baseURL: string, name: string): Promi
   return { context, page };
 }
 
-const hasText = async (page: Page, pattern: RegExp): Promise<true | null> =>
-  (await visibleTexts(page)).some((t) => pattern.test(t.text)) ? true : null;
+const shownText = async (page: Page, pattern: RegExp): Promise<boolean> =>
+  (await visibleTexts(page)).some((t) => pattern.test(t.text));
+
+/**
+ * Whether the lobby shows text matching `pattern` to a reader. The lobby's lists scroll inside the panel and only what
+ * is in view counts as shown, so the seat list is read from its top and then from its foot (the People list is there).
+ */
+const hasText = async (page: Page, pattern: RegExp): Promise<true | null> => {
+  const list = page.locator('#mc-ui [data-scene="RoomLobby"] [data-key="list:seats"]');
+  const scrollTo = (bottom: boolean): Promise<void> =>
+    list.evaluate((el, end) => void (el.scrollTop = end ? el.scrollHeight : 0), bottom).catch(() => undefined);
+  if (await shownText(page, pattern)) return true;
+  if ((await list.count()) === 0) return null;
+  await scrollTo(true);
+  const found = await shownText(page, pattern);
+  await scrollTo(false);
+  return found ? true : null;
+};
 
 /** The room in the address: the value of ?room=, or an empty string. */
 const roomHash = (page: Page): Promise<string> =>

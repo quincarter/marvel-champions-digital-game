@@ -5,6 +5,8 @@
  * engine's verdict already on the row.
  */
 import type { CardPool } from "@mc/engine";
+import { artLanguageNow } from "../art/art-source.js";
+import { t } from "../i18n/translate.js";
 import {
   compositionTilesOf,
   costCurveBars,
@@ -52,22 +54,25 @@ export function deckDetailsOf(row: PickerRow, pool: CardPool): DeckDetails {
   const deck = row.option.deck;
   const stats = deckStatsOf(deck, pool);
   const copy = deck.source.kind === "precon";
+  // Every word the panel shows follows the card language, as the rest of the screen does.
+  const lang = artLanguageNow();
   return {
     id: row.id,
     title: row.name,
     heroName: row.heroName,
     aspects: row.aspects,
     cardId: row.cardId,
-    countText: deckCountText(stats),
-    averageCostText: stats.averageCost === null ? null : `Average cost ${stats.averageCost.toFixed(1)}`,
+    countText: deckCountText(stats, lang),
+    averageCostText:
+      stats.averageCost === null ? null : t("deckPicker.averageCost", { avg: stats.averageCost.toFixed(1) }),
     curve: costCurveBars(stats),
-    tiles: compositionTilesOf(stats),
-    groups: deckListGroupsOf(deck, pool),
+    tiles: compositionTilesOf(stats, lang),
+    groups: deckListGroupsOf(deck, pool, undefined, true, lang),
     missing: stats.missingCardIds.length,
     seatable: row.seatable,
     checking: row.checking,
     blockedReason: row.blockedReason,
     current: row.current,
-    edit: isCommunityDeckId(row.id) ? null : { label: copy ? "Edit a copy" : "Edit deck", copy },
+    edit: isCommunityDeckId(row.id) ? null : { label: t(copy ? "room.picker.editCopy" : "room.picker.edit"), copy },
   };
 }

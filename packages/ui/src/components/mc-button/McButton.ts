@@ -15,6 +15,7 @@ import { McButtonStyles } from "./mc-button.styles.js";
  * @attr selected - The control's on / chosen state.
  * @attr still - No label slide when a glyph makes room (reduced motion).
  * @attr disabled - Unavailable: kept in place, dimmed, presses do nothing. `reason` says why, as a tooltip.
+ * @attr pressable - With `disabled`: still dimmed, but a tap raises `mc-press` (the screen says why it does nothing).
  * @attr framed - The inner paper frame an "on" switch carries.
  * @attr display - A Bangers label.
  * @attr plain - A label in its own case, with no tracking (a row title, as against the capitals of a label).
@@ -28,9 +29,11 @@ export class McButton extends LitElement {
     label: { type: String },
     selected: { type: Boolean, reflect: true },
     disabled: { type: Boolean, reflect: true },
+    pressable: { type: Boolean, reflect: true },
     framed: { type: Boolean, reflect: true },
     display: { type: Boolean, reflect: true },
     plain: { type: Boolean, reflect: true },
+    wrap: { type: Boolean, reflect: true },
     still: { type: Boolean, reflect: true },
     reason: { type: String },
   };
@@ -39,9 +42,12 @@ export class McButton extends LitElement {
   declare label: string;
   declare selected: boolean;
   declare disabled: boolean;
+  declare pressable: boolean;
   declare framed: boolean;
   declare display: boolean;
   declare plain: boolean;
+  /** A label that wraps onto a second line (a built game's name), shrinking a step before it would need a third. */
+  declare wrap: boolean;
   /** No label slide (reduced motion). */
   declare still: boolean;
   declare reason: string;
@@ -54,9 +60,11 @@ export class McButton extends LitElement {
     this.label = "";
     this.selected = false;
     this.disabled = false;
+    this.pressable = false;
     this.framed = false;
     this.display = false;
     this.plain = false;
+    this.wrap = false;
     this.still = false;
     this.reason = "";
   }
@@ -66,7 +74,7 @@ export class McButton extends LitElement {
     this.#stopTap = onTap(
       this,
       () => this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true })),
-      { enabled: () => !this.disabled },
+      { enabled: () => !this.disabled || this.pressable },
     );
     // The label is fitted to the button's own width, so a button sized after the fact (by its sheet) refits.
     if (typeof ResizeObserver !== "undefined") {
@@ -103,6 +111,14 @@ export class McButton extends LitElement {
     const floor = parseFloat(style.getPropertyValue("--mc-small-8")) || 8;
     const room = this.clientWidth - 16;
     let size = parseFloat(style.fontSize);
+    if (this.wrap) {
+      // Two lines at most: a step smaller until the label's height fits the button.
+      while (label.scrollHeight > this.clientHeight - 4 && size > floor) {
+        size = Math.max(floor, size - 0.5);
+        label.style.fontSize = `${size}px`;
+      }
+      return;
+    }
     // An ellipsis-clipped label reports its full width as scrollWidth, so the loop measures the overflow itself.
     while (label.scrollWidth > room && size > floor) {
       size = Math.max(floor, size - 0.5);

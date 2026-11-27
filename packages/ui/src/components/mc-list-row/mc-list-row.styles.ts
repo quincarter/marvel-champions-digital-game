@@ -1,6 +1,6 @@
 import { css } from "lit";
 
-/** A parchment row with a 2px ink outline and a round badge at the left. */
+/** A parchment row with a 2px ink outline and a round badge at the left; a picture row is 76px of absolute parts. */
 export const McListRowStyles = css`
   :host {
     display: flex;
@@ -36,7 +36,7 @@ export const McListRowStyles = css`
   .badge.closed {
     background: color-mix(in srgb, var(--mc-fill-ink) 25%, transparent);
   }
-  .words {
+  .title-words {
     flex: 1 1 auto;
     min-width: 0;
     display: flex;
@@ -67,5 +67,62 @@ export const McListRowStyles = css`
   .detail.alert {
     color: var(--mc-text-red);
     opacity: 1;
+  }
+
+  :host([rich]) {
+    display: block;
+    position: relative;
+    height: 76px;
+    padding: 0;
+    background: var(--mc-fill-paper);
+    outline: none;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+  :host([rich]) .border {
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 0 0 var(--mc-row-border, 2px) var(--mc-line-ink);
+    pointer-events: none;
+  }
+  :host([rich]) mc-picture-tile {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    width: 56px;
+    height: 56px;
+  }
+  :host([rich]) .words {
+    position: absolute;
+    left: 76px;
+    right: 110px;
+    top: 8px;
+  }
+  :host([rich]) .line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  :host([rich]) .tap {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    right: 108px;
+    cursor: pointer;
+  }
+  :host([rich]) .trailing {
+    position: absolute;
+    right: 10px;
+    top: 16px;
+    width: 92px;
+    height: 44px;
+  }
+  ::slotted(*) {
+    display: block;
+    width: 100%;
+    height: 100%;
   }
 `;

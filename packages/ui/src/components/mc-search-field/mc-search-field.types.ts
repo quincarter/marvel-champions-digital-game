@@ -9,3 +9,8 @@ export interface McSearchDetail {
 export interface McSearchFocusDetail {
   readonly focused: boolean;
 }
+
+/** What `mc-submit` carries: the text in the field when Enter was pressed. */
+export interface McSubmitDetail {
+  readonly value: string;
+}

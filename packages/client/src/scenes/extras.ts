@@ -368,11 +368,11 @@ export class ExtrasScene extends Phaser.Scene {
       ? { x: gutter, y: doorsBottom + 8, width: width - gutter * 2, height: TAB_HEIGHT }
       : { x: gutter, y: bar.height + 12, width: width - gutter * 2 - trophyWidth - 12, height: TAB_HEIGHT };
     // The tab rail (`mc-tab-rail`): a recessed strip of equal cells, the active one an ink fill.
-    b.tabRail(tabRect, {
-      tabs: tabs.map((tab) => ({ id: tab.id, label: phone ? tab.name : tab.label })),
-      selected: this.#tab,
-      size: tabType.size,
-    });
+    b.tabRail(
+      tabRect,
+      tabs.map((tab) => ({ id: tab.id, label: phone ? tab.name : tab.label })),
+      { selected: this.#tab, size: tabType.size },
+    );
     const tabWidth = tabRect.width / tabs.length;
     tabs.forEach((tab, index) => {
       const cell: Rect = { x: tabRect.x + index * tabWidth, y: tabRect.y, width: tabWidth, height: tabRect.height };
@@ -451,7 +451,7 @@ export class ExtrasScene extends Phaser.Scene {
           });
         }
       });
-      if (tiles.length === 0) inner.emptyState(listRect.x, 0, t("extras.empty"));
+      if (tiles.length === 0) inner.emptyState({ x: listRect.x, y: 0 }, t("extras.empty"));
     });
 
     this.#mount(width, height, b);
@@ -520,7 +520,7 @@ export class ExtrasScene extends Phaser.Scene {
 
   #drawTile(b: SheetBuilder, tile: ExtrasTileView, rect: Rect): void {
     const portrait = this.#tab === "heroes" || this.#tab === "villains" || this.#tab === "promos";
-    b.pictureTile(
+    b.pictureCard(
       rect,
       {
         src: tile.thumb?.url ?? null,
@@ -534,7 +534,7 @@ export class ExtrasScene extends Phaser.Scene {
         detailTone: tile.open ? "meta" : "alert",
         initial: tile.title.charAt(0).toUpperCase(),
       },
-      `thumb:${tile.id}`,
+      { key: `thumb:${tile.id}` },
     );
   }
 
