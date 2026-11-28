@@ -9,7 +9,7 @@
 import { artLanguageNow } from "../../../art/art-source.js";
 import type { CardLanguage } from "../../../art/card-language.js";
 import { t, tPlural } from "../../../i18n/translate.js";
-import type { HandledRow } from "../../../view/campaign-briefing-model.js";
+import { DECK_NOTE_EXEMPT, DECK_NOTE_REWARD, type HandledRow } from "../../../view/campaign-briefing-model.js";
 import type { WaitingPanel } from "../../../view/campaign-modular-call-model.js";
 import type { OpenIssueHint, OpenIssueHintInput } from "../../../view/campaign-open-hint.js";
 
@@ -31,7 +31,12 @@ export function briefingTextIn(_lang: CardLanguage = artLanguageNow()): Briefing
   return {
     bubble: (text) => text,
     handledRow: (row) => row,
-    deckNote: (text) => text,
+    deckNote: (text) =>
+      text === DECK_NOTE_EXEMPT
+        ? t("briefing.deckNote.exempt")
+        : text === DECK_NOTE_REWARD
+          ? t("briefing.deckNote.reward")
+          : text,
     deckProblem: (text) => text,
     hiddenLabel: (text) => text,
   };

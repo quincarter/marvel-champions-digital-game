@@ -2965,6 +2965,10 @@ export const en = {
   "briefing.hint.composing": "Getting issue #{number} ready...",
   "briefing.setCards_one": "{count} card",
   "briefing.setCards_other": "{count} cards",
+  "briefing.deckNote.exempt":
+    "Tap a deck to edit it. Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.",
+  "briefing.deckNote.reward":
+    "Tap a deck to edit it. Decks can change now; hero can't. A reward isn't one of your 40 cards, but it is one of your 50.",
   "briefing.composing": "Composing this issue…",
   "briefing.call.heading": "Your call",
   "briefing.call.pending": "This question is asked in the next piece of the screen.",

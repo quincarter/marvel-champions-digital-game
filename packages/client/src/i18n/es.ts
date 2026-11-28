@@ -3021,6 +3021,10 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "briefing.hint.composing": "Preparando el número {number}...",
   "briefing.setCards_one": "{count} carta",
   "briefing.setCards_other": "{count} cartas",
+  "briefing.deckNote.exempt":
+    "Toca un mazo para editarlo. Los mazos pueden cambiar ahora; el héroe no. Las cartas fijadas de la campaña no cuentan para el tamaño del mazo.",
+  "briefing.deckNote.reward":
+    "Toca un mazo para editarlo. Los mazos pueden cambiar ahora; el héroe no. Una recompensa no es una de tus 40 cartas, pero sí una de tus 50.",
   "briefing.composing": "Preparando este número…",
   "briefing.call.heading": "Tu decisión",
   "briefing.call.pending": "Esta pregunta se plantea en la siguiente parte de la pantalla.",
