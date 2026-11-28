@@ -69,6 +69,16 @@ export { PressBaseStyles } from "./shared/press/press.styles.js";
 export { McGlyphHint } from "./components/controls/mc-glyph-hint/mc-glyph-hint.js";
 export { glyphLabelShift } from "./components/controls/mc-glyph-hint/mc-glyph-hint.types.js";
 export { McChip } from "./components/controls/mc-chip/mc-chip.js";
+export { McValueStepper } from "./components/controls/mc-value-stepper/mc-value-stepper.js";
+export { McCardArt } from "./components/mc-card-art/mc-card-art.js";
+export type { CardArtProps } from "./components/mc-card-art/mc-card-art.types.js";
+export { McWindowedList } from "./components/mc-windowed-list/mc-windowed-list.js";
+export { windowOf } from "./components/mc-windowed-list/McWindowedList.js";
+export type { ViewportBox, WindowDetail, WindowedItem } from "./components/mc-windowed-list/mc-windowed-list.types.js";
+export type {
+  ValueStepperPart,
+  ValueStepperPressDetail,
+} from "./components/controls/mc-value-stepper/mc-value-stepper.types.js";
 export { McIconButton } from "./components/controls/mc-icon-button/mc-icon-button.js";
 export type { McIconName } from "./components/controls/mc-icon-button/mc-icon-button.types.js";
 export { McCheckRow } from "./components/controls/mc-check-row/mc-check-row.js";

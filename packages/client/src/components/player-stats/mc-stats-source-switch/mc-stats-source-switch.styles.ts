@@ -11,7 +11,7 @@ export const McStatsSourceSwitchStyles = [
     }
     .segment {
       position: relative;
-      width: var(--segment-width, 96px);
+      min-width: var(--segment-width, 96px);
     }
     mc-chip {
       --chip-height: 44px;
