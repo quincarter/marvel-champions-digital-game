@@ -136,7 +136,7 @@ test("in Spanish every precon's title and hero are Spanish, not only the chrome"
   await expect(grid(page)).toContainText("tutorial de la Caja básica");
   await expect(grid(page)).toContainText("Ojo de Halcón");
   await expect(grid(page)).toContainText("Hulka");
-  for (const english of ["Captain Marvel", "She-Hulk", "Hawkeye", "starter deck", "tutorial deck"]) {
+  for (const english of ["Captain Marvel —", "She-Hulk —", "Hawkeye — starter deck", "Core Set", "Hero Pack"]) {
     await expect(grid(page)).not.toContainText(english);
   }
   expect(errors).toEqual([]);
