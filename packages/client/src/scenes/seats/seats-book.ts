@@ -4,6 +4,7 @@
  * shelves with the hero groups and the Random candidates. The scene owns the draft and the search; this reads them (`draft`
  * is set by the scene before each read) and decides nothing about the screen.
  */
+import { deckDisplayName, identityLabelOf } from "../../view/deck-names.js";
 import type { AnyCard, Deck } from "@mc/content";
 import { HERO_ART, heroArtForIdentity } from "../../art/hero-art.js";
 import { packPictureFor } from "../../art/pack-art.js";
@@ -132,7 +133,7 @@ export class SeatsBook {
     for (const deckId of this.draft.seats) {
       const deck = deckOptions.find((candidate) => (candidate.deck.id as string) === deckId);
       const lock = deck ? deckLockOf(deck.deck) : null;
-      if (lock) return `${deck!.identityName ?? deck!.deck.name}: ${lock}`;
+      if (lock) return `${identityLabelOf(deck!) ?? deckDisplayName(deck!.deck)}: ${lock}`;
     }
     return null;
   }

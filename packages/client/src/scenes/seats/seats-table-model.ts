@@ -3,6 +3,7 @@
  * the plain models the page's sections take (`components/seats/seats.types.ts`). Words are translated here; nothing here
  * draws or decides what may be seated.
  */
+import { deckDisplayName, identityLabelOf } from "../../view/deck-names.js";
 import type { PackLeases } from "../../art/pack-art.js";
 import { artFor } from "../../art/art-source.js";
 import { TEAM_UP_ART, teamUpArtFor } from "../../art/team-up-art.js";
@@ -168,7 +169,7 @@ export function detailModelOf(
   const rec = focusDeckId ? insights.analysis.get(focusDeckId) : undefined;
   const why = focusDeckId ? deckOptions.find((o) => (o.deck.id as string) === focusDeckId) : undefined;
   if (rec && rec.lines.length > 0 && why) {
-    lines.push({ text: t("seats.why", { name: why.identityName ?? why.deck.name }), tone: "meta" });
+    lines.push({ text: t("seats.why", { name: identityLabelOf(why) ?? deckDisplayName(why.deck) }), tone: "meta" });
     for (const line of rec.lines) lines.push({ text: line, tone: "meta" });
   }
   return {
@@ -176,7 +177,7 @@ export function detailModelOf(
       option && detail
         ? {
             name: detail.identityName,
-            credit: credit ? `${option.deck.name} · ${credit}` : null,
+            credit: credit ? `${deckDisplayName(option.deck)} · ${credit}` : null,
             stats: t("seats.detailFull", {
               aspect: detail.aspectLabel,
               hp: detail.hp ?? "—",

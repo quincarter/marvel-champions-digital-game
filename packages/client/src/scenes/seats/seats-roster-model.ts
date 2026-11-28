@@ -3,6 +3,7 @@
  * per release wave or letter, or one pack opened as a full grid. A tile says what the engine's seat options say of its
  * deck (`ActiveSeatRosterEntry`): seated, blocked, locked, warned. Nothing here decides what may be seated.
  */
+import { deckDisplayName, identityLabelOf } from "../../view/deck-names.js";
 import { artLanguageNow } from "../../art/art-source.js";
 import type { PackLeases } from "../../art/pack-art.js";
 import { currentCardsById } from "../../content/pool.js";
@@ -104,19 +105,19 @@ export function heroTileOf(
               .filter((part) => part !== null)
               .join(" · ") || null;
   const rec = insights.analysis.get(option.deck.id as string);
-  const name = option.identityName ?? option.deck.name;
+  const name = identityLabelOf(option) ?? deckDisplayName(option.deck);
   const shown = heroTilePictureOf(book.heroPictureFor(identityId), identity, view.leases);
   return {
     key: keyOf(option.deck.id as string),
     cardId: identityId,
-    title: several ? name : titleWithoutAspects(option.deck.name.split(" — ")[0]!, option.deck.aspects),
+    title: several ? name : titleWithoutAspects(deckDisplayName(option.deck).split(" — ")[0]!, option.deck.aspects),
     // A recommended tile says why in the line a normal tile uses for its source.
     subtitle:
       recommended && rec?.caption
         ? rec.caption
         : several
           ? t("seats.decksSummary", { count: formatCount(decks.length), sources: sourceWordsOf(decks) })
-          : `${sourceText} · ${option.identityName ?? t("seats.unknownIdentity")}`,
+          : `${sourceText} · ${identityLabelOf(option) ?? t("seats.unknownIdentity")}`,
     // Locked: the free way (the villain to beat) and the paid one (tap it to spend points), side by side.
     warning: seatedElsewhere
       ? null

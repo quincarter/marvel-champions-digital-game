@@ -42,6 +42,7 @@ import {
 } from "../view/deck-stats.js";
 import { deckFaceGroupLayout, deckFaceGroups } from "../view/deck-faces.js";
 import { deckOptionOf } from "../view/deck-list-model.js";
+import { identityLabelOf } from "../view/deck-names.js";
 import { addCommunityDeck, testedEntryOf } from "../view/community-decks-model.js";
 import { onArtChange, onLanguageChange } from "../language-change.js";
 import { testedCatalog } from "../view/seatable-decks.js";
@@ -369,7 +370,7 @@ export class DeckCheckScene extends Phaser.Scene {
     this.#actions.set("back", () => this.#goBack());
     this.#stops.set("back", { rect: layout.back, activate: () => this.#goBack() });
     const titleX = layout.back.x + layout.back.width + 16;
-    if (layout.wide) this.#drawWideHeader(b, titleX, layout, option.identityName, stats, status);
+    if (layout.wide) this.#drawWideHeader(b, titleX, layout, identityLabelOf(option), stats, status);
     else this.#drawNarrowHeader(b, titleX, layout, stats, status, inFlow);
 
     let cardRect: Rect | null = null;

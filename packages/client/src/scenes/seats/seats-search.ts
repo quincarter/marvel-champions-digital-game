@@ -3,6 +3,7 @@
  * screen shows the last answer until the next one arrives. `ranking` is null when no search is active; `rankedFor` is the
  * text it answers (Random waits while the field holds another, `searchPending`, #916 review).
  */
+import { deckDisplayName, identityLabelOf } from "../../view/deck-names.js";
 import { POOL_VERSION, currentCardsById, currentHeroShelfPacks, packNameOf } from "../../content/pool.js";
 import { testedEntryOf, testedSearchFieldsOf } from "../../view/community-decks-model.js";
 import type { DeckOption } from "../../view/deck-list-model.js";
@@ -23,9 +24,15 @@ function searchDocumentOf(option: DeckOption, heroPack: string | undefined): Sea
     : [];
   return {
     id: deck.id as string,
-    primary: [deck.name, option.identityName, hero?.hero.faceName, hero?.alterEgo.faceName, entry?.heroName].filter(
-      (t): t is string => typeof t === "string",
-    ),
+    primary: [
+      deck.name,
+      deckDisplayName(deck),
+      option.identityName,
+      identityLabelOf(option),
+      hero?.hero.faceName,
+      hero?.alterEgo.faceName,
+      entry?.heroName,
+    ].filter((t): t is string => typeof t === "string"),
     secondary: [
       ...seatSearchWordsOf(deck.aspects, deck.source.kind, entry !== undefined),
       ...packs.filter((t): t is string => typeof t === "string"),

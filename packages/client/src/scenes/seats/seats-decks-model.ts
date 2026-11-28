@@ -3,6 +3,7 @@
  * from the facts the shelf tile already used. It decides nothing: the scene seats the picked deck with the very code a
  * single-deck tile's tap runs, so blocked reasons, locked decks and name conflicts behave exactly as before.
  */
+import { deckDisplayName, identityLabelOf } from "../../view/deck-names.js";
 import { artLanguageNow } from "../../art/art-source.js";
 import type { PackLeases } from "../../art/pack-art.js";
 import { currentCardsById } from "../../content/pool.js";
@@ -44,7 +45,7 @@ export function decksSheetOf(
     const deck = option.deck;
     const row = heroDeckRowOf({
       deckId: deck.id as string,
-      name: titleWithoutAspects(deck.name.split(" — ")[0]!, deck.aspects),
+      name: titleWithoutAspects(deckDisplayName(deck).split(" — ")[0]!, deck.aspects),
       sourceKind: deck.source.kind,
       testedCredit: testedSubtitleOf(deck, testedCatalog()),
       cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0),
@@ -71,7 +72,7 @@ export function decksSheetOf(
     };
   });
   return {
-    title: group.rep.identityName ?? group.rep.deck.name,
+    title: identityLabelOf(group.rep) ?? deckDisplayName(group.rep.deck),
     subtitle: t("seats.decksSheetSubtitle", { count: decks.length }),
     backLabel: t("common.back"),
     decks,
