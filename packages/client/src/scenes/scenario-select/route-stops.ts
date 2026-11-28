@@ -20,6 +20,15 @@ function covered(element: HTMLElement, root: ParentNode): boolean {
   return false;
 }
 
+/** The part of `whole` that shows in `view`, so a tile half out of its list is aimed where it can be pressed; `whole` when none of it shows. */
+function shownIn(whole: Rect, view: Rect): Rect {
+  const x = Math.max(whole.x, view.x);
+  const y = Math.max(whole.y, view.y);
+  const right = Math.min(whole.x + whole.width, view.x + view.width);
+  const bottom = Math.min(whole.y + whole.height, view.y + view.height);
+  return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : whole;
+}
+
 export function routeStopsOf(
   page: ParentNode,
   toGame: (target: Element) => Rect,
@@ -34,6 +43,12 @@ export function routeStopsOf(
     if (!element) continue;
     stops.set(key, {
       ...stop,
+      // A tile that lies half under what is below its list (the stages bar) is pressed where its list shows it.
+      rect: () => {
+        const whole = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+        const view = typeof stop.view === "function" ? stop.view() : stop.view;
+        return view ? shownIn(whole, view) : whole;
+      },
       ...(stop.inspect ? {} : { inspect: inspectFallback }),
     });
   }
