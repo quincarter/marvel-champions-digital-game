@@ -1,6 +1,7 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { activate, popupButton, tapOn } from "../../shared/popup-parts.js";
+import "../mc-language-option/mc-language-option.js";
 import { McLanguageMenuStyles } from "./mc-language-menu.styles.js";
 import type { LanguageMenuModel } from "./mc-language-menu.types.js";
 
@@ -62,7 +63,9 @@ export class McLanguageMenu extends LitElement {
   }
 
   #list(m: LanguageMenuModel) {
-    return html`<div class="list">${m.rows.map((row) => html`<div class="row">${popupButton(this, row)}</div>`)}</div>`;
+    return html`<div class="list">
+      ${m.rows.map((row) => html`<mc-language-option .option=${row}></mc-language-option>`)}
+    </div>`;
   }
 
   #note(m: LanguageMenuModel) {

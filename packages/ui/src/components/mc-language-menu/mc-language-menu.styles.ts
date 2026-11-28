@@ -25,15 +25,6 @@ export const McLanguageMenuStyles = css`
     background: var(--mc-fill-ink);
     border: 2px solid var(--mc-line-paper);
   }
-  .row {
-    height: var(--row-h, 44px);
-  }
-  .row .ctl {
-    height: 100%;
-  }
-  .row mc-button {
-    --mc-button-size: 13px;
-  }
   .note {
     position: absolute;
     left: 50%;
