@@ -59,6 +59,12 @@ describe("regionTakesEvents", () => {
       "mc-learn",
       "mc-room-dialog",
       "mc-room-chat",
+      "mc-credits",
+      "mc-unlocks",
+      "mc-save-data",
+      "mc-controls",
+      "mc-civil-war",
+      "mc-settings",
     ]);
   });
 });

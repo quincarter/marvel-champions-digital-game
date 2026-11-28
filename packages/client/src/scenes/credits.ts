@@ -3,30 +3,30 @@
  * scrolling list (`content/credits.ts`, worded and ordered by `view/credits-model.ts`). Reached from Extras; Back
  * returns there.
  *
- * Read-only: no row is a control and no web address opens from here, so a swipe that ends over a row can fire
- * nothing (CLAUDE.md, no tap on finger lift); the only presses are the top bar's Back and the list's own scrolling.
- * A pad or keyboard walks the entries (each a focus stop that does nothing on A; the list follows the ring).
- * An entry whose artist or source the repo does not record says so in its credit line, in words.
+ * **The screen is one custom element**, `mc-credits-page` (`views/credits/`): the ink `mc-top-bar` over `@mc/ui`'s
+ * `mc-credits-list`. Read-only: no row is a control and no web address opens from here, so a swipe that ends over a row
+ * can fire nothing (CLAUDE.md, no tap on finger lift); the only press is the bar's Back. A pad or keyboard walks the
+ * entries (each a focus stop that does nothing on A; the list follows the ring). An entry whose artist or source the
+ * repo does not record says so in its credit line, in words.
  *
- * The list is a Lit panel over the canvas (`@mc/ui`'s `mc-credits-list`, mounted with `dom/dom-region.ts`): native
- * text and scrolling, no Phaser objects to build or sign each frame. The top bar, Back and its glyph stay Phaser; the
- * focus ring is drawn in the DOM (`dom/dom-ring.ts`), since a Phaser ring would sit under the panel.
+ * This scene mounts the page, sets its `model` and keeps what is a decision: the focus route (its ring drawn in the
+ * panel layer, `dom/dom-ring.ts`), the glyph on Back, paging and the way back to Extras.
  */
 import Phaser from "phaser";
 import "@mc/ui";
-import type { McCreditsList } from "@mc/ui";
+import "../views/credits/mc-credits-page/mc-credits-page.js";
+import { ControlGlyphs } from "../dom/control-glyphs.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { mountElement, type MountedElement } from "../dom/element-region.js";
+import { renderDeep } from "../dom/element-render.js";
+import { focusStopsOf } from "../dom/element-stops.js";
+import { hintGlyphOf } from "../dom/hint-glyph.js";
 import { surface } from "../tokens.js";
-import { campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
-import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf } from "../ui/theme.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
-import { McButton } from "../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { clipToView } from "../view/focus-list.js";
-import type { Rect } from "../view/layout.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import { creditsRowsOf } from "../view/credits-model.js";
-import { DomRegion } from "../dom/dom-region.js";
-import { domFocusRing } from "../dom/dom-ring.js";
 import { t } from "../i18n/translate.js";
 import { onLanguageChange } from "../language-change.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -36,12 +36,11 @@ import { SCENES } from "./keys.js";
 const PAGE = 0.85;
 
 export class CreditsScene extends Phaser.Scene {
-  #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #alive = false;
-  #hints!: GlyphHints;
-  /** The list, a Lit panel over the canvas (`@mc/ui`'s `mc-credits-list`); made once a visit so its scroll stays. */
-  #region: DomRegion<McCreditsList> | null = null;
+  #glyphs!: ControlGlyphs;
+  #mounted: MountedElement<HTMLElementTagNameMap["mc-credits-page"]> | null = null;
+  #stamp = 0;
 
   constructor() {
     super(SCENES.credits);
@@ -50,8 +49,13 @@ export class CreditsScene extends Phaser.Scene {
   create(): void {
     this.#alive = true;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
-    this.scale.on("resize", this.#draw, this);
-    this.#hints = new GlyphHints(this);
+    const { width, height } = this.scale.gameSize;
+    const mounted = mountElement(this, "mc-credits-page", { x: 0, y: 0, width, height });
+    this.#mounted = mounted;
+    mounted.element.addEventListener("mc-credits", (event) => {
+      if (event.detail.type === "back") this.#back();
+    });
+    this.#glyphs = new ControlGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#back(),
       onPage: (direction) => this.#scrollBy(direction * this.#pageHeight()),
@@ -60,13 +64,13 @@ export class CreditsScene extends Phaser.Scene {
       ring: domFocusRing,
     });
     const offLanguage = onLanguageChange(() => this.#draw());
+    this.scale.on("resize", this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       offLanguage();
-      this.#hints.dispose();
       this.scale.off("resize", this.#draw, this);
-      this.#destroyWidgets();
-      this.#region = null;
+      this.#glyphs.dispose();
+      this.#mounted = null;
     });
     this.#draw();
     fadeScreenIn(this);
@@ -77,13 +81,8 @@ export class CreditsScene extends Phaser.Scene {
     goToScreen(this, SCENES.extras);
   }
 
-  #destroyWidgets(): void {
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-  }
-
   #scroller(): HTMLElement | null {
-    return this.#region?.element.scroller ?? null;
+    return this.#mounted?.element.scroller ?? null;
   }
 
   #scrollBy(dy: number): void {
@@ -91,62 +90,66 @@ export class CreditsScene extends Phaser.Scene {
   }
 
   #pageHeight(): number {
-    return (this.#region?.rect.height ?? 0) * PAGE;
+    return (this.#scroller()?.clientHeight ?? 0) * PAGE;
   }
 
   #draw(): void {
-    if (!this.#alive) return;
-    this.#destroyWidgets();
-    destroyChildren(this);
-
-    const frame = campaignFrame(this);
-    const { width, height, phone, gutter } = frame;
+    const mounted = this.#mounted;
+    if (!this.#alive || !mounted) return;
+    const { region, element } = mounted;
+    const { width, height } = this.scale.gameSize;
+    const form = formFactorFor(width, height);
+    const phone = form === "phone" || form === "phoneLandscape";
+    const stamp = ++this.#stamp;
+    this.#glyphs.reset();
+    const back = phone ? "◂" : t("credits.back");
+    const title = t("credits.title");
+    const glyph = this.#glyphs.glyph("back", ["cancel"], "ink", 44);
+    this.#glyphs.settled();
     const rows = creditsRowsOf();
-    this.#hints.reset();
-    const stops = new Map<string, FocusStop>();
-
-    this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
-    const bar = drawTopBar(this, {
-      backLabel: phone ? "◂" : t("credits.back"),
-      onBack: () => this.#back(),
-      hints: this.#hints,
-      title: t("credits.title"),
-    });
-    if (bar.back) this.#buttons.push(bar.back);
-    if (bar.backRect) stops.set("back", { rect: bar.backRect, activate: () => this.#back() });
-
-    const listTop = bar.height + 12;
-    const listRect: Rect = {
-      x: gutter,
-      y: listTop,
-      width: width - gutter * 2,
-      height: Math.max(60, height - listTop - gutter),
+    region.setRect({ x: 0, y: 0, width, height });
+    element.model = {
+      phone,
+      bar: {
+        title,
+        backLabel: back,
+        backGlyph: hintGlyphOf(glyph),
+      },
+      rows: rows.map((row) => (row.kind === "entry" ? { kind: "entry", title: row.title, lines: row.lines } : row)),
     };
-    if (!this.#region) this.#region = new DomRegion(this, document.createElement("mc-credits-list"), listRect);
-    const region = this.#region;
-    region.setRect(listRect);
-    region.element.phone = phone;
-    region.element.rows = rows.map((row) =>
-      row.kind === "entry" ? { kind: "entry", title: row.title, lines: row.lines } : row,
-    );
+    void renderDeep(element).then(() => {
+      if (stamp !== this.#stamp || !this.#alive) return;
+      this.#syncStops(rows);
+    });
+  }
 
-    const order: string[] = bar.backRect ? ["back"] : [];
+  /** The route's stops: Back, then each entry (a stop that does nothing on A), the list following the ring. */
+  #syncStops(rows: ReturnType<typeof creditsRowsOf>): void {
+    const mounted = this.#mounted;
+    if (!mounted || !this.#route) return;
+    const { region, element } = mounted;
+    const stops = new Map<string, FocusStop>(focusStopsOf(element, (target) => region.rectOf(target)));
+    const order: string[] = stops.has("back") ? ["back"] : [];
+    const view = (): Rect => {
+      const scroller = this.#scroller();
+      return scroller ? region.rectOf(scroller) : { x: 0, y: 0, width: 0, height: 0 };
+    };
     rows.forEach((row, index) => {
       if (row.kind === "section") return;
       const key = `row:${index}`;
       order.push(key);
-      const element = (): HTMLElement | null => region.element.rowElement(index);
+      const found = (): HTMLElement | null => element.rowElement(index);
       stops.set(key, {
         // Clipped to the list, so the ring never floats over the top bar while a row is scrolled partly out.
         rect: () => {
-          const row = element();
-          return row ? clipToView(region.rectOf(row), listRect) : listRect;
+          const row = found();
+          return row ? clipToView(region.rectOf(row), view()) : view();
         },
-        view: listRect,
+        view,
         activate: () => undefined,
-        ensureVisible: () => element()?.scrollIntoView({ block: "nearest" }),
+        ensureVisible: () => found()?.scrollIntoView({ block: "nearest" }),
       });
     });
-    this.#route?.set(order, stops);
+    this.#route.set(order, stops);
   }
 }

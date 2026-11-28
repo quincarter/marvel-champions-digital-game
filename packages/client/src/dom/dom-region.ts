@@ -328,6 +328,12 @@ export const GUARDED_EVENTS = [
   "mc-learn",
   "mc-room-dialog",
   "mc-room-chat",
+  "mc-credits",
+  "mc-unlocks",
+  "mc-save-data",
+  "mc-controls",
+  "mc-civil-war",
+  "mc-settings",
 ] as const;
 
 /** The guarded events that say the caret went into or left a field: its leaving (`focused: false`) always gets through, so the scene never keeps a stale "typing" flag. */

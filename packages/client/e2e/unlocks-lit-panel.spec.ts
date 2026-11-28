@@ -3,13 +3,14 @@ import { pressKey, trackPageErrors } from "./helpers.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * Settings ▸ Unlocks draws as a Lit panel over the canvas (`mc-sheet`): the header buttons and the rows are DOM, the
+ * Settings ▸ Unlocks is one Lit element over the canvas (`mc-unlocks-page`): the bar buttons and the rows are DOM, the
  * keyboard walks them with the focus ring drawn in the panel layer, ✕ and Escape close it, and on a phone a swipe that
  * lifts over a row's switch only scrolls the list (CLAUDE.md, no tap on finger lift).
  */
 
-const sheet = (page: Page) => page.locator('#mc-ui [data-scene="UnlocksOverlay"] mc-sheet');
-const key = (page: Page, id: string) => sheet(page).locator(`[data-key="${id}"]`);
+const sheet = (page: Page) => page.locator('#mc-ui [data-scene="UnlocksOverlay"] mc-unlocks-page');
+/** A focus stop (`data-stop`) or, for the scrolling regions, a `data-key`. */
+const key = (page: Page, id: string) => sheet(page).locator(`[data-stop="${id}"], [data-key="${id}"]`);
 
 test("Unlocks is a panel: the switches press, How it works swaps the view, Escape closes", async ({ page }) => {
   const errors = trackPageErrors(page);
