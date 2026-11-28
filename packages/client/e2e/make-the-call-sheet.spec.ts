@@ -65,3 +65,72 @@ test("Make the Call: the ally sheet pages on a 360 px phone, and a selected ally
   await settle(page);
   if (SHOT) await page.screenshot({ path: `${SHOT}/make-the-call-${info.project.name}-pay.png` });
 });
+
+/** Captain Marvel's hand and play area, and the allies in her discard pile in the order the sheet lists them. */
+const seatNow = (page: Page) =>
+  page.evaluate(async () => {
+    const mod = await import("/src/session.ts");
+    const { game } = (mod as unknown as { appSession: () => { store: { state: { game: unknown } } } }).appSession()
+      .store.state as {
+      game: {
+        players: { hand: string[]; playArea: string[]; discard: string[] }[];
+        instances: Record<string, { cardId: string }>;
+        cardPool: Record<string, { type: string }>;
+      };
+    };
+    const seat = game.players[0]!;
+    const allies = seat.discard.filter((id) => game.cardPool[game.instances[id]!.cardId]?.type === "ally");
+    return { hand: seat.hand, playArea: seat.playArea, discard: seat.discard, allies };
+  });
+
+/**
+ * #1050: with a paid ally first in the discard pile and Moon Knight (a 0-cost Rise of Red Skull campaign ally) under it,
+ * picking Moon Knight puts Moon Knight into play and spends nothing. It used to put the first ally in instead, with hand
+ * cards spent for it. On the desktop the tap asks "Play it?" (the play is free); on the phone Inspect's Play goes on.
+ */
+test("Make the Call: picking a 0-cost ally under a paid one plays that ally and spends nothing", async ({
+  page,
+}, info) => {
+  test.setTimeout(240_000);
+  const phone = info.project.name === "phone";
+  await installWave6Helpers(page);
+  await openApp(page, "screen=board&fixture=make-the-call&free=1&unlock=all", { landing: "Board" });
+  await settle(page);
+  const call = await waitFor(() => handInstanceFor(page, MAKE_THE_CALL), "Make the Call is in the hand", 60000);
+  const before = await seatNow(page);
+  const free = "make-the-call-free-ally";
+  const index = before.allies.indexOf(free);
+  expect(index, "Moon Knight is under at least one paid ally").toBeGreaterThan(0);
+
+  await playFromHand(page, phone, call, () => sheetUp(page));
+  await waitForBoardText(page, TITLE, "the sheet's title names the pick");
+  if (await boardText(page, /^Page 1 of \d+$/)) {
+    for (let shown = 0; !(await focusRect(page, `searched:${index}`)) && shown < 5; shown++) {
+      const next = await waitForBoardText(page, /^Next$/i, "Next is under the list");
+      await press(page, phone, next.x, next.y);
+      await settle(page);
+    }
+  }
+  const tile = await waitFor(() => focusRect(page, `searched:${index}`), "Moon Knight's tile", 10000);
+  await press(page, phone, tile.x + tile.width / 2, tile.y + tile.width / 2);
+  await settle(page);
+  const confirm = await waitForBoardText(page, /^Confirm$/i, "Confirm is in the sheet's header");
+  await press(page, phone, confirm.x, confirm.y);
+  await waitFor(async () => ((await sheetUp(page)) ? null : true), "Confirm closes the sheet", 10000);
+  await settle(page);
+  // Nothing to pay: the desktop's tap asks "Play it?" first; the phone's Inspect Play already said so.
+  const playIt = await boardText(page, /^Play it$/i);
+  if (playIt) await press(page, phone, playIt.x, playIt.y);
+  const after = await waitFor(
+    async () => {
+      const seat = await seatNow(page);
+      return seat.playArea.includes(free) ? seat : null;
+    },
+    "Moon Knight enters play",
+    20000,
+  );
+  if (SHOT) await page.screenshot({ path: `${SHOT}/make-the-call-${info.project.name}-free-ally.png` });
+  // The paid allies stay in the discard pile, and only Make the Call left the hand.
+  for (const ally of before.allies.filter((id) => id !== free)) expect(after.discard).toContain(ally);
+  expect([...after.hand].sort()).toEqual(before.hand.filter((id) => id !== call).sort());
+});

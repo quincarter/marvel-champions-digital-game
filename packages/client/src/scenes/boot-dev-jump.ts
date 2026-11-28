@@ -1187,10 +1187,10 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `?screen=board&fixture=make-the-call`: Captain Marvel with Make the Call in hand and an ally in her discard pile, so
   // playing it lists the allies in the discard piles and whose pile each is in (#419); `&tight=1` first spends down the
   // hand so the allies it cannot pay for are shown dimmed; `&many=1` moves every ally in the deck to the discard pile,
-  // so the list is longer than a phone's sheet holds and pages (#420).
+  // so the list is longer than a phone's sheet holds and pages (#420); `&free=1` adds a 0-cost ally under the others (#1050).
   if (screen === "board" && params.get("fixture") === "make-the-call") {
     const { startDevMakeTheCallGame } = await import("../store/dev-make-the-call-game.js");
-    await startDevMakeTheCallGame(params.get("tight") === "1", params.get("many") === "1");
+    await startDevMakeTheCallGame(params.get("tight") === "1", params.get("many") === "1", params.get("free") === "1");
     return { key: SCENES.board, data: {} };
   }
 

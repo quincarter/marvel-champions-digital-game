@@ -423,6 +423,14 @@ export class SessionStore {
     return true;
   }
 
+  /**
+   * A refusal worked out before anything was sent (a pick the engine would refuse with nothing paid), shown on the
+   * advisory banner as a refused command's message is. Cleared on the next success, like any other.
+   */
+  advise(message: string): void {
+    this.#set({ ...this.#state, error: message });
+  }
+
   /** Back to the seat the board belongs to, from any looked-at seat. */
   endSeatPeek(): void {
     if (this.#state.peekSeat === null) return;
