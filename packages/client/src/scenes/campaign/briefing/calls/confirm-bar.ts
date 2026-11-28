@@ -22,6 +22,10 @@ export function confirmBarRects(x: number, y: number, width: number): { back: Re
   };
 }
 
+/** A narrow column's bar with a third button: Back, Inspect and Confirm in one row, so the bar is one button tall and can be pinned. */
+export const COMPACT_BAR_HEIGHT = ROW_HEIGHT;
+const compactBar = (model: ConfirmBarModel, width: number): boolean => !!model.read && width < 560;
+
 /** Draws the bar at `top` and returns its bottom. */
 export function drawConfirmBar(
   ctx: BriefingCtx,
@@ -30,7 +34,19 @@ export function drawConfirmBar(
   top: number,
   model: ConfirmBarModel,
 ): number {
-  const { back, confirm } = confirmBarRects(col.x, top, col.width);
+  const compact = compactBar(model, col.width);
+  const rects = confirmBarRects(col.x, top, col.width);
+  let { back } = rects;
+  let { confirm } = rects;
+  let compactRead: Rect | null = null;
+  if (compact) {
+    const small = Math.floor((col.width - GAP * 2) * 0.27);
+    const backRect: Rect = { x: col.x, y: top, width: small, height: ROW_HEIGHT };
+    compactRead = { x: col.x + small + GAP, y: top, width: small + 8, height: ROW_HEIGHT };
+    const confirmX = compactRead.x + compactRead.width + GAP;
+    confirm = { x: confirmX, y: top, width: col.x + col.width - confirmX, height: ROW_HEIGHT };
+    back = backRect;
+  }
   b.button({ key: model.back.key, rect: back, label: t("common.back"), look: "secondary", type: typeRole.label });
   b.button({
     key: model.confirm.key,
@@ -55,7 +71,7 @@ export function drawConfirmBar(
     });
   }
   if (!model.read) return top + ROW_HEIGHT;
-  const read: Rect = { x: col.x, y: top + ROW_HEIGHT + 10, width: back.width, height: hit.target };
+  const read: Rect = compactRead ?? { x: col.x, y: top + ROW_HEIGHT + 10, width: back.width, height: hit.target };
   b.button({
     key: model.read.key,
     rect: read,
@@ -65,5 +81,5 @@ export function drawConfirmBar(
   });
   col.control(model.read.key, read, model.read.run, { inspect: model.read.run });
   ctx.obstacles.push(read);
-  return read.y + read.height;
+  return compact ? top + ROW_HEIGHT : read.y + read.height;
 }

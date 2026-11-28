@@ -19,14 +19,13 @@ import { campaignFrame } from "../../../ui/campaign-chrome.js";
 import { balancedTagOf } from "../../../view/campaign-balanced-model.js";
 import { hiddenEvidenceEnvelope } from "../../../view/campaign-hidden-evidence-model.js";
 import type { Rect } from "../../../view/layout.js";
-import { drawActionBar } from "./action-bar.js";
+import { drawActionBar, phoneStripHeight } from "./action-bar.js";
 import { makeColumn } from "./column.js";
 import {
   LEFT_SCROLL,
   PAGE_SCROLL,
   RIGHT_SCROLL,
   SCROLL_GUTTER,
-  WATCH_STRIP_HEIGHT,
   type BriefingBlock,
   type BriefingCtx,
   type BriefingPlan,
@@ -94,8 +93,9 @@ export function drawPage(ctx: BriefingCtx, b: SheetBuilder, frame: Frame): void 
   };
   ctx.plan = plan;
   const actionTop = frame.height - frame.actionBar;
-  // A phone's watch strip sits above the action bar, so the scroller stops short of it: no control lies over a scroller.
-  const scrollBottom = actionTop - (frame.phone ? WATCH_STRIP_HEIGHT : 0);
+  // A phone's strip (a reason line as tall as it wraps, or the watch toggle) sits above the action bar, so the scroller and a
+  // call that fills the screen stop short of it: no control lies over a scroller, and Decline / Confirm are never under it.
+  const scrollBottom = actionTop - phoneStripHeight(ctx, b, frame);
   if (frame.phone) drawPhone(ctx, b, frame, top.height, scrollBottom);
   else drawWide(ctx, b, frame, top.height, actionTop);
 

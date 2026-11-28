@@ -19,7 +19,7 @@ type Frame = ReturnType<typeof campaignFrame>;
 /** A strip across the phone's width, just above the action bar, holding a line of words (the paper keeps scrolling content out of it). */
 function drawStrip(b: SheetBuilder, frame: Frame, bar: Rect, text: string, color: number, size: number): void {
   const gutter = frame.gutter;
-  const height = b.measure(text, typeRole.label, { size, wrapWidth: frame.width - gutter * 2 }).height + 12;
+  const height = stripHeightOf(b, frame, { text, size });
   b.box({ x: 0, y: bar.y - height, width: frame.width, height }, { fill: surface.paper.hex });
   b.text(gutter, bar.y - height + 6, text, typeRole.label, { size, color, wrapWidth: frame.width - gutter * 2 });
 }
@@ -37,6 +37,51 @@ function drawBeside(
   const width = editRect.x - frame.gutter - 16;
   const height = b.measure(text, typeRole.label, { size, wrapWidth: width }).height;
   b.text(frame.gutter, bar.y + (bar.height - height) / 2, text, typeRole.label, { size, color, wrapWidth: width });
+}
+
+/** The line the bar gives for why Open waits: a deck setup would refuse (outranks), or a call / composing hint. Null when none. */
+function reasonLineOf(ctx: BriefingCtx): { readonly text: string; readonly size: number } | null {
+  const { state } = ctx;
+  const record = state.record;
+  if (!record) return null;
+  // Nothing is judged here: `deckProblems` is the engine's own verdict.
+  const problems = ctx.deckProblems(record);
+  const blockedSeat = [...problems.keys()][0];
+  if (!!record.attempt && blockedSeat !== undefined) {
+    const seat = record.seats.find((candidate) => candidate.seatNumber === blockedSeat);
+    const who = seat ? cardNameOf(seat.identityCardId as string) : t("briefing.seatFallback", { number: blockedSeat });
+    const reason = t("briefing.deckProblem", {
+      who,
+      problem: briefingTextIn().deckProblem(problems.get(blockedSeat) as string),
+    });
+    return { text: `! ${reason}`, size: 14 };
+  }
+  const hint = openHintIn({
+    issueNumber: state.issueNumber,
+    pending: !!state.pending,
+    composing: state.composing,
+    starting: state.starting,
+    deckBlocked: false,
+  });
+  return hint ? { text: hint.bar, size: 15 } : null;
+}
+
+/** A strip's height for `line`: as tall as it wraps across the phone's width, with 6px above and below. */
+function stripHeightOf(b: SheetBuilder, frame: Frame, line: { readonly text: string; readonly size: number }): number {
+  return (
+    b.measure(line.text, typeRole.label, { size: line.size, wrapWidth: frame.width - frame.gutter * 2 }).height + 12
+  );
+}
+
+/**
+ * How tall the phone's strip above the action bar is now (a reason line as tall as it wraps, the watch toggle, or none), so the
+ * page's scroller and a call that fills the screen stop above it instead of running under it.
+ */
+export function phoneStripHeight(ctx: BriefingCtx, b: SheetBuilder, frame: Frame): number {
+  if (!frame.phone || !ctx.state.record) return 0;
+  const line = reasonLineOf(ctx);
+  if (line) return stripHeightOf(b, frame, line);
+  return !ctx.state.seatPicker && !ctx.state.inProgress ? WATCH_STRIP_HEIGHT : 0;
 }
 
 export function drawActionBar(ctx: BriefingCtx, b: SheetBuilder, frame: Frame): void {
@@ -110,32 +155,15 @@ export function drawActionBar(ctx: BriefingCtx, b: SheetBuilder, frame: Frame): 
     }
   }
 
-  if (blocked) {
-    const seat = record.seats.find((candidate) => candidate.seatNumber === blockedSeat);
-    const who = seat ? cardNameOf(seat.identityCardId as string) : t("briefing.seatFallback", { number: blockedSeat });
-    const reason = t("briefing.deckProblem", {
-      who,
-      problem: briefingTextIn().deckProblem(problems.get(blockedSeat) as string),
-    });
-    const line = `! ${reason}`;
-    // Beside the buttons on a wide bar; a phone's two buttons fill the bar, so the reason sits on a strip above it.
-    if (phone) drawStrip(b, frame, bar, line, accent.heroRed.hex, 14);
-    else drawBeside(b, frame, bar, editRect, line, accent.heroRed.hex, 14);
-  }
-  const hint = openHintIn({
-    issueNumber: state.issueNumber,
-    pending: !!state.pending,
-    composing: state.composing,
-    starting: state.starting,
-    deckBlocked: blocked,
-  });
-  if (hint) {
-    if (phone) drawStrip(b, frame, bar, hint.bar, accent.heroRed.hex, 15);
-    else drawBeside(b, frame, bar, editRect, hint.bar, accent.heroRed.hex, 15);
+  // The reason Open waits (a deck problem outranks a call or composing hint): beside a wide bar's buttons, on a strip above a phone's.
+  const line = reasonLineOf(ctx);
+  if (line) {
+    if (phone) drawStrip(b, frame, bar, line.text, accent.heroRed.hex, line.size);
+    else drawBeside(b, frame, bar, editRect, line.text, accent.heroRed.hex, line.size);
   }
   // Right where the problem and hint lines go, so only one of them shows at a time: a problem outranks the toggle. Not for
   // an issue already on the table: its save keeps the choice it was dealt with, so the toggle would be ignored.
-  if (!blocked && !hint && !state.seatPicker && !state.inProgress) {
+  if (!line && !state.seatPicker && !state.inProgress) {
     const area: Rect = phone
       ? { x: 0, y: bar.y - WATCH_STRIP_HEIGHT, width, height: WATCH_STRIP_HEIGHT }
       : { x: gutter, y: editRect.y, width: Math.min(380, editRect.x - gutter - 16), height: editRect.height };

@@ -21,14 +21,14 @@ import { drawConfirmBar } from "./confirm-bar.js";
 import { drawPickArt } from "./pick-art.js";
 import { costLineOf } from "./role-build-list.js";
 
-/** Draws the step from `top` in `col` (the scroller's own column) and returns its bottom. */
-export function drawRoleBuildConfirm(
+/** Draws the step's card from `top` in `col` (the scroller's own column) and returns its bottom. */
+export function drawRoleBuildCard(
   ctx: BriefingCtx,
   b: SheetBuilder,
   col: Column,
   top: number,
   heroName: string,
-  view: RoleBuildView,
+  view: Pick<RoleBuildView, "noun">,
   card: RoleBuildCardView,
 ): number {
   const phone = col.width < 560;
@@ -75,6 +75,18 @@ export function drawRoleBuildConfirm(
   });
   const bottom = Math.max(art.y + art.height, y + detail.height) + pad;
   b.box({ x: col.x, y: top, width: col.width, height: bottom - top }, { stroke: surface.ink.hex, strokeWidth: 2 });
+  return bottom;
+}
+
+/** The step's Back / Inspect / Confirm bar at `top`; only Confirm records the card. Returns its bottom. */
+export function drawRoleBuildBar(
+  ctx: BriefingCtx,
+  b: SheetBuilder,
+  col: Column,
+  top: number,
+  view: RoleBuildView,
+  card: RoleBuildCardView,
+): number {
   const back = (): void => {
     ctx.state.roleBuild = backFromRoleBuild(ctx.state.roleBuild);
     ctx.redraw();
@@ -84,7 +96,7 @@ export function drawRoleBuildConfirm(
     if (id !== null) ctx.answer([id]);
   };
   const read = (): void => ctx.inspectCard(card.id);
-  return drawConfirmBar(ctx, b, col, bottom + 12, {
+  return drawConfirmBar(ctx, b, col, top, {
     back: { key: "rb-back", run: back },
     confirm: { key: "rb-confirm", run: accept },
     read: { key: "rb-inspect", run: read },

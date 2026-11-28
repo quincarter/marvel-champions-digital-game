@@ -21,7 +21,8 @@ import { makeColumn } from "../column.js";
 import { ROLE_CONFIRM_SCROLL, ROLE_SCROLL, SCROLL_GUTTER, type BriefingCtx } from "../context.js";
 import { drawDecline } from "./option-grid.js";
 import type { CallInput, CallKind } from "./calls.types.js";
-import { drawRoleBuildConfirm } from "./role-build-confirm.js";
+import { COMPACT_BAR_HEIGHT } from "./confirm-bar.js";
+import { drawRoleBuildBar, drawRoleBuildCard } from "./role-build-confirm.js";
 import { drawRoleBuildRows } from "./role-build-list.js";
 
 type BuildKind = Extract<CallKind, { kind: "roleBuild" }>;
@@ -83,7 +84,10 @@ export function drawRoleBuild(input: CallInput, top: number, kind: BuildKind): n
   const viewBottom = col.view.y + col.view.height;
   const selected = view.all.find((card) => card.id === ctx.state.roleBuild.selected);
   if (selected) {
-    const rect: Rect = { x: col.x, y: top, width: col.width, height: Math.max(120, viewBottom - top) };
+    // The Back / Inspect / Confirm bar is pinned to the foot of the view, so Confirm is reachable without scrolling; only the
+    // card above it scrolls on a short screen.
+    const barTop = viewBottom - (col.width < 560 ? COMPACT_BAR_HEIGHT : COMPACT_BAR_HEIGHT + 10 + hit.target);
+    const rect: Rect = { x: col.x, y: top, width: col.width, height: Math.max(80, barTop - 12 - top) };
     const inner = makeColumn(ctx, {
       x: col.x,
       width: col.width - SCROLL_GUTTER,
@@ -92,8 +96,9 @@ export function drawRoleBuild(input: CallInput, top: number, kind: BuildKind): n
       scrollKey: ROLE_CONFIRM_SCROLL,
     });
     b.scrollFit(ROLE_CONFIRM_SCROLL, rect, (scrollB) =>
-      drawRoleBuildConfirm(ctx, scrollB, inner, 0, build.ctx.heroName, view, selected),
+      drawRoleBuildCard(ctx, scrollB, inner, 0, build.ctx.heroName, view, selected),
     );
+    drawRoleBuildBar(ctx, b, col, barTop, view, selected);
     return viewBottom;
   }
   const lang = artLanguageNow();
