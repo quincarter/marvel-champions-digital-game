@@ -40,9 +40,6 @@ import { deckArtOf, pressDeckChip } from "./decks-list-model.js";
 import { pressPoolChip } from "./decks-pool-model.js";
 import type { DecksSceneData, DecksState } from "./decks-state.js";
 
-/** How long after a tap the deck options sheet opens. */
-const SHEET_DELAY_MS = 150;
-
 /** What the scene does that the presses need: redraw, focus, the tabs the layout shows. */
 export interface DecksHost {
   rebuild(): void;
@@ -191,9 +188,8 @@ export class DecksActions {
     const found = this.deckFor(deckId);
     if (!found) return;
     this.selectDeck(deckId);
-    // The sheet opens a moment after the lift: the click a touch screen sends after it must not land on the sheet own buttons.
-    if (this.host.tabsShown())
-      setTimeout(() => this.scene.sys.isActive() && this.#openDeckActions(deckId), SHEET_DELAY_MS);
+    // The click a touch screen sends after the lift is the sheet to ignore (`ui/tap.ts`: a mouse press the touch made).
+    if (this.host.tabsShown()) this.#openDeckActions(deckId);
     else if (!found.offer) this.openDeckCheck(found.option.deck);
   }
 

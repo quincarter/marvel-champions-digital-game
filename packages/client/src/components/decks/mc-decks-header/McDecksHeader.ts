@@ -32,7 +32,7 @@ export class McDecksHeader extends DecksElement {
   override render() {
     const bar = this.model;
     if (!bar) return nothing;
-    return html`<header class="bar">
+    return html`<header class="bar" ?data-stacked=${bar.stacked}>
       <div class="back">
         ${this.button({ action: "back", label: bar.backLabel, glyph: bar.backGlyph }, { kind: "onInk", display: true })}
       </div>
