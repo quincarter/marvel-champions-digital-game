@@ -41,6 +41,21 @@ const styles = css`
     top: 0;
     bottom: 0;
   }
+  /* A fluid roster (card width 0): the box sizes everything, in CSS. The tile is up to 300px wide and as tall as the box
+     leaves after a shelf header, its gaps and the next shelf's lip, between 220px and 440px. */
+  :host([fluid]) {
+    container-type: size;
+  }
+  :host([fluid]) .scroller {
+    right: 0;
+  }
+  :host([fluid]) .content {
+    width: calc(100% - ${SCROLL_GUTTER}px);
+  }
+  :host([fluid]) mc-picture-card {
+    width: min(300px, calc(100cqw - 40px));
+    height: clamp(220px, calc(100cqh - ${HEAD + 34}px), 440px);
+  }
   .shelf {
     padding-bottom: 20px;
   }
@@ -230,6 +245,10 @@ export class McShelfRoster extends LitElement {
     };
   }
 
+  protected override willUpdate(): void {
+    this.toggleAttribute("fluid", this.model.cardWidth === 0);
+  }
+
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#observer?.disconnect();
@@ -380,17 +399,20 @@ export class McShelfRoster extends LitElement {
   }
 
   #tile(item: ShelfRosterItem) {
-    const { cardWidth, cardHeight } = this.model;
+    const { cardWidth, cardHeight, stops } = this.model;
     const key = keyOf(item);
     return html`<mc-picture-card
       data-key=${key}
       ?data-dim=${item.dim === true}
       data-card=${item.cardId}
-      style=${`width:${cardWidth}px;height:${cardHeight}px`}
+      style=${cardWidth === 0 ? nothing : `width:${cardWidth}px;height:${cardHeight}px`}
       .picture=${this.#pictureOf(item)}
       .model=${item.card}
       ?selected=${item.selected}
       activate-key=${key}
+      card-id=${item.cardId}
+      .cardFace=${item.face}
+      stop-key=${stops ? `${stops.entry}${item.id}` : ""}
       inspect-key=${item.inspect ? key : ""}
     ></mc-picture-card>`;
   }
@@ -417,6 +439,7 @@ export class McShelfRoster extends LitElement {
           type="button"
           class="tap"
           data-key=${key}
+          data-stop=${folds && this.model.stops ? `${this.model.stops.fold}${shelf.id}` : nothing}
           aria-label=${shelf.title}
           aria-expanded=${folds ? String(shelf.open) : nothing}
           ${tapped(() => this.#emit("mc-activate", key))}
@@ -485,6 +508,7 @@ export class McShelfRoster extends LitElement {
             ? html`<mc-button
                 kind="quiet"
                 data-key="clear"
+                data-stop=${this.model.stops?.clear ?? nothing}
                 .label=${clearLabel}
                 @mc-press=${(event: Event) => {
                   event.stopPropagation();
@@ -508,8 +532,9 @@ export class McShelfRoster extends LitElement {
         (shelf) => this.#shelf(shelf),
       );
     }
-    return html`<div class="scroller" style=${`width:${contentWidth + SCROLL_GUTTER}px`}>
-      <div class="content" style=${`width:${contentWidth}px`}>${body}</div>
+    const fluid = contentWidth === 0;
+    return html`<div class="scroller" style=${fluid ? nothing : `width:${contentWidth + SCROLL_GUTTER}px`}>
+      <div class="content" style=${fluid ? nothing : `width:${contentWidth}px`}>${body}</div>
     </div>`;
   }
 }

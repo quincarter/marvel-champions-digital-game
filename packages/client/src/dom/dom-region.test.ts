@@ -39,6 +39,7 @@ describe("regionTakesEvents", () => {
       "mc-tile-focus",
       "mc-setup",
       "mc-card-inspect",
+      "mc-scenario-select",
     ]);
   });
 });
