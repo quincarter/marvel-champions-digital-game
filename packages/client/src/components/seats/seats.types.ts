@@ -8,11 +8,11 @@
  * `hero-random`, `hero-art`, `preconstructed`, `rec-toggle`, `drill-back`, `hero:<card id>`, `hero-rec:<card id>`,
  * `hero-shelf:<pack id>`, `hero-clear`, `deck-check`, `play`.
  */
-import type { FilterChip, PictureSource } from "@mc/ui";
+import type { ControlGlyph, FilterChip, PictureSource } from "@mc/ui";
 import type { AspectTipContent } from "../../view/aspect-tip-model.js";
 import type { SeatFrame } from "../../view/seats-panel-model.js";
 
-export type { SeatFrame, AspectTipContent, FilterChip, PictureSource };
+export type { SeatFrame, AspectTipContent, ControlGlyph, FilterChip, PictureSource };
 
 /** The one event Take your seats' elements raise (composed, bubbling), `detail` discriminated by `type`. It is in `GUARDED_EVENTS`. */
 export const SEATS_EVENT = "mc-seats";
@@ -241,6 +241,11 @@ export interface SeatsHeaderModel {
   readonly title: string;
   /** "STEP 2 OF 4 · 2 SEATS FILLED", already fitted to the width by the scene (short forms for a narrow bar). */
   readonly step: string;
+  /** The Cancel key or button beside Back's word, while a keyboard or pad is in use. */
+  readonly backGlyph?: ControlGlyph;
+  /** How far the title drops, in px, and where it ends (px from the bar's left; null: no limit), to clear the dark mode tab that hangs from the top centre. */
+  readonly titleDrop?: number;
+  readonly titleMaxRight?: number | null;
 }
 
 export interface SeatsFooterModel {
@@ -249,6 +254,8 @@ export interface SeatsFooterModel {
   /** Why Play is off (no hero, a conflict), or null. */
   readonly playBlocked: string | null;
   readonly deckCheckBlocked: string | null;
+  /** The Start / Menu button beside Play's word, on a pad. */
+  readonly playGlyph?: ControlGlyph;
 }
 
 /** What the page shows; the scene rebuilds it from its state and sets `page.model`. */
