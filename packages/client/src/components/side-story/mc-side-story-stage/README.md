@@ -4,9 +4,9 @@ The reading area and the line under it ("PAGE 2 · PANEL 3"). The comic picture 
 
 ## Properties
 
-| Name    | Type   | Meaning                                         |
-| ------- | ------ | ----------------------------------------------- |
-| `where` | string | The page and panel line, already translated.    |
+| Name    | Type   | Meaning                                      |
+| ------- | ------ | -------------------------------------------- |
+| `where` | string | The page and panel line, already translated. |
 
 ## Events
 

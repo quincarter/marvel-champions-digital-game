@@ -6,6 +6,12 @@ import type { ControlGlyph, HintGlyph } from "@mc/ui";
 
 export function hintGlyphOf(glyph: ControlGlyph | undefined): HintGlyph | null {
   return glyph
-    ? { specs: glyph.specs, height: glyph.height, ground: glyph.ground, expanded: glyph.openness > 0, still: glyph.still ?? false }
+    ? {
+        specs: glyph.specs,
+        height: glyph.height,
+        ground: glyph.ground,
+        expanded: glyph.openness > 0,
+        still: glyph.still ?? false,
+      }
     : null;
 }

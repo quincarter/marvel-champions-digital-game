@@ -305,10 +305,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
     }
     this.#drawPicture();
     const stops = focusStopsOf(element, (target) => region.rectOf(target));
-    this.#route?.set(
-      this.#view?.isFirst ? ["next", "close"] : ["back", "next", "close"],
-      stops,
-    );
+    this.#route?.set(this.#view?.isFirst ? ["next", "close"] : ["back", "next", "close"], stops);
   }
 
   /** A tap on the picture advances too (the page leaves a hole there, so the press reaches this zone). */

@@ -4,11 +4,11 @@ One tab's tiles in a natively scrolling grid: a picture card (`mc-picture-card`,
 
 ## Properties
 
-| Name    | Type                                   | Meaning                                              |
-| ------- | -------------------------------------- | ---------------------------------------------------- |
-| `tiles` | `ExtrasTile[]`                         | `{ id, card, cardId?, promoSetId? }` per tile.       |
-| `shape` | `"landscape"` / `"portrait"` / `"card"` | The picture's proportions.                          |
-| `empty` | string                                 | What it says with none.                              |
+| Name    | Type                                    | Meaning                                        |
+| ------- | --------------------------------------- | ---------------------------------------------- |
+| `tiles` | `ExtrasTile[]`                          | `{ id, card, cardId?, promoSetId? }` per tile. |
+| `shape` | `"landscape"` / `"portrait"` / `"card"` | The picture's proportions.                     |
+| `empty` | string                                  | What it says with none.                        |
 
 ## Events
 

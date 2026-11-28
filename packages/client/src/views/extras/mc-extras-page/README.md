@@ -6,10 +6,10 @@ The scene (`scenes/extras.ts`) mounts it with `mountElement`, sets `model` (`Ext
 
 ## Properties
 
-| Name       | Type                           | Meaning                                       |
-| ---------- | ------------------------------ | --------------------------------------------- |
-| `model`    | `ExtrasPageModel`              | Everything it shows (words are translated).   |
-| `progress` | `() => PlayerProgress` or null | The Music player's clock.                     |
+| Name       | Type                           | Meaning                                     |
+| ---------- | ------------------------------ | ------------------------------------------- |
+| `model`    | `ExtrasPageModel`              | Everything it shows (words are translated). |
+| `progress` | `() => PlayerProgress` or null | The Music player's clock.                   |
 
 ## Events
 

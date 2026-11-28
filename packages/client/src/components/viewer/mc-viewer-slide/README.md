@@ -4,12 +4,12 @@ The picture shown whole (fitted, never cropped) on the ink ground, with arrows t
 
 ## Properties
 
-| Name      | Type            | Meaning                                         |
-| --------- | --------------- | ----------------------------------------------- |
-| `picture` | `PictureSource` | The picture, or null for none open yet.         |
-| `caption` | string          | "Cover" or "Cover · 2 / 5".                     |
-| `empty`   | string          | What it says in place of a picture.             |
-| `arrows`  | boolean         | The file has more than one picture.             |
+| Name      | Type            | Meaning                                 |
+| --------- | --------------- | --------------------------------------- |
+| `picture` | `PictureSource` | The picture, or null for none open yet. |
+| `caption` | string          | "Cover" or "Cover · 2 / 5".             |
+| `empty`   | string          | What it says in place of a picture.     |
+| `arrows`  | boolean         | The file has more than one picture.     |
 
 ## Events
 

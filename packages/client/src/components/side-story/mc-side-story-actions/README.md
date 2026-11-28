@@ -4,13 +4,13 @@ The ink action bar: BACK (from the second beat on) and the big primary NEXT, or 
 
 ## Properties
 
-| Name         | Type        | Meaning                              |
-| ------------ | ----------- | ------------------------------------ |
-| `has-back`   | boolean     | Not the first beat: BACK shows.      |
-| `back-label` | string      | "◂ BACK".                            |
-| `next-label` | string      | "NEXT ▸" or "DONE ▸".                |
-| `nextGlyph`  | `HintGlyph` | The Activate glyph, or null.         |
-| `compact`    | boolean     | A phone's shorter bar.               |
+| Name         | Type        | Meaning                         |
+| ------------ | ----------- | ------------------------------- |
+| `has-back`   | boolean     | Not the first beat: BACK shows. |
+| `back-label` | string      | "◂ BACK".                       |
+| `next-label` | string      | "NEXT ▸" or "DONE ▸".           |
+| `nextGlyph`  | `HintGlyph` | The Activate glyph, or null.    |
+| `compact`    | boolean     | A phone's shorter bar.          |
 
 ## Events
 

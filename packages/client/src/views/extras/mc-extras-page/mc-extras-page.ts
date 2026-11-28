@@ -90,7 +90,11 @@ export class McExtrasPage extends LitElement {
         ${m.player ? html`<mc-extras-player .model=${m.player} .progress=${this.progress}></mc-extras-player>` : nothing}
         ${
           m.shelf
-            ? html`<mc-extras-shelf .shape=${m.shelf.shape} .tiles=${m.shelf.tiles} .empty=${m.shelf.empty}></mc-extras-shelf>`
+            ? html`<mc-extras-shelf
+                .shape=${m.shelf.shape}
+                .tiles=${m.shelf.tiles}
+                .empty=${m.shelf.empty}
+              ></mc-extras-shelf>`
             : nothing
         }
         ${

@@ -4,13 +4,13 @@ The book's table of contents with its search, built on the generic `mc-search-hi
 
 ## Properties
 
-| Name           | Type         | Meaning                                                        |
-| -------------- | ------------ | -------------------------------------------------------------- |
-| `query`        | string       | The search field's text.                                       |
-| `pad-keyboard` | boolean      | A Steam pad is in use (the focused field says how to type).    |
-| `hits`         | `McTocRow[]` | The sections left, keyed `toc:<index>`.                        |
-| `current`      | string       | The open section's key, or "".                                 |
-| `pdfs`         | `string[]`   | A phone's PDF button labels, under the field.                  |
+| Name           | Type         | Meaning                                                     |
+| -------------- | ------------ | ----------------------------------------------------------- |
+| `query`        | string       | The search field's text.                                    |
+| `pad-keyboard` | boolean      | A Steam pad is in use (the focused field says how to type). |
+| `hits`         | `McTocRow[]` | The sections left, keyed `toc:<index>`.                     |
+| `current`      | string       | The open section's key, or "".                              |
+| `pdfs`         | `string[]`   | A phone's PDF button labels, under the field.               |
 
 ## Events
 

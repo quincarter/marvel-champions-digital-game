@@ -82,7 +82,9 @@ export class McExtrasPlayer extends ExtrasElement implements McExtrasPlayerProps
             m.title === null
               ? nothing
               : html`<div class="progress">
-                  <div class="bar"><div class="fill" style=${`width:${Math.round(this.share * 1000) / 10}%`}></div></div>
+                  <div class="bar">
+                    <div class="fill" style=${`width:${Math.round(this.share * 1000) / 10}%`}></div>
+                  </div>
                   <span class="clock">${this.clock}</span>
                 </div>`
           }

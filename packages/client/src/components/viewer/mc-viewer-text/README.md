@@ -4,13 +4,13 @@ The file's words beside the picture (under it on a narrow screen): the subtitle,
 
 ## Properties
 
-| Name       | Type           | Meaning                                              |
-| ---------- | -------------- | ---------------------------------------------------- |
-| `subtitle` | string         | The second line, or "".                              |
-| `lines`    | `ViewerLine[]` | `{ text, quote }`.                                   |
-| `promo`    | `ViewerPromo`  | `{ label, off }` for a promo card, else null.        |
-| `note`     | string         | What is still to earn, or "".                        |
-| `wide`     | boolean        | Beside the picture: the larger type.                 |
+| Name       | Type           | Meaning                                       |
+| ---------- | -------------- | --------------------------------------------- |
+| `subtitle` | string         | The second line, or "".                       |
+| `lines`    | `ViewerLine[]` | `{ text, quote }`.                            |
+| `promo`    | `ViewerPromo`  | `{ label, off }` for a promo card, else null. |
+| `note`     | string         | What is still to earn, or "".                 |
+| `wide`     | boolean        | Beside the picture: the larger type.          |
 
 ## Events
 

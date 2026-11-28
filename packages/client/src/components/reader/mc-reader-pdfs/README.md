@@ -4,8 +4,8 @@ One button per PDF of the book, side by side. Each is a focus stop, `pdf:<index>
 
 ## Properties
 
-| Name     | Type       | Meaning                              |
-| -------- | ---------- | ------------------------------------ |
+| Name     | Type       | Meaning                                  |
+| -------- | ---------- | ---------------------------------------- |
 | `labels` | `string[]` | One label per PDF, as the book names it. |
 
 ## Events

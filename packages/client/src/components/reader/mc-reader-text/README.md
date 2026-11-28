@@ -4,12 +4,12 @@ The open section: a tools row over a natively scrolling `mc-article` (`@mc/ui`).
 
 ## Properties
 
-| Name          | Type             | Meaning                                              |
-| ------------- | ---------------- | ---------------------------------------------------- |
-| `wide`        | boolean          | PDF buttons (wide) or a CONTENTS button (phone).     |
-| `article`     | `McArticleModel` | The title and blocks of the section.                 |
-| `picture-max` | number           | The tallest a page picture gets, in px.              |
-| `pdfs`        | `string[]`       | PDF button labels (wide only).                       |
+| Name          | Type             | Meaning                                          |
+| ------------- | ---------------- | ------------------------------------------------ |
+| `wide`        | boolean          | PDF buttons (wide) or a CONTENTS button (phone). |
+| `article`     | `McArticleModel` | The title and blocks of the section.             |
+| `picture-max` | number           | The tallest a page picture gets, in px.          |
+| `pdfs`        | `string[]`       | PDF button labels (wide only).                   |
 
 ## Events
 

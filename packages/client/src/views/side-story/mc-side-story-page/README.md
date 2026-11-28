@@ -6,8 +6,8 @@ The scene (`scenes/side-story-reader.ts`) mounts it with `mountElement`, sets `m
 
 ## Properties
 
-| Name    | Type                 | Meaning                                  |
-| ------- | -------------------- | ---------------------------------------- |
+| Name    | Type                 | Meaning                                     |
+| ------- | -------------------- | ------------------------------------------- |
 | `model` | `SideStoryPageModel` | Everything it shows (words are translated). |
 
 ## Events

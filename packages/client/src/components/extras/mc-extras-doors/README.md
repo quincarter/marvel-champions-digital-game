@@ -4,10 +4,10 @@ The two doors out of Extras, side by side: the Trophy Room and Art and Credits. 
 
 ## Properties
 
-| Name             | Type   | Meaning                                  |
-| ---------------- | ------ | ---------------------------------------- |
-| `trophies-label` | string | The Trophy Room door's words.            |
-| `credits-label`  | string | The Credits door's words.                |
+| Name             | Type   | Meaning                       |
+| ---------------- | ------ | ----------------------------- |
+| `trophies-label` | string | The Trophy Room door's words. |
+| `credits-label`  | string | The Credits door's words.     |
 
 ## Events
 

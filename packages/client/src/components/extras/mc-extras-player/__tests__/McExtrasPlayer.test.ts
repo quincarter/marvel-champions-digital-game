@@ -48,9 +48,13 @@ describe("mc-extras-player", () => {
     const heard = vi.fn();
     el.addEventListener("mc-extras", (event) => heard(event.detail));
     const controls = el.shadowRoot!.querySelector("mc-player-controls")!;
-    controls.dispatchEvent(new CustomEvent("mc-activate", { detail: { key: "player:shuffle" }, bubbles: true, composed: true }));
+    controls.dispatchEvent(
+      new CustomEvent("mc-activate", { detail: { key: "player:shuffle" }, bubbles: true, composed: true }),
+    );
     const slider = el.shadowRoot!.querySelector("mc-volume-slider")!;
-    slider.dispatchEvent(new CustomEvent("mc-slide", { detail: { share: 0.4, commit: true }, bubbles: true, composed: true }));
+    slider.dispatchEvent(
+      new CustomEvent("mc-slide", { detail: { share: 0.4, commit: true }, bubbles: true, composed: true }),
+    );
     slider.dispatchEvent(new CustomEvent("mc-step", { detail: { direction: 1 }, bubbles: true, composed: true }));
     expect(heard.mock.calls.map(([detail]) => detail)).toEqual([
       { type: "player", action: "shuffle" },

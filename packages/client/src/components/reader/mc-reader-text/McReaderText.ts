@@ -38,7 +38,9 @@ export class McReaderText extends ReaderElement implements McReaderTextProps {
 
   /** The article's scrolling element: the stick and paging move it, and a new section starts from its top. */
   get scroller(): HTMLElement | null {
-    return this.renderRoot.querySelector<HTMLElement & { scroller: HTMLElement | null }>("mc-article")?.scroller ?? null;
+    return (
+      this.renderRoot.querySelector<HTMLElement & { scroller: HTMLElement | null }>("mc-article")?.scroller ?? null
+    );
   }
 
   #tools() {

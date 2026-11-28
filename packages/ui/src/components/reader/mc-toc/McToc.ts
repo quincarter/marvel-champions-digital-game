@@ -51,19 +51,20 @@ export class McToc extends LitElement {
       ${repeat(
         this.rows,
         (row) => row.key,
-        (row) => html`<div
-          class="row"
-          role="listitem"
-          data-stop=${row.key}
-          ?data-selected=${row.key === this.selected}
-          aria-current=${row.key === this.selected ? "true" : "false"}
-          ${tapped(() => activate(this, row.key))}
-          @click=${(event: MouseEvent) => {
-            if (event.detail === 0) activate(this, row.key);
-          }}
-        >
-          <span class="title">${row.title}</span>
-        </div>`,
+        (row) =>
+          html`<div
+            class="row"
+            role="listitem"
+            data-stop=${row.key}
+            ?data-selected=${row.key === this.selected}
+            aria-current=${row.key === this.selected ? "true" : "false"}
+            ${tapped(() => activate(this, row.key))}
+            @click=${(event: MouseEvent) => {
+              if (event.detail === 0) activate(this, row.key);
+            }}
+          >
+            <span class="title">${row.title}</span>
+          </div>`,
       )}
     </div>`;
   }

@@ -23,7 +23,9 @@ describe("mc-reader-contents", () => {
     await hits.updateComplete;
     hits.dispatchEvent(new CustomEvent("mc-activate", { detail: { key: "toc:4" }, bubbles: true, composed: true }));
     hits.dispatchEvent(new CustomEvent("mc-search", { detail: { value: "golden" }, bubbles: true, composed: true }));
-    hits.dispatchEvent(new CustomEvent("mc-search-focus", { detail: { focused: true }, bubbles: true, composed: true }));
+    hits.dispatchEvent(
+      new CustomEvent("mc-search-focus", { detail: { focused: true }, bubbles: true, composed: true }),
+    );
     expect(heard.mock.calls.map(([detail]) => detail)).toEqual([
       { type: "toc", index: 4 },
       { type: "search", value: "golden" },

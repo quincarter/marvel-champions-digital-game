@@ -4,11 +4,11 @@ The frame of a reading screen: a bar, an optional toolbar, then a side pane (the
 
 ## Properties
 
-| Name      | Type                 | Meaning                                                        |
-| --------- | -------------------- | -------------------------------------------------------------- |
-| `wide`    | boolean              | The side pane sits beside the main pane (else one at a time).  |
-| `pane`    | `"side"` or `"main"` | Narrow only: which pane shows.                                 |
-| `no-side` | boolean              | No side pane at all (a screen with no contents).               |
+| Name      | Type                 | Meaning                                                       |
+| --------- | -------------------- | ------------------------------------------------------------- |
+| `wide`    | boolean              | The side pane sits beside the main pane (else one at a time). |
+| `pane`    | `"side"` or `"main"` | Narrow only: which pane shows.                                |
+| `no-side` | boolean              | No side pane at all (a screen with no contents).              |
 
 ## Slots
 

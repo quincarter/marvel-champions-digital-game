@@ -40,16 +40,16 @@ export class McSideStoryActions extends SideStoryElement implements McSideStoryA
 
   override render() {
     return html`${
-      this.hasBack
-        ? html`<mc-button
-            class="back"
-            kind="onInk"
-            data-stop="back"
-            .label=${this.backLabel}
-            @mc-press=${() => this.emit({ type: "back" })}
-          ></mc-button>`
-        : nothing
-    }<mc-hint-button
+        this.hasBack
+          ? html`<mc-button
+              class="back"
+              kind="onInk"
+              data-stop="back"
+              .label=${this.backLabel}
+              @mc-press=${() => this.emit({ type: "back" })}
+            ></mc-button>`
+          : nothing
+      }<mc-hint-button
         class="next"
         kind="primary"
         display

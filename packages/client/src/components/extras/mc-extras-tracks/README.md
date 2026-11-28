@@ -4,10 +4,10 @@ The Music tab's songs, one `mc-extras-track` each, scrolling natively. Every son
 
 ## Properties
 
-| Name     | Type                | Meaning                  |
-| -------- | ------------------- | ------------------------ |
-| `tracks` | `ExtrasTrackItem[]` | `{ id, row }` per song.  |
-| `empty`  | string              | What it says with none.  |
+| Name     | Type                | Meaning                 |
+| -------- | ------------------- | ----------------------- |
+| `tracks` | `ExtrasTrackItem[]` | `{ id, row }` per song. |
+| `empty`  | string              | What it says with none. |
 
 ## Events
 

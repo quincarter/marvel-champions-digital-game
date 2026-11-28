@@ -49,19 +49,20 @@ export class McExtrasShelf extends ExtrasElement implements McExtrasShelfProps {
         ${repeat(
           this.tiles,
           (tile) => tile.id,
-          (tile) => html`<div class="tile">
-            <mc-picture-card
-              .model=${tile.card}
-              .activateKey=${`tile:${tile.id}`}
-              .stopKey=${`tile:${tile.id}`}
-              .cardId=${tile.cardId ?? ""}
-              data-promo-set=${tile.promoSetId ?? ""}
-              @mc-activate=${(event: Event) => {
-                event.stopPropagation();
-                this.emit({ type: "tile", id: tile.id });
-              }}
-            ></mc-picture-card>
-          </div>`,
+          (tile) =>
+            html`<div class="tile">
+              <mc-picture-card
+                .model=${tile.card}
+                .activateKey=${`tile:${tile.id}`}
+                .stopKey=${`tile:${tile.id}`}
+                .cardId=${tile.cardId ?? ""}
+                data-promo-set=${tile.promoSetId ?? ""}
+                @mc-activate=${(event: Event) => {
+                  event.stopPropagation();
+                  this.emit({ type: "tile", id: tile.id });
+                }}
+              ></mc-picture-card>
+            </div>`,
         )}
       </div>
     </div>`;

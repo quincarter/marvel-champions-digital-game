@@ -4,11 +4,11 @@ One song of the Music tab: a badge row (`mc-list-row`: the play or stop mark, th
 
 ## Properties
 
-| Name        | Type           | Meaning                                       |
-| ----------- | -------------- | --------------------------------------------- |
-| `model`     | `McListRowModel` | The badge row to draw.                      |
-| `data-stop` | string         | Its focus stop key (`tile:<id>`).             |
-| `action`    | `ExtrasEventDetail` | What a tap raises (a `tile`).            |
+| Name        | Type                | Meaning                           |
+| ----------- | ------------------- | --------------------------------- |
+| `model`     | `McListRowModel`    | The badge row to draw.            |
+| `data-stop` | string              | Its focus stop key (`tile:<id>`). |
+| `action`    | `ExtrasEventDetail` | What a tap raises (a `tile`).     |
 
 ## Events
 

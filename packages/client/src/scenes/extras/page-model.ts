@@ -94,16 +94,19 @@ function playerOf(input: ExtrasModelInput): ExtrasPlayerModel {
       selected: shuffle,
       ...(earnFirst ? { disabled: earnFirst } : {}),
     },
-    next: { key: "player:next", label: t("music.next"), kind: "secondary", ...(earnFirst ? { disabled: earnFirst } : {}) },
+    next: {
+      key: "player:next",
+      label: t("music.next"),
+      kind: "secondary",
+      ...(earnFirst ? { disabled: earnFirst } : {}),
+    },
     pause: {
       key: "player:pause",
       label: paused ? t("music.play") : t("music.pause"),
       kind: "secondary",
       selected: paused,
     },
-    volume: input.withSlider
-      ? { value: input.volume, label: `${input.volume}%`, stepLabels: ["−", "+"] }
-      : null,
+    volume: input.withSlider ? { value: input.volume, label: `${input.volume}%`, stepLabels: ["−", "+"] } : null,
   };
 }
 

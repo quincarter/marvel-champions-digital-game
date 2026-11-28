@@ -4,10 +4,10 @@ The Music tab's player: an ink block (the note, the status in caution yellow, th
 
 ## Properties
 
-| Name       | Type                      | Meaning                                         |
-| ---------- | ------------------------- | ----------------------------------------------- |
-| `model`    | `ExtrasPlayerModel`       | Status, song, detail, the three buttons, the slider. |
-| `progress` | `() => PlayerProgress` or null | Reads how far into the song it is.         |
+| Name       | Type                           | Meaning                                              |
+| ---------- | ------------------------------ | ---------------------------------------------------- |
+| `model`    | `ExtrasPlayerModel`            | Status, song, detail, the three buttons, the slider. |
+| `progress` | `() => PlayerProgress` or null | Reads how far into the song it is.                   |
 
 ## Events
 

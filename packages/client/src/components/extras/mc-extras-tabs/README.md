@@ -4,12 +4,12 @@ The tab rail of the eight shelves (the generic `mc-tab-rail` from `@mc/ui`), wit
 
 ## Properties
 
-| Name       | Type           | Meaning                                              |
-| ---------- | -------------- | ---------------------------------------------------- |
+| Name       | Type           | Meaning                                                |
+| ---------- | -------------- | ------------------------------------------------------ |
 | `tabs`     | `TabRailTab[]` | One per shelf, labelled "Stories 3/10" (phone: short). |
-| `selected` | string         | The chosen tab's id.                                 |
-| `size`     | number         | The label size in px (0: the button's own).          |
-| `hint`     | `ControlGlyph` | LB / RB under the right end, or undefined.           |
+| `selected` | string         | The chosen tab's id.                                   |
+| `size`     | number         | The label size in px (0: the button's own).            |
+| `hint`     | `ControlGlyph` | LB / RB under the right end, or undefined.             |
 
 ## Events
 

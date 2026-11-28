@@ -34,7 +34,11 @@ export function articleBlockOf(book: BookSpec, block: BookBlock): McArticleBlock
 }
 
 /** Why there is no section to read, or "ready". */
-export function readerStatusOf(book: BookSpec | null, sections: readonly BookSection[] | null, failed: boolean): ReaderStatus {
+export function readerStatusOf(
+  book: BookSpec | null,
+  sections: readonly BookSection[] | null,
+  failed: boolean,
+): ReaderStatus {
   return !book ? "none" : failed ? "failed" : !sections ? "loading" : "ready";
 }
 

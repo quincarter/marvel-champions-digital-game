@@ -23,9 +23,7 @@ export function barClearance(
   input: BarClearanceInput,
 ): { readonly drop: number; readonly maxRight: number } {
   const pad = input.phone ? 12 : 22;
-  const backWidth = input.back
-    ? Math.max(input.phone ? hit.target : 64, estimateBangersWidth(input.back, 22) + 26)
-    : 0;
+  const backWidth = input.back ? Math.max(input.phone ? hit.target : 64, estimateBangersWidth(input.back, 22) + 26) : 0;
   const x = pad + (input.back ? backWidth + 14 : 0);
   const rightWidth = input.right ? input.right.length * 7.5 + 16 : 0;
   const size = input.phone ? 22 : 28;

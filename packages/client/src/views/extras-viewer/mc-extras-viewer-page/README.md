@@ -6,8 +6,8 @@ The scene (`scenes/extras-viewer.ts`) keeps its press shield, scrim and entrance
 
 ## Properties
 
-| Name    | Type              | Meaning                                  |
-| ------- | ----------------- | ---------------------------------------- |
+| Name    | Type              | Meaning                                     |
+| ------- | ----------------- | ------------------------------------------- |
 | `model` | `ViewerPageModel` | Everything it shows (words are translated). |
 
 ## Events

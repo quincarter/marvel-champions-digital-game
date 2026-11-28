@@ -6,8 +6,8 @@ The scene (`scenes/extras-reader.ts`) mounts it with `mountElement`, sets `model
 
 ## Properties
 
-| Name    | Type              | Meaning                                  |
-| ------- | ----------------- | ---------------------------------------- |
+| Name    | Type              | Meaning                                     |
+| ------- | ----------------- | ------------------------------------------- |
 | `model` | `ReaderPageModel` | Everything it shows (words are translated). |
 
 ## Events

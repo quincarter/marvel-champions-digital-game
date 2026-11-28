@@ -229,3 +229,5 @@ export type { McReaderPane } from "./components/reader/mc-reader/mc-reader.types
 export { McToc } from "./components/reader/mc-toc/mc-toc.js";
 export type { McTocRow } from "./components/reader/mc-toc/mc-toc.types.js";
 export { McSearchHits } from "./components/reader/mc-search-hits/mc-search-hits.js";
+export { tapped } from "./shared/tapped.js";
+export { watchedCard } from "./shared/watched-card.js";

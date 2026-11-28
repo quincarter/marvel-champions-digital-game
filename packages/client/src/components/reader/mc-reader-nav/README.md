@@ -4,11 +4,11 @@ The ink foot of the text: PREV and NEXT through the whole book, whatever the sea
 
 ## Properties
 
-| Name       | Type    | Meaning                          |
-| ---------- | ------- | -------------------------------- |
-| `wide`     | boolean | Roomier padding.                 |
-| `at-start` | boolean | First section: PREV is dimmed.   |
-| `at-end`   | boolean | Last section: NEXT is dimmed.    |
+| Name       | Type    | Meaning                        |
+| ---------- | ------- | ------------------------------ |
+| `wide`     | boolean | Roomier padding.               |
+| `at-start` | boolean | First section: PREV is dimmed. |
+| `at-end`   | boolean | Last section: NEXT is dimmed.  |
 
 ## Events
 
