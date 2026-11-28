@@ -1,8 +1,6 @@
 import { css } from "lit";
-import { PopupPartStyles } from "../../shared/popup-parts.js";
 
 export const McReportStepStyles = css`
-  ${PopupPartStyles}
   :host {
     display: block;
   }
@@ -33,7 +31,7 @@ export const McReportStepStyles = css`
   .row:last-child {
     margin-bottom: 0;
   }
-  .row .ctl {
+  .row mc-popup-button {
     flex: 1;
     height: 44px;
   }

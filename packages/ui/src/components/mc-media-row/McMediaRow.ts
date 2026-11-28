@@ -55,6 +55,7 @@ export class McMediaRow extends LitElement {
     solid: { type: Boolean },
     src: { type: String },
     letter: { type: String },
+    retry: { type: String },
     focusX: { type: Number, attribute: "focus-x" },
     focusY: { type: Number, attribute: "focus-y" },
     focusCentered: { type: Boolean, attribute: "focus-centered" },
@@ -77,6 +78,8 @@ export class McMediaRow extends LitElement {
   declare solid: boolean;
   declare src: string;
   declare letter: string;
+  /** Names where `src` came from (a pack picture), so a stale URL is asked for again: the tile raises `mc-image-error` with it. */
+  declare retry: string;
   declare focusX: number;
   declare focusY: number;
   declare focusCentered: boolean;
@@ -100,6 +103,7 @@ export class McMediaRow extends LitElement {
     this.solid = false;
     this.src = "";
     this.letter = "";
+    this.retry = "";
     this.focusX = 0.5;
     this.focusY = 0.3;
     this.focusCentered = false;
@@ -124,6 +128,15 @@ export class McMediaRow extends LitElement {
     return html`<div class="art" style=${styleMap(this.artWidth > 0 ? { width: `${this.artWidth}px` } : {})}>
       <mc-picture-tile
         .src=${this.src}
+        .picture=${
+          this.retry
+            ? {
+                src: this.src || null,
+                retry: this.retry,
+                cover: { x: this.focusX, y: this.focusY, centered: this.focusCentered },
+              }
+            : null
+        }
         .missing=${this.letter}
         .letter=${true}
         .fit=${deck ? "cover" : this.fit}

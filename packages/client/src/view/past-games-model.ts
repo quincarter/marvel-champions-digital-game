@@ -12,7 +12,6 @@
  * fell is the game summary's (`engine/game-summary.ts`), written when a game ends; a game with no summary (one left
  * unfinished, or one from before summaries) says only what its save knows.
  */
-import { hit } from "../tokens.js";
 import {
   isCompetitiveSave,
   isCurrentSchema,
@@ -420,54 +419,29 @@ export function aspectChipsOf(pic: Rect, aspectIds: readonly string[]): readonly
   });
 }
 
-/** A card picture's width to height. */
-const CARD_RATIO = 63 / 88;
-const ROW_PAD = 10;
-const PICTURE_GAP = 6;
-/** At most this many heroes are pictured on a row (a game seats four). */
-const MAX_PICTURED_HEROES = 4;
-/** From this row width the pictures sit beside the text; narrower (a phone), they make a strip above it. */
-export const ROW_SIDE_BY_SIDE_FROM = 520;
-/** The phone row's picture strip, and the wide row's pictures. */
-const STRIP_HEIGHT = 64;
-const SIDE_HEIGHT = 84;
-/** Room for the result, title (up to two lines), detail and fates lines. */
-const TEXT_HEIGHT = 96;
-
-/** A row's height at `width`. */
-export function pastGameRowHeight(width: number): number {
-  return width >= ROW_SIDE_BY_SIDE_FROM
-    ? ROW_PAD + Math.max(SIDE_HEIGHT, TEXT_HEIGHT) + ROW_PAD
-    : ROW_PAD + STRIP_HEIGHT + 8 + TEXT_HEIGHT + ROW_PAD;
+/** One aspect's chip on a hero's picture, as words: the name, the code and the first letter (the element picks by the room it has). */
+export interface AspectBadgeText {
+  readonly id: CoreAspectId;
+  readonly full: string;
+  readonly code: string;
+  readonly letter: string;
 }
 
-export interface PastGameRowParts {
-  /** The villain's picture, then each hero's. */
-  readonly pictures: readonly Rect[];
-  /** The result, title, detail and fates lines. */
-  readonly text: Rect;
-}
-
-/** Where a row's parts sit inside `row`, for a game of `heroes` seats. */
-export function pastGameRowParts(row: Rect, heroes: number): PastGameRowParts {
-  const sideBySide = row.width >= ROW_SIDE_BY_SIDE_FROM;
-  const height = sideBySide ? SIDE_HEIGHT : STRIP_HEIGHT;
-  const pictureWidth = Math.round(height * CARD_RATIO);
-  const top = row.y + ROW_PAD;
-  const count = 1 + Math.min(MAX_PICTURED_HEROES, heroes);
-  const pictures = Array.from({ length: count }, (_, i) => ({
-    // A gap wider than the rest sets the villain apart from the heroes.
-    x: row.x + ROW_PAD + i * (pictureWidth + PICTURE_GAP) + (i > 0 ? PICTURE_GAP * 2 : 0),
-    y: top,
-    width: pictureWidth,
-    height,
-  }));
-  if (!sideBySide) {
-    const textY = top + STRIP_HEIGHT + 8;
-    return { pictures, text: { x: row.x + ROW_PAD, y: textY, width: row.width - ROW_PAD * 2, height: TEXT_HEIGHT } };
-  }
-  const textX = pictures.at(-1)!.x + pictureWidth + PICTURE_GAP + 8;
-  return { pictures, text: { x: textX, y: top, width: row.x + row.width - ROW_PAD - textX, height: TEXT_HEIGHT } };
+/**
+ * The aspect chips of a hero's picture, as the words each can say: one per aspect the seat's deck used (the ones the app
+ * has a frame color for, each once), in the deck's order. A seat with none gets none. `mc-past-game-aspects` writes the one
+ * that fits its width; the order and the aspects are `aspectChipsOf`'s.
+ */
+export function aspectBadgesOf(aspectIds: readonly string[]): readonly AspectBadgeText[] {
+  return [...new Set(aspectIds.filter(isCoreAspect))].map((id) => {
+    const stamp = aspectStampOf(id);
+    return {
+      id,
+      full: stamp.label.toUpperCase(),
+      code: ASPECT_CODE[id],
+      letter: stamp.label.replace(/^'/, "").charAt(0).toUpperCase(),
+    };
+  });
 }
 
 /**
@@ -475,99 +449,6 @@ export function pastGameRowParts(row: Rect, heroes: number): PastGameRowParts {
  * it (a phone).
  */
 export const pastGamesSidePanel = (width: number): boolean => width >= 700;
-
-/** The side panel's width, and the list's widest beside it. */
-const PANEL_MAX_WIDTH = 440;
-const PANEL_MIN_WIDTH = 320;
-const LIST_MAX_WIDTH = 760;
-
-export interface PastGamesLayout {
-  readonly list: Rect;
-  /** The details: a side panel, or (on a phone) the popup's card. */
-  readonly details: Rect;
-  readonly side: boolean;
-}
-
-/** The list and the details inside `area` (the room under the tabs), on a screen `screen` wide and high. */
-export function pastGamesLayout(
-  area: Rect,
-  screen: { readonly width: number; readonly height: number },
-): PastGamesLayout {
-  if (!pastGamesSidePanel(screen.width)) {
-    const margin = 12;
-    const width = Math.min(screen.width - margin * 2, 460);
-    const height = Math.min(screen.height - margin * 2, 640);
-    return {
-      list: area,
-      details: { x: (screen.width - width) / 2, y: (screen.height - height) / 2, width, height },
-      side: false,
-    };
-  }
-  const gap = 16;
-  const panelWidth = Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, Math.round(area.width * 0.42)));
-  const listWidth = Math.min(LIST_MAX_WIDTH, area.width - panelWidth - gap);
-  const left = area.x + (area.width - listWidth - gap - panelWidth) / 2;
-  return {
-    list: { x: left, y: area.y, width: listWidth, height: area.height },
-    details: { x: left + listWidth + gap, y: area.y, width: panelWidth, height: area.height },
-    side: true,
-  };
-}
-
-export interface PastGameDetailParts {
-  /** The close button: the popup only. */
-  readonly close: Rect | null;
-  /** The villain's picture, then each hero's, larger than the row's. */
-  readonly pictures: readonly Rect[];
-  /** Where the words start and how wide they run; they end above the actions. */
-  readonly text: Rect;
-  readonly actions: Readonly<Record<PastGameAction, Rect>>;
-}
-
-/** The details' parts inside `panel` for a game of `heroes` seats; `popup` adds a close button at the top right. */
-export function pastGameDetailParts(panel: Rect, heroes: number, popup: boolean): PastGameDetailParts {
-  const pad = 14;
-  const inner = panel.width - pad * 2;
-  const close: Rect | null = popup
-    ? { x: panel.x + panel.width - pad - hit.target, y: panel.y + pad, width: hit.target, height: hit.target }
-    : null;
-  // The villain larger, the heroes in a row beside it, all fitting the panel's width.
-  const count = Math.min(MAX_PICTURED_HEROES, heroes);
-  const gap = 8;
-  const top = panel.y + pad + (popup ? hit.target + 6 : 0);
-  // Rounded down, so the heroes after the villain (and their 6px gaps) never run past the panel.
-  const villainHeight = Math.min(150, Math.floor((inner - gap - 6 * count) / (1 + count * 0.62) / CARD_RATIO) - 2);
-  const heroHeight = Math.round(villainHeight * 0.62);
-  const villain: Rect = {
-    x: panel.x + pad,
-    y: top,
-    width: Math.round(villainHeight * CARD_RATIO),
-    height: villainHeight,
-  };
-  const heroWidth = Math.round(heroHeight * CARD_RATIO);
-  const heroes_ = Array.from({ length: count }, (_, i) => ({
-    x: villain.x + villain.width + gap + i * (heroWidth + 6),
-    y: top + villainHeight - heroHeight,
-    width: heroWidth,
-    height: heroHeight,
-  }));
-  const buttonsBottom = panel.y + panel.height - pad;
-  const small = (inner - gap * 2) / 3;
-  const row2: Rect = { x: panel.x + pad, y: buttonsBottom - hit.target, width: small, height: hit.target };
-  const actions: Record<PastGameAction, Rect> = {
-    watch: { x: panel.x + pad, y: row2.y - gap - hit.primary, width: inner, height: hit.primary },
-    share: row2,
-    export: { ...row2, x: row2.x + small + gap },
-    log: { ...row2, x: row2.x + (small + gap) * 2 },
-  };
-  const textY = top + villainHeight + 12;
-  return {
-    close,
-    pictures: [villain, ...heroes_],
-    text: { x: panel.x + pad, y: textY, width: inner, height: Math.max(0, actions.watch.y - 10 - textY) },
-    actions,
-  };
-}
 
 /**
  * Where a game's exported log stops short: the moves this build could replay (`ReplayInfo.length`) when a command

@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { popupButton } from "../../shared/popup-parts.js";
+import "../mc-popup-button/mc-popup-button.js";
 import "../mc-report-step/mc-report-step.js";
 import { McReportIssueStyles } from "./mc-report-issue.styles.js";
 import type { ReportIssueModel } from "./mc-report-issue.types.js";
@@ -50,7 +50,9 @@ export class McReportIssue extends LitElement {
       <div class="box">
         <div class="head">
           <span class="title">${m.title}</span>
-          <div class="close">${popupButton(this, m.close, m.glyphs?.[m.close.key])}</div>
+          <div class="close">
+            <mc-popup-button .button=${m.close} .glyph=${m.glyphs?.[m.close.key] ?? null}></mc-popup-button>
+          </div>
         </div>
         <div class="steps">
           ${columns.map(

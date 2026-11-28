@@ -12,8 +12,6 @@ import type { GuidePrefs } from "../guide/guide-prefs.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import type { Settings } from "../settings.js";
 import { t } from "../i18n/translate.js";
-import { hit } from "../tokens.js";
-import { estimateWrappedLines, toggleRowHeight } from "./layout.js";
 import type { SettingsItemId } from "./settings-sections.js";
 import type {
   SettingsRowText,
@@ -284,64 +282,6 @@ export function groupPauseResults(results: readonly SettingsSearchResult[]): rea
     if (inGroup.length === 0 && id !== "rules") return [];
     return [{ id, title: groupTitleOf(id), results: inGroup }];
   });
-}
-
-// ---------------------------------------------------------------------------
-// Layout
-// ---------------------------------------------------------------------------
-
-/** One row of the results, as it sizes: a group heading, a Settings row by its control, or a row that opens a page. */
-export type PauseResultSlot =
-  | { readonly kind: "heading" }
-  | { readonly kind: "toggle"; readonly detail: string }
-  | { readonly kind: "choice"; readonly detail: string }
-  | { readonly kind: "link" };
-
-export const PAUSE_RESULT_HEADING_HEIGHT = 22;
-/** A row that opens a page: its title and one line of description (`scenes/settings-search-row.ts`). */
-export const PAUSE_RESULT_LINK_HEIGHT = 52;
-const ROW_GAP = 6;
-const GROUP_GAP = 14;
-const CHOICE_DETAIL_TOP = 20;
-/** The description is drawn at 10px, whose lines are a little over 12px apart. */
-const CHOICE_DETAIL_LINE = 12.5;
-const CHOICE_DETAIL_CHAR = 5.4;
-
-/** A choice row: its title, its description wrapped across the full width, then its options at a touch height. */
-export function choiceRowHeight(detail: string, width: number): number {
-  const lines = estimateWrappedLines(detail, Math.max(1, width), CHOICE_DETAIL_CHAR);
-  return CHOICE_DETAIL_TOP + lines * CHOICE_DETAIL_LINE + 6 + hit.target + 6;
-}
-
-export interface PauseResultsContent {
-  /** One rect per slot, in content space (`y` from the list's own top). */
-  readonly rects: readonly {
-    readonly x: number;
-    readonly y: number;
-    readonly width: number;
-    readonly height: number;
-  }[];
-  readonly totalHeight: number;
-}
-
-/** Where each slot sits in a list `width` wide: a heading gets room above it after the first, rows a small gap. */
-export function pauseResultsContentOf(slots: readonly PauseResultSlot[], width: number): PauseResultsContent {
-  const rects: { x: number; y: number; width: number; height: number }[] = [];
-  let y = 0;
-  slots.forEach((slot, index) => {
-    if (index > 0) y += slot.kind === "heading" ? GROUP_GAP : ROW_GAP;
-    const height =
-      slot.kind === "heading"
-        ? PAUSE_RESULT_HEADING_HEIGHT
-        : slot.kind === "toggle"
-          ? toggleRowHeight(slot.detail, width)
-          : slot.kind === "choice"
-            ? choiceRowHeight(slot.detail, width)
-            : PAUSE_RESULT_LINK_HEIGHT;
-    rects.push({ x: 0, y, width, height });
-    y += height;
-  });
-  return { rects, totalHeight: y };
 }
 
 // ---------------------------------------------------------------------------

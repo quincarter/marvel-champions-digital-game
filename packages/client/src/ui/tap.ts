@@ -9,7 +9,7 @@
  */
 import Phaser from "phaser";
 import { drawnAbove } from "../view/draw-order.js";
-import { PressArm, TapTracker, type PressTarget } from "../view/press-arm.js";
+import { isTouchEcho, PressArm, TapTracker, type PressTarget } from "../view/press-arm.js";
 
 interface TapEntry {
   /** Stable across a redraw: the same control drawn again has the same id. */
@@ -33,7 +33,9 @@ class SceneTaps {
     // A press is timed by the browser's own event timestamps (`pointer.downTime` / `upTime`), not by when the frame loop
     // got round to handling it: on a slow device both halves of a quick tap are handled a frame or more apart, and a
     // tap that took 100 ms in the finger must not read as a 2 s hold.
-    const onDown = (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void =>
+    const onDown = (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void => {
+      // The echo of a touch a panel took is no press here: no gesture starts, so its release presses nothing.
+      if (isTouchEcho(pointer.event)) return;
       this.tracker.down(
         pointer.id,
         this.#target(pointer, over),
@@ -42,6 +44,7 @@ class SceneTaps {
         pointer.wasTouch,
         pointer.downTime,
       );
+    };
     const onMove = (pointer: Phaser.Input.Pointer): void => {
       if (pointer.isDown) this.tracker.move(pointer.id, { x: pointer.x, y: pointer.y }, this.#target(pointer, null));
     };
