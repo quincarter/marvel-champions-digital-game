@@ -2,16 +2,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ASPECT_GUIDES } from "../guide/aspects.js";
 import { defaultGuidePrefs, markAspectLessonDone, markLessonDone } from "../guide/guide-prefs.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
-import { rectsOverlap } from "./layout.js";
 import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import { boxPages } from "./new-in-box-model.js";
 import {
   continueLearningLabel,
   continueLearningLesson,
-  howToPlayContentLayout,
-  howToPlayContentLayoutRects,
   howToPlayFocusOrder,
-  howToPlayHeaderLayout,
   howToPlayModules,
   howToPlayProgressOf,
 } from "./how-to-play-model.js";
@@ -101,94 +97,6 @@ describe("continueLearningLabel / continueLearningLesson", () => {
   });
 });
 
-describe("howToPlayHeaderLayout", () => {
-  const sizes: readonly [number, number][] = [
-    [390, 844],
-    [1024, 768],
-    [1440, 900],
-  ];
-  for (const [width, height] of sizes) {
-    it(`fits close and title inside the header at ${width}x${height}`, () => {
-      const layout = howToPlayHeaderLayout(width, height);
-      expect(layout.close.x).toBeGreaterThanOrEqual(0);
-      expect(layout.title.x + layout.title.width).toBeLessThanOrEqual(width + 1);
-      expect(layout.close.y + layout.close.height).toBeLessThanOrEqual(layout.header.height);
-    });
-  }
-});
-
-describe("howToPlayContentLayout", () => {
-  const modules = howToPlayModules(defaultGuidePrefs);
-  const sizes: readonly [number, number][] = [
-    [390, 844], // phone
-    [1024, 768], // tablet landscape
-    [1440, 900], // desktop
-  ];
-
-  for (const [width, height] of sizes) {
-    it(`lays out one row per lesson/aspect plus reference and Continue learning, no overlap, at ${width}x${height}`, () => {
-      const layout = howToPlayContentLayout(width, height, modules);
-      expect(layout.lessonRows).toHaveLength(modules.lessons.length);
-      expect(layout.aspectRows).toHaveLength(modules.aspects.length);
-      const rects = howToPlayContentLayoutRects(layout);
-      for (let i = 0; i < rects.length; i++) {
-        for (let j = i + 1; j < rects.length; j++) {
-          expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
-        }
-      }
-      for (const rect of rects) {
-        expect(rect.x).toBeGreaterThanOrEqual(0);
-        expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
-      }
-      // `heights` (McScrollRegion's own scroll-math input) sums to the real stacked total, gaps included.
-      expect(layout.heights.reduce((a, b) => a + b, 0)).toBe(layout.totalHeight);
-      // Every slot is non-negative: `VariableListScroll#topOf` sums this array, so a negative entry (found in
-      // browser verification: concatenating two side-by-side columns into one cumulative sequence without
-      // accounting for their shared y=0 start) corrupts every row's own scroll position after it.
-      for (const h of layout.heights) expect(h).toBeGreaterThanOrEqual(0);
-    });
-
-    it(`gives every row a valid index into heights, matching its own content-space y, at ${width}x${height}`, () => {
-      const layout = howToPlayContentLayout(width, height, modules);
-      const topOf = (index: number): number => layout.heights.slice(0, index).reduce((a, b) => a + b, 0);
-      layout.lessonScrollIndex.forEach((index, i) => {
-        expect(topOf(index)).toBe(layout.lessonRows[i]!.y);
-      });
-      expect(topOf(layout.continueScrollIndex)).toBe(layout.continueLearning.y);
-      if (!layout.wide) {
-        layout.aspectScrollIndex.forEach((index, i) => {
-          expect(topOf(index)).toBe(layout.aspectRows[i]!.y);
-        });
-        expect(topOf(layout.referenceScrollIndex)).toBe(layout.referenceRow.y);
-      }
-    });
-  }
-
-  for (const [width, height] of sizes) {
-    it(`gives the content body real top padding above "THE BASICS", not flush under the header, at ${width}x${height}`, () => {
-      const layout = howToPlayContentLayout(width, height, modules);
-      // Content-space y (`view/how-to-play-model.ts`'s own doc comment: `y` measured from the content's own top,
-      // `0` — the scene translates this into screen space by `viewport.y`, the header's own bottom edge). A
-      // `basicsLabel.y` of 0 is the bug this pins against: the label drawn flush under the ink header with no
-      // gap at all (found in browser verification, phone).
-      expect(layout.basicsLabel.y).toBeGreaterThan(0);
-      // Bounded, not just "some positive number" — a runaway top pad would just move the same "flush against
-      // something" bug down to flush-against-the-header's-shadow instead of fixing it.
-      expect(layout.basicsLabel.y).toBeLessThanOrEqual(40);
-    });
-  }
-
-  it("is one stacked column on phone and two columns (Basics left, Aspects+Reference right) on tablet landscape/desktop", () => {
-    expect(howToPlayContentLayout(390, 844, modules).wide).toBe(false);
-    const wideLayout = howToPlayContentLayout(1024, 768, modules);
-    expect(wideLayout.wide).toBe(true);
-    // The right column's rows sit to the right of the left column's lesson rows.
-    const leftRight = wideLayout.lessonRows[0]!.x + wideLayout.lessonRows[0]!.width;
-    expect(wideLayout.aspectRows[0]!.x).toBeGreaterThanOrEqual(leftRight);
-    expect(wideLayout.referenceRow.x).toBeGreaterThanOrEqual(leftRight);
-  });
-});
-
 describe("howToPlayFocusOrder", () => {
   it("orders close, every lesson, every aspect, reference, then continue learning", () => {
     const modules = howToPlayModules(defaultGuidePrefs);
@@ -210,57 +118,6 @@ describe("the New in each box band", () => {
     expect(withBoxes.boxes.map((b) => b.id)).toContain("mojo");
     expect(howToPlayModules(defaultGuidePrefs, []).boxes).toEqual([]);
     expect(howToPlayModules(defaultGuidePrefs).boxes).toEqual([]);
-  });
-
-  it("on desktop the band's two columns are the same two equal columns the sections above sit in", () => {
-    const layout = howToPlayContentLayout(1440, 900, withBoxes);
-    const [left, right] = [layout.boxRows[0]!, layout.boxRows[1]!];
-    expect([left.x, left.width]).toEqual([layout.lessonRows[0]!.x, layout.lessonRows[0]!.width]);
-    expect([right.x, right.width]).toEqual([layout.aspectRows[0]!.x, layout.aspectRows[0]!.width]);
-    expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(1);
-  });
-
-  it("draws no band and no label while there are no rows", () => {
-    const layout = howToPlayContentLayout(1440, 900, howToPlayModules(defaultGuidePrefs, []));
-    expect(layout.boxesLabel).toBeNull();
-    expect(layout.boxRows).toEqual([]);
-  });
-
-  for (const [width, height] of [
-    [390, 844],
-    [844, 390],
-    [1024, 768],
-    [1440, 900],
-  ] as const) {
-    it(`lays the rows out with no overlap, inside the screen, with exact scroll indexes, at ${width}x${height}`, () => {
-      const layout = howToPlayContentLayout(width, height, withBoxes);
-      expect(layout.boxRows).toHaveLength(pages.length);
-      expect(layout.boxesLabel).not.toBeNull();
-      const rects = howToPlayContentLayoutRects(layout);
-      for (let i = 0; i < rects.length; i++) {
-        for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
-      }
-      for (const rect of layout.boxRows) {
-        expect(rect.x).toBeGreaterThanOrEqual(0);
-        expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
-      }
-      expect(layout.heights.reduce((a, b) => a + b, 0)).toBe(layout.totalHeight);
-      for (const h of layout.heights) expect(h).toBeGreaterThanOrEqual(0);
-      const topOf = (index: number): number => layout.heights.slice(0, index).reduce((a, b) => a + b, 0);
-      layout.boxScrollIndex.forEach((index, i) => expect(topOf(index)).toBe(layout.boxRows[i]!.y));
-      expect(topOf(layout.continueScrollIndex)).toBe(layout.continueLearning.y);
-      // The band sits under both columns and above Continue learning.
-      expect(layout.boxesLabel!.y).toBeGreaterThan(layout.referenceRow.y + layout.referenceRow.height);
-      expect(layout.continueLearning.y).toBeGreaterThan(layout.boxRows.at(-1)!.y + layout.boxRows.at(-1)!.height);
-    });
-  }
-
-  it("is a two-column grid on desktop and one column on a phone", () => {
-    const wide = howToPlayContentLayout(1440, 900, withBoxes);
-    expect(wide.boxRows[1]!.y).toBe(wide.boxRows[0]!.y);
-    expect(wide.boxRows[1]!.x).toBeGreaterThan(wide.boxRows[0]!.x);
-    const narrow = howToPlayContentLayout(390, 844, withBoxes);
-    expect(narrow.boxRows[1]!.y).toBeGreaterThan(narrow.boxRows[0]!.y);
   });
 
   it("puts every box row in the focus order after the reference row", () => {

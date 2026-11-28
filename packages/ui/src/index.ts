@@ -65,6 +65,7 @@ export { McCardSections } from "./components/mc-card-sections/mc-card-sections.j
 export { McShelfRoster } from "./components/mc-shelf-roster/mc-shelf-roster.js";
 export { McDeckDetails } from "./components/mc-deck-details/mc-deck-details.js";
 export { McPress } from "./shared/press/McPress.js";
+export { PressBaseStyles } from "./shared/press/press.styles.js";
 export { McGlyphHint } from "./components/controls/mc-glyph-hint/mc-glyph-hint.js";
 export { glyphLabelShift } from "./components/controls/mc-glyph-hint/mc-glyph-hint.types.js";
 export { McChip } from "./components/controls/mc-chip/mc-chip.js";
@@ -74,6 +75,10 @@ export { McCheckRow } from "./components/controls/mc-check-row/mc-check-row.js";
 export { McPressCard } from "./components/controls/mc-press-card/mc-press-card.js";
 export { McHitArea } from "./components/controls/mc-hit-area/mc-hit-area.js";
 export { McOptionCard } from "./components/controls/mc-option-card/mc-option-card.js";
+export { McSwitchRow } from "./components/controls/mc-switch-row/mc-switch-row.js";
+export { McSegmentCell } from "./components/controls/mc-segment-cell/mc-segment-cell.js";
+export { McSegments } from "./components/controls/mc-segments/mc-segments.js";
+export type { McSegmentOption } from "./components/controls/mc-segments/mc-segments.types.js";
 export type {
   McOptionChip,
   McOptionControl,
@@ -81,6 +86,21 @@ export type {
   McOptionRow,
 } from "./components/controls/mc-option-card/mc-option-card.types.js";
 export { McSectionHeading } from "./components/layout/mc-section-heading/mc-section-heading.js";
+export { McCloseBar } from "./components/layout/mc-close-bar/mc-close-bar.js";
+export { CLOSE_BAR_ACTION } from "./components/layout/mc-close-bar/mc-close-bar.types.js";
+export { McStepTicks } from "./components/layout/mc-step-ticks/mc-step-ticks.js";
+export { McStamp } from "./components/layout/mc-stamp/mc-stamp.js";
+export type { McStampTone } from "./components/layout/mc-stamp/mc-stamp.types.js";
+export { McLinkRow } from "./components/controls/mc-link-row/mc-link-row.js";
+export { McDottedTerm } from "./components/controls/mc-dotted-term/mc-dotted-term.js";
+export { McTermTip } from "./components/layout/mc-term-tip/mc-term-tip.js";
+export { McTermText } from "./components/layout/mc-term-text/mc-term-text.js";
+export type {
+  McTermRun,
+  McTermTipContent,
+  TermGlossaryDetail,
+  TermTipChangeDetail,
+} from "./components/layout/mc-term-text/mc-term-text.types.js";
 export { PRESS_EVENT } from "./shared/press/press.types.js";
 export type { PressDetail, PressEvent } from "./shared/press/press.types.js";
 export { fitTextWithin } from "./shared/fit-text.js";
@@ -209,3 +229,10 @@ export type {
   SlideDetail,
   StepDetail,
 } from "./shared/popup.types.js";
+export { McProgressBar } from "./components/mc-progress-bar/mc-progress-bar.js";
+export { McToast } from "./components/mc-toast/mc-toast.js";
+export { McSegmentBar } from "./components/mc-segment-bar/mc-segment-bar.js";
+export { McDonutChart } from "./components/mc-donut-chart/mc-donut-chart.js";
+export { McStepper } from "./components/controls/mc-stepper/mc-stepper.js";
+export type { SegmentBarPart } from "./components/mc-segment-bar/mc-segment-bar.types.js";
+export type { DonutSlice } from "./components/mc-donut-chart/mc-donut-chart.types.js";

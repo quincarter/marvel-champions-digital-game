@@ -23,6 +23,7 @@ const page = (over: Partial<DecksPageModel> = {}): DecksPageModel => ({
     statsLabel: "Your stats",
     titleDrop: 0,
     titleMaxRight: null,
+    stacked: false,
   },
   list: {
     heading: "Your decks",

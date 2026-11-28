@@ -62,8 +62,24 @@ export const McDecksHeaderStyles = css`
       width: 112px;
     }
     .title {
-      padding-top: calc(var(--drop, 0px) + 8px);
       font-size: 22px;
     }
+  }
+  /* Stacked: the buttons share the first row with the dark mode toggle between them, the title has the row under it. */
+  .bar[data-stacked] {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .bar[data-stacked] .stats {
+    margin-left: auto;
+  }
+  .bar[data-stacked] .meta {
+    display: none;
+  }
+  .bar[data-stacked] .title {
+    order: 3;
+    flex: 1 0 100%;
+    max-width: none;
+    padding-top: 0;
   }
 `;

@@ -9,7 +9,7 @@ import type { GlobalLoad } from "../global-stats/global-stats-client.js";
 import { globalSectionsOf } from "../global-stats/global-stats-model.js";
 import type { GlobalConsent } from "../global-stats/global-consent.js";
 import type { StatsNames, StatsSection } from "./player-stats-model.js";
-import type { StatsTab, StatsTabEntry } from "./player-stats-layout.js";
+import type { StatsTab, StatsTabEntry } from "./player-stats-tabs.js";
 
 /** Settings, spelled with the on-screen labels (tab "More", row "Save data", this row). */
 export const globalRowTitle = (): string => t("global.globalRowTitle");

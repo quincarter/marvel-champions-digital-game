@@ -61,7 +61,7 @@ test("How to win is a Lit panel: three card scans, the keyboard walks to the ter
   // The tooltip's link opens the Rules reference at the glossary.
   await pressKey(page, "Enter");
   await waitForText(page, "RULES GLOSSARY", { sceneKey: "HowToWin" });
-  await page.locator(`${panel} [data-key="tip-link"]`).click();
+  await page.locator(`${panel} [data-stop="tip-link"]`).click();
   await waitFor(async () => ((await activeScenes(page)).includes("RulesOverlay") ? true : null), "Rules opens", 10_000);
   await pressKey(page, "Escape");
   await waitFor(

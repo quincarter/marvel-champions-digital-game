@@ -50,13 +50,15 @@ function headerOf(input: PageInput, phone: boolean, glyphs: ControlGlyphs): Deck
     width - statsWidth - 32 - (poolMeta ? 200 : 0),
     titleLeft + estimateBangersWidth(title, titleSize),
   );
+  // Narrow: the title has its own row under the buttons, clear of the toggle that hangs between them.
+  const stacked = width < 768;
   const { drop, maxRight } = sheetThemeFor(scene, {
     width,
     textLeft: titleLeft,
     textRight: titleRight,
-    textTop: 6,
+    textTop: stacked ? HEADER_HEIGHT : 6,
     textHeight: titleSize + 12,
-    barHeight: HEADER_HEIGHT,
+    barHeight: stacked ? HEADER_HEIGHT + 44 : HEADER_HEIGHT,
   });
   return {
     backLabel: t("decks.back"),
@@ -65,9 +67,10 @@ function headerOf(input: PageInput, phone: boolean, glyphs: ControlGlyphs): Deck
     poolMeta,
     statsLabel: t("decks.yourStats"),
     statsGlyph: glyphs.glyph("player-stats", ["guide"], "ink", hit.target),
-    titleDrop: drop,
+    stacked,
+    titleDrop: stacked ? 0 : drop,
     // The bar caps the title by its width, from where it starts.
-    titleMaxRight: maxRight === null ? null : Math.max(40, maxRight - titleLeft),
+    titleMaxRight: stacked || maxRight === null ? null : Math.max(40, maxRight - titleLeft),
   };
 }
 

@@ -14,6 +14,7 @@ const bar: DecksHeaderModel = {
   statsLabel: "Your stats",
   titleDrop: 0,
   titleMaxRight: null,
+  stacked: false,
 };
 
 async function mount(model: DecksHeaderModel): Promise<McDecksHeader> {
@@ -47,5 +48,10 @@ describe("mc-decks-header", () => {
     element.model = { ...bar, backGlyph: { specs: [], height: 20, ground: "ink", openness: 1 } };
     await element.updateComplete;
     expect(element.shadowRoot!.querySelectorAll("mc-glyph-hint")).toHaveLength(1);
+  });
+
+  it("marks a narrow bar stacked, with the title on its own row", async () => {
+    const element = await mount({ ...bar, poolMeta: null, stacked: true });
+    expect(element.shadowRoot!.querySelector(".bar")!.hasAttribute("data-stacked")).toBe(true);
   });
 });
