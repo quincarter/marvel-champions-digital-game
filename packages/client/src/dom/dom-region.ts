@@ -305,6 +305,9 @@ export const GUARDED_EVENTS = [
   "mc-field-focus",
   "mc-search-focus",
   "mc-tile-focus",
+  // A rebuilt page's own events (`mc-<feature>`: one name per feature, listed here) and its card pictures' Inspect.
+  "mc-setup",
+  "mc-card-inspect",
 ] as const;
 
 /** The guarded events that say the caret went into or left a field: its leaving (`focused: false`) always gets through, so the scene never keeps a stale "typing" flag. */
