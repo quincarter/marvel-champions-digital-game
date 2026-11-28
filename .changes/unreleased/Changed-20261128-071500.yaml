@@ -1,3 +1,3 @@
 kind: Changed
-body: The Deck builder is rebuilt as composed Lit custom elements (a page of section elements, a windowed pool list, new stepper, windowed list and card art elements in the UI package), with the same layout, search, filters, tabs, focus stops and card hover
+body: Pause is now built from composed custom elements, its menu column scrolls and compacts on a short screen such as a phone held sideways so Concede never draws over Rules reference, and its Concede confirm is a dialog over the sheet
 time: 2026-11-28T07:15:00.000000-05:00

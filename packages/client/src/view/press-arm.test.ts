@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PressArm, TAP_SLOP_PX } from "./press-arm.js";
+import { isTouchEcho, PressArm, TAP_SLOP_PX } from "./press-arm.js";
 
 describe("PressArm", () => {
   it("does not count a bare pointer-up as a click", () => {
@@ -82,5 +82,19 @@ describe("PressArm tap slop", () => {
     arm.up(0, 0);
     arm.down();
     expect(arm.up(500, 500)).toBe(true);
+  });
+});
+
+describe("isTouchEcho", () => {
+  const caps = { firesTouchEvents: true };
+  it("is true for a mouse press a touch screen sent", () => {
+    expect(isTouchEcho({ type: "mousedown", sourceCapabilities: caps })).toBe(true);
+  });
+
+  it("is false for a real mouse, a touch itself, and nothing", () => {
+    expect(isTouchEcho({ type: "mousedown", sourceCapabilities: { firesTouchEvents: false } })).toBe(false);
+    expect(isTouchEcho({ type: "touchstart", sourceCapabilities: caps })).toBe(false);
+    expect(isTouchEcho({ type: "mousedown" })).toBe(false);
+    expect(isTouchEcho(null)).toBe(false);
   });
 });

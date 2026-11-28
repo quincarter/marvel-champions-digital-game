@@ -46,6 +46,15 @@ export const McDeckBuilderPageStyles = css`
   .body {
     display: flex;
     flex-direction: column;
+    gap: 12px;
+  }
+  /* The rows over the list keep their height; the list or the scrolling body takes what is left. */
+  .body > * {
+    flex: none;
+  }
+  .body > mc-pool-list,
+  .body > .scroll {
+    flex: 1 1 auto;
   }
   .scroll {
     flex: 1 1 auto;

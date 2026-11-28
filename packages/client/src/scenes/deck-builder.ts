@@ -15,26 +15,17 @@
  * the card hover popover and Inspect (`dom/card-events.ts`). Layout is the page's CSS and every list scrolls natively.
  *
  * **Issue #217 (2026-10-17).** A precon handed to this scene is never edited in place (`editableDeckOf`): the player edits
- * their own copy, which Save adds to their decks. The pool shows as card pictures by default (Card view, each cell with its
- * own -/+), with List view keeping the text rows. The search matches every word against name, traits, type and rules text.
- * Back warns once about unsaved changes, a saved deck can be deleted here, and New deck picks a hero from searchable tiles,
- * then starts from an empty deck or a copy of one of that hero's precons.
+ * their own copy, which Save adds to their decks.
  */
 import Phaser from "phaser";
 import "@mc/ui";
 import "../views/deck-builder/mc-deck-builder-page/mc-deck-builder-page.js";
-import type { PictureSource } from "@mc/ui";
-import type { AnyCard, Deck, HeroIdentityCard } from "@mc/content";
+import type { AnyCard, Deck } from "@mc/content";
 import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
 import type { McSearchFocusDetail } from "@mc/ui";
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
-import { artLanguageNow, type ArtSource } from "../art/art-source.js";
-import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import type { Picture } from "../art/pictures.js";
-import { currentPool } from "../content/pool.js";
+import { artLanguageNow } from "../art/art-source.js";
 import { campaignPool } from "../content/campaign-pool.js";
-import { isCustomCard } from "../view/custom-content.js";
-import { qualifiedHeroName } from "../view/hero-names.js";
 import { editableDeckOf, identityOptions } from "../view/deck-builder-model.js";
 import { startTab, type DeckBuilderTab } from "../view/deck-builder-tabs.js";
 import { deckBuilderRowSizes } from "../view/deck-builder-rows.js";
@@ -59,14 +50,14 @@ import { CardEvents } from "../dom/card-events.js";
 import { ControlGlyphs } from "../dom/control-glyphs.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { renderNow } from "../dom/dom-region.js";
-import { heroPictureOf } from "../dom/hero-picture.js";
 import { PictureLeases } from "../dom/picture-leases.js";
-import { sheetThemeFor } from "../ui/campaign-chrome.js";
 import { BUILDER_EVENT, BUILDER_RENDERED } from "../components/deck-builder/shared/deck-builder-events.types.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { SCENES } from "./keys.js";
 import type { CampaignReturn } from "./campaign/routes.js";
+import { clearToggle } from "./deck-builder/builder-toggle.js";
+import { BuilderPictures } from "./deck-builder/builder-pictures.js";
 import { BuilderActions } from "./deck-builder/builder-actions.js";
 import type { BuilderHost } from "./deck-builder/builder-host.js";
 import { pageModel } from "./deck-builder/builder-model.js";
@@ -126,8 +117,6 @@ export class DeckBuilderScene extends Phaser.Scene {
   #unbind: (() => void) | null = null;
   #glyphs!: ControlGlyphs;
   readonly #leases = new PictureLeases();
-  /** The bundled picture chosen per hero this visit, so a redraw never reshuffles a hero with several pictures. */
-  readonly #identityArt = new Map<string, Picture | null>();
   #rows = deckBuilderRowSizes(1);
   #alive = false;
   /** The cards the pool lists now, and the focus stops as last read. */
@@ -369,35 +358,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     return form === "phone" ? "phone" : width >= WIDE_MIN_WIDTH ? "wide" : "narrow";
   }
 
-  /** A card scan as the panel draws it: its URL (held while shown) and the key to ask again by when a pack scan fails. */
-  #scan = (source: ArtSource | null, missing: string): PictureSource => {
-    const held = this.#leases.image(source);
-    return { src: held.src, missing, ...(held.retry !== undefined ? { retry: held.retry } : {}) };
-  };
-
-  /**
-   * The identity picture as the panel draws it: the hero's own art (`art/heroes/`, the one chosen this visit), else the
-   * identity card's scan, an installed pack hero's picture leased by its key (`dom/hero-picture.ts`).
-   */
-  #heroPicture = (identity: HeroIdentityCard): PictureSource => {
-    const id = identity.id as string;
-    let chosen: Picture | null | undefined;
-    // An installed pack hero's picture arrives after the first draw, so it is not remembered here.
-    if (!isCustomCard(id)) {
-      chosen = this.#identityArt.get(id);
-      if (chosen === undefined) {
-        chosen = heroArtForIdentity(HERO_ART, id, currentPool());
-        this.#identityArt.set(id, chosen);
-      }
-    }
-    const picture = heroPictureOf(identity, this.#leases, "tile", chosen);
-    return {
-      src: picture.src,
-      cover: picture.cover,
-      missing: qualifiedHeroName(identity),
-      ...(picture.retry !== undefined ? { retry: picture.retry } : {}),
-    };
-  };
+  readonly #pictures = new BuilderPictures(this.#leases);
 
   #env(): ModelEnv {
     const { width, height } = this.scale.gameSize;
@@ -409,8 +370,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       desktop: isDesktopType(),
       cardScale: cardSizeFactor(appSession().settings.cardSize),
       rows: this.#rows,
-      scan: this.#scan,
-      heroPicture: this.#heroPicture,
+      scan: this.#pictures.scan,
+      heroPicture: this.#pictures.hero,
       glyph: (key, ids, ground, height) => this.#glyphs.glyph(key, ids, ground, height),
     };
   }
@@ -449,37 +410,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     const page = this.#page;
     if (!page) return;
     this.#restoreScrolls(page.element.scrollers());
-    this.#clearToggle();
+    if (this.#page) clearToggle(this, this.#page.region, this.#page.element, this.#layout() === "phone");
     this.#hover?.onDraw();
     this.#queueStops();
-  }
-
-  /**
-   * The dark mode toggle's press area is cut out of the panel, so words under it are cut off: the title drops below it or
-   * ends before it (`sheetThemeFor`). Measured on the title set on one line (it does not depend on what is applied).
-   */
-  #clearToggle(): void {
-    const page = this.#page;
-    const header = page?.element.headerElement;
-    const ghost = header?.ghost;
-    if (!page || !header || !ghost) return;
-    const { region, element } = page;
-    const row = region.rectOf(header);
-    const words = region.rectOf(ghost);
-    const phone = this.#layout() === "phone";
-    const back = 116;
-    const plan = sheetThemeFor(this, {
-      width: this.scale.gameSize.width,
-      textLeft: row.x,
-      textRight: row.x + Math.min(words.width, Math.max(0, row.width - back)),
-      textTop: row.y,
-      textHeight: words.height || (phone ? 28 : 38),
-    });
-    const max = plan.maxRight === null ? 0 : Math.max(80, plan.maxRight - row.x);
-    if (element.titleDrop !== plan.drop || element.titleMax !== max) {
-      element.titleDrop = plan.drop;
-      element.titleMax = max;
-    }
   }
 
   // ---- Scrolling ----------------------------------------------------------------------------------------------------------

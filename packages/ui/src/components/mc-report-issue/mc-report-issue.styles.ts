@@ -1,8 +1,6 @@
 import { css } from "lit";
-import { PopupPartStyles } from "../../shared/popup-parts.js";
 
 export const McReportIssueStyles = css`
-  ${PopupPartStyles}
   :host {
     display: block;
     position: absolute;

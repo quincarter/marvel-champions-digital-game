@@ -25,6 +25,7 @@ describe("regionTakesEvents", () => {
   it("guards the inspect a hold raises as well as the activation", () => {
     expect(GUARDED_EVENTS).toEqual([
       "mc-activate",
+      "mc-music",
       "mc-inspect",
       "mc-slide",
       "mc-step",
@@ -43,6 +44,9 @@ describe("regionTakesEvents", () => {
       "mc-card-inspect",
       "mc-scenario-select",
       "mc-deck-builder",
+      "mc-pause",
+      "mc-title",
+      "mc-decks",
     ]);
   });
 });
