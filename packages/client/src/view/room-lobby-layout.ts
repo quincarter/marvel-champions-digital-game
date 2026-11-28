@@ -40,6 +40,15 @@ const FLOAT_MIN_HEIGHT = 160;
 const PILL_WIDTH = 132;
 const POPPED_CARD = { width: 300, height: 104 } as const;
 
+/** Which arrangement a screen of this size gets (the page's CSS grid does the rest). */
+export function modeOf(width: number, height: number): LobbyLayoutMode {
+  if (width >= TRIPLE_MIN_WIDTH && width / height >= TRIPLE_MIN_ASPECT) return "triple";
+  if (width >= FLOAT_MIN_WIDTH) return "float";
+  if (width >= 900) return "wide";
+  if (width >= 700) return "stack";
+  return "tabs";
+}
+
 export const LOBBY_HEADER_HEIGHT = 84;
 export const LOBBY_FOOTER_HEIGHT = 92;
 const GAP = 12;
