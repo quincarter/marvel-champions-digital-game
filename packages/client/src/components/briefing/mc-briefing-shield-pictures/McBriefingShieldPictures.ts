@@ -40,15 +40,16 @@ export class McBriefingShieldPictures extends LitElement {
 
   override render() {
     return html`${this.cards.map(
-      (card, index) => html`<div class="cell">
-        <mc-briefing-card-thumb
-          .stop=${`${this.keyBase}-${index}`}
-          .card=${{ cardId: card.cardId as string, name: card.name }}
-          .picture=${card.picture}
-          badge
-        ></mc-briefing-card-thumb>
-        <span class="caption">${card.caption.toLocaleUpperCase()}</span>
-      </div>`,
+      (card, index) =>
+        html`<div class="cell">
+          <mc-briefing-card-thumb
+            .stop=${`${this.keyBase}-${index}`}
+            .card=${{ cardId: card.cardId as string, name: card.name }}
+            .picture=${card.picture}
+            badge
+          ></mc-briefing-card-thumb>
+          <span class="caption">${card.caption.toLocaleUpperCase()}</span>
+        </div>`,
     )}`;
   }
 }

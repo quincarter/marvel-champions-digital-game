@@ -6,7 +6,7 @@ import { assertNoRawText, installWave6Helpers, routeStops, screens, waitForScene
  * NeXt Evolution (MC40, wave 7), a retry's Briefing. Scenario 1 is conceded once, which folds the loss and leaves the
  * run at issue #1's start with the first pick still in the log; composing it again repeats the player side scheme pick
  * with no prompt (`choose.repeatOnRetry`, MC40 p. 7: "if you replay a scenario, choose the same player side scheme").
- * The Briefing (`view/campaign-side-scheme-model.ts`, `scenes/campaign/briefing/sections/side-scheme/side-scheme.ts`) must then show the
+ * The Briefing (`view/campaign-side-scheme-model.ts`, `components/briefing/mc-briefing-scheme`) must then show the
  * chosen row with its "Same as last time" marker, offer no picker (no PICK button, no other row), and leave Open issue
  * available. The run comes from `seedNextEvolRun(service, "lostIssue1")` in `campaign/dev-fixtures.ts`, loaded by a
  * dynamic import of the dev module (the `__mcCampaign` handle in `main.ts` does not list it), then the Briefing is

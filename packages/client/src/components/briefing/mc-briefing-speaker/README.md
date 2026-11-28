@@ -12,9 +12,9 @@ Whoever the story briefing line speaks as (a hero, the villain, an NPC, or the f
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `model` | property | `SpeakerModel`. |
+| Name    | Kind      | What it is                                       |
+| ------- | --------- | ------------------------------------------------ |
+| `model` | property  | `SpeakerModel`.                                  |
 | `phone` | attribute | The phone size: a 64px portrait instead of 84px. |
 
 ## Events

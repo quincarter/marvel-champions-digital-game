@@ -1,4 +1,3 @@
-
 /**
  * What the Briefing scene and the models that feed its page share: the scene state, and the stops the pad treats as the screen one
  * forward button. The page itself is one element (`views/briefing/mc-briefing-page`); the scene is the thin owner of the panel, the

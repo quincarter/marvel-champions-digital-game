@@ -1,4 +1,3 @@
-
 /**
  * The pictures the Briefing page shows, as the `PictureSource`s its elements take: a card scan, a hero or villain face, the box art.
  * Every one goes through the screen leases (`dom/picture-leases.ts`), so a custom pack picture stays held while it is mounted.

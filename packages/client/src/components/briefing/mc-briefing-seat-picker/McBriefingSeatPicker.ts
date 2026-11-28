@@ -37,15 +37,16 @@ export class McBriefingSeatPicker extends LitElement {
       <div class="panel">
         <h2 class="title">${m.title.toLocaleUpperCase()}</h2>
         ${m.seats.map(
-          (seat) => html`<mc-button
-            kind="primary"
-            data-stop=${`pick-seat-${seat.seat}`}
-            .label=${seat.label}
-            @mc-press=${(event: Event) => {
-              event.stopPropagation();
-              raiseBriefing(this, { type: "edit-decks", seat: seat.seat });
-            }}
-          ></mc-button>`,
+          (seat) =>
+            html`<mc-button
+              kind="primary"
+              data-stop=${`pick-seat-${seat.seat}`}
+              .label=${seat.label}
+              @mc-press=${(event: Event) => {
+                event.stopPropagation();
+                raiseBriefing(this, { type: "edit-decks", seat: seat.seat });
+              }}
+            ></mc-button>`,
         )}
         <mc-button
           kind="secondary"

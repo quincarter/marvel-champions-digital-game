@@ -1,4 +1,3 @@
-
 /**
  * The pool and the issue sections, as the models their elements take: what each reads comes from the engine and the view models
  * (`BriefingView`'s pool, side scheme, mission and case file; the easier start and the modes from the game the composed issue would
@@ -6,23 +5,19 @@
  * leased here and handed in.
  */
 import { campaignCardsById } from "../../../../content/campaign-pool.js";
-import type { PoolModel, PoolRowModel } from "../../../../components/briefing/mc-briefing-pool/mc-briefing-pool.types.js";
+import type {
+  PoolModel,
+  PoolRowModel,
+} from "../../../../components/briefing/mc-briefing-pool/mc-briefing-pool.types.js";
 import type { SchemeSectionModel } from "../../../../components/briefing/mc-briefing-scheme/mc-briefing-scheme.types.js";
 import type { ShieldSectionModel } from "../../../../components/briefing/mc-briefing-shield/mc-briefing-shield.types.js";
-import {
-  boardCaptionIn,
-  evidenceKindIn,
-} from "../../../../components/briefing/mc-briefing-shield/shield-text.js";
+import { boardCaptionIn, evidenceKindIn } from "../../../../components/briefing/mc-briefing-shield/shield-text.js";
 import type { KeyedPickCard } from "../../../../components/briefing/mc-briefing-pick-card/mc-briefing-pick-card.types.js";
 import type { PictureLeases } from "../../../../dom/picture-leases.js";
 import type { CampaignRecord } from "../../../../engine/campaign-storage.js";
 import { t } from "../../../../i18n/translate.js";
 import { campaignService } from "../../../../session.js";
-import {
-  sideSchemePickCards,
-  type BriefingView,
-  type PickCard,
-} from "../../../../view/campaign-briefing-model.js";
+import { sideSchemePickCards, type BriefingView, type PickCard } from "../../../../view/campaign-briefing-model.js";
 import type { BriefingPoolView } from "../../../../view/campaign-pool-model.js";
 import { easierStartBriefingOf } from "../../../../view/campaign-easier-start-model.js";
 import { issueModeRowsOf } from "../../../../view/campaign-modes-model.js";
@@ -76,7 +71,11 @@ function schemeModelOf(scheme: SideSchemeBriefing, leases: PictureLeases, phone:
   };
 }
 
-function shieldModelOf(shield: NonNullable<BriefingView["shield"]>, leases: PictureLeases, phone: boolean): ShieldSectionModel {
+function shieldModelOf(
+  shield: NonNullable<BriefingView["shield"]>,
+  leases: PictureLeases,
+  phone: boolean,
+): ShieldSectionModel {
   const picture = (cardId: unknown, name: string) => cardPicture(leases, cardId as string, name);
   return {
     shield,
@@ -115,7 +114,10 @@ export function poolModelOf(pool: BriefingPoolView, leases: PictureLeases): Pool
   };
 }
 
-function launchedOf(record: CampaignRecord): { easier: BriefingSectionsModel["easier"]; modes: BriefingSectionsModel["modes"] } {
+function launchedOf(record: CampaignRecord): {
+  easier: BriefingSectionsModel["easier"];
+  modes: BriefingSectionsModel["modes"];
+} {
   try {
     const config = campaignService().launchConfig(record);
     const easier = easierStartBriefingOf(record, config);
@@ -128,7 +130,13 @@ function launchedOf(record: CampaignRecord): { easier: BriefingSectionsModel["ea
   }
 }
 
-export const NO_SECTIONS: BriefingSectionsModel = { scheme: null, mission: null, shield: null, easier: null, modes: [] };
+export const NO_SECTIONS: BriefingSectionsModel = {
+  scheme: null,
+  mission: null,
+  shield: null,
+  easier: null,
+  modes: [],
+};
 
 /** The sections of the composed issue; every one null or empty before an issue is composed. */
 export function sectionsModelOf(

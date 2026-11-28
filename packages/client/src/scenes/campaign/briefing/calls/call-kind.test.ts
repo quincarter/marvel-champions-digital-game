@@ -1,4 +1,3 @@
-
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
 import { CAMPAIGN_ACCEPT, type CampaignPendingChoice } from "@mc/engine";
@@ -98,13 +97,25 @@ describe("the call model", () => {
     expect(options.options[0]!.card?.cardId).toBe(first);
     expect(call.prompt?.rule).toBe("Choose.");
     expect(call.prompt?.who).toBe("Everyone decides together");
-    const next = callModelOf({ state, pending: pendingOf({ slot: "other", options: ["x"] }), leases, hints, phone: false });
+    const next = callModelOf({
+      state,
+      pending: pendingOf({ slot: "other", options: ["x"] }),
+      leases,
+      hints,
+      phone: false,
+    });
     expect(next.key).not.toBe(call.key);
   });
 
   it("a random draw is accept (the engine accept value) and decline", () => {
     const state = newBriefingState({ runId: "run" }, false);
-    const call = callModelOf({ state, pending: pendingOf({ random: true, options: ["a"] }), leases, hints, phone: false });
+    const call = callModelOf({
+      state,
+      pending: pendingOf({ random: true, options: ["a"] }),
+      leases,
+      hints,
+      phone: false,
+    });
     const model = (call.body as Extract<typeof call.body, { kind: "options" }>).model;
     expect(model.random).toBe(true);
     expect(model.acceptValue).toBe(CAMPAIGN_ACCEPT);
@@ -112,7 +123,13 @@ describe("the call model", () => {
 
   it("the role call has a tile per role, each available one with its confirm step", () => {
     const state = stateWithSeat();
-    const call = callModelOf({ state, pending: pendingOf({ seatNumber: 1, options: ROLES }), leases, hints, phone: true });
+    const call = callModelOf({
+      state,
+      pending: pendingOf({ seatNumber: 1, options: ROLES }),
+      leases,
+      hints,
+      phone: true,
+    });
     expect(call.head.seat?.title).toContain("SEAT 1");
     const body = call.body as Extract<typeof call.body, { kind: "role" }>;
     expect(body.tiles.tiles.map((tile) => tile.stop)).toEqual(ROLES.map((id) => `role:${id}`));

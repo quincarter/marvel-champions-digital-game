@@ -37,16 +37,16 @@ export class McBriefingPool extends LitElement {
     const m = this.model;
     if (!m) return nothing;
     const heading = poolHeadingIn(m.groups ? m.rows.length : null).toLocaleUpperCase();
-    return html`<mc-section-heading .label=${heading}></mc-section-heading>
-      ${
+    return html`<mc-section-heading .label=${heading}></mc-section-heading> ${
         m.groups
           ? html`<div class="groups">
               ${m.groups.map(
-                (group) =>
-                  html`<mc-briefing-pool-group ?phone=${this.phone} .group=${group}></mc-briefing-pool-group>`,
+                (group) => html`<mc-briefing-pool-group ?phone=${this.phone} .group=${group}></mc-briefing-pool-group>`,
               )}
             </div>`
-          : html`<div class="rows">${m.rows.map((row) => html`<mc-briefing-pool-row .row=${row}></mc-briefing-pool-row>`)}</div>`
+          : html`<div class="rows">
+              ${m.rows.map((row) => html`<mc-briefing-pool-row .row=${row}></mc-briefing-pool-row>`)}
+            </div>`
       }`;
   }
 }

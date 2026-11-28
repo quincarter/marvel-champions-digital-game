@@ -38,10 +38,22 @@ export class McBriefingConfirmBar extends LitElement {
     const m = this.model;
     if (!m) return nothing;
     const read = m.stops.read;
-    return html`<mc-button class="back" kind="secondary" data-stop=${m.stops.back} .label=${t("common.back")} @mc-press=${this.#step("back")}></mc-button>
+    return html`<mc-button
+        class="back"
+        kind="secondary"
+        data-stop=${m.stops.back}
+        .label=${t("common.back")}
+        @mc-press=${this.#step("back")}
+      ></mc-button>
       ${
         read
-          ? html`<mc-button class="read" kind="quiet" data-stop=${read} .label=${t("decks.card.inspect")} @mc-press=${this.#step("read")}></mc-button>`
+          ? html`<mc-button
+              class="read"
+              kind="quiet"
+              data-stop=${read}
+              .label=${t("decks.card.inspect")}
+              @mc-press=${this.#step("read")}
+            ></mc-button>`
           : nothing
       }
       <mc-hint-button

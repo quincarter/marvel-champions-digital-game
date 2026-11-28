@@ -35,8 +35,6 @@ export const McBriefingRoleConfirmStyles = css`
   }
   .relation {
     opacity: 0.75;
-    text-transform: none;
-    letter-spacing: 0;
   }
   .notes {
     display: flex;

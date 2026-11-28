@@ -12,12 +12,12 @@
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `label` | attribute | The words, already translated. |
-| `checked` | attribute | Ticked. |
-| `onink` | attribute | On the ink action bar: paper words and box. |
-| `stop` | attribute | The focus stop key (`watch`). |
+| Name      | Kind      | What it is                                  |
+| --------- | --------- | ------------------------------------------- |
+| `label`   | attribute | The words, already translated.              |
+| `checked` | attribute | Ticked.                                     |
+| `onink`   | attribute | On the ink action bar: paper words and box. |
+| `stop`    | attribute | The focus stop key (`watch`).               |
 
 ## Events
 

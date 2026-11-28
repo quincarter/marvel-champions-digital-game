@@ -12,8 +12,8 @@ Role-building confirm step: the card picture beside its name, cost, why it is re
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is            |
+| ------- | -------- | --------------------- |
 | `model` | property | `RoleBuildCardModel`. |
 
 ## Events

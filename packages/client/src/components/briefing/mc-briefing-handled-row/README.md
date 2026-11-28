@@ -12,8 +12,8 @@ One thing setup did for the player: a green check when it happens this issue or 
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name  | Kind     | What it is                                              |
+| ----- | -------- | ------------------------------------------------------- |
 | `row` | property | `HandledRow`, its words already in the player language. |
 
 ## Events

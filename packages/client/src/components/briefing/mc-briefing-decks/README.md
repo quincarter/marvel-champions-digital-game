@@ -12,8 +12,8 @@ The Decks panel: one row per seat, each a way into that seat own deck, and the l
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is    |
+| ------- | -------- | ------------- |
 | `model` | property | `DecksModel`. |
 
 ## Events

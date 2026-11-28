@@ -1,4 +1,3 @@
-
 import { css } from "lit";
 import { BriefingPressStyles } from "../shared/briefing.styles.js";
 

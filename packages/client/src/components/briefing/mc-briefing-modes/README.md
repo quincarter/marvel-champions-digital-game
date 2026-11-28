@@ -12,8 +12,8 @@ The mode section: a heading and one row per mode, its name and line of state ove
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name   | Kind     | What it is        |
+| ------ | -------- | ----------------- |
 | `rows` | property | `IssueModeRow[]`. |
 
 ## Events

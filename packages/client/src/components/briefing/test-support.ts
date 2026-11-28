@@ -39,9 +39,7 @@ export function briefingEvents(element: HTMLElement): BriefingDetail[] {
 /** Every `mc-briefing-step` detail `element` raises from now on. */
 export function stepEvents(element: HTMLElement): BriefingStepDetail[] {
   const seen: BriefingStepDetail[] = [];
-  element.addEventListener("mc-briefing-step", (event) =>
-    seen.push((event as CustomEvent<BriefingStepDetail>).detail),
-  );
+  element.addEventListener("mc-briefing-step", (event) => seen.push((event as CustomEvent<BriefingStepDetail>).detail));
   return seen;
 }
 

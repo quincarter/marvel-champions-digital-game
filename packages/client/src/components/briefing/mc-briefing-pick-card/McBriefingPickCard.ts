@@ -1,4 +1,3 @@
-
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "@mc/ui";
 import "../mc-briefing-card-thumb/mc-briefing-card-thumb.js";

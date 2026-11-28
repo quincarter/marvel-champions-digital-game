@@ -1,4 +1,3 @@
-
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
 import { briefingEvents, find, mount, press, wordsOf } from "../../test-support.js";

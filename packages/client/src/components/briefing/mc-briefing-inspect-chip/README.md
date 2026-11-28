@@ -12,11 +12,11 @@ A quiet full-size button that opens one card in Inspect (the chip on a mission r
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `label` | attribute | The words, already translated. |
-| `card` | property | `{ cardId, name }` it opens. |
-| `stop` | attribute | The focus stop key (`data-stop`). |
+| Name    | Kind      | What it is                        |
+| ------- | --------- | --------------------------------- |
+| `label` | attribute | The words, already translated.    |
+| `card`  | property  | `{ cardId, name }` it opens.      |
+| `stop`  | attribute | The focus stop key (`data-stop`). |
 
 ## Events
 

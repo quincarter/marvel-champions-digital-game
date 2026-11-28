@@ -21,7 +21,7 @@ export const McTopBarStyles = css`
   .back {
     flex: none;
     width: auto;
-    min-width: 76px;
+    min-width: var(--mc-top-bar-back-min, 76px);
     height: 44px;
     --mc-button-size: 18px;
   }

@@ -12,10 +12,10 @@ column do not scroll.
 The scene mounts it with `mountElement`, builds `model` from its state (`scenes/campaign/briefing/page-model.ts`) and handles the
 `mc-briefing` events that bubble out of every section (`BriefingDetail`, `components/briefing/briefing.types.ts`).
 
-| Property | Type                                    | Notes                                    |
-| -------- | --------------------------------------- | ---------------------------------------- |
-| `model`  | `BriefingPageModel \| null`             | rebuilt by the scene on each change      |
-| `phone`  | `boolean` (reflected from `model.phone`) | the arrangement the CSS keys on          |
+| Property | Type                                     | Notes                               |
+| -------- | ---------------------------------------- | ----------------------------------- |
+| `model`  | `BriefingPageModel \| null`              | rebuilt by the scene on each change |
+| `phone`  | `boolean` (reflected from `model.phone`) | the arrangement the CSS keys on     |
 
 `scroller` and `scrollers` give the scrolling parts the stick and the page keys move; `takeFromInspect(optionId)` forwards a card
 chosen in the Inspect sheet ("Take this card") to role-building.

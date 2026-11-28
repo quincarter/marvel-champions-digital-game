@@ -1,4 +1,3 @@
-
 /**
  * The key and pad glyphs the Briefing buttons carry (`HintGlyph`, what `mc-hint-button` draws beside its word), made from the input
  * hints the scene is bound to (`ui/input-hints.ts`): nothing while only touch is in use, the keyboard or the pad own keys otherwise,

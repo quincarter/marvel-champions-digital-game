@@ -12,8 +12,8 @@ The role call confirm step ("COLOSSUS WILL BE THE BRAWLER"): the role aspect chi
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is          |
+| ------- | -------- | ------------------- |
 | `model` | property | `RoleConfirmModel`. |
 
 ## Events

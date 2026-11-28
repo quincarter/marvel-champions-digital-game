@@ -29,7 +29,9 @@ export class McBriefingHandledRow extends LitElement {
   override render() {
     const row = this.row;
     if (!row) return nothing;
-    return html`<span class=${row.status === "done" ? "mark done" : "mark later"}>${row.status === "done" ? "✓" : "→"}</span>
+    return html`<span class=${row.status === "done" ? "mark done" : "mark later"}
+        >${row.status === "done" ? "✓" : "→"}</span
+      >
       <div class="text">
         <span class="title">${row.title}</span>
         ${row.detail.length > 0 ? html`<span class="detail">${row.detail}</span>` : nothing}

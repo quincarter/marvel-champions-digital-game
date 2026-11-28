@@ -1,4 +1,3 @@
-
 import { css } from "lit";
 
 export const McBriefingPickCardStyles = css`

@@ -12,8 +12,8 @@ The case file (Agents of S.H.I.E.L.D., MC50 pp. 5, 6 and 24): the evidence the p
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is            |
+| ------- | -------- | --------------------- |
 | `model` | property | `ShieldSectionModel`. |
 
 ## Events

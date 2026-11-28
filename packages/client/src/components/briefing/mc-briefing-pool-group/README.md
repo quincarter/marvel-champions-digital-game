@@ -12,9 +12,9 @@ The finale groups of "From the pool", one per destination. On a phone a thin hea
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `group` | property | `PoolGroupModel`. |
+| Name    | Kind      | What it is        |
+| ------- | --------- | ----------------- |
+| `group` | property  | `PoolGroupModel`. |
 | `phone` | attribute | The stacked form. |
 
 ## Events

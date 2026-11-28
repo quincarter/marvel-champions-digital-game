@@ -8,6 +8,7 @@ export const McBriefingRoleBuildStyles = css`
     min-width: 0;
     min-height: 0;
     height: 100%;
+    container-type: inline-size;
   }
   .intro {
     margin: 0;
@@ -38,5 +39,11 @@ export const McBriefingRoleBuildStyles = css`
   }
   .bar {
     flex: none;
+  }
+  /* A narrow call shrinks the chip words so "AGGRESSION 65" is not cut. */
+  @container (max-width: 480px) {
+    mc-chip {
+      --chip-size: 12px;
+    }
   }
 `;

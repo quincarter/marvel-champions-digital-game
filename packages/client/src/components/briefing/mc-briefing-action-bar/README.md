@@ -12,9 +12,9 @@ The ink bar at the foot: EDIT DECKS (a phone: DECKS) and the one red OPEN ISSUE 
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `model` | property | `ActionBarModel`. |
+| Name    | Kind      | What it is                                                                          |
+| ------- | --------- | ----------------------------------------------------------------------------------- |
+| `model` | property  | `ActionBarModel`.                                                                   |
 | `phone` | attribute | Two equal buttons across the bar; the reason and the toggle are on the strip above. |
 
 ## Events

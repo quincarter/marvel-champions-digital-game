@@ -12,8 +12,8 @@ One fact the side-scheme section carries in from the campaign log: its few words
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is    |
+| ------- | -------- | ------------- |
 | `carry` | property | `CarryInRow`. |
 
 ## Events

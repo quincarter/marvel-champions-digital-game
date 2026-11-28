@@ -1,4 +1,3 @@
-
 import { html, nothing, svg, type PropertyDeclarations, type PropertyValues } from "lit";
 import { McPress, watchCard, type PictureSource } from "@mc/ui";
 import type { BriefingCard, BriefingDetail } from "../briefing.types.js";
@@ -66,8 +65,7 @@ export class McBriefingCardThumb extends McPress {
   }
 
   override render() {
-    return html`<mc-picture-tile .picture=${this.picture} ground="parchment" .frame=${2}></mc-picture-tile>
-      ${
+    return html`<mc-picture-tile .picture=${this.picture} ground="parchment" .frame=${2}></mc-picture-tile> ${
         this.badge
           ? html`<span class="badge" aria-hidden="true">
               ${svg`<svg viewBox="0 0 26 26" width="100%" height="100%"><circle cx="11" cy="11" r="5.5" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M15 15 L20 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>`}

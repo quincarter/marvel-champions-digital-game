@@ -22,7 +22,11 @@ const view = {
   rule: "Nothing is checked off yet.",
   pickNumber: 1,
   pickTotal: 2,
-  tiles: [tile("bomb_scare"), tile("sinister", { status: "chosen", statusLabel: "CHOSEN · PICK 1" }), tile("old", { status: "checkedOff", statusLabel: "CHECKED OFF", available: false })],
+  tiles: [
+    tile("bomb_scare"),
+    tile("sinister", { status: "chosen", statusLabel: "CHOSEN · PICK 1" }),
+    tile("old", { status: "checkedOff", statusLabel: "CHECKED OFF", available: false }),
+  ],
 };
 
 describe("mc-briefing-modular", () => {

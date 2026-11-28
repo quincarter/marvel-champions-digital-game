@@ -12,8 +12,8 @@ The modular-set call: the question, its explanation, one tile per set and the li
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name   | Kind     | What it is                                                          |
+| ------ | -------- | ------------------------------------------------------------------- |
 | `view` | property | `ModularSetCallView`, its sentences already in the player language. |
 
 ## Events

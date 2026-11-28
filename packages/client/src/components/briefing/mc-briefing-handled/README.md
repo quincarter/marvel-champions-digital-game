@@ -12,8 +12,8 @@
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is      |
+| ------- | -------- | --------------- |
 | `model` | property | `HandledModel`. |
 
 ## Events

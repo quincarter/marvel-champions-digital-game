@@ -1,0 +1,3 @@
+kind: Changed
+body: The campaign Briefing is now one Lit page of custom elements over the canvas (the speaker, the pool, the handled rows, the case file, the missions, the modes, the decks, every call and the action bar), laid out by CSS with native scrolling instead of drawn parts, with the same stops, the same Spanish text and a real list of options in place of the paged one.
+time: 2026-11-28T07:05:00.0000000-05:00

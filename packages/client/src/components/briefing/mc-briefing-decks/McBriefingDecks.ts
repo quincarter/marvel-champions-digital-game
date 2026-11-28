@@ -33,8 +33,7 @@ export class McBriefingDecks extends LitElement {
   override render() {
     const m = this.model;
     if (!m) return nothing;
-    return html`<mc-section-heading .label=${t("briefing.decks").toLocaleUpperCase()}></mc-section-heading>
-      ${
+    return html`<mc-section-heading .label=${t("briefing.decks").toLocaleUpperCase()}></mc-section-heading> ${
         m.waiting !== null
           ? html`<p class="note">${m.waiting}</p>`
           : html`<div class="list">

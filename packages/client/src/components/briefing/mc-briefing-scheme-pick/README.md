@@ -12,8 +12,8 @@ The player-side-scheme call (NeXt Evolution, MC40 p. 7): one row per offered sch
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is         |
+| ------- | -------- | ------------------ |
 | `model` | property | `SchemePickModel`. |
 
 ## Events

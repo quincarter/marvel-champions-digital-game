@@ -12,10 +12,10 @@ The phone strip just above the action bar, on the page paper so the scrolling br
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name     | Kind      | What it is                                           |
+| -------- | --------- | ---------------------------------------------------- |
 | `reason` | attribute | The reason line, already translated; empty for none. |
-| `watch` | property | `WatchModel`, or null for no toggle. |
+| `watch`  | property  | `WatchModel`, or null for no toggle.                 |
 
 ## Events
 

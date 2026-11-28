@@ -1,4 +1,3 @@
-
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "@mc/ui";
 import { BriefingRelay } from "../shared/BriefingRelay.js";

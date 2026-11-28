@@ -12,8 +12,8 @@ Role-building card list: a "Recommended for you" group and then every other card
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is            |
+| ------- | -------- | --------------------- |
 | `model` | property | `RoleBuildListModel`. |
 
 ## Events

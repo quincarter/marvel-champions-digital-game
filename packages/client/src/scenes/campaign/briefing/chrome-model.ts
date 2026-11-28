@@ -1,4 +1,3 @@
-
 /**
  * The chrome of the Briefing page as models: the ink top bar, the art faded across the page, the ink action bar with the reason Open
  * waits and the watch toggle, the phone strip, and the "which deck?" chooser. Nothing is judged here: `deckProblems` is the engine own
@@ -14,7 +13,12 @@ import type { CampaignRecord } from "../../../engine/campaign-storage.js";
 import { t } from "../../../i18n/translate.js";
 import { appSession } from "../../../session.js";
 import { hit } from "../../../tokens.js";
-import { campaignCoverPicture, estimateBangersWidth, sheetThemeFor, villainPicture } from "../../../ui/campaign-chrome.js";
+import {
+  campaignCoverPicture,
+  estimateBangersWidth,
+  sheetThemeFor,
+  villainPicture,
+} from "../../../ui/campaign-chrome.js";
 import { cssOf } from "../../../ui/theme.js";
 import { balancedTagOf } from "../../../view/campaign-balanced-model.js";
 import { campaignFadeFillOf } from "../../../view/campaign-fade-color.js";

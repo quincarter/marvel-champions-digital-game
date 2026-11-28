@@ -7,7 +7,12 @@ afterEach(() => document.body.replaceChildren());
 
 const cards = [
   { cardId: "50001", name: "Chief Medical Officer", caption: "3 secrets", picture: { src: null, missing: "no scan" } },
-  { cardId: "50002", name: "Chief Scientist", caption: "Attachment · 1 secret", picture: { src: null, missing: "no scan" } },
+  {
+    cardId: "50002",
+    name: "Chief Scientist",
+    caption: "Attachment · 1 secret",
+    picture: { src: null, missing: "no scan" },
+  },
 ];
 
 describe("mc-briefing-shield-pictures", () => {

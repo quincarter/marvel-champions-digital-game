@@ -42,8 +42,12 @@ export class McBriefingPoolGroup extends LitElement {
     const group = this.group;
     if (!group) return nothing;
     if (this.phone) {
-      return html`<div class="bar"><mc-briefing-kicker tone="ink" .text=${poolGroupTitleIn(group.kind)}></mc-briefing-kicker></div>
-        <div class="flat">${group.rows.map((row) => html`<mc-briefing-pool-row .row=${row}></mc-briefing-pool-row>`)}</div>`;
+      return html`<div class="bar">
+          <mc-briefing-kicker tone="ink" .text=${poolGroupTitleIn(group.kind)}></mc-briefing-kicker>
+        </div>
+        <div class="flat">
+          ${group.rows.map((row) => html`<mc-briefing-pool-row .row=${row}></mc-briefing-pool-row>`)}
+        </div>`;
     }
     return html`<div class="head">
         <span class="label title">${poolGroupTitleIn(group.kind).toLocaleUpperCase()}</span>

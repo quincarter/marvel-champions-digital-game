@@ -12,8 +12,8 @@ What every call opens with: the "YOUR CALL" heading, the red line saying why Ope
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is       |
+| ------- | -------- | ---------------- |
 | `model` | property | `CallHeadModel`. |
 
 ## Events

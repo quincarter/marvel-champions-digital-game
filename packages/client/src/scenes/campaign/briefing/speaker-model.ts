@@ -1,4 +1,3 @@
-
 /**
  * The speaker of the story briefing line: whoever the line speaks as (a hero, the villain, an NPC, or the first seat for narration),
  * as the `SpeakerModel` the speaker element shows. A hero whose portrait is not filed yet (a new box `art/heroes/_pending/`) speaks

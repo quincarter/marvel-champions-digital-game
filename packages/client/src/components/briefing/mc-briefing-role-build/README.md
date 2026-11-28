@@ -12,8 +12,8 @@ Role-building (MC32 p. 5): each player may take up to 1 event and 1 upgrade from
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is            |
+| ------- | -------- | --------------------- |
 | `model` | property | `RoleBuildCallModel`. |
 
 ## Events

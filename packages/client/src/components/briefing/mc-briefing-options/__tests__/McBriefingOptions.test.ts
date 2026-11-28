@@ -37,7 +37,9 @@ describe("mc-briefing-options", () => {
     const el = await mount("mc-briefing-options", {
       model: {
         ...base,
-        options: [option("a", { cardId: "01001", name: "Desperate Measures", shape: "portrait", picture: { src: null } })],
+        options: [
+          option("a", { cardId: "01001", name: "Desperate Measures", shape: "portrait", picture: { src: null } }),
+        ],
       },
     });
     expect(stopsOf(el)).toEqual(["call-inspect:0", "call-option:0"]);

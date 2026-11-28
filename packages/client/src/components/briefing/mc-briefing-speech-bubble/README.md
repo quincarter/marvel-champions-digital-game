@@ -12,9 +12,9 @@ The white speech bubble of the story line: a 3px ink border, an offset ink shado
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `text` | attribute | The line, already translated. |
+| Name      | Kind      | What it is                                           |
+| --------- | --------- | ---------------------------------------------------- |
+| `text`    | attribute | The line, already translated.                        |
 | `speaker` | attribute | Who says it, already translated; none for narration. |
 
 ## Events

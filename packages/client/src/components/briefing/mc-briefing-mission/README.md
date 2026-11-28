@@ -12,8 +12,8 @@ The mission section (Age of Apocalypse, MC45 p. 5): this scenario drawn mission 
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name      | Kind     | What it is         |
+| --------- | -------- | ------------------ |
 | `mission` | property | `MissionBriefing`. |
 
 ## Events

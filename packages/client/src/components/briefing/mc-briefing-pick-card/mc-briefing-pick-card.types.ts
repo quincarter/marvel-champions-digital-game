@@ -1,4 +1,3 @@
-
 import type { PictureSource } from "@mc/ui";
 import type { ThumbShape } from "../mc-briefing-card-thumb/mc-briefing-card-thumb.types.js";
 

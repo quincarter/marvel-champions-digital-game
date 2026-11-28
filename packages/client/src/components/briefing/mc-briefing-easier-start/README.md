@@ -12,8 +12,8 @@ The easier-start toggle (Age of Apocalypse issue #3) as the setup screen option 
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name | Kind      | What it is        |
+| ---- | --------- | ----------------- |
 | `on` | attribute | The toggle is on. |
 
 ## Events

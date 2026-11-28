@@ -38,7 +38,7 @@ export class McBriefingRoleConfirm extends LitElement {
           >${m.chips.map((chip) => html`<mc-aspect-chip aspect=${chip.aspect} label=${chip.label}></mc-aspect-chip>`)}</span
         >
         <p class="summary">${m.summary}</p>
-        <span class="label relation">${m.relation}</span>
+        <span class="label relation">${m.relation.toLocaleUpperCase()}</span>
         <p class="notes">${m.notes.map((line) => html`<span>${line}</span>`)}</p>
       </div>
       <mc-briefing-confirm-bar .model=${m.bar}></mc-briefing-confirm-bar>`;

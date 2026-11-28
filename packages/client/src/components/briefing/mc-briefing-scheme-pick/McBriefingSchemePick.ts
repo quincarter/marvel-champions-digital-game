@@ -35,31 +35,32 @@ export class McBriefingSchemePick extends LitElement {
     return html`<p class="prompt row-title">${t("briefing.call.scheme.prompt")}</p>
       <p class="note body">${t("briefing.call.scheme.note")}</p>
       ${m.rows.map(
-        (row) => html`<mc-briefing-framed-row>
-          <div class="row" style=${`--cards:${row.cards.length}`}>
-            <span class="title row-title">${row.label}</span>
-            <div class="cards">
-              ${row.cards.map(
-                (card) =>
-                  html`<mc-briefing-pick-card
-                    .stop=${`call-scheme:${row.name}:${card.key}`}
-                    .card=${card}
-                    badge
-                  ></mc-briefing-pick-card>`,
-              )}
+        (row) =>
+          html`<mc-briefing-framed-row>
+            <div class="row" style=${`--cards:${row.cards.length}`}>
+              <span class="title row-title">${row.label}</span>
+              <div class="cards">
+                ${row.cards.map(
+                  (card) =>
+                    html`<mc-briefing-pick-card
+                      .stop=${`call-scheme:${row.name}:${card.key}`}
+                      .card=${card}
+                      badge
+                    ></mc-briefing-pick-card>`,
+                )}
+              </div>
+              <mc-button
+                class="pick"
+                kind="primary"
+                data-stop=${`call-option:${row.name}`}
+                .label=${t("briefing.call.pick").toLocaleUpperCase()}
+                @mc-press=${(event: Event) => {
+                  event.stopPropagation();
+                  raiseBriefing(this, { type: "answer", picked: [row.name] });
+                }}
+              ></mc-button>
             </div>
-            <mc-button
-              class="pick"
-              kind="primary"
-              data-stop=${`call-option:${row.name}`}
-              .label=${t("briefing.call.pick").toLocaleUpperCase()}
-              @mc-press=${(event: Event) => {
-                event.stopPropagation();
-                raiseBriefing(this, { type: "answer", picked: [row.name] });
-              }}
-            ></mc-button>
-          </div>
-        </mc-briefing-framed-row>`,
+          </mc-briefing-framed-row>`,
       )}`;
   }
 }

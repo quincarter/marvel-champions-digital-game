@@ -40,6 +40,7 @@ export class McBriefingEasierStart extends LitElement {
           available: true,
           on: this.on,
         }}
-      ></mc-briefing-option-tile>${nothing}`;
+      ></mc-briefing-option-tile
+      >${nothing}`;
   }
 }

@@ -12,11 +12,11 @@ A wrapped row of card pictures with a few words under each (the evidence the pla
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `cards` | property | `ShieldPicture[]`. |
+| Name       | Kind      | What it is                              |
+| ---------- | --------- | --------------------------------------- |
+| `cards`    | property  | `ShieldPicture[]`.                      |
 | `key-base` | attribute | The stop keys are `<key-base>-<index>`. |
-| `phone` | attribute | Smaller pictures. |
+| `phone`    | attribute | Smaller pictures.                       |
 
 ## Events
 

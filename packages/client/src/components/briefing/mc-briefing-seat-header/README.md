@@ -12,9 +12,9 @@ The seat hero above its prompt: the roster portrait in a 3px ink frame, "SEAT 1 
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `model` | property | `SeatHeaderModel`. |
+| Name    | Kind      | What it is                       |
+| ------- | --------- | -------------------------------- |
+| `model` | property  | `SeatHeaderModel`.               |
 | `phone` | attribute | A 56px portrait instead of 64px. |
 
 ## Events

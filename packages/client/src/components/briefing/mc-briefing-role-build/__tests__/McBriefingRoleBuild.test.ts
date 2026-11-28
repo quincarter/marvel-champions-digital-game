@@ -6,7 +6,15 @@ import "../mc-briefing-role-build.js";
 afterEach(() => document.body.replaceChildren());
 
 const cards = [
-  { id: "e1", label: "Drop Kick", name: "Drop Kick", type: "event", aspect: "aggression", cost: 1, text: "Attack. Deal 3 damage." },
+  {
+    id: "e1",
+    label: "Drop Kick",
+    name: "Drop Kick",
+    type: "event",
+    aspect: "aggression",
+    cost: 1,
+    text: "Attack. Deal 3 damage.",
+  },
   { id: "e2", label: "Toe to Toe", name: "Toe to Toe", type: "event", aspect: "protection", cost: 4, text: "Attack." },
 ];
 

@@ -12,8 +12,8 @@ The role call (MC32 p. 5): four explainer tiles and the "What roles do" note. A 
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is        |
+| ------- | -------- | ----------------- |
 | `model` | property | `RoleTilesModel`. |
 
 ## Events

@@ -52,11 +52,12 @@ export class McBriefingCarryIn extends LitElement {
         counted.length > 0
           ? html`<div class="chips">
               ${counted.map(
-                ({ card, count }) => html`<mc-briefing-inspect-chip
-                  .stop=${`carry:${carry.key}:${card.cardId as string}`}
-                  .label=${count > 1 ? `${card.name} ×${count}` : card.name}
-                  .card=${{ cardId: card.cardId as string, name: card.name }}
-                ></mc-briefing-inspect-chip>`,
+                ({ card, count }) =>
+                  html`<mc-briefing-inspect-chip
+                    .stop=${`carry:${carry.key}:${card.cardId as string}`}
+                    .label=${count > 1 ? `${card.name} ×${count}` : card.name}
+                    .card=${{ cardId: card.cardId as string, name: card.name }}
+                  ></mc-briefing-inspect-chip>`,
               )}
             </div>`
           : nothing

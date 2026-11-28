@@ -12,11 +12,11 @@ One card an option is about (the scheme, the environment it earns, the encounter
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `card` | property | `PickCardModel`. |
-| `stop` | attribute | The picture focus stop key. |
-| `badge` | attribute | The magnifier badge. |
+| Name    | Kind      | What it is                  |
+| ------- | --------- | --------------------------- |
+| `card`  | property  | `PickCardModel`.            |
+| `stop`  | attribute | The picture focus stop key. |
+| `badge` | attribute | The magnifier badge.        |
 
 ## Events
 

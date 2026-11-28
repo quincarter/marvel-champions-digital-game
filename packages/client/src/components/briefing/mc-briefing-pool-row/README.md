@@ -12,8 +12,8 @@ One flat row of "From the pool": a stripe (green when the card helps, red when i
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name  | Kind     | What it is      |
+| ----- | -------- | --------------- |
 | `row` | property | `PoolRowModel`. |
 
 ## Events

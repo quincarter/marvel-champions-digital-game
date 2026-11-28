@@ -12,8 +12,8 @@ A plain pick of options (single or multi): one button per option in a wrapped gr
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is      |
+| ------- | -------- | --------------- |
 | `model` | property | `OptionsModel`. |
 
 ## Events

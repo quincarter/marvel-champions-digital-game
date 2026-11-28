@@ -12,9 +12,9 @@ One seat deck on the Decks panel: "HERO · ASPECT" in Bangers, the deck count an
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `row` | property | `DeckRowModel`. |
+| Name   | Kind      | What it is                            |
+| ------ | --------- | ------------------------------------- |
+| `row`  | property  | `DeckRowModel`.                       |
 | `stop` | attribute | The focus stop key (`deck-seat-<n>`). |
 
 ## Events

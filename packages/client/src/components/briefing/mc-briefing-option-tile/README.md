@@ -12,8 +12,8 @@ The tile the role call, the modular-set call and the easier-start toggle share: 
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name   | Kind     | What it is         |
+| ------ | -------- | ------------------ |
 | `tile` | property | `OptionTileModel`. |
 
 ## Events

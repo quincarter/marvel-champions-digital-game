@@ -12,13 +12,13 @@ A card as a picture a row or a tile shows: the scan on a parchment ground (a wor
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `picture` | property | `PictureSource`. |
-| `card` | property | `{ cardId, name }` it opens; none for a plain frame. |
-| `shape` | attribute | `portrait` (default) | `landscape` | `square`. |
-| `badge` | attribute | Draw the magnifier badge. |
-| `stop` | attribute | The focus stop key. |
+| Name      | Kind      | What it is                                           |
+| --------- | --------- | ---------------------------------------------------- |
+| `picture` | property  | `PictureSource`.                                     |
+| `card`    | property  | `{ cardId, name }` it opens; none for a plain frame. |
+| `shape`   | attribute | `portrait` (default)                                 | `landscape` | `square`. |
+| `badge`   | attribute | Draw the magnifier badge.                            |
+| `stop`    | attribute | The focus stop key.                                  |
 
 ## Events
 

@@ -1,4 +1,3 @@
-
 /**
  * "Your call" as the `CallModel` the Briefing page shows: which question the engine asked (`call-kind.ts`) and, for each kind, the words,
  * pictures and options its element takes. What is legal is read from `pending.options` (the engine own offer), never recomputed here.
@@ -254,6 +253,10 @@ export function callModelOf(input: {
       return { ...base, prompt: prompt(), body: roleBody(state, pending, kind, hints, phone) };
     case "random":
     case "options":
-      return { ...base, prompt: prompt(), body: { kind: "options", model: optionsBody(state, pending, kind, leases, hints) } };
+      return {
+        ...base,
+        prompt: prompt(),
+        body: { kind: "options", model: optionsBody(state, pending, kind, leases, hints) },
+      };
   }
 }

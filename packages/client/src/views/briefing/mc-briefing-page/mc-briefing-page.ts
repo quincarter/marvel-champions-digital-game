@@ -78,8 +78,9 @@ export class McBriefingPage extends LitElement {
     return [
       root.querySelector<HTMLElement>(".page:not([data-own])"),
       root.querySelector<HTMLElement>(".left:not([data-own])"),
-      this.#call?.renderRoot.querySelector<HTMLElement>("mc-briefing-role-build")?.shadowRoot?.querySelector<HTMLElement>(".list, .confirm-scroll") ??
-        null,
+      this.#call?.renderRoot
+        .querySelector<HTMLElement>("mc-briefing-role-build")
+        ?.shadowRoot?.querySelector<HTMLElement>(".list, .confirm-scroll") ?? null,
       root.querySelector<HTMLElement>(".right .panel"),
     ].filter((one): one is HTMLElement => one !== null);
   }
@@ -101,13 +102,15 @@ export class McBriefingPage extends LitElement {
   #issueSections(m: BriefingPageModel) {
     const { scheme, mission, shield, easier } = m.sections;
     return html`${scheme ? html`<mc-briefing-scheme .model=${scheme}></mc-briefing-scheme>` : nothing}
-      ${mission ? html`<mc-briefing-mission .mission=${mission}></mc-briefing-mission>` : nothing}
-      ${shield ? html`<mc-briefing-shield .model=${shield}></mc-briefing-shield>` : nothing}
-      ${easier ? html`<mc-briefing-easier-start ?on=${easier.on}></mc-briefing-easier-start>` : nothing}`;
+    ${mission ? html`<mc-briefing-mission .mission=${mission}></mc-briefing-mission>` : nothing}
+    ${shield ? html`<mc-briefing-shield .model=${shield}></mc-briefing-shield>` : nothing}
+    ${easier ? html`<mc-briefing-easier-start ?on=${easier.on}></mc-briefing-easier-start>` : nothing}`;
   }
 
   #modes(m: BriefingPageModel) {
-    return m.sections.modes.length > 0 ? html`<mc-briefing-modes .rows=${m.sections.modes}></mc-briefing-modes>` : nothing;
+    return m.sections.modes.length > 0
+      ? html`<mc-briefing-modes .rows=${m.sections.modes}></mc-briefing-modes>`
+      : nothing;
   }
 
   /** The speaker, then the pool or the handled rows, then the issue sections and the call: the column both layouts share. */

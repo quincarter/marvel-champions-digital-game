@@ -1,4 +1,3 @@
-
 /**
  * The Briefing page model: everything `views/briefing/mc-briefing-page` shows, built from the scene state. The page and its elements
  * render this and decide nothing; legality (what a deck setup refuses, what a call offers) is the engine answer, read from the

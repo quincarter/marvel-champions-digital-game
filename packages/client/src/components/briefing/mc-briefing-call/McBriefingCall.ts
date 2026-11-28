@@ -65,7 +65,8 @@ export class McBriefingCall extends LitElement {
     if (this.call?.body.kind !== "role") return;
     if (detail.type === "role") this.role = detail.id;
     else if (detail.type === "back") this.role = null;
-    else if (detail.type === "confirm" && this.role !== null) raiseBriefing(this, { type: "answer", picked: [this.role] });
+    else if (detail.type === "confirm" && this.role !== null)
+      raiseBriefing(this, { type: "answer", picked: [this.role] });
     else return;
     event.stopPropagation();
   }

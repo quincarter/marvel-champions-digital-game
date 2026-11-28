@@ -36,8 +36,7 @@ export class McBriefingScheme extends LitElement {
   override render() {
     const m = this.model;
     if (!m) return nothing;
-    return html`<mc-section-heading .label=${t("briefing.scheme.heading").toLocaleUpperCase()}></mc-section-heading>
-      ${
+    return html`<mc-section-heading .label=${t("briefing.scheme.heading").toLocaleUpperCase()}></mc-section-heading> ${
         m.chosen
           ? html`<mc-briefing-framed-row class="chosen" stripe="heal">
               <div class="chosen-body">

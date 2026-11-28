@@ -12,10 +12,10 @@ A short label in capitals over a row or a block (a mission kind, "EVIDENCE · 1 
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name   | Kind      | What it is                     |
+| ------ | --------- | ------------------------------ |
 | `text` | attribute | The words, already translated. |
-| `tone` | attribute | `red` (default) | `cost` | `heal` | `ink`. |
+| `tone` | attribute | `red` (default)                | `cost` | `heal` | `ink`. |
 
 ## Events
 

@@ -22,6 +22,9 @@ export const McBriefingPageStyles = css`
     opacity: 0.12;
     pointer-events: none;
   }
+  mc-top-bar[compact] {
+    --mc-top-bar-back-min: 44px;
+  }
   mc-top-bar {
     position: relative;
     flex: none;

@@ -12,8 +12,8 @@ What the answered side-scheme choice leaves on the Briefing (NeXt Evolution, MC4
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is            |
+| ------- | -------- | --------------------- |
 | `model` | property | `SchemeSectionModel`. |
 
 ## Events

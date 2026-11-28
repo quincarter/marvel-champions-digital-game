@@ -12,10 +12,10 @@ A paper row with a 2px ink frame and, when asked, a stripe down its left edge (g
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `stripe` | attribute | `heal` | `red`; none draws no stripe. |
-| `fill` | attribute | `card` (default) | `parchment` | `none`. |
+| Name     | Kind      | What it is       |
+| -------- | --------- | ---------------- |
+| `stripe` | attribute | `heal`           | `red`; none draws no stripe. |
+| `fill`   | attribute | `card` (default) | `parchment`                  | `none`. |
 
 ## Events
 

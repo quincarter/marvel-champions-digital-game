@@ -13,7 +13,7 @@ import {
 /**
  * The Briefing's "Your call" shows the cards a pick is about as pictures, and each picture opens the card in Inspect
  * (`view/campaign-briefing-model.ts`'s `sideSchemePickCards` / `cardPickOptionsOf`, drawn by
- * `scenes/campaign/briefing/calls/pick-art.ts`). Two boxes: NeXt Evolution's side-scheme pick at issue #1 (six rows, three
+ * `components/briefing/mc-briefing-card-thumb`). Two boxes: NeXt Evolution's side-scheme pick at issue #1 (six rows, three
  * cards each: the scheme, the environment it earns, the encounter card it brings) and Age of Apocalypse's Desperate
  * Measures offer (a plain pick whose one option is a card). Reading a card never answers the question, the list keeps
  * its scroll position across Inspect, and PICK still records the choice. Runs come from `campaign/dev-fixtures.ts`.
@@ -58,21 +58,24 @@ const stopKeys = async (page: Page): Promise<string[]> =>
 const stopRect = async (page: Page, key: string) =>
   (await routeStops(page, "CampaignBriefing"))?.stops.find((stop) => stop.key === key)?.rect ?? null;
 
-/** How many card scans the Briefing has drawn (images whose texture is a card's art). */
+/** How many card scans the Briefing shows: loaded card-art images in the page (the Lit panel, shadow roots included). */
 const cardScansDrawn = (page: Page): Promise<number> =>
   page.evaluate(() => {
-    interface Obj {
-      type?: string;
-      texture?: { key?: string };
-      list?: Obj[];
-    }
-    const scene = (window as unknown as { __mcGame: any }).__mcGame.scene.getScene("CampaignBriefing");
     let count = 0;
-    const walk = (object: Obj): void => {
-      if (object.type === "Image" && String(object.texture?.key).startsWith("art:bundles/cards/")) count += 1;
-      for (const child of object.list ?? []) walk(child);
+    const visit = (node: ParentNode): void => {
+      for (const element of Array.from(node.querySelectorAll("*"))) {
+        if (
+          element instanceof HTMLImageElement &&
+          element.complete &&
+          element.naturalWidth > 0 &&
+          /\/card-art\/bundles\/cards\//.test(element.src)
+        )
+          count += 1;
+        if (element.shadowRoot) visit(element.shadowRoot);
+      }
     };
-    for (const child of scene.children.list as Obj[]) walk(child);
+    const layer = document.getElementById("mc-ui");
+    if (layer) visit(layer);
     return count;
   });
 

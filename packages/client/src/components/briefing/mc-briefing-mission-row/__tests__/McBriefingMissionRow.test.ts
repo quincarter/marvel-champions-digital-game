@@ -5,7 +5,13 @@ import "../mc-briefing-mission-row.js";
 
 afterEach(() => document.body.replaceChildren());
 
-const row = { key: "mission", kind: "Mission drawn", name: "Reach the Vault", detail: "Place 2 threat.", cardId: "45001" };
+const row = {
+  key: "mission",
+  kind: "Mission drawn",
+  name: "Reach the Vault",
+  detail: "Place 2 threat.",
+  cardId: "45001",
+};
 
 describe("mc-briefing-mission-row", () => {
   it("shows the kind, the name in capitals and the line, and its chip reads the card", async () => {

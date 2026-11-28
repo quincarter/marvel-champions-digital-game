@@ -28,7 +28,15 @@ describe("mc-briefing-role-build-list", () => {
   it("keeps every card stop: the picture, Take, and Inspect or the name read", async () => {
     const el = await mount("mc-briefing-role-build-list", { model: { view, pictures: new Map() } });
     const stops = stopsOf(el);
-    for (const key of ["rb-card:r1", "rb-inspect:r1", "rb-take:r1", "rb-card:c1", "rb-read:c1", "rb-take:c1", "rb-take:c2"]) {
+    for (const key of [
+      "rb-card:r1",
+      "rb-inspect:r1",
+      "rb-take:r1",
+      "rb-card:c1",
+      "rb-read:c1",
+      "rb-take:c1",
+      "rb-take:c2",
+    ]) {
       expect(stops, key).toContain(key);
     }
     expect(wordsOf(el)).toContain("RECOMMENDED FOR YOU");

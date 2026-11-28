@@ -37,6 +37,7 @@ export class McBriefingWatchToggle extends McPress {
   }
 
   override render() {
-    return html`<span class="box" aria-hidden="true">${this.checked ? "✓" : ""}</span><span class="words">${this.label}</span>`;
+    return html`<span class="box" aria-hidden="true">${this.checked ? "✓" : ""}</span
+      ><span class="words">${this.label}</span>`;
   }
 }

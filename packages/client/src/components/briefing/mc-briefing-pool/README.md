@@ -12,9 +12,9 @@
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
-| `model` | property | `PoolModel`. |
+| Name    | Kind      | What it is          |
+| ------- | --------- | ------------------- |
+| `model` | property  | `PoolModel`.        |
 | `phone` | attribute | The stacked groups. |
 
 ## Events

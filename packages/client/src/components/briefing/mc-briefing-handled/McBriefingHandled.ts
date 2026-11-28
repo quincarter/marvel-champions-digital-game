@@ -30,8 +30,7 @@ export class McBriefingHandled extends LitElement {
   override render() {
     const m = this.model;
     if (!m) return nothing;
-    return html`<mc-section-heading .label=${t("briefing.handled").toLocaleUpperCase()}></mc-section-heading>
-      ${
+    return html`<mc-section-heading .label=${t("briefing.handled").toLocaleUpperCase()}></mc-section-heading> ${
         m.waiting !== null
           ? html`<p class="note">${m.waiting}</p>`
           : m.rows.length === 0

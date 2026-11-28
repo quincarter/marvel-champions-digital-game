@@ -12,8 +12,8 @@
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name   | Kind     | What it is   |
+| ------ | -------- | ------------ |
 | `call` | property | `CallModel`. |
 
 ## Events

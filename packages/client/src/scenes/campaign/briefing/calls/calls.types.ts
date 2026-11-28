@@ -1,4 +1,3 @@
-
 /**
  * Which question the pending call is, with the data its kind shows: decided by `call-kind.ts` from the engine own offer, turned into
  * the `CallModel` the Briefing page shows by `call-model.ts`.

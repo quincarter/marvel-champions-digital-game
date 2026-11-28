@@ -1,4 +1,3 @@
-
 import type { AspectStamp } from "../../../view/aspect-stamp.js";
 
 /** A tile of a call choice (a role, an encounter set) or a toggle (the easier start): framed, with a name, its words and one press. */

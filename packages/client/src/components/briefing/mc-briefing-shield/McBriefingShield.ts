@@ -52,7 +52,9 @@ export class McBriefingShield extends LitElement {
           ? html`<mc-briefing-kicker class="gap" .text=${t("briefing.shield.carried")}></mc-briefing-kicker>
               ${shield.numbers.map(
                 (row) =>
-                  html`<p class="note">${`${text.numberLabel(row.label)}: ${row.value}  (${text.numberUsedIn(row.usedIn)})`}</p>`,
+                  html`<p class="note">
+                    ${`${text.numberLabel(row.label)}: ${row.value}  (${text.numberUsedIn(row.usedIn)})`}
+                  </p>`,
               )}`
           : nothing
       }
@@ -61,7 +63,9 @@ export class McBriefingShield extends LitElement {
           ? html`<mc-briefing-kicker class="gap" .text=${t("briefing.shield.expert")}></mc-briefing-kicker>
               ${shield.seats.map(
                 (seat) =>
-                  html`<p class=${seat.sitsOut ? "note caution" : "note strong"}>${`${seat.heroName}: ${text.seatStatus(seat.status)}`}</p>`,
+                  html`<p class=${seat.sitsOut ? "note caution" : "note strong"}>
+                    ${`${seat.heroName}: ${text.seatStatus(seat.status)}`}
+                  </p>`,
               )}`
           : nothing
       }`;

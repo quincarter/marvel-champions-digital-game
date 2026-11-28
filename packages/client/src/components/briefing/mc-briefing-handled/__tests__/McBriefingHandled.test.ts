@@ -17,7 +17,9 @@ describe("mc-briefing-handled", () => {
   it("says nothing is automatic when there are no rows, and the waiting line while a call is open", async () => {
     const none = await mount("mc-briefing-handled", { model: { rows: [], waiting: null } });
     expect(wordsOf(none)).toContain("Nothing automatic this issue.");
-    const waiting = await mount("mc-briefing-handled", { model: { rows: [row("x")], waiting: "Answer the call first." } });
+    const waiting = await mount("mc-briefing-handled", {
+      model: { rows: [row("x")], waiting: "Answer the call first." },
+    });
     expect(wordsOf(waiting)).toContain("Answer the call first.");
     expect(findAll(waiting, "mc-briefing-handled-row")).toHaveLength(0);
   });

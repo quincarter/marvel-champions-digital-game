@@ -12,8 +12,8 @@ What a plain pick says about its question: who is deciding (a decision for the w
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is         |
+| ------- | -------- | ------------------ |
 | `model` | property | `CallPromptModel`. |
 
 ## Events

@@ -12,8 +12,8 @@ One mission or Overseer row: a green stripe, the kind in red capitals, the card 
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name  | Kind     | What it is         |
+| ----- | -------- | ------------------ |
 | `row` | property | `MissionRowModel`. |
 
 ## Events

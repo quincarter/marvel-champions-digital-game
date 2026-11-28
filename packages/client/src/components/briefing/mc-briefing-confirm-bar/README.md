@@ -12,8 +12,8 @@ The Back / Confirm bar under a confirm step: only Confirm records the answer, Ba
 
 ## Properties
 
-| Name | Kind | What it is |
-| ---- | ---- | ---------- |
+| Name    | Kind     | What it is         |
+| ------- | -------- | ------------------ |
 | `model` | property | `ConfirmBarModel`. |
 
 ## Events

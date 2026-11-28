@@ -1,4 +1,3 @@
-
 /**
  * The composed attempt BriefingView for the page: the model own view, with the modular-set picks row first in
  * "Handled for you" so the answer does not disappear once the call is gone.
