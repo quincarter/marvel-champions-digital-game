@@ -1,0 +1,3 @@
+kind: Changed
+body: Extras, the Extras reader, the viewer, the side-story reader and the Rules reference are rebuilt as composed custom elements, with a shared reader frame, contents list and search hits list in the UI package
+time: 2026-11-28T07:04:28.2845114-05:00
