@@ -45,6 +45,8 @@ export { flipOffset } from "./components/mc-first-player-token/token-motion.js";
 export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
 export { McArticle } from "./components/mc-article/mc-article.js";
 export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
+export { McTipChip } from "./components/mc-tip-chip/mc-tip-chip.js";
+export { McTipPlate } from "./components/mc-tip-plate/mc-tip-plate.js";
 export { McTextField } from "./components/mc-text-field/mc-text-field.js";
 export type { McFieldFocusDetail, McInputDetail } from "./components/mc-text-field/mc-text-field.types.js";
 export type { McMediaRowModel, McMediaRowStamp } from "./components/mc-media-row/mc-media-row.types.js";
