@@ -2106,7 +2106,9 @@ export class DecksScene extends Phaser.Scene {
     const steam = inputDevice().mode === "pad" && inputDevice().pad?.steam === true;
     b.search(poolSearchRect, {
       key: "pool-search",
-      value: this.#poolSearchField()?.text ?? this.#poolSearchText,
+      // The text the pool has taken, never the field's live draft: the field keeps its own pending draft across a redraw
+      // while this stays the same, and a covered panel puts the field back to what the pool accepted (`guardRegion`).
+      value: this.#poolSearchText,
       placeholder: t("decks.poolSearch"),
       clearLabel: t("decks.clearSearch"),
       escapeClears: true,

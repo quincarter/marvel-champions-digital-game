@@ -5,6 +5,7 @@
  */
 
 import { t } from "../i18n/translate.js";
+import { padLayoutUsable } from "./pad-mapping.js";
 
 export interface RawPad {
   readonly connected: boolean;
@@ -30,8 +31,14 @@ export function padInputNow(pads: readonly (RawPad | null)[]): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-/** The test line: the last input seen (kept after release), and a note when the pad's layout is not the standard one. */
-export function padInputTestLine(lastSeen: string | null, mapping: string | null): string {
+/** The test line: the last input seen (kept after release), and a note when the game cannot read the pad's layout. */
+export function padInputTestLine(
+  lastSeen: string | null,
+  mapping: string | null,
+  userAgent: string = globalThis.navigator?.userAgent ?? "",
+): string {
   const seen = lastSeen === null ? t("controls.test.press") : t("controls.test.last", { input: lastSeen });
-  return mapping === null || mapping === "standard" ? seen : t("controls.test.nonStandard", { seen, mapping });
+  return mapping === null || padLayoutUsable(mapping, userAgent)
+    ? seen
+    : t("controls.test.nonStandard", { seen, mapping });
 }

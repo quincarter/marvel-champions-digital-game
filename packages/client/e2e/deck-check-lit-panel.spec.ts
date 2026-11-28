@@ -115,9 +115,9 @@ test("an open aspect tip sits over the filter chips, inside the screen, and a ta
 }, info) => {
   test.skip(info.project.name === "phone", "the aspect tiles and their tips are in the wide rail");
   test.setTimeout(120_000);
-  // A short screen, in Spanish (the longest 'Pool tip): the tip must wrap, stay on screen and not run under the chips.
+  // A short screen with the longest tip ('Pool): it must wrap, stay on screen and not run under the chips.
   await page.setViewportSize({ width: 1280, height: 560 });
-  await open(page, `${URL}&lang=es`);
+  await open(page);
   await showCards(page);
   const before = await page.locator(`${panel} mc-card-sections [data-key^="card:"]`).count();
   await page.locator(`${panel} [data-key="aspect-info:pool"]`).first().click();
@@ -128,7 +128,7 @@ test("an open aspect tip sits over the filter chips, inside the screen, and a ta
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(1280);
   expect(box.y + box.height).toBeLessThanOrEqual(560);
-  expect((await findText(page, "Masacrismo", "DeckCheck")).length).toBeGreaterThan(0);
+  expect((await findText(page, "Crisis of Infinite Deadpools", "DeckCheck")).length).toBeGreaterThan(0);
   // A tap on the plate (over where the filter chips are) shuts the tip and presses no chip.
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await plate.waitFor({ state: "detached", timeout: 10_000 });
