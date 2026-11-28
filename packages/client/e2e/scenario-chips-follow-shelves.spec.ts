@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import { clickText, findText, installPageHelpers, settle, waitFor } from "./helpers.js";
-import { serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
+import { serveCatalog, stageCatalog, answerModNotice } from "./pack-catalog-helpers.js";
 import { clickStop, hasStop, waitForScene } from "./wave6-helpers-a.js";
 import { quietGuide } from "./wave6-helpers-b.js";
 
@@ -56,8 +56,7 @@ async function installAndOpen(page: Page, baseURL: string, placement: "mixed" | 
   }, placement);
   await page.goto(`/?screen=mod-store&pack=${PACK}&unlock=all`);
   await waitForScene(page, "ModStore");
-  await waitForScene(page, "ModNoticeOverlay");
-  await clickText(page, "Got it", { sceneKey: "ModNoticeOverlay" });
+  await answerModNotice(page);
   await settle(page);
   await clickText(page, "INSTALL (", { sceneKey: "ModStore", timeoutMs: 30_000 });
   await waitFor(async () => ((await findText(page, "REMOVE", "ModStore")).length > 0 ? true : null), "install", 90_000);

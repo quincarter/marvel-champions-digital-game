@@ -73,6 +73,11 @@ export class McFilterChip extends LitElement {
     return `${check}${this.label}${count}`;
   }
 
+  /** A focus stop's `click()` presses the chip: the inner button takes the tap, and a pointer-less click has none. */
+  override click(): void {
+    this.renderRoot.querySelector<HTMLElement>("mc-button")?.click();
+  }
+
   override render() {
     return html`<mc-button
       kind="secondary"

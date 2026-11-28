@@ -312,6 +312,7 @@ export const GUARDED_EVENTS = [
   "mc-deck-check",
   "mc-card-inspect",
   "mc-scenario-select",
+  "mc-mod-store",
   "mc-deck-builder",
   "mc-past-games",
   "mc-trophy-room",
