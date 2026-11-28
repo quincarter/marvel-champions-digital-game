@@ -7,6 +7,7 @@ import "../../../components/scenario-select/mc-scenario-shelves/mc-scenario-shel
 import "../../../components/scenario-select/mc-scenario-stats/mc-scenario-stats.js";
 import type { McScenarioFilters } from "../../../components/scenario-select/mc-scenario-filters/McScenarioFilters.js";
 import type { McScenarioShelves } from "../../../components/scenario-select/mc-scenario-shelves/McScenarioShelves.js";
+import { pressOf } from "../../../components/scenario-select/scenario-select.types.js";
 import { ScenarioSelectResponsive } from "../responsive.styles.js";
 import { McScenarioSelectPageStyles } from "./mc-scenario-select-page.styles.js";
 import type { ScenarioSelectPageModel } from "./mc-scenario-select-page.types.js";
@@ -72,6 +73,7 @@ export class McScenarioSelectPage extends LitElement {
         .titleDrop=${m.topBar.titleDrop}
         .titleMaxRight=${m.topBar.titleMaxRight}
         ?compact=${m.phone}
+        @mc-press=${pressOf(this, "back")}
       ></mc-top-bar>
       <div class="body">
         <div class="browse" ?data-covered=${covered}>

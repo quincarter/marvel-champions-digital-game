@@ -118,6 +118,16 @@ describe("mc-scenario-select-page", () => {
     expect(seen).toEqual([{ type: "press", key: "next" }]);
   });
 
+  it("turns the top bar's Back press into the screen's own back press", async () => {
+    const el = await page(model());
+    const seen: unknown[] = [];
+    el.addEventListener("mc-scenario-select", (event) => seen.push((event as CustomEvent).detail));
+    el.shadowRoot!.querySelector("mc-top-bar")!.dispatchEvent(
+      new CustomEvent("mc-press", { bubbles: true, composed: true }),
+    );
+    expect(seen).toEqual([{ type: "press", key: "back" }]);
+  });
+
   it("exposes the search field and the roster for the scene's caret and scroll rules", async () => {
     const el = await page(model());
     await el.updateComplete;
