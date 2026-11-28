@@ -32,17 +32,26 @@ export class McTrackRow extends LitElement {
     this.playing = false;
   }
 
+  #press(): void {
+    if (this.model) activate(this, this.model.key);
+  }
+
+  #onClick = (event: MouseEvent): void => {
+    if (event.detail === 0) this.#press();
+  };
+
   override connectedCallback(): void {
     super.connectedCallback();
-    this.#stopTap = onTap(this, () => {
-      if (this.model) activate(this, this.model.key);
-    });
+    this.#stopTap = onTap(this, () => this.#press());
+    // `click()` from the focus route (Enter on a `data-stop`) has no pointer press behind it (`detail` 0).
+    this.addEventListener("click", this.#onClick);
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#stopTap?.();
     this.#stopTap = null;
+    this.removeEventListener("click", this.#onClick);
   }
 
   override willUpdate(): void {

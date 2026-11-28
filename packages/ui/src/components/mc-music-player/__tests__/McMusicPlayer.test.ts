@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import "../mc-button/mc-button.js";
-import "./mc-music-player.js";
-import { activations, tap } from "../../shared/test-tap.js";
-import type { MusicPlayerModel } from "./mc-music-player.types.js";
+import "../../mc-button/mc-button.js";
+import "../mc-music-player.js";
+import { activations, stop, tap } from "../../../shared/test-tap.js";
+import type { MusicPlayerModel } from "../mc-music-player.types.js";
 
 afterEach(() => document.body.replaceChildren());
 
@@ -63,19 +63,19 @@ describe("mc-music-player", () => {
   it("reports the close, shuffle, next, pause and song presses by key, and a tap outside the panel", async () => {
     const el = await mount(model());
     const keys = activations(el);
-    for (const key of ["close", "shuffle", "next", "pause"]) tap(el.elementOf(key)!);
-    tap(el.elementOf("song:b")!);
+    for (const key of ["close", "shuffle", "next", "pause"]) tap(stop(el, key));
+    tap(stop(el, "song:b"));
     tap(el.shadowRoot!.querySelector(".outside")!);
     expect(keys).toEqual(["close", "shuffle", "next", "pause", "song:b", "outside"]);
   });
 
   it("finds the slider's parts and the list's scroller for the focus route", async () => {
     const el = await mount(model());
-    expect(el.elementOf("volume:up")).not.toBeNull();
-    expect(el.elementOf("volume:down")).not.toBeNull();
+    expect(stop(el, "volume-up")).not.toBeNull();
+    expect(stop(el, "volume-down")).not.toBeNull();
     expect(el.volumeTrack).not.toBeNull();
     expect(el.scroller).not.toBeNull();
-    expect(el.elementOf("song:a")!.hasAttribute("playing")).toBe(true);
+    expect(stop(el, "song:a").hasAttribute("playing")).toBe(true);
   });
 
   it("shows what to say when no song is earned yet, instead of a list", async () => {
@@ -93,8 +93,8 @@ describe("mc-music-player", () => {
       const d = (event as CustomEvent).detail;
       seen.push(`slide ${d.share.toFixed(2)} ${d.commit}`);
     });
-    tap(el.elementOf("volume:down")!);
-    tap(el.elementOf("volume:up")!);
+    tap(stop(el, "volume-down"));
+    tap(stop(el, "volume-up"));
     const track = el.volumeTrack!;
     track.getBoundingClientRect = () =>
       ({ left: 0, right: 118, top: 0, bottom: 40, width: 118, height: 40 }) as DOMRect;

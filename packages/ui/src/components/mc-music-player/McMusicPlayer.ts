@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { activate, findKey, popupButton, tapOn } from "../../shared/popup-parts.js";
+import { activate, popupButton, tapOn } from "../../shared/popup-parts.js";
 import "../mc-now-playing/mc-now-playing.js";
 import "../mc-player-controls/mc-player-controls.js";
 import "../mc-track-list/mc-track-list.js";
@@ -71,7 +71,7 @@ export class McMusicPlayer extends LitElement {
 
   /** The slider's track, for a press at a share along it. */
   get volumeTrack(): HTMLElement | null {
-    return this.#slider?.elementOf("volume:track") ?? null;
+    return this.#slider?.track ?? null;
   }
 
   get #list(): McTrackList | null {
@@ -80,11 +80,6 @@ export class McMusicPlayer extends LitElement {
 
   get #slider(): McVolumeSlider | null {
     return this.renderRoot.querySelector("mc-volume-slider");
-  }
-
-  /** The element drawn for a focus stop's key (a control, the slider's − and +, a song row), or null. */
-  elementOf(key: string): HTMLElement | null {
-    return findKey(this.renderRoot as ShadowRoot, key);
   }
 
   override render() {

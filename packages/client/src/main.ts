@@ -9,6 +9,7 @@
 // The three families, bundled rather than linked from Google Fonts, so a
 // packaged app (Tauri/Capacitor) draws in its own faces offline and never races
 // a CDN. Exactly the faces `WEB_FONTS` (tokens.ts) waits for.
+import "@mc/ui";
 import "@fontsource/bangers/400.css";
 import "@fontsource/public-sans/400.css";
 import "@fontsource/public-sans/700.css";

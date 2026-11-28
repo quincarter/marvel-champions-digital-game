@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { activate, findKey, popupButton, tapOn } from "../../shared/popup-parts.js";
+import { activate, popupButton, tapOn } from "../../shared/popup-parts.js";
 import { McLanguageMenuStyles } from "./mc-language-menu.styles.js";
 import type { LanguageMenuModel } from "./mc-language-menu.types.js";
 
@@ -52,11 +52,6 @@ export class McLanguageMenu extends LitElement {
     super.disconnectedCallback();
     this.#stopScrim?.();
     this.#stopScrim = null;
-  }
-
-  /** The element drawn for a control's key (a language row, a link, close), or null. */
-  elementOf(key: string): HTMLElement | null {
-    return findKey(this.renderRoot as ShadowRoot, key);
   }
 
   override render() {

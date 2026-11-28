@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { findKey, popupButton } from "../../shared/popup-parts.js";
+import { popupButton } from "../../shared/popup-parts.js";
 import { McPlayerControlsStyles } from "./mc-player-controls.styles.js";
 import type { PlayerControlsModel } from "./mc-player-controls.types.js";
 
@@ -32,17 +32,6 @@ export class McPlayerControls extends LitElement {
 
   override willUpdate(): void {
     this.slider = this.model?.withSlider ?? false;
-  }
-
-  /** The control's button, or whatever is slotted with this key (the slider's − and +). */
-  elementOf(key: string): HTMLElement | null {
-    const own = findKey(this.renderRoot as ShadowRoot, key);
-    if (own) return own;
-    for (const child of this.children) {
-      const found = (child as HTMLElement & { elementOf?: (key: string) => HTMLElement | null }).elementOf?.(key);
-      if (found) return found;
-    }
-    return null;
   }
 
   override render() {

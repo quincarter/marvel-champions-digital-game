@@ -9,19 +9,21 @@
  * While it is up, the screens under it take no input, and get it back when it closes, the same rule "Report an issue"
  * follows. The top bar's chrome buttons stay live above it.
  *
- * It is a Lit panel over the canvas (`dom/popup-sheet.ts`, an overlay region), so a Lit screen under it (Title's menu on
- * a tablet or desktop, the top bar's art on a phone) stays shown instead of hiding. The body is `music-player-body.ts`.
+ * The scene mounts `mc-music-player` (`@mc/ui`: now-playing, controls, volume slider, track list) as an overlay region,
+ * sets its model (`view/music-player-model.ts`) and handles its events; a Lit screen under it (Title's menu on a
+ * tablet or desktop) stays shown instead of hiding.
  */
 import Phaser from "phaser";
+import { ActivationGate } from "../dom/activation-gate.js";
+import { ControlGlyphs } from "../dom/control-glyphs.js";
 import { domFocusRing } from "../dom/dom-ring.js";
-import { PopupSheet } from "../dom/popup-sheet.js";
-import { SheetGlyphs } from "../dom/sheet-glyphs.js";
-import { onTap } from "../ui/tap.js";
-import { destroyChildren } from "../ui/destroy-children.js";
+import { renderDeep } from "../dom/element-render.js";
+import { focusStopsOf } from "../dom/element-stops.js";
+import { mountElement, type MountedElement } from "../dom/element-region.js";
 import { shownMusicButton } from "../ui/music-slot.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
-import { playerPanelRect, volumeAtTrack, steppedVolume, earnedSongsOf, lockedSongCount } from "../view/music-player.js";
-import type { PlayerSong } from "../view/music-player.js";
+import { musicPlayerModelOf } from "../view/music-player-model.js";
+import { volumeAtTrack, steppedVolume, earnedSongsOf, lockedSongCount, type PlayerSong } from "../view/music-player.js";
 import { clampMusicVolume } from "../settings.js";
 import { extras } from "../progression/progression.js";
 import { appSession } from "../session.js";
@@ -33,38 +35,24 @@ import {
   readMixerVolume,
   writeMixerVolume,
 } from "../platform/app-volume.js";
-import { FocusRoute } from "./focus-route.js";
+import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
-import { drawMusicPlayerBody, SONGS_KEY } from "./music-player-body.js";
-
-/** A popover appears where it hangs, with no slide of its own. */
-const STILL = { x: 0, y: 0, alpha: 1, active: true } as const;
 
 export class MusicPlayerOverlay extends Phaser.Scene {
   #route: FocusRoute | null = null;
-  #panel!: PopupSheet;
-  #glyphs!: SheetGlyphs;
-  /** What each control does this draw, by key. */
-  #actions = new Map<string, () => void>();
+  #mounted: MountedElement<HTMLElementTagNameMap["mc-music-player"]> | null = null;
+  #glyphs!: ControlGlyphs;
   /** The input this panel turned off, to turn back on when it closes (see `scenes/report-issue.ts`). */
   #disabled: { readonly scene: Phaser.Scene; readonly pointer: boolean; readonly keyboard: boolean }[] = [];
   #unsubscribe: (() => void) | null = null;
   #alive = false;
   /** The songs drawn now, for LB / RB. */
   #songs: readonly PlayerSong[] = [];
-  /** Shuffle's press, for X. */
-  #shuffle: (() => void) | null = null;
-  #slideBound = false;
-  /** The song list's scroll, kept across a redraw. */
-  #scrollTop = 0;
   /** The volume shown: the Windows mixer's, in the Windows app, else the music volume setting. */
   #volume = 100;
   #changedAt = 0;
   #dragging = false;
-  /** Where the slider's track is on screen now, for the e2e hook. */
-  #volumeRect: Rect | null = null;
-  #listRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
-  #stopRects = new Map<string, () => Rect | null>();
+  #stops = new Map<string, FocusStop>();
 
   constructor() {
     super(SCENES.musicPlayer);
@@ -81,21 +69,38 @@ export class MusicPlayerOverlay extends Phaser.Scene {
       if (pointer) scene.input.enabled = false;
       if (keyboard && scene.input.keyboard) scene.input.keyboard.enabled = false;
     }
-    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.());
-    this.#panel.follow(STILL);
-    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
+    // Under the panel Phaser still hits a press: this shield keeps it from reaching the screen under.
+    const { width, height } = this.scale.gameSize;
+    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
+    const mounted = mountElement(this, "mc-music-player", { x: 0, y: 0, width, height }, { overlay: true });
+    this.#mounted = mounted;
+    const gate = new ActivationGate(this);
+    const { element } = mounted;
+    element.addEventListener("mc-activate", (event) => {
+      const { key } = (event as CustomEvent<{ key: string }>).detail;
+      if (gate.take()) this.#press(key);
+    });
+    element.addEventListener("mc-slide", (event) => {
+      const { share, commit } = (event as CustomEvent<{ share: number; commit: boolean }>).detail;
+      this.#dragging = !commit;
+      this.#setVolume(volumeAtTrack(share, { x: 0, width: 1 }), commit);
+    });
+    element.addEventListener("mc-step", (event) => {
+      const { direction } = (event as CustomEvent<{ direction: -1 | 1 }>).detail;
+      this.#setVolume(steppedVolume(this.#volume, direction), true);
+    });
+    this.#glyphs = new ControlGlyphs(this, () => this.#draw());
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
-      blocked: () => this.#panel.leaving,
       // B / Esc / Q close it; A presses the focused control, or Play / Pause with nothing focused.
-      onCancel: () => this.#close(),
+      onCancel: () => this.scene.stop(),
       primary: () => "pause",
       // LB / RB (and R / F, [ / ]) play the previous / next song; X (G) is Shuffle. The list scrolls with the stick.
       onTab: (direction) => this.#step(direction),
-      onToggle: () => this.#shuffle?.(),
-      onScroll: (_dx, dy) => this.#panel.element?.elementOf(SONGS_KEY)?.scrollBy({ top: dy }),
+      onToggle: () => this.#stops.get("shuffle")?.activate(),
+      onScroll: (_dx, dy) => this.#mounted?.element.scroller?.scrollBy({ top: dy }),
     });
     const offTrack = appSession().music?.onTrackStart(() => this.#redrawSoon());
     const offPause = appSession().music?.onPauseChange(() => this.#redrawSoon());
@@ -118,10 +123,12 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      gate.destroy();
       this.scale.off("resize", onResize, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       this.#glyphs.dispose();
+      this.#mounted = null;
       for (const { scene, pointer, keyboard } of this.#disabled) {
         if (!scene.sys.isActive()) continue;
         if (pointer) scene.input.enabled = true;
@@ -132,8 +139,29 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  #close(): void {
-    this.#panel.close();
+  /** What a control's key does: the buttons, a song row, a tap outside the panel. */
+  #press(key: string): void {
+    const music = appSession().music;
+    const session = appSession();
+    if (key === "close" || key === "outside") this.scene.stop();
+    else if (key === "shuffle" || key === "next") {
+      if (this.#songs.length === 0) return;
+      if (key === "next") music?.next();
+      else {
+        const next = { ...session.settings, musicShuffle: !session.settings.musicShuffle };
+        music?.syncSettings(next);
+        session.settings = next;
+      }
+      this.#draw();
+    } else if (key === "pause") {
+      if (!music) return;
+      if (music.paused()) music.resume();
+      else music.pause();
+      this.#draw();
+    } else if (key.startsWith("song:")) {
+      const song = this.#songs.find((one) => `song:${one.id}` === key);
+      if (song) this.#play(song);
+    }
   }
 
   #redrawSoon(): void {
@@ -154,7 +182,7 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     const at = songs.findIndex((song) => song.track.key === music.nowPlaying()?.key);
     const to = at < 0 ? (direction === 1 ? 0 : songs.length - 1) : (at + direction + songs.length) % songs.length;
     this.#play(songs[to]!);
-    this.#panel.element?.elementOf(`song:${songs[to]!.id}`)?.scrollIntoView({ block: "nearest" });
+    this.#stops.get(`song:${songs[to]!.id}`)?.ensureVisible?.();
   }
 
   #play(song: PlayerSong): void {
@@ -179,141 +207,63 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  #bindSlider(): void {
-    const element = this.#panel.element;
-    if (!element || this.#slideBound) return;
-    this.#slideBound = true;
-    element.addEventListener("mc-slide", (event) => {
-      const { share, commit } = (event as CustomEvent<{ share: number; commit: boolean }>).detail;
-      this.#dragging = !commit;
-      this.#setVolume(volumeAtTrack(share, { x: 0, width: 1 }), commit);
-    });
-    element.addEventListener("mc-step", (event) => {
-      const { direction } = (event as CustomEvent<{ direction: -1 | 1 }>).detail;
-      this.#setVolume(steppedVolume(this.#volume, direction), true);
-    });
-  }
-
   #draw(): void {
-    if (!this.#alive) return;
-    const list = this.#panel.element?.elementOf(SONGS_KEY);
-    if (list) this.#scrollTop = list.scrollTop;
-    destroyChildren(this);
-    this.#glyphs.reset();
-
+    const mounted = this.#mounted;
+    if (!mounted || !this.#alive) return;
+    const { region, element } = mounted;
     const { width, height } = this.scale.gameSize;
-    const phone = ["phone", "phoneLandscape"].includes(formFactorFor(width, height));
-    const icon = shownMusicButton() ?? { x: width - 104, y: 5, width: 44, height: 34 };
+    region.setRect({ x: 0, y: 0, width, height });
+    const form = formFactorFor(width, height);
     const current = extras();
-    const songs = earnedSongsOf(current);
-    this.#songs = songs;
-    const panel = playerPanelRect(icon, { width, height }, phone, songs.length);
-    // Under the panel Phaser still hits a press: this shield keeps it from reaching the screen under, and answers a tap
-    // in a hole the panel leaves (outside the popover, over the screen's own art) as "outside".
-    const shield = this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    onTap(
-      shield,
-      (pointer) => {
-        // A press on the panel reaches Phaser too (its listeners are on the window): only one off it is "outside".
-        const inside =
-          pointer.x >= panel.x &&
-          pointer.x <= panel.x + panel.width &&
-          pointer.y >= panel.y &&
-          pointer.y <= panel.y + panel.height;
-        if (!inside) this.#close();
-      },
-      "music-player-outside",
-    );
-
-    const b = this.#panel.begin(width, height, 0);
-    const desktop = hasDesktopWindow() || formFactorFor(width, height) === "desktop";
-    const drawn = drawMusicPlayerBody(b, this.#glyphs, {
+    this.#songs = earnedSongsOf(current);
+    const music = appSession().music;
+    this.#glyphs.reset();
+    const g = this.#glyphs;
+    element.model = musicPlayerModelOf({
       screen: { width, height },
-      panel,
-      icon,
-      phone,
-      songs,
+      phone: form === "phone" || form === "phoneLandscape",
+      icon: shownMusicButton() ?? { x: width - 104, y: 5, width: 44, height: 34 },
+      songs: this.#songs,
       locked: lockedSongCount(current),
-      playing: appSession().music?.nowPlaying() ?? null,
-      paused: appSession().music?.paused() ?? false,
+      playing: music?.nowPlaying() ?? null,
+      paused: music?.paused() ?? false,
       shuffle: appSession().settings.musicShuffle,
       volume: this.#volume,
-      withSlider: desktop,
-      actions: {
-        close: () => this.#close(),
-        outside: () => this.#close(),
-        shuffle: () => this.#toggleShuffle(),
-        next: () => this.#skip(),
-        pause: () => this.#togglePause(),
-        step: (direction) => this.#setVolume(steppedVolume(this.#volume, direction), true),
-        play: (song) => this.#play(song),
-      },
+      withSlider: hasDesktopWindow() || form === "desktop",
+      glyphs: Object.fromEntries(
+        [
+          ["close", "cancel"],
+          ["shuffle", "guide"],
+          ["next", "zoneNext"],
+          ["pause", "activate"],
+        ].flatMap(([key, id]) => {
+          const glyph = g.glyph(key!, [id as "cancel"], "paper", 40);
+          return glyph ? [[key!, glyph]] : [];
+        }),
+      ),
     });
-    this.#actions = drawn.actions;
-    this.#shuffle = drawn.actions.get("shuffle") ?? null;
-    this.#listRect = drawn.listRect;
-    this.#panel.mount(b, width, height);
-    this.#bindSlider();
-    const scroller = this.#panel.element?.elementOf(SONGS_KEY);
-    if (scroller) scroller.scrollTop = this.#scrollTop;
-    // A stop inside the list reads its box off the panel, so it follows the scroll.
-    const panelRef = this.#panel;
-    const stops = new Map(
-      [...drawn.stops].map(([key, stop]) => {
-        if (!key.startsWith("song:")) return [key, stop] as const;
-        return [
-          key,
-          {
-            rect: () => {
-              const element = panelRef.element?.elementOf(key);
-              return (
-                (element && panelRef.rectOf(element)) || (typeof stop.rect === "function" ? stop.rect() : stop.rect)
-              );
-            },
-            activate: stop.activate,
-            ensureVisible: () => panelRef.element?.elementOf(key)?.scrollIntoView({ block: "nearest" }),
-          },
-        ] as const;
-      }),
-    );
-    this.#route?.set(drawn.order, stops);
-    this.#stopRects = new Map(
-      [...stops].map(([key, stop]) => [key, () => (typeof stop.rect === "function" ? stop.rect() : stop.rect)]),
-    );
-    this.#volumeRect = drawn.volumeRect;
-    this.#exposeDebug();
-  }
-
-  #toggleShuffle(): void {
-    const session = appSession();
-    if (this.#songs.length === 0) return;
-    const next = { ...session.settings, musicShuffle: !session.settings.musicShuffle };
-    session.music?.syncSettings(next);
-    session.settings = next;
-    this.#draw();
-  }
-
-  #skip(): void {
-    if (this.#songs.length === 0) return;
-    appSession().music?.next();
-    this.#draw();
-  }
-
-  #togglePause(): void {
-    const music = appSession().music;
-    if (!music) return;
-    if (music.paused()) music.resume();
-    else music.pause();
-    this.#draw();
+    g.settled();
+    void renderDeep(element).then(() => {
+      if (this.#mounted !== mounted) return;
+      this.#stops = focusStopsOf(element, (target) => region.rectOf(target));
+      const order = [...this.#stops.keys()];
+      this.#route?.set(order, this.#stops);
+      this.#exposeDebug(region.rectOf.bind(region), element);
+    });
   }
 
   /** Headless click-through hook only: the player's controls where they are drawn now, for the e2e specs. */
-  #exposeDebug(): void {
+  #exposeDebug(rectOf: (target: Element) => Rect, element: HTMLElementTagNameMap["mc-music-player"]): void {
     if (!import.meta.env.DEV) return;
+    const rect = (target: Element | null): Rect | null => (target ? rectOf(target) : null);
     (window as unknown as { __mcMusicPlayerDebug?: unknown }).__mcMusicPlayerDebug = {
-      stopRect: (id: string): Rect | null => this.#stopRects.get(id)?.() ?? null,
-      volumeRect: (): Rect | null => this.#volumeRect,
-      listRect: (): Rect => this.#listRect,
+      stopRect: (id: string): Rect | null => {
+        const stop = this.#stops.get(id);
+        if (!stop) return null;
+        return typeof stop.rect === "function" ? stop.rect() : stop.rect;
+      },
+      volumeRect: (): Rect | null => rect(element.volumeTrack),
+      listRect: (): Rect | null => rect(element.scroller),
       paused: (): boolean => appSession().music?.paused() ?? false,
       nowPlaying: (): string | null => appSession().music?.nowPlaying()?.key ?? null,
       volume: (): number => appSession().settings.musicVolume,

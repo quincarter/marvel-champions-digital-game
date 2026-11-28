@@ -39,7 +39,7 @@ export function hungGlyph(glyph: ControlGlyph | undefined): TemplateResult | typ
 export function popupButton(host: HTMLElement, button: PopupButton, glyph?: ControlGlyph): TemplateResult {
   return html`<div class="ctl">
     <mc-button
-      data-key=${button.key}
+      data-stop=${button.key}
       kind=${button.kind}
       .label=${button.label}
       ?selected=${button.selected ?? false}
@@ -49,17 +49,6 @@ export function popupButton(host: HTMLElement, button: PopupButton, glyph?: Cont
     ></mc-button
     >${hungGlyph(glyph)}
   </div>`;
-}
-
-/** The deep search every popup element's `elementOf` shares: its own part, else a child element that has it. */
-export function findKey(root: ShadowRoot | Element, key: string): HTMLElement | null {
-  const own = root.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
-  if (own) return own;
-  for (const child of root.querySelectorAll<HTMLElement & { elementOf?: (key: string) => HTMLElement | null }>("*")) {
-    const found = child.elementOf?.(key);
-    if (found) return found;
-  }
-  return null;
 }
 
 /** Styles for a popup button's wrapper and its hung glyph. */

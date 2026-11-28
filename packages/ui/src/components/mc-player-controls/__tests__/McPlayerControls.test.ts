@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import "../mc-button/mc-button.js";
-import "../mc-now-playing/mc-now-playing.js";
-import "./mc-player-controls.js";
-import { activations, tap } from "../../shared/test-tap.js";
+import "../../mc-button/mc-button.js";
+import "../../mc-now-playing/mc-now-playing.js";
+import "../mc-player-controls.js";
+import { activations, stop, tap } from "../../../shared/test-tap.js";
 
 afterEach(() => document.body.replaceChildren());
 
@@ -17,12 +17,12 @@ describe("mc-player-controls", () => {
     };
     document.body.append(el);
     await el.updateComplete;
-    expect(el.elementOf("shuffle")!.hasAttribute("selected")).toBe(true);
-    expect(el.elementOf("next")!.hasAttribute("disabled")).toBe(true);
+    expect(stop(el, "shuffle").hasAttribute("selected")).toBe(true);
+    expect(stop(el, "next").hasAttribute("disabled")).toBe(true);
     const keys = activations(el);
-    tap(el.elementOf("shuffle")!);
-    tap(el.elementOf("next")!);
-    tap(el.elementOf("pause")!);
+    tap(stop(el, "shuffle"));
+    tap(stop(el, "next"));
+    tap(stop(el, "pause"));
     expect(keys).toEqual(["shuffle", "pause"]);
   });
 

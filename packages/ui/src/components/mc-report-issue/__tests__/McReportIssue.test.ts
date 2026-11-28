@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import "../mc-button/mc-button.js";
-import "./mc-report-issue.js";
-import { activations, tap } from "../../shared/test-tap.js";
-import type { ReportIssueModel } from "./mc-report-issue.types.js";
+import "../../mc-button/mc-button.js";
+import "../mc-report-issue.js";
+import { activations, stop, tap } from "../../../shared/test-tap.js";
+import type { ReportIssueModel } from "../mc-report-issue.types.js";
 
 afterEach(() => document.body.replaceChildren());
 
@@ -69,11 +69,11 @@ describe("mc-report-issue", () => {
   it("reports a step's button, and the close button, by key, and finds each by key", async () => {
     const el = await mount(model());
     const keys = activations(el);
-    tap(el.elementOf("copy")!);
-    tap(el.elementOf("github")!);
-    tap(el.elementOf("close")!);
+    tap(stop(el, "copy"));
+    tap(stop(el, "github"));
+    tap(stop(el, "close"));
     expect(keys).toEqual(["copy", "github", "close"]);
-    expect(el.elementOf("nothing")).toBeNull();
+    expect(() => stop(el, "nothing")).toThrow();
   });
 
   it("says what the last action said, as a status line", async () => {

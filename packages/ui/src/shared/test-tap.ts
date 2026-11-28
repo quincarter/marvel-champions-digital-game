@@ -11,3 +11,20 @@ export function activations(host: Element): string[] {
   host.addEventListener("mc-activate", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
   return keys;
 }
+
+/** The `[data-stop]` part with this key, through open shadow roots (what the client's focus route finds), or null. */
+export function stop(root: ParentNode, key: string): HTMLElement {
+  const visit = (node: ParentNode): HTMLElement | null => {
+    for (const element of node.querySelectorAll<HTMLElement>("*")) {
+      if (element.dataset?.stop === key) return element;
+      if (element.shadowRoot) {
+        const found = visit(element.shadowRoot);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  const found = visit((root as HTMLElement).shadowRoot ?? root);
+  if (!found) throw new Error(`no stop ${key}`);
+  return found;
+}

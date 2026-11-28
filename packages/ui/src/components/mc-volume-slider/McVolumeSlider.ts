@@ -51,9 +51,9 @@ export class McVolumeSlider extends LitElement {
     this.style.setProperty("--share", String(Math.min(1, Math.max(0, this.value / 100))));
   }
 
-  /** The slider's own parts by key: `volume:track`, `volume:down`, `volume:up`. */
-  elementOf(key: string): HTMLElement | null {
-    return this.renderRoot.querySelector<HTMLElement>(`[data-key="${key}"]`);
+  /** The track a press or drag lands on. */
+  get track(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>(".track");
   }
 
   /** Cancels a press still down (the panel is covered or closing): its later moves and release raise nothing. */
@@ -116,7 +116,7 @@ export class McVolumeSlider extends LitElement {
 
   override render() {
     return html`<mc-button
-        data-key="volume:down"
+        data-stop="volume-down"
         kind="quiet"
         .label=${this.stepLabels[0]}
         aria-label=${this.stepLabels[0]}
@@ -124,7 +124,6 @@ export class McVolumeSlider extends LitElement {
       ></mc-button>
       <div
         class="track"
-        data-key="volume:track"
         @pointerdown=${this.#down}
         @pointermove=${this.#move}
         @pointerup=${this.#up}
@@ -136,7 +135,7 @@ export class McVolumeSlider extends LitElement {
         <div class="knob"></div>
       </div>
       <mc-button
-        data-key="volume:up"
+        data-stop="volume-up"
         kind="quiet"
         .label=${this.stepLabels[1]}
         aria-label=${this.stepLabels[1]}

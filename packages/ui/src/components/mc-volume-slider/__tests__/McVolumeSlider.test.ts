@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import "../mc-button/mc-button.js";
-import "./mc-volume-slider.js";
-import type { SlideDetail } from "../../shared/popup.types.js";
+import "../../mc-button/mc-button.js";
+import "../mc-volume-slider.js";
+import type { SlideDetail } from "../../../shared/popup.types.js";
 
 afterEach(() => document.body.replaceChildren());
 
@@ -11,7 +11,7 @@ async function mount(value = 50) {
   el.label = `${value}%`;
   document.body.append(el);
   await el.updateComplete;
-  const track = el.elementOf("volume:track")!;
+  const track = el.track!;
   track.getBoundingClientRect = () => ({ left: 0, right: 118, top: 0, bottom: 40, width: 118, height: 40 }) as DOMRect;
   const slides: SlideDetail[] = [];
   el.addEventListener("mc-slide", (event) => slides.push((event as CustomEvent<SlideDetail>).detail));

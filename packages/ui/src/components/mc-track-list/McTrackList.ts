@@ -31,17 +31,12 @@ export class McTrackList extends LitElement {
     return this.renderRoot.querySelector(".scroller");
   }
 
-  /** The row for a key (`song:<id>`), or null. */
-  elementOf(key: string): HTMLElement | null {
-    return this.renderRoot.querySelector<HTMLElement>(`mc-track-row[data-key="${key}"]`);
-  }
-
   override render() {
     const m = this.model;
     if (!m) return nothing;
     if (m.tracks.length === 0) return html`<p class="empty">${m.empty}</p>`;
     return html`<div class="scroller list">
-      ${m.tracks.map((track) => html`<mc-track-row data-key=${track.key} .model=${track}></mc-track-row>`)}
+      ${m.tracks.map((track) => html`<mc-track-row data-stop=${track.key} .model=${track}></mc-track-row>`)}
     </div>`;
   }
 }

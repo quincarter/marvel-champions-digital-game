@@ -14,12 +14,14 @@ import Phaser from "phaser";
 import { cardLanguage } from "../art/card-language.js";
 import { artLanguageNow } from "../art/art-source.js";
 import { domFocusRing } from "../dom/dom-ring.js";
-import { PopupSheet } from "../dom/popup-sheet.js";
-import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { ActivationGate } from "../dom/activation-gate.js";
+import { ControlGlyphs } from "../dom/control-glyphs.js";
+import { renderDeep } from "../dom/element-render.js";
+import { focusStopsOf } from "../dom/element-stops.js";
+import { mountElement, type MountedElement } from "../dom/element-region.js";
 import { t } from "../i18n/translate.js";
 import { copyText, downloadText } from "../ui/report-export.js";
 import { debugSnapshot } from "../ui/debug-dump.js";
-import { destroyChildren } from "../ui/destroy-children.js";
 import { formFactorFor } from "../view/layout.js";
 import { appVersionText, buildCommit } from "../view/app-version.js";
 import { reportReplayLink, withinTime } from "../replay/report-replay.js";
@@ -40,8 +42,8 @@ import {
 import { CLIENT_VERSION } from "../version.js";
 import { detectPlatform, openExternal } from "../platform/platform.js";
 import { appSession } from "../session.js";
-import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { REPORT_ORDER, drawReportPanel, reportSteps, type ReportStopId } from "./report-issue-panel.js";
+import { FocusRoute } from "./focus-route.js";
+import { REPORT_ORDER, reportIssueModelOf } from "../view/report-issue-model.js";
 import { SCENES } from "./keys.js";
 import { displayLineOf } from "../platform/screen-settings.js";
 import { roomState } from "../platform/room.js";
@@ -59,11 +61,14 @@ type Disabled = { readonly scene: Phaser.Scene; readonly pointer: boolean; reado
  */
 let pendingRestore: { readonly cancel: () => void; readonly entries: readonly Disabled[] } | null = null;
 
-/** A Lit panel over the canvas (`dom/popup-sheet.ts`, an overlay region): the screen under it stays shown beneath its scrim. */
+/**
+ * The scene mounts `mc-report-issue` (`@mc/ui`) as an overlay region, so the screen under it stays shown beneath its
+ * scrim, sets its model and handles its `mc-activate`; the element and its step elements draw the dialog.
+ */
 export class ReportIssueOverlay extends Phaser.Scene {
-  #panel!: PopupSheet;
-  #glyphs!: SheetGlyphs;
-  /** What each control does this draw, by key. */
+  #mounted: MountedElement<HTMLElementTagNameMap["mc-report-issue"]> | null = null;
+  #glyphs!: ControlGlyphs;
+  /** What each control does, by its focus stop's key. */
   #actions = new Map<string, () => void>();
   #route: FocusRoute | null = null;
   /**
@@ -110,15 +115,25 @@ export class ReportIssueOverlay extends Phaser.Scene {
     this.scene.get(SCENES.reportButton)?.sys.setVisible(false);
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.(), undefined, {
-      onDismiss: () => this.#close(),
+    const { width, height } = this.scale.gameSize;
+    // Under the panel Phaser still hits a press: this shield keeps it from reaching the screen under.
+    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
+    const mounted = mountElement(this, "mc-report-issue", { x: 0, y: 0, width, height }, { overlay: true });
+    this.#mounted = mounted;
+    const gate = new ActivationGate(this);
+    mounted.element.addEventListener("mc-activate", (event) => {
+      const { key } = (event as CustomEvent<{ key: string }>).detail;
+      if (gate.take()) this.#actions.get(key)?.();
     });
-    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      gate.destroy();
+      this.#mounted = null;
+    });
+    this.#glyphs = new ControlGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
-      blocked: () => this.#panel.leaving,
       // B, Start and A bring a hidden panel back first; otherwise B closes it and Start files the bug report.
-      onCancel: () => (this.#restore ? this.#restore() : this.#close()),
+      onCancel: () => (this.#restore ? this.#restore() : this.scene.stop()),
       onPause: () => (this.#restore ? this.#restore() : this.#openIssue()),
       primary: () => (this.#restore ? "restore" : null),
     });
@@ -280,19 +295,16 @@ export class ReportIssueOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  #close(): void {
-    this.#panel.close();
-  }
-
   #draw(): void {
-    destroyChildren(this);
-    this.#glyphs.reset();
+    const mounted = this.#mounted;
+    if (!mounted) return;
+    const { region, element } = mounted;
     const { width, height } = this.scale.gameSize;
-    // Under the panel Phaser still hits a press: this shield keeps it from reaching the screen under.
-    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    const b = this.#panel.begin(width, height);
-    const run = new Map<ReportStopId, () => void>([
-      ["close", () => this.#close()],
+    region.setRect({ x: 0, y: 0, width, height });
+    this.#glyphs.reset();
+    const glyph = this.#glyphs.glyph("close", ["cancel"], "paper", 44);
+    this.#actions = new Map<string, () => void>([
+      ["close", () => this.scene.stop()],
       ["hide", () => this.#hideForScreenshot()],
       ["copy", () => this.#copy()],
       ["download", () => this.#download()],
@@ -301,15 +313,19 @@ export class ReportIssueOverlay extends Phaser.Scene {
       ["deck", () => openExternal(DECK_REQUEST_URL)],
       ["discord", () => openExternal(DISCORD_INVITE_URL)],
     ]);
-    const laid = drawReportPanel(b, this.#glyphs, {
-      screen: { width, height },
-      steps: reportSteps(screenshotTipOf(screenshotDeviceOf(navigator.userAgent))),
-      feedback: this.#feedback,
+    element.model = reportIssueModelOf(
+      { width, height },
+      screenshotTipOf(screenshotDeviceOf(navigator.userAgent)),
+      this.#feedback,
+      glyph ? { close: glyph } : undefined,
+    );
+    this.#glyphs.settled();
+    void renderDeep(element).then(() => {
+      if (this.#mounted !== mounted) return;
+      this.#route?.set(
+        REPORT_ORDER,
+        focusStopsOf(element, (target) => region.rectOf(target)),
+      );
     });
-    this.#actions = new Map(run);
-    const stops = new Map<string, FocusStop>();
-    for (const [id, stop] of laid) stops.set(id, { rect: stop.rect, activate: run.get(id)! });
-    this.#panel.mount(b, width, height);
-    this.#route?.set(REPORT_ORDER, stops);
   }
 }

@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { findKey, popupButton } from "../../shared/popup-parts.js";
+import { popupButton } from "../../shared/popup-parts.js";
 import { McReportStepStyles } from "./mc-report-step.styles.js";
 import type { ReportStep } from "./mc-report-step.types.js";
 
@@ -27,11 +27,6 @@ export class McReportStep extends LitElement {
     super();
     this.step = null;
     this.phone = false;
-  }
-
-  /** The step's button with this key, or null. */
-  elementOf(key: string): HTMLElement | null {
-    return findKey(this.renderRoot as ShadowRoot, key);
   }
 
   override render() {

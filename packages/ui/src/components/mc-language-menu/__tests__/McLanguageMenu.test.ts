@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import "../mc-button/mc-button.js";
-import "./mc-language-menu.js";
-import { activations, tap } from "../../shared/test-tap.js";
-import type { LanguageMenuModel } from "./mc-language-menu.types.js";
+import "../../mc-button/mc-button.js";
+import "../mc-language-menu.js";
+import { activations, stop, tap } from "../../../shared/test-tap.js";
+import type { LanguageMenuModel } from "../mc-language-menu.types.js";
 
 afterEach(() => document.body.replaceChildren());
 
@@ -48,9 +48,10 @@ describe("mc-language-menu", () => {
     const el = await mount(list);
     const keys = activations(el);
     const box = el.shadowRoot!.querySelector<HTMLElement>(".list")!;
-    expect(box.style.left).toBe("100px");
-    expect(el.elementOf("es")!.hasAttribute("selected")).toBe(true);
-    tap(el.elementOf("en")!);
+    expect(el.style.getPropertyValue("--box-x")).toBe("100px");
+    expect(box).not.toBeNull();
+    expect(stop(el, "es").hasAttribute("selected")).toBe(true);
+    tap(stop(el, "en"));
     expect(keys).toEqual(["en"]);
   });
 
@@ -67,8 +68,8 @@ describe("mc-language-menu", () => {
     expect(el.shadowRoot!.querySelector(".title")!.textContent).toBe("Otros idiomas");
     expect(el.shadowRoot!.querySelectorAll("p")).toHaveLength(2);
     const keys = activations(el);
-    tap(el.elementOf("web")!);
-    tap(el.elementOf("close")!);
+    tap(stop(el, "web"));
+    tap(stop(el, "close"));
     expect(keys).toEqual(["web", "close"]);
   });
 });

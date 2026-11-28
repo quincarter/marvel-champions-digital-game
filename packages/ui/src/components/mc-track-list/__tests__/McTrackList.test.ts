@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import "./mc-track-list.js";
-import { activations, tap } from "../../shared/test-tap.js";
+import "../mc-track-list.js";
+import { activations, stop, tap } from "../../../shared/test-tap.js";
 
 afterEach(() => document.body.replaceChildren());
 
@@ -19,10 +19,10 @@ describe("mc-track-list and mc-track-row", () => {
     const rows = el.shadowRoot!.querySelectorAll("mc-track-row");
     expect(rows).toHaveLength(2);
     for (const row of rows) await row.updateComplete;
-    expect(el.elementOf("song:a")!.hasAttribute("playing")).toBe(true);
-    expect(el.elementOf("song:b")!.shadowRoot!.querySelector(".where")!.textContent).toBe("Any battle");
+    expect(stop(el, "song:a").hasAttribute("playing")).toBe(true);
+    expect(stop(el, "song:b").shadowRoot!.querySelector(".where")!.textContent).toBe("Any battle");
     const keys = activations(el);
-    tap(el.elementOf("song:b")!);
+    tap(stop(el, "song:b"));
     expect(keys).toEqual(["song:b"]);
   });
 

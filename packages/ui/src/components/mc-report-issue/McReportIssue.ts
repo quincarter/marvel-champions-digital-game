@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { findKey, popupButton } from "../../shared/popup-parts.js";
+import { popupButton } from "../../shared/popup-parts.js";
 import "../mc-report-step/mc-report-step.js";
 import { McReportIssueStyles } from "./mc-report-issue.styles.js";
 import type { ReportIssueModel } from "./mc-report-issue.types.js";
@@ -39,11 +39,6 @@ export class McReportIssue extends LitElement {
     this.columns = this.model?.columns ?? 1;
     this.phone = this.model?.phone ?? false;
     if (this.model) this.style.setProperty("--mc-scrim", String(this.model.scrim));
-  }
-
-  /** The element drawn for a control's key (a step's button, close), or null. */
-  elementOf(key: string): HTMLElement | null {
-    return findKey(this.renderRoot as ShadowRoot, key);
   }
 
   override render() {
