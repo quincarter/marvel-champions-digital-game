@@ -38,7 +38,7 @@ import { addTapTarget } from "./tap-target.js";
 import type { InstanceId } from "@mc/engine";
 import type { RowDrag } from "../../view/hand-scroll.js";
 import { McButton, fitText } from "../../ui/widgets.js";
-import { COMPACT_TALL_GROWTH } from "../../view/threat-meter-layout.js";
+import { tallGrowthFor } from "../../view/threat-meter-layout.js";
 import { schemeStackLayout, stackOrder } from "../../view/scheme-list-layout.js";
 import { StackSwipe, schemePickIds, stackFlip, stackFrontAfter, stackShowsEligible } from "../../view/scheme-stack.js";
 
@@ -475,6 +475,13 @@ export function drawScheme(
   // Counters the scheme itself holds (En Sabah Nur's Pyramid: "place 1 power counter here") get their own line, so
   // the tally that drives the scenario is on the table and not only in Inspect.
   let abilityTop = Math.max(text.y + (geometry.above ? 0 : 48), subtitleTop + Math.ceil(subtitleText.height) + 2);
+  // The lowest thing drawn over the meter, so the Threat bar setting's taller bar grows only into free room.
+  let textBottom = subtitleText.visible
+    ? subtitleTop + subtitleText.height
+    : nameShown
+      ? nameText.y + nameText.height
+      : text.y;
+  const firstLineTop = abilityTop;
   const counterText = counterNote(scheme.counters);
   if (counterText && abilityTop + 14 <= meter.y - 2) {
     label(scene, textLeft, abilityTop, counterText, typeRole.label, surface.ink.hex, ink.meta * dim);
@@ -523,6 +530,7 @@ export function drawScheme(
   }
   // A name that does not fit one row wraps to two lines when the room above the meter allows, and only otherwise is
   // fitted to one row (the full text is the Inspect pop-up's).
+  if (abilityTop > firstLineTop) textBottom = Math.max(textBottom, abilityTop - 3);
   const wrapped = abilityLine ? footStripLayout(abilityLine, textWidth).height : FOOT_STRIP_HEIGHT;
   const abilityHeight = abilityTop + wrapped <= meter.y - 4 ? wrapped : FOOT_STRIP_HEIGHT;
   if (abilityLine && abilityTop + abilityHeight <= meter.y - 4) {
@@ -533,7 +541,9 @@ export function drawScheme(
       "ability",
       dim,
     );
+    textBottom = Math.max(textBottom, abilityTop + abilityHeight);
   }
+  const tallGrowth = tallGrowthFor(meter.y - textBottom - 2, rect.y + rect.height - 3 - (meter.y + meter.height));
   const mg = scene.add.graphics();
   const meterText = scene.add
     .text(
@@ -559,7 +569,7 @@ export function drawScheme(
       null,
       compact ? 10 : undefined,
       ctx.threatMeterStyle,
-      compact ? COMPACT_TALL_GROWTH : undefined,
+      tallGrowth,
     );
 
   const tick = ctx.motion.threatTick(scheme.instanceId);

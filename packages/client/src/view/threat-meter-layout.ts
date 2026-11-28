@@ -4,8 +4,8 @@
  *
  * - "box": the bar fills `meter`, and the count sits on a parchment box across its middle, 2px in from top and bottom.
  * - "tall": the bar grows by `growth` (by default {@link TALL_METER_GROWTH}px upward, so it keeps clear of the panel's
- *   bottom edge; the board's slim side scheme rows grow it downward instead, {@link COMPACT_TALL_GROWTH}, so it keeps
- *   clear of the subtitle above) and the box keeps the old bar's height less 2px each side, so a strip of the fill
+ *   bottom edge; the board's scheme rows take it from whatever room is free above and below, {@link tallGrowthFor}, so
+ *   it never covers the subtitle) and the box keeps the old bar's height less 2px each side, so a strip of the fill
  *   shows above and below it.
  * - "beside": the count moves into its own box at the right end of `meter`, and the bar takes the rest, uncovered.
  * - "outline": the bar fills `meter` and the count is drawn straight on it, with no box.
@@ -23,8 +23,16 @@ export interface TallGrowth {
 }
 
 const DEFAULT_TALL_GROWTH: TallGrowth = { up: TALL_METER_GROWTH, down: 0 };
-/** A slim side scheme row's "tall" bar: down into the 4px under it, never up over its subtitle. */
-export const COMPACT_TALL_GROWTH: TallGrowth = { up: 0, down: 3 };
+/**
+ * A board scheme row's "tall" growth from the room it has: `freeAbove` between the text over the meter and the meter,
+ * `freeBelow` between the meter and the row's border. Upward first, as far as {@link TALL_METER_GROWTH}, then the rest
+ * downward; a slim side scheme row (its subtitle right on top of the meter) grows downward only.
+ */
+export function tallGrowthFor(freeAbove: number, freeBelow: number): TallGrowth {
+  const up = Math.max(0, Math.min(TALL_METER_GROWTH, Math.floor(freeAbove)));
+  const down = Math.max(0, Math.min(TALL_METER_GROWTH - up, Math.floor(freeBelow)));
+  return { up, down };
+}
 /** The gap between the bar and the count's own box in the "beside" style. */
 export const BESIDE_GAP = 6;
 
