@@ -91,6 +91,8 @@ export function statsInputOf(env: StatsInputEnv): StatsPageInput {
     },
     backGlyph: glyphs.glyph("stats:back", ["cancel"], "ink", CONTROL_HEIGHT),
     tabsGlyph: glyphs.glyph("stats:tabs", ["zonePrevious", "zoneNext"], "paper", TAB_HINT_HEIGHT),
-    sourceGlyph: glyphs.glyph("stats:source", [], "ink", CONTROL_HEIGHT, "inside", sourceSwitchSpecs),
+    sourceGlyph: env.phone
+      ? undefined
+      : glyphs.glyph("stats:source", [], "ink", CONTROL_HEIGHT, "inside", sourceSwitchSpecs),
   };
 }

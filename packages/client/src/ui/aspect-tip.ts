@@ -26,12 +26,9 @@
  * is a plain field on the host scene (`isOpen`, passed in fresh on each call), not something this module
  * tracks itself.
  *
- * **On a scrolling rail, also redrawn every `McChipRail#redraw()`, not just `#rebuild()`.** Seats' narrow
- * layout puts the aspect chips in `ui/chip-rail.ts`'s `McChipRail`, which scrolls without the host scene
- * rebuilding — a drag, a flick's momentum, `scrollIntoView`. `AspectInfoSegmentOptions.parent` lets a caller
- * (only `McChipRail` uses it) reparent the segment's own graphics/label/zone into the rail's own scrolling,
- * masked content layer instead of the scene root, so it moves and clips with its chip; `clip`/`suppressClick` then mirror `McButton`'s own guards for anything reparented
- * into scrolling, masked content.
+ * `AspectInfoSegmentOptions.parent` lets a caller reparent the segment's own graphics/label/zone into a scrolling,
+ * masked content layer instead of the scene root, so it moves and clips with its chip; `clip`/`suppressClick` mirror
+ * `McButton`'s own guards for anything reparented into scrolling, masked content.
  */
 import Phaser from "phaser";
 import { border, ink, signal, surface, typeRole } from "../tokens.js";
@@ -64,7 +61,7 @@ export interface AspectInfoSegmentOptions {
   readonly tint?: { readonly fill: number; readonly ink: number };
   /**
    * Reparents the segment's graphics, label and hit zone into this container instead of leaving them on the scene's
-   * own display list — the chip rail's own scrolling, masked content layer (`ui/chip-rail.ts`'s `#layer`), so the
+   * own display list — a scrolling, masked content layer, so the
    * segment scrolls and clips with the chip it belongs to (reported 2026-09-29: a badge drawn on the scene root sat
    * between two chips after the rail scrolled).
    */

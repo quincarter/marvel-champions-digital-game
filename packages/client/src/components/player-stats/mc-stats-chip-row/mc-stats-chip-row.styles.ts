@@ -28,6 +28,8 @@ export const McStatsChipRowStyles = [
       --chip-height: 44px;
       --chip-size: 18px;
       --chip-pad: 14px;
+      --chip-on-fill: var(--mc-fill-red);
+      --chip-on-color: var(--mc-text-paper);
       min-width: 56px;
     }
     :host([swipe]) mc-chip {

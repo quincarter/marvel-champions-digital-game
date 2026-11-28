@@ -36,7 +36,7 @@
  * the wide layout's ink detail panel and the seat card's "✕" both went); one
  * chip row — a square **search toggle** (`searchToggle`) at its head, then
  * the chips as **one horizontally-scrolling rail** (`chipsScroll`, drawn by
- * `ui/chip-rail.ts`) rather than wrapped rows; the search field only while
+ * a sideways rail) rather than wrapped rows; the search field only while
  * that toggle is on (`searchOpen`); then the shelves take **every remaining
  * pixel** above a sticky ink `footer` carrying Deck check and Play — the same
  * sticky-footer shape Table setup's own phone layout (P12) already uses.
@@ -137,7 +137,7 @@ export interface SeatsLayout {
   readonly chips: Rect;
   /** The Filters button, when the chips are behind one: right of the search field (wide) or beside the search toggle (narrow). */
   readonly filtersButton: Rect | null;
-  /** True on narrow: draw the chips as one horizontally-scrolling rail (`ui/chip-rail.ts`) rather than wrapped rows. */
+  /** True on narrow: draw the chips as one horizontally-scrolling rail rather than wrapped rows. */
   readonly chipsScroll: boolean;
   readonly shelves: Rect;
   /** The full-height ink hero-detail panel. Wide only — null on narrow, where `seatSummary` carries the active seat's facts instead. */
