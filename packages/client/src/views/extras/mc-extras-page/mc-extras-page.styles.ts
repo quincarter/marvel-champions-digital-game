@@ -46,7 +46,7 @@ export const McExtrasPageStyles = css`
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 0 var(--gutter) var(--gutter);
+    padding: 14px var(--gutter) var(--gutter);
   }
   mc-extras-shelf,
   mc-extras-tracks {
