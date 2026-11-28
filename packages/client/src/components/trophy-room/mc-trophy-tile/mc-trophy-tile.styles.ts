@@ -23,7 +23,7 @@ export const McTrophyTileStyles = css`
     display: flex;
     flex-direction: column;
     gap: 6px;
-    min-height: 78px;
+    min-height: 64px;
     margin: 3px 0;
     padding: 8px 10px 8px 12px;
     background: var(--mc-fill-parchment);
@@ -109,9 +109,6 @@ export const McTrophyTileStyles = css`
     .detail {
       -webkit-line-clamp: 3;
       line-clamp: 3;
-    }
-    .card {
-      min-height: 102px;
     }
   }
 `;
