@@ -411,7 +411,12 @@ export class McSheet extends LitElement {
         .label=${node.stepLabels[1]}
         @mc-press=${() => this.#step(key, 1)}
       ></mc-button>
-      <span class="part text slider-label" data-key=${`${key}:label`}>${node.label}</span>
+      <span
+        class="part text slider-label"
+        data-key=${`${key}:label`}
+        style=${node.ground === "paper" ? "color:var(--mc-text-ink, #14110e)" : ""}
+        >${node.label}</span
+      >
     </div>`;
   }
 

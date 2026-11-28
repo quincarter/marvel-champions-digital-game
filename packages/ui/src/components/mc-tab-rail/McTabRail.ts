@@ -79,6 +79,7 @@ export class McTabRail extends LitElement {
         return html`<div class="cell">
           <mc-button
             data-key=${this.prefix + tab.id}
+            data-stop=${this.prefix + tab.id}
             kind="rail"
             role="tab"
             aria-selected=${chosen ? "true" : "false"}

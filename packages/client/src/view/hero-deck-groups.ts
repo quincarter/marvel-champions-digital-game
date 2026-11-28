@@ -2,7 +2,7 @@
  * Take your seats groups its roster by hero (GitHub #219, "Decks in sub menu under each hero"): one shelf tile per
  * hero identity, however many decks that hero has (the Leadership and Aggression precons, the player's saved decks,
  * tested community decks). A hero with one matching deck seats it at a tap, as before; a hero with several opens a
- * submenu listing them (`scenes/hero-decks-sheet.ts`).
+ * submenu listing them (`components/seats/mc-hero-decks-sheet`).
  *
  * Pure and generic over the item type, like `view/roster-shelves.ts` it builds on: the scene decides which decks pass
  * the search and chips and which shelf each lands on, and this module only collapses the finished shelves to one tile

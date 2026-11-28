@@ -17,6 +17,7 @@ import "../mc-button/mc-button.js";
  * @attr mark - Puts "✓ " before a chosen chip name (on by default; off for a chip with its own mark, like "by X ✕").
  * @attr size - The label size in px (11).
  * @prop tint - Rest colors (`fill`, `ink`: CSS colors), an aspect chip in its printed frame color.
+ * @attr hug - The chip is as wide as its word (a row of chips that wrap), with room each side; the word is never shrunk.
  * @attr value - What `mc-activate` reports as `detail.key`.
  * @fires mc-activate - A tap on an available chip: `detail.key` is `value`.
  */
@@ -33,6 +34,7 @@ export class McFilterChip extends LitElement {
     mark: { type: Boolean },
     size: { type: Number },
     value: { type: String },
+    hug: { type: Boolean },
     tint: { attribute: false },
   };
 
@@ -45,6 +47,7 @@ export class McFilterChip extends LitElement {
   declare mark: boolean;
   declare size: number;
   declare value: string;
+  declare hug: boolean;
   /** Rest colors (CSS): the fill and the word's ink; chosen and hover look as any chip. */
   declare tint: { readonly fill: string; readonly ink: string } | undefined;
 
@@ -59,6 +62,7 @@ export class McFilterChip extends LitElement {
     this.mark = true;
     this.size = 11;
     this.value = "";
+    this.hug = false;
     this.tint = undefined;
   }
 
@@ -76,6 +80,7 @@ export class McFilterChip extends LitElement {
       .label=${this.text}
       .reason=${this.reason}
       ?selected=${this.selected}
+      ?hug=${this.hug}
       ?disabled=${this.disabled}
       aria-pressed=${this.selected ? "true" : "false"}
       @mc-press=${(event: Event) => {

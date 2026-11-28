@@ -167,6 +167,15 @@ export const McButtonStyles = css`
     --ink-alpha: 1;
   }
 
+  /* A chip: as wide as its word, with room each side. */
+  :host([hug]) button {
+    padding: 0 14px;
+  }
+  :host([hug]) .label {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
   :host([disabled]) {
     --ink-alpha: 0.4;
   }

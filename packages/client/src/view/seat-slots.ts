@@ -10,6 +10,7 @@
 import type { AnyCard, CoreAspect, Deck, EncounterSet } from "@mc/content";
 import type { DeckOption } from "./deck-list-model.js";
 import type { SeatOption } from "./seats.js";
+import { deckDisplayName, localHeroName } from "./deck-names.js";
 import { qualifiedHeroName } from "./hero-names.js";
 import { aspectName } from "./aspect-stamp.js";
 import { t } from "../i18n/translate.js";
@@ -46,7 +47,7 @@ function identityStatsOf(
     return { identityName: identity?.name ?? null, hp: null, handSize: null, thw: null, atk: null, def: null };
   }
   return {
-    identityName: qualifiedHeroName(identity),
+    identityName: localHeroName(identity.id as string, qualifiedHeroName(identity)),
     hp: identity.hp,
     handSize: identity.hero.handSize,
     thw: identity.hero.thw,
@@ -86,7 +87,7 @@ export function seatSlotsOf(
     return {
       index,
       deckId,
-      deckName: option.deck.name.split(" — ")[0]!,
+      deckName: deckDisplayName(option.deck).split(" — ")[0]!,
       aspectLabel: aspectLabelOf(option.deck.aspects, artLanguageNow()),
       ...identityStatsOf(option.deck, cardsById),
       active: index === active,

@@ -415,6 +415,11 @@ export async function pressHookStop(page: Page, hookName: string, key: string, t
     }
   }
   await waitFor(read, `control "${key}" on ${hookName}`, timeoutMs);
+  // A screen whose controls scroll (a phone's page) can bring one into view through its hook's `reveal(key)`.
+  await page.evaluate(
+    ([n, k]) => (window as unknown as Record<string, { reveal?: (key: string) => void } | undefined>)[n!]?.reveal?.(k!),
+    [hookName, key] as const,
+  );
   await settle(page, { quietMs: 150, maxMs: 500 });
   const stop = (await read()) ?? (await waitFor(read, `control "${key}" on ${hookName}`, timeoutMs));
   await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height / 2, { verify: !FOCUS_ONLY_STOP.test(key) });

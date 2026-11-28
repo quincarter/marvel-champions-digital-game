@@ -9,6 +9,7 @@
  * the others.
  */
 import { CARD_LANGUAGES, CARD_LANGUAGE_NAMES, type CardLanguage } from "../art/card-language.js";
+import { t } from "../i18n/translate.js";
 import { GAME_URL } from "../site/site-urls.js";
 import type { Rect } from "./layout.js";
 
@@ -83,20 +84,26 @@ export function languageRowLabel(language: CardLanguage, current: CardLanguage):
   return language === current ? `✓ ${CARD_LANGUAGE_NAMES[language]}` : CARD_LANGUAGE_NAMES[language];
 }
 
-/** "English and Español" / "A, B and C". */
-export function joinNames(names: readonly string[]): string {
+/** "English and Español" / "A, B and C"; `and` is the language's own word, with its spaces. */
+export function joinNames(names: readonly string[], and = " and "): string {
   if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return `${names.slice(0, -1).join(", ")}${and}${names.at(-1)}`;
 }
 
-/** The "Other languages" note's paragraphs, for the language this install carries. */
+/** The "Other languages" note's paragraphs, for the language this install carries, in the app's language. */
 export function otherLanguagesParagraphs(current: CardLanguage): readonly string[] {
-  const all = joinNames(CARD_LANGUAGES.map((language) => CARD_LANGUAGE_NAMES[language]));
-  const tags = joinNames(CARD_LANGUAGES.map((language) => `-${language.toUpperCase()}-`)).replace(" and ", " or ");
+  const all = joinNames(
+    CARD_LANGUAGES.map((language) => CARD_LANGUAGE_NAMES[language]),
+    t("language.info.and"),
+  );
+  const tags = joinNames(
+    CARD_LANGUAGES.map((language) => `-${language.toUpperCase()}-`),
+    t("language.info.or"),
+  );
   return [
-    `Card art comes in ${all}. This install's card art is in ${CARD_LANGUAGE_NAMES[current]}.`,
-    `Each language is its own download: the app carries all of its card art inside it, and GitHub limits each download to 2 GB, so ${all} cannot share one installer.`,
-    "Installing another language's download replaces this app and keeps your saves.",
-    `On the downloads page, pick the file with ${tags} in its name. The browser version has every language.`,
+    t("language.info.p1", { all, current: CARD_LANGUAGE_NAMES[current] }),
+    t("language.info.p2", { all }),
+    t("language.info.p3"),
+    t("language.info.p4", { tags }),
   ];
 }

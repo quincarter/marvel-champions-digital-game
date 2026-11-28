@@ -121,7 +121,7 @@ test("an open aspect tip sits over the filter chips, inside the screen, and a ta
   await showCards(page);
   const before = await page.locator(`${panel} mc-card-sections [data-key^="card:"]`).count();
   await page.locator(`${panel} [data-key="aspect-info:pool"]`).first().click();
-  const plate = page.locator(`${panel} [data-key="aspect-tip-plate"]`).first();
+  const plate = page.locator(`${panel} mc-tip-plate .plate`).first();
   await plate.waitFor({ state: "visible", timeout: 10_000 });
   const box = (await plate.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
@@ -129,8 +129,10 @@ test("an open aspect tip sits over the filter chips, inside the screen, and a ta
   expect(box.x + box.width).toBeLessThanOrEqual(1280);
   expect(box.y + box.height).toBeLessThanOrEqual(560);
   expect((await findText(page, "Crisis of Infinite Deadpools", "DeckCheck")).length).toBeGreaterThan(0);
-  // A tap on the plate (over where the filter chips are) shuts the tip and presses no chip.
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await plate.waitFor({ state: "detached", timeout: 10_000 });
+  // A tap beside the plate lands on its backdrop: it shuts the tip and presses nothing beneath (here, a card).
+  const card = (await page.locator(`${panel} mc-card-sections [data-key^="card:"]`).first().boundingBox())!;
+  await page.mouse.click(card.x + card.width / 2, card.y + card.height / 2);
+  await page.locator(`${panel} mc-tip-plate`).first().waitFor({ state: "detached", timeout: 10_000 });
+  expect(await activeScenes(page)).not.toContain("InspectOverlay");
   expect(await page.locator(`${panel} mc-card-sections [data-key^="card:"]`).count()).toBe(before);
 });

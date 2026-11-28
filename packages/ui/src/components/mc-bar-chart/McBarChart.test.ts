@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import "./mc-bar-chart.js";
 
+type Bar = HTMLElement & { label: string; count: number; max: number; highlight: boolean; tint: string };
+
 describe("mc-bar-chart", () => {
-  it("draws a bar a column as tall as its count against the largest, never under 2px, red when highlighted", async () => {
+  it("gives each column its count against the largest, its label and its highlight, and sets the chart height", async () => {
     const el = document.createElement("mc-bar-chart");
     el.height = 118;
     el.bars = [
@@ -12,15 +14,17 @@ describe("mc-bar-chart", () => {
     ];
     document.body.append(el);
     await el.updateComplete;
-    const bars = [...el.shadowRoot!.querySelectorAll<HTMLElement>(".bar")];
-    expect(bars.map((bar) => bar.style.height)).toEqual(["2px", "100px", "50px"]);
-    expect(bars.map((bar) => bar.classList.contains("highlight"))).toEqual([false, true, false]);
-    expect([...el.shadowRoot!.querySelectorAll(".axis")].map((axis) => axis.textContent)).toEqual(["0", "1", "2"]);
-    expect(el.style.height).toBe("118px");
+    const bars = [...el.shadowRoot!.querySelectorAll<Bar>("mc-chart-bar")];
+    expect(bars.map((bar) => [bar.label, bar.count, bar.max, bar.highlight])).toEqual([
+      ["0", 0, 10, false],
+      ["1", 10, 10, true],
+      ["2", 5, 10, false],
+    ]);
+    expect(el.style.getPropertyValue("--chart-height")).toBe("118px");
     el.remove();
   });
 
-  it("paints a bar with a tint of its own, and leaves the rest as they were", async () => {
+  it("passes a bar's tint on, and leaves the rest as they were", async () => {
     const el = document.createElement("mc-bar-chart");
     el.bars = [
       { label: "0", count: 2, highlight: false, tint: "rgb(10, 20, 30)" },
@@ -28,9 +32,9 @@ describe("mc-bar-chart", () => {
     ];
     document.body.append(el);
     await el.updateComplete;
-    const bars = el.shadowRoot!.querySelectorAll<HTMLElement>(".bar");
-    expect(bars[0]!.style.background).toBe("rgb(10, 20, 30)");
-    expect(bars[1]!.style.background).toBe("");
+    const bars = el.shadowRoot!.querySelectorAll<Bar>("mc-chart-bar");
+    expect(bars[0]!.tint).toBe("rgb(10, 20, 30)");
+    expect(bars[1]!.tint).toBe("");
     el.remove();
   });
 });
