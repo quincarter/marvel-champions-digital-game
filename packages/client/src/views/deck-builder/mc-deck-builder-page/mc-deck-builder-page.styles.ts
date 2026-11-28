@@ -89,6 +89,15 @@ export const McDeckBuilderPageStyles = css`
     flex: 1 1 auto;
     min-height: 0;
   }
+  .label {
+    margin: 0;
+    font-size: var(--mc-small-10, 10px);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    line-height: 1.2;
+  }
   .count {
     font-size: var(--mc-small-10, 10px);
     font-weight: 700;

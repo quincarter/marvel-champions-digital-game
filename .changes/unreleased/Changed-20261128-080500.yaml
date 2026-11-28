@@ -1,0 +1,3 @@
+kind: Changed
+body: The Deck builder search cheat sheet and pack and wave picker are now elements in a dialog (a new UI dialog element), and the title clears the dark mode toggle and the deck panel reads in light text again
+time: 2026-11-28T08:05:00.000000-05:00

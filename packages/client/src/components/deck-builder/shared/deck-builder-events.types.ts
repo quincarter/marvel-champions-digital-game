@@ -75,7 +75,15 @@ export type DeckBuilderEventDetail =
   | { readonly type: "save" }
   | { readonly type: "games-step"; readonly dir: 1 | -1 }
   | { readonly type: "games-source"; readonly source: "yours" | "everyone" }
-  | { readonly type: "games-share" };
+  | { readonly type: "games-share" }
+  /** The search cheat sheet: put an example in the search and close, or copy it. */
+  | { readonly type: "help-use"; readonly query: string }
+  | { readonly type: "help-copy"; readonly index: number; readonly query: string }
+  /** The pack and wave picker: "All" clears the choice, a row toggles one. */
+  | { readonly type: "pick-all" }
+  | { readonly type: "pick-toggle"; readonly id: string }
+  /** Either sheet's Back / Done. */
+  | { readonly type: "sheet-close" };
 
 declare global {
   interface HTMLElementEventMap {

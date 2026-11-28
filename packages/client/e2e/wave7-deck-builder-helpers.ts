@@ -90,13 +90,14 @@ export async function press(page: Page, scene: string, key: string): Promise<voi
   }
   if (PHONE && scene === "DeckBuilder" && !key.startsWith("tab:") && !(await stopOf(page, scene, key))) {
     // The phone builder shows one tab at a time (Pool, Deck, From your games): open the one that holds the control.
-    const inDeck = /^(name|save|aspect:|preconstructed|clear|delete|reward:|freeze-deck)/.test(key);
+    const inDeck =
+      /^(name|save|aspect:|preconstructed|clear|delete|reward:|freeze-deck|odds:|deck-sort|deck-review)/.test(key);
     const inGames = key.startsWith("games:");
     const tab = (await stopOf(page, scene, inGames ? "tab:games" : inDeck ? "tab:deck" : "tab:pool"))?.rect;
     if (tab) await tap(page, tab.x + tab.width / 2, tab.y + tab.height / 2);
     await settle(page, { quietMs: 200, maxMs: 800 });
     // A type or pack chip sits behind the Filters chip on the Pool tab, in place of the list: open it, press, close it.
-    if (/^(type|pack):/.test(key) && !(await stopOf(page, scene, key))) {
+    if (/^(type|pack|quick|trait):/.test(key) && !(await stopOf(page, scene, key))) {
       const chip = (await stopOf(page, scene, "filters-toggle"))?.rect;
       if (chip) {
         await tap(page, chip.x + chip.width / 2, chip.y + chip.height / 2);
@@ -128,7 +129,7 @@ export async function press(page: Page, scene: string, key: string): Promise<voi
   }
 }
 
-/** The pool row's own + (or -) button, by its geometry in `deck-builder.ts#listRow`. */
+/** The pool row's own + (or -) button, by its geometry in `components/deck-builder/mc-pool-row` (the same slot: 104 high, - and + at the right end). */
 export async function rowButton(page: Page, id: string, which: "plus" | "minus"): Promise<void> {
   await scrollTo(page, "DeckBuilder", `card:${id}`);
   await settle(page, { quietMs: 120, maxMs: 400 });
@@ -145,6 +146,17 @@ export const remove = (page: Page, id: string): Promise<void> => rowButton(page,
  * this opens the Deck tab, reads it, and returns to the tab it started on.
  */
 export async function texts(page: Page, scene: string): Promise<string[]> {
+  return withCapitals(await rawTexts(page, scene));
+}
+
+/**
+ * The builder's panels write words in their own case and the stylesheet draws the labels in capitals (`text-transform`),
+ * where the old sheet wrote the capitals itself. A player reads either, so every text is offered in both: a spec names
+ * what it sees ("HERO · 15", "Legal — 40 cards.") and finds it.
+ */
+const withCapitals = (list: readonly string[]): string[] => [...list, ...list.map((text) => text.toUpperCase())];
+
+async function rawTexts(page: Page, scene: string): Promise<string[]> {
   const here = (await visibleTexts(page)).filter((t) => t.scene === scene).map((t) => t.text);
   if (!PHONE || scene !== "DeckBuilder") return here;
   const stops = await stopsOf(page, scene);
@@ -285,11 +297,14 @@ export async function legalityLine(page: Page): Promise<string> {
 }
 /** The "YOUR DECK" panel's lines, as one string per card: "Name x N". */
 export async function deckPanel(page: Page): Promise<string[]> {
-  const t = await texts(page, "DeckBuilder");
+  // The words as drawn, in their own case (the capitals copies `texts` adds would list every line twice).
+  const t = await rawTexts(page, "DeckBuilder");
   // Each line also carries its "-" remove control's label.
   // The panel ends at the first button under it (a saved deck also shows DELETE and a shorter PRECON label).
-  const from = t.indexOf("YOUR DECK") + 1;
-  const end = t.findIndex((x, i) => i >= from && ["DELETE", "PRECONSTRUCTED", "PRECON", "CLEAR"].includes(x));
+  const from = t.map((x) => x.toUpperCase()).lastIndexOf("YOUR DECK") + 1;
+  const end = t.findIndex(
+    (x, i) => i >= from && ["DELETE", "PRECONSTRUCTED", "PRECON", "CLEAR"].includes(x.toUpperCase()),
+  );
   // A keycap glyph ("F" beside the From your games tab) is drawn only while a keyboard is the input in use, so it is there
   // after typing in the search and gone after a mouse press: it is input mode, not the deck, and is left out of the lines.
   return t.slice(from, end < 0 ? undefined : end).filter((x) => x !== "−" && !/^[A-Z]$/.test(x));

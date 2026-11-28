@@ -123,10 +123,10 @@ export class McDeckBuilderPage extends BuilderElement {
 
   // ---- The filters, in the layouts that show them ---------------------------------------------------------------------
 
-  #filters(build: BuildModel, withShows: boolean, typeToo = true) {
+  #filters(build: BuildModel, withShows: boolean, quickToo = true) {
     return html`${withShows ? html`<mc-show-toggles .model=${build.shows}></mc-show-toggles>` : nothing}
-      ${typeToo ? html`<mc-type-filters .model=${build.types}></mc-type-filters>` : nothing}
-      <mc-quick-filters .model=${build.quick}></mc-quick-filters>
+      <mc-type-filters .model=${build.types}></mc-type-filters>
+      ${quickToo ? html`<mc-quick-filters .model=${build.quick}></mc-quick-filters>` : nothing}
       <mc-pack-sort .model=${build.packs}></mc-pack-sort>`;
   }
 
@@ -156,7 +156,7 @@ export class McDeckBuilderPage extends BuilderElement {
     return html`<div class="wide body">
       <aside class="rail-left">
         <mc-aspect-picker .model=${build.aspects}></mc-aspect-picker>
-        ${fold ? nothing : this.#filters(build, false)}
+        ${fold ? nothing : this.#filters(build, false, false)}
         <mc-deck-charts mode="tabs" .tab=${build.chartTab} .model=${build.charts}></mc-deck-charts>
       </aside>
       <section class="mid">
