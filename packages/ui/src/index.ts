@@ -32,6 +32,14 @@ export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
 export { McPictureCard } from "./components/mc-picture-card/mc-picture-card.js";
 export { McListRow } from "./components/mc-list-row/mc-list-row.js";
 export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
+export { McFirstPlayerToken } from "./components/mc-first-player-token/mc-first-player-token.js";
+export type {
+  TokenFlight,
+  TokenFrame,
+  TokenPoint,
+  TokenRect,
+} from "./components/mc-first-player-token/mc-first-player-token.types.js";
+export { flipOffset } from "./components/mc-first-player-token/token-motion.js";
 export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
 export { McArticle } from "./components/mc-article/mc-article.js";
 export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
