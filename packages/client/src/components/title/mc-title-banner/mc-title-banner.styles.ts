@@ -26,9 +26,7 @@ export const McTitleBannerStyles = css`
   .detail {
     font-weight: 800;
     line-height: 1.25;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .heading {
     font-size: var(--mc-small-9, 9px);

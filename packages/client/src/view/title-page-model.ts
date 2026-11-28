@@ -159,7 +159,7 @@ export function gamesInputOf(facts: TitleFacts): TitleGamesInput {
         title: row.title,
         detail: [row.kicker, row.detail].filter((part): part is string => part !== null).join(" · "),
         ...(mark ? { icon: rowIconOf(mark) } : {}),
-        needsUpdate: row.needsUpdate !== null ? t("title.games.needsUpdate") : null,
+        needsUpdate: row.needsUpdate ? t("title.games.needsUpdate") : null,
         resume: t("title.games.resume"),
         watch: t("gamesList.watch"),
         remove: t("title.games.remove"),

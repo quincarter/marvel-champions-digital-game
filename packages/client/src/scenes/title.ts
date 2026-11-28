@@ -233,6 +233,18 @@ export class TitleScene extends Phaser.Scene {
     // takes the Steam script's update and says so, without a relaunch.
     void steamAdd();
     feeds.start();
+    // Dev-only visual-QA hook (never read by product code): puts saves, an update, a status or a replay problem on the Title.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcTitleDemo?: unknown }).__mcTitleDemo = (
+        patch: Partial<TitleFeeds> & { status?: string; problem?: string },
+      ): void => {
+        const { status, problem, ...rest } = patch;
+        Object.assign(feeds, rest);
+        if (status !== undefined) this.#statusText = status;
+        if (problem !== undefined) this.#replayProblem(problem);
+        this.#rebuild(true);
+      };
+    }
   }
 
   /** Mounts the page once; its one event is a press on a control, by the control's focus stop key. */
