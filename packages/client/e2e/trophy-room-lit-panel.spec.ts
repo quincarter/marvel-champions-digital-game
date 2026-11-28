@@ -3,7 +3,7 @@ import { findText, pressKey, trackPageErrors, waitFor } from "./helpers.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * The Trophy Room draws its list and an achievement's sheet as a Lit panel over the canvas (`mc-sheet`,
+ * The Trophy Room is one custom element, `mc-trophy-room-page`, over the canvas
  * `scenes/trophy-room.ts`): the family headings and achievement cards are in the panel, the keyboard walks the same
  * stops with the ring drawn in the DOM, Enter opens a family or an achievement's sheet, Escape closes the sheet and then
  * leaves; on a phone the lift that ends a swipe over a card presses nothing. Its words follow the app's language.
@@ -22,7 +22,7 @@ async function openRoom(page: Page): Promise<void> {
   await openApp(page, "screen=stats&fixture=demo&unlock=all", { landing: "PlayerStats" });
   await page.goto("/?screen=trophies&unlock=all");
   await waitFor(
-    async () => ((await page.locator(`${panel} [data-key="sec:wins"]`).count()) > 0 ? true : null),
+    async () => ((await page.locator(`${panel} [data-stop="sec:wins"]`).count()) > 0 ? true : null),
     "the headings",
     30_000,
   );
@@ -51,11 +51,11 @@ test("the Trophy Room is a Lit panel: headings fold, the keyboard opens an achie
   await openRoom(page);
   await expect(page.locator(`${panel} [data-key="list"]`)).toHaveCount(1);
   expect(await findText(page, "BATTLES WON", "TrophyRoom"), "the headings are in the panel").not.toHaveLength(0);
-  await expect(page.locator(`${panel} [data-key^="row:"]`), "every family starts folded").toHaveCount(0);
+  await expect(page.locator(`${panel} [data-stop^="row:"]`), "every family starts folded").toHaveCount(0);
 
   // A tap on a heading opens it, and its achievement cards come into the panel.
-  await page.locator(`${panel} [data-key="sec:wins"]`).click();
-  await expect(page.locator(`${panel} [data-key^="row:"]`).first()).toBeAttached();
+  await page.locator(`${panel} [data-stop="sec:wins"]`).click();
+  await expect(page.locator(`${panel} [data-stop^="row:"]`).first()).toBeAttached();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/trophy-lit-desktop.png` });
 
   // The keyboard: the first arrow takes the first stop, the ring is drawn in the DOM, Down walks to the first card.
@@ -71,13 +71,13 @@ test("the Trophy Room is a Lit panel: headings fold, the keyboard opens an achie
   }
   expect(focus?.startsWith("row:")).toBe(true);
   await pressKey(page, "Enter");
-  await expect(page.locator(`${panel} [data-key="close"]`)).toHaveCount(1);
+  await expect(page.locator(`${panel} [data-stop="close"]`)).toHaveCount(1);
   expect((await focusOf(page)).focus).toBe("close");
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/trophy-lit-desktop-sheet.png` });
 
   // Escape closes the sheet and gives the card its focus back; a second Escape leaves.
   await pressKey(page, "Escape");
-  await expect(page.locator(`${panel} [data-key="close"]`)).toHaveCount(0);
+  await expect(page.locator(`${panel} [data-stop="close"]`)).toHaveCount(0);
   await waitFor(async () => ((await focusOf(page)).focus === focus ? true : null), "focus returns to the card", 5000);
   await pressKey(page, "Escape");
   await waitFor(async () => ((await page.locator(panel).count()) === 0 ? true : null), "the panel goes", 10_000);
@@ -94,7 +94,7 @@ test.describe("in Spanish", () => {
     expect(await findText(page, "BATALLAS GANADAS", "TrophyRoom"), "a Spanish family heading").not.toHaveLength(0);
     expect(await findText(page, "Orden:", "TrophyRoom"), "the Filters button").not.toHaveLength(0);
     expect(await findText(page, "Desplegar todo", "TrophyRoom"), "Expand all").not.toHaveLength(0);
-    await page.locator(`${panel} [data-key="sec:wins"]`).click();
+    await page.locator(`${panel} [data-stop="sec:wins"]`).click();
     await expect(
       page
         .locator(panel)
@@ -113,18 +113,18 @@ test("on a phone the lift that ends a swipe over an achievement presses nothing;
   await page.setViewportSize({ width: 375, height: 667 });
   const errors = trackPageErrors(page);
   await openRoom(page);
-  await page.locator(`${panel} [data-key="sec:wins"]`).tap();
-  const card = page.locator(`${panel} [data-key^="row:"]`).first();
+  await page.locator(`${panel} [data-stop="sec:wins"]`).tap();
+  const card = page.locator(`${panel} [data-stop^="row:"]`).first();
   await expect(card).toBeAttached();
   const box = (await card.boundingBox())!;
   const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await swipe(page, { x: at.x, y: Math.min(640, at.y + 150) }, at);
   await page.waitForTimeout(400);
-  await expect(page.locator(`${panel} [data-key="close"]`), "a swipe opened nothing").toHaveCount(0);
+  await expect(page.locator(`${panel} [data-stop="close"]`), "a swipe opened nothing").toHaveCount(0);
   await page.touchscreen.tap(at.x, at.y);
-  await expect(page.locator(`${panel} [data-key="close"]`)).toHaveCount(1);
+  await expect(page.locator(`${panel} [data-stop="close"]`)).toHaveCount(1);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/trophy-lit-phone-sheet.png` });
   await pressKey(page, "Escape");
-  await expect(page.locator(`${panel} [data-key="close"]`)).toHaveCount(0);
+  await expect(page.locator(`${panel} [data-stop="close"]`)).toHaveCount(0);
   expect(errors).toEqual([]);
 });

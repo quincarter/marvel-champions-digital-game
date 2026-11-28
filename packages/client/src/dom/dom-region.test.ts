@@ -42,6 +42,8 @@ describe("regionTakesEvents", () => {
       "mc-deck-check",
       "mc-card-inspect",
       "mc-scenario-select",
+      "mc-past-games",
+      "mc-trophy-room",
     ]);
   });
 });
