@@ -32,7 +32,7 @@ import type { BuilderStep } from "../view/civil-war-builder-layout.js";
 import type { SeatsData } from "./seats.js";
 import type { TableSetupData } from "./table-setup.js";
 import type { ExtrasTab } from "../progression/extras.js";
-import type { StatsTab } from "../view/player-stats-layout.js";
+import type { StatsTab } from "../view/player-stats-tabs.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { LessonListEntry } from "../view/lesson-model.js";
 import type { RoundDebriefData } from "./round-debrief.js";

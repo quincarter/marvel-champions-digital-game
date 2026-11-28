@@ -1,5 +1,5 @@
 import { html, nothing, type PropertyDeclarations } from "lit";
-import { ThemeStyles, type StepperPressDetail } from "@mc/ui";
+import { ThemeStyles, type ValueStepperPressDetail } from "@mc/ui";
 import { BuilderElement } from "../shared/BuilderElement.js";
 import { McPackSortStyles } from "./mc-pack-sort.styles.js";
 import type { PackSortModel } from "./mc-pack-sort.types.js";
@@ -29,7 +29,7 @@ export class McPackSort extends BuilderElement {
     this.model = null;
   }
 
-  #step = (event: CustomEvent<StepperPressDetail>): void => {
+  #step = (event: CustomEvent<ValueStepperPressDetail>): void => {
     event.stopPropagation();
     const { part } = event.detail;
     this.emit(part === "name" ? { type: "pack-pick" } : { type: "pack-step", dir: part === "prev" ? -1 : 1 });
@@ -40,14 +40,14 @@ export class McPackSort extends BuilderElement {
     if (!model) return nothing;
     return html`<div class="label">${model.label}</div>
       <div class="stack">
-        <mc-stepper
+        <mc-value-stepper
           prev-stop="pack:prev"
           name-stop="pack:name"
           next-stop="pack:next"
           .label=${model.pack.label}
           ?selected=${model.pack.on}
-          @mc-stepper-press=${this.#step}
-        ></mc-stepper>
+          @mc-value-stepper-press=${this.#step}
+        ></mc-value-stepper>
         <mc-button
           kind="secondary"
           data-stop="pack:cycle"

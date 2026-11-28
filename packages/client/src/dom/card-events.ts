@@ -8,6 +8,7 @@
  */
 import type { HoverCardIdRect } from "../view/card-hover.js";
 import { hoverSlotOf } from "../view/card-hover.js";
+import type { AnyCard } from "@mc/content";
 import type { CardHoverDetail, CardRef } from "@mc/ui";
 
 /** What `CardEvents` needs of the region: the page element and a viewport-box-to-game-coordinates conversion. */
@@ -21,6 +22,11 @@ export class CardEvents {
   #current: { readonly cardId: string; readonly face: unknown; readonly rect: HoverCardIdRect } | null = null;
   /** Called with the card to inspect (a press-and-hold on a picture); the scene opens Inspect. */
   onInspect: (cardId: string, face: unknown) => void = () => undefined;
+  /**
+   * The card record of a picture whose card is in no installed pool (a finished game's custom hero, its pack since removed):
+   * the hover popover draws from it. Absent: the card is looked up by id.
+   */
+  recordOf: (cardId: string) => AnyCard | undefined = () => undefined;
 
   constructor(region: CardEventsRegion) {
     this.#region = region;
@@ -35,10 +41,17 @@ export class CardEvents {
     if (!(target instanceof Element)) return;
     const box = this.#region.rectOf(target);
     const { cardId, face } = event.detail;
+    const card = this.recordOf(cardId);
     this.#current = {
       cardId,
       face,
-      rect: { ...box, cardId, through: true, ...(face ? { face: face as never } : {}) },
+      rect: {
+        ...box,
+        cardId,
+        through: true,
+        ...(face ? { face: face as never } : {}),
+        ...(card ? { card } : {}),
+      },
     };
   };
 

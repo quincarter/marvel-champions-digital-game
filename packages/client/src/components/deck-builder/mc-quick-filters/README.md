@@ -16,6 +16,6 @@ Cost chips 0 to 5+, resource icon chips and a trait stepper (issue 531). Each ch
 
 Focus stops: quick:cost:<n>, quick:icon:<icon>, trait:prev, trait:name, trait:next
 
-Uses: mc-button, mc-stepper (@mc/ui)
+Uses: mc-button, mc-value-stepper (@mc/ui)
 
 The parent imports `mc-quick-filters/mc-quick-filters` once; shared `@mc/ui` elements are defined by the ui entry.

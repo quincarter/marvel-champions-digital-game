@@ -16,6 +16,6 @@ The pool Pack stepper, Wave button and the Sort and Then buttons. Pressing the p
 
 Focus stops: pack:prev, pack:name, pack:next, pack:cycle, pack:sort, pack:then
 
-Uses: mc-stepper, mc-button (@mc/ui)
+Uses: mc-value-stepper, mc-button (@mc/ui)
 
 The parent imports `mc-pack-sort/mc-pack-sort` once; shared `@mc/ui` elements are defined by the ui entry.

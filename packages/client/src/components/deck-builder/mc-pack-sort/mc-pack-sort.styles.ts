@@ -18,7 +18,7 @@ export const McPackSortStyles = [
       height: 44px;
       min-width: 0;
     }
-    mc-stepper {
+    mc-value-stepper {
       width: 100%;
     }
   `,

@@ -2,13 +2,24 @@ import { css } from "lit";
 
 export const McStepperStyles = css`
   :host {
-    display: grid;
-    grid-template-columns: var(--stepper-arrow, 44px) minmax(0, 1fr) var(--stepper-arrow, 44px);
-    gap: var(--stepper-gap, 6px);
-    height: var(--stepper-height, 44px);
+    display: flex;
+    gap: 8px;
+    min-width: 0;
   }
-  mc-button {
-    width: 100%;
+  .arrow {
+    position: relative;
+    flex: none;
+    width: var(--arrow-width, 78px);
+  }
+  .arrow mc-chip {
     height: 100%;
+  }
+  .name {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  mc-chip {
+    --chip-height: 44px;
+    --chip-size: 18px;
   }
 `;

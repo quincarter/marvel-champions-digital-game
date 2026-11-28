@@ -1,47 +1,49 @@
+// @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
 import "../mc-stepper";
-import type { StepperPressDetail } from "../mc-stepper.types";
+import type { PressDetail } from "../../../../shared/press/press.types";
 
 afterEach(() => document.body.replaceChildren());
 
-async function stepper() {
+async function stepper(set: (el: HTMLElementTagNameMap["mc-stepper"]) => void) {
   const el = document.createElement("mc-stepper");
-  el.label = "All packs";
-  el.prevStop = "pack:prev";
-  el.nameStop = "pack:name";
-  el.nextStop = "pack:next";
+  set(el);
   document.body.append(el);
   await el.updateComplete;
   return el;
 }
 
 describe("mc-stepper", () => {
-  it("draws three buttons carrying the focus stop keys it was given", async () => {
-    const el = await stepper();
-    const stops = [...el.shadowRoot!.querySelectorAll<HTMLElement>("[data-stop]")].map((b) => b.dataset.stop);
-    expect(stops).toEqual(["pack:prev", "pack:name", "pack:next"]);
+  it("draws an arrow either side of the choice, each a focus stop that raises its own action", async () => {
+    const el = await stepper((s) => {
+      s.label = "Spider-Man · 4 games";
+      s.prevStop = "hero:previous";
+      s.nextStop = "hero:next";
+      s.prevAction = { dir: -1 };
+      s.nextAction = { dir: 1 };
+    });
+    const chips = [...el.shadowRoot!.querySelectorAll("mc-chip")];
+    expect(chips.map((c) => c.getAttribute("data-stop"))).toEqual(["hero:previous", "", "hero:next"]);
+    expect(chips[1]!.getAttribute("label")).toBe("Spider-Man · 4 games");
+    const seen: PressDetail[] = [];
+    el.addEventListener("mc-pressed", (e) => seen.push(e.detail));
+    (chips[2] as HTMLElement & { press(): void }).press();
+    (chips[0] as HTMLElement & { press(): void }).press();
+    expect(seen.map((d) => d.action)).toEqual([{ dir: 1 }, { dir: -1 }]);
   });
 
-  it("raises one mc-stepper-press per press, naming the part, and keeps the button's own event inside", async () => {
-    const el = await stepper();
-    const seen: StepperPressDetail[] = [];
-    const leaked: Event[] = [];
-    el.addEventListener("mc-stepper-press", (e) => seen.push(e.detail));
-    document.body.addEventListener("mc-press", (e) => leaked.push(e));
-    const buttons = el.shadowRoot!.querySelectorAll<HTMLElement>("mc-button");
-    buttons[2]!.click();
-    buttons[1]!.click();
-    expect(seen).toEqual([{ part: "next" }, { part: "name" }]);
-    expect(leaked).toHaveLength(0);
+  it("stands alone with one choice: no arrows", async () => {
+    const el = await stepper((s) => {
+      s.label = "Only one";
+      s.several = false;
+    });
+    expect(el.shadowRoot!.querySelectorAll("mc-chip")).toHaveLength(1);
   });
 
-  it("marks the middle chosen and each disabled part", async () => {
-    const el = await stepper();
-    el.selected = true;
-    el.nextDisabled = true;
-    await el.updateComplete;
-    const buttons = el.shadowRoot!.querySelectorAll("mc-button");
-    expect(buttons[1]!.hasAttribute("selected")).toBe(true);
-    expect(buttons[2]!.hasAttribute("disabled")).toBe(true);
+  it("names the middle chip as a stop when it has one", async () => {
+    const el = await stepper((s) => {
+      s.nameStop = "hero:01001a";
+    });
+    expect(el.shadowRoot!.querySelector(".name")!.getAttribute("data-stop")).toBe("hero:01001a");
   });
 });

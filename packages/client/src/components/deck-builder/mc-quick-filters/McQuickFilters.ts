@@ -1,5 +1,5 @@
 import { html, nothing, type PropertyDeclarations } from "lit";
-import { ThemeStyles, type StepperPressDetail } from "@mc/ui";
+import { ThemeStyles, type ValueStepperPressDetail } from "@mc/ui";
 import { BuilderElement } from "../shared/BuilderElement.js";
 import { McQuickFiltersStyles } from "./mc-quick-filters.styles.js";
 import type { QuickChipModel, QuickFiltersModel } from "./mc-quick-filters.types.js";
@@ -38,7 +38,7 @@ export class McQuickFilters extends BuilderElement {
     ></mc-button>`;
   }
 
-  #step = (event: CustomEvent<StepperPressDetail>): void => {
+  #step = (event: CustomEvent<ValueStepperPressDetail>): void => {
     event.stopPropagation();
     this.emit({ type: "trait", dir: event.detail.part === "prev" ? -1 : 1 });
   };
@@ -50,14 +50,14 @@ export class McQuickFilters extends BuilderElement {
       <div class="rows">
         <div class="group costs">${model.costs.map((chip) => this.#chip(chip))}</div>
         <div class="group icons">${model.icons.map((chip) => this.#chip(chip))}</div>
-        <mc-stepper
+        <mc-value-stepper
           prev-stop="trait:prev"
           name-stop="trait:name"
           next-stop="trait:next"
           .label=${model.trait.name}
           ?selected=${model.trait.on}
-          @mc-stepper-press=${this.#step}
-        ></mc-stepper>
+          @mc-value-stepper-press=${this.#step}
+        ></mc-value-stepper>
       </div>`;
   }
 }

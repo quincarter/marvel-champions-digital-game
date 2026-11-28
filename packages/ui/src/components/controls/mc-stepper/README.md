@@ -1,20 +1,33 @@
 # mc-stepper
 
-Previous, a named middle and next as three mc-button parts: a value that steps through choices (a pack, a trait, a draw count). The middle is chosen while a value is picked; each part has its own focus-stop key.
+Previous, what is chosen, next: two fixed-width arrow chips either side of a chip that says the choice. With one choice only the chip shows.
 
-```html
-<mc-stepper></mc-stepper>
+## Usage
+
+```ts
+html`<mc-stepper
+  label="Rhino"
+  prev-stop="focus:previous"
+  next-stop="focus:next"
+  .prevAction=${{ dir: -1 }}
+  .nextAction=${{ dir: 1 }}
+></mc-stepper>`;
 ```
 
-| Property                                      | Type    | Notes                        |
-| --------------------------------------------- | ------- | ---------------------------- |
-| label                                         | string  | the middle words, translated |
-| selected                                      | boolean | the middle is chosen         |
-| prev-stop / name-stop / next-stop             | string  | focus stop keys              |
-| prev-disabled / name-disabled / next-disabled | boolean | dimmed, a press does nothing |
+## Properties
 
-| Event            | Detail                       |
-| ---------------- | ---------------------------- |
-| mc-stepper-press | { part: prev, name or next } |
+| Name                                | Type                    | Meaning                                        |
+| ----------------------------------- | ----------------------- | ---------------------------------------------- |
+| `label`                             | string                  | The choice's words, already translated.        |
+| `prev-stop / next-stop / name-stop` | string                  | Focus stop keys (the middle one may be empty). |
+| `prevAction / nextAction`           | unknown (property)      | What a tap on an arrow raises.                 |
+| `prevGlyph / nextGlyph`             | ControlGlyph (property) | The key or pad glyph on an arrow.              |
+| `several`                           | boolean                 | False: no arrows (true).                       |
 
-The parent imports `mc-stepper/mc-stepper` once; shared `@mc/ui` elements are defined by the ui entry.
+## Events
+
+`mc-pressed` (bubbles, composed) from an arrow: `{ action, hold: false }`.
+
+## Slots
+
+None.

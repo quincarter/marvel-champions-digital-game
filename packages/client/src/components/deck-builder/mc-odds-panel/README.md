@@ -16,6 +16,6 @@ The draw odds (issue 531): which group of cards (a stepper that wraps), how many
 
 Focus stops: odds:prev, odds:group, odds:next, odds:fewer, odds:draws, odds:more
 
-Uses: mc-stepper (@mc/ui)
+Uses: mc-value-stepper (@mc/ui)
 
 The parent imports `mc-odds-panel/mc-odds-panel` once; shared `@mc/ui` elements are defined by the ui entry.

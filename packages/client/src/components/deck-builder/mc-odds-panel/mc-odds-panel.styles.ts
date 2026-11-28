@@ -9,7 +9,7 @@ export const McOddsPanelStyles = [
       flex-direction: column;
       gap: 6px;
     }
-    mc-stepper {
+    mc-value-stepper {
       width: 100%;
       --stepper-height: var(--odds-height, 44px);
       --stepper-arrow: var(--odds-height, 44px);

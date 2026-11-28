@@ -21,7 +21,7 @@ export const McQuickFiltersStyles = [
       height: 44px;
       min-width: 0;
     }
-    mc-stepper {
+    mc-value-stepper {
       width: 100%;
     }
     /* A wide column takes every chip on one row with the trait stepper at its end. */
@@ -40,7 +40,7 @@ export const McQuickFiltersStyles = [
       .icons {
         flex: 1 1 auto;
       }
-      mc-stepper {
+      mc-value-stepper {
         flex: 0 0 200px;
         width: 200px;
       }
