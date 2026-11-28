@@ -3,8 +3,10 @@
  * geometry, so the four styles can be checked without a scene.
  *
  * - "box": the bar fills `meter`, and the count sits on a parchment box across its middle, 2px in from top and bottom.
- * - "tall": the bar grows {@link TALL_METER_GROWTH}px upward (never downward, so it keeps clear of the panel's bottom
- *   edge) and the box keeps the old bar's height, so a strip of the fill shows above and below it.
+ * - "tall": the bar grows by `growth` (by default {@link TALL_METER_GROWTH}px upward, so it keeps clear of the panel's
+ *   bottom edge; the board's slim side scheme rows grow it downward instead, {@link COMPACT_TALL_GROWTH}, so it keeps
+ *   clear of the subtitle above) and the box keeps the old bar's height less 2px each side, so a strip of the fill
+ *   shows above and below it.
  * - "beside": the count moves into its own box at the right end of `meter`, and the bar takes the rest, uncovered.
  * - "outline": the bar fills `meter` and the count is drawn straight on it, with no box.
  */
@@ -13,6 +15,16 @@ import type { Rect } from "./layout.js";
 
 /** How much taller the "tall" style's bar is than the meter rect it was given. */
 export const TALL_METER_GROWTH = 6;
+
+/** Where a "tall" bar takes its extra height: above the meter rect, below it, or both. */
+export interface TallGrowth {
+  readonly up: number;
+  readonly down: number;
+}
+
+const DEFAULT_TALL_GROWTH: TallGrowth = { up: TALL_METER_GROWTH, down: 0 };
+/** A slim side scheme row's "tall" bar: down into the 4px under it, never up over its subtitle. */
+export const COMPACT_TALL_GROWTH: TallGrowth = { up: 0, down: 3 };
 /** The gap between the bar and the count's own box in the "beside" style. */
 export const BESIDE_GAP = 6;
 
@@ -38,7 +50,12 @@ export function besideBoxWidth(meterWidth: number): number {
  * The meter's parts for `style`. A chip's width depends on the drawn text, so `chipWidth` (the text's width plus its
  * padding) is passed in once the count has been fitted; before that, pass 0 and read only `bar` and `countMaxWidth`.
  */
-export function threatMeterLayout(meter: Rect, style: ThreatMeterStyle, chipWidth = 0): ThreatMeterLayout {
+export function threatMeterLayout(
+  meter: Rect,
+  style: ThreatMeterStyle,
+  chipWidth = 0,
+  growth: TallGrowth = DEFAULT_TALL_GROWTH,
+): ThreatMeterLayout {
   if (style === "beside") {
     const boxWidth = besideBoxWidth(meter.width);
     const countBox = { x: meter.x + meter.width - boxWidth, y: meter.y, width: boxWidth, height: meter.height };
@@ -52,14 +69,14 @@ export function threatMeterLayout(meter: Rect, style: ThreatMeterStyle, chipWidt
   }
   const bar =
     style === "tall"
-      ? { ...meter, y: meter.y - TALL_METER_GROWTH, height: meter.height + TALL_METER_GROWTH }
+      ? { ...meter, y: meter.y - growth.up, height: meter.height + growth.up + growth.down }
       : { ...meter };
   const countCenter = { x: bar.x + bar.width / 2, y: bar.y + bar.height / 2 - 1 };
   if (style === "outline") {
     return { bar, countBox: null, countCenter, countMaxWidth: bar.width - 12, chip: false };
   }
-  // The chip is as tall as the plain meter less 2px each side, whichever style, so "tall" leaves 5px of bar showing
-  // above and below it.
+  // The chip is as tall as the plain meter less 2px each side, whichever style, so "tall" leaves a strip of bar
+  // showing above and below it (5px by default).
   const inset = (bar.height - (meter.height - 4)) / 2;
   const width = Math.min(bar.width - 4, chipWidth);
   return {
