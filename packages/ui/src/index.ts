@@ -33,6 +33,7 @@ export { McTabRail } from "./components/mc-tab-rail/mc-tab-rail.js";
 export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
 export { McPictureCard } from "./components/mc-picture-card/mc-picture-card.js";
 export { McListRow } from "./components/mc-list-row/mc-list-row.js";
+export { McDeckRow } from "./components/mc-deck-row/mc-deck-row.js";
 export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
 export { McFirstPlayerToken } from "./components/mc-first-player-token/mc-first-player-token.js";
 export type {
@@ -45,6 +46,8 @@ export { flipOffset } from "./components/mc-first-player-token/token-motion.js";
 export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
 export { McArticle } from "./components/mc-article/mc-article.js";
 export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
+export { McTipChip } from "./components/mc-tip-chip/mc-tip-chip.js";
+export { McTipPlate } from "./components/mc-tip-plate/mc-tip-plate.js";
 export { McTextField } from "./components/mc-text-field/mc-text-field.js";
 export type { McFieldFocusDetail, McInputDetail } from "./components/mc-text-field/mc-text-field.types.js";
 export type { McMediaRowModel, McMediaRowStamp } from "./components/mc-media-row/mc-media-row.types.js";
@@ -122,6 +125,12 @@ export type { SectionHeaderLevel } from "./components/mc-section-header/mc-secti
 export type { PictureErrorDetail } from "./components/mc-picture-tile/mc-picture-tile.types.js";
 export type { McPictureCardModel, PictureCardStamp } from "./components/mc-picture-card/mc-picture-card.types.js";
 export type { McListRowModel } from "./components/mc-list-row/mc-list-row.types.js";
+export type {
+  DeckPickDetail,
+  DeckRowStamp,
+  DeckRowStatus,
+  McDeckRowModel,
+} from "./components/mc-deck-row/mc-deck-row.types.js";
 export type {
   McSearchDetail,
   McSearchFocusDetail,

@@ -8,11 +8,11 @@
  * `hero-random`, `hero-art`, `preconstructed`, `rec-toggle`, `drill-back`, `hero:<card id>`, `hero-rec:<card id>`,
  * `hero-shelf:<pack id>`, `hero-clear`, `deck-check`, `play`.
  */
-import type { FilterChip, GlyphSpec, PictureSource } from "@mc/ui";
+import type { ControlGlyph, FilterChip, GlyphSpec, PictureSource } from "@mc/ui";
 import type { AspectTipContent } from "../../view/aspect-tip-model.js";
 import type { SeatFrame } from "../../view/seats-panel-model.js";
 
-export type { SeatFrame, AspectTipContent, FilterChip, PictureSource };
+export type { SeatFrame, AspectTipContent, ControlGlyph, FilterChip, PictureSource };
 
 /** The one event Take your seats' elements raise (composed, bubbling), `detail` discriminated by `type`. It is in `GUARDED_EVENTS`. */
 export const SEATS_EVENT = "mc-seats";
@@ -27,7 +27,8 @@ export type SeatsAction =
   | "preconstructed"
   | "rec-toggle"
   | "drill-back"
-  | "hero-clear";
+  | "hero-clear"
+  | "conflict-notice";
 
 export type SeatsEvent =
   /** A reachable seat card or chip was pressed: it becomes the active seat. */
@@ -40,8 +41,8 @@ export type SeatsEvent =
   | { readonly type: "action"; readonly action: SeatsAction }
   /** The search field's text changed (debounced by the field). */
   | { readonly type: "search"; readonly text: string }
-  /** The magnifier that opens or shuts the search field (narrow layouts), or the Filters button that folds the chips. */
-  | { readonly type: "toggle"; readonly what: "search" | "filters" }
+  /** The magnifier that opens or shuts the search field (narrow layouts), or the Filters button that folds the chips, or the seat summary's disclosure ("details"). */
+  | { readonly type: "toggle"; readonly what: "search" | "filters" | "details" }
   /** A filter chip's body pressed (`id` is the chip id: `aspect:justice`, `source:precon`, `playable-now`, `sort:wave`). */
   | { readonly type: "chip"; readonly id: string }
   /** An aspect chip's "i" segment: opens or shuts its tip. */
@@ -76,6 +77,8 @@ export interface SeatModel {
   readonly picture: PictureSource | null;
   /** The ✕'s accessible name; a filled card has one. */
   readonly clearLabel: string | null;
+  /** The narrow chip's own words, where they are shorter than the card's (`SEAT 1`, `Justice · 10 HP`, `Empty` / `Picking`). */
+  readonly chip?: { readonly label: string; readonly meta: string | null; readonly empty: string | null };
 }
 
 /** A Team-Up pair under the seats: which two seats, and its pill's words. */
@@ -210,6 +213,12 @@ export interface DeckRowModel {
   readonly seatLabel: string;
   /** Why this deck cannot be seated now, or null. */
   readonly disabled: string | null;
+  /** Added by `mc-hero-decks-sheet`: the verdict's kind; left out, `ok` when `legal`, else `blocked`. */
+  readonly status?: "ok" | "warning" | "blocked" | "locked";
+  /** Added: the verdict's leading mark, already translated (`seats.lockedMark` for a locked deck); left out, ✓ ! or ✕ by `status`. */
+  readonly mark?: string;
+  /** Added: the hero's identity card, which the picture's hover popover and Inspect show; left out, none. */
+  readonly cardId?: string | null;
 }
 
 export interface DecksSheetModel {
@@ -250,6 +259,11 @@ export interface SeatsHeaderModel {
   readonly title: string;
   /** "STEP 2 OF 4 · 2 SEATS FILLED", already fitted to the width by the scene (short forms for a narrow bar). */
   readonly step: string;
+  /** The Cancel key or button beside Back's word, while a keyboard or pad is in use. */
+  readonly backGlyph?: ControlGlyph;
+  /** How far the title drops, in px, and where it ends (px from the bar's left; null: no limit), to clear the dark mode tab that hangs from the top centre. */
+  readonly titleDrop?: number;
+  readonly titleMaxRight?: number | null;
 }
 
 export interface SeatsFooterModel {
@@ -258,6 +272,8 @@ export interface SeatsFooterModel {
   /** Why Play is off (no hero, a conflict), or null. */
   readonly playBlocked: string | null;
   readonly deckCheckBlocked: string | null;
+  /** The Start / Menu button beside Play's word, on a pad. */
+  readonly playGlyph?: ControlGlyph;
 }
 
 /** What the page shows; the scene rebuilds it from its state and sets `page.model`. */
@@ -274,4 +290,8 @@ export interface SeatsPageModel {
   readonly footer: SeatsFooterModel;
   /** The Pick a deck sheet over the page, or null. */
   readonly decks: DecksSheetModel | null;
+  /** The wide layout (desktop, tablet landscape): the seats are cards and the detail panel stands beside the roster. The scene's form factor, so its words and the page's CSS agree. */
+  readonly wide?: boolean;
+  /** "2 cards can't be played with these heroes ▸" while a same-name clash is unanswered (stop `conflict-notice`), or null. */
+  readonly notice?: string | null;
 }
