@@ -250,7 +250,9 @@ describe("Make the Call (01071): every ally in the discard piles is listed with 
 
     // Confirm opens the pay step for that ally, with nothing spent yet: the player picks the cards.
     const aim = paymentAimOf(state, POOL_DEPS, entry.action, mockingbird);
-    expect(aim).toEqual({ target: mockingbird });
+    // The ally rides as the target and in the cost's slot, so the pay step is priced for Mockingbird or not at all.
+    expect(aim.target).toBe(mockingbird);
+    expect(Object.values(aim.costChoices ?? {})).toEqual([[mockingbird]]);
     const payment = beginPayment(state, me, entry.action, aim.target, POOL_DEPS)!;
     expect(payment.query.requirement.generic).toBe(3);
     expect(payment.picked).toEqual([]);

@@ -114,16 +114,46 @@ function alliesToDiscard(state: GameState): GameState {
   return { ...state, instances, cardPool, players: [moved, ...rest] };
 }
 
+/** The Rise of Red Skull campaign ally Moon Knight, cost 0 (#1050). */
+export const MOON_KNIGHT = "04097";
+
+/**
+ * A 0-cost campaign ally put at the bottom of the seat's discard pile (state surgery, as `alliesToDiscard`), below the
+ * deck's own allies, so the engine's first Make the Call pick is a paid ally and the player's is a free one (#1050).
+ */
+function freeAllyToDiscard(state: GameState): GameState {
+  const [seat, ...rest] = state.players;
+  const card = POOL_CARDS.find((entry) => (entry.id as string) === MOON_KNIGHT);
+  const template = seat?.discard.find((id) => state.cardPool[codeOf(state, id)]?.type === "ally");
+  if (!seat || !card || !template) return state;
+  const instance = {
+    ...state.instances[template]!,
+    instanceId: "make-the-call-free-ally" as InstanceId,
+    cardId: card.id,
+    faceup: true,
+  };
+  return {
+    ...state,
+    instances: { ...state.instances, [instance.instanceId]: instance },
+    cardPool: { ...state.cardPool, [card.id as string]: card },
+    players: [{ ...seat, discard: [...seat.discard, instance.instanceId] }, ...rest],
+  };
+}
+
 /**
  * The jump's game; `tight` (`&tight=1`) then plays one more card from hand at the engine's own smallest payment, so the
  * hand left over cannot pay for every ally and the list dims the ones it cannot. `many` (`&many=1`) then moves every
- * ally left in the deck to the discard pile, for the paged list.
+ * ally left in the deck to the discard pile, for the paged list. `free` (`&free=1`) then puts Moon Knight (cost 0) under the
+ * allies already there.
  */
-export async function startDevMakeTheCallGame(tight = false, many = false): Promise<InstanceId | null> {
+export async function startDevMakeTheCallGame(tight = false, many = false, free = false): Promise<InstanceId | null> {
   let store = appSession().store;
   const call = await playToMakeTheCall(store);
-  if (call && many) {
-    useDevHost(new DevStateHost(alliesToDiscard(store.state.game!), POOL_DEPS));
+  if (call && (many || free)) {
+    let game = store.state.game!;
+    if (many) game = alliesToDiscard(game);
+    if (free) game = freeAllyToDiscard(game);
+    useDevHost(new DevStateHost(game, POOL_DEPS));
     store = appSession().store;
     await store.start({
       scenarioId: "rhino",
