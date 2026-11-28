@@ -237,7 +237,13 @@ export class MusicPlayerOverlay extends Phaser.Scene {
           ["next", "zoneNext"],
           ["pause", "activate"],
         ].flatMap(([key, id]) => {
-          const glyph = g.glyph(key!, [id as "cancel"], "paper", 40);
+          const glyph = g.glyph(
+            key!,
+            [id as "cancel"],
+            "paper",
+            40,
+            key === "close" && form !== "phone" && form !== "phoneLandscape" ? "left" : "inside",
+          );
           return glyph ? [[key!, glyph]] : [];
         }),
       ),

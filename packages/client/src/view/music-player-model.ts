@@ -25,6 +25,13 @@ export interface MusicPlayerInput {
   readonly glyphs?: ControlGlyphs;
 }
 
+/** The panel's rect: a popover grows by the gaps between its parts, which the fixed rows of the old layout did not have. */
+function panelOf(input: MusicPlayerInput): Rect {
+  const panel = playerPanelRect(input.icon, input.screen, input.phone, input.songs.length);
+  if (input.phone) return panel;
+  return { ...panel, height: Math.min(panel.height + 40, input.screen.height - panel.y - 8) };
+}
+
 export function musicPlayerModelOf(input: MusicPlayerInput): MusicPlayerModel {
   const { songs, playing } = input;
   const song = playing ? songs.find((one) => one.track.key === playing.key) : undefined;
@@ -33,7 +40,7 @@ export function musicPlayerModelOf(input: MusicPlayerInput): MusicPlayerModel {
   const mode = input.shuffle ? t("music.shuffling") : song ? t("music.repeating") : t("music.screenOwn");
   return {
     phone: input.phone,
-    panel: playerPanelRect(input.icon, input.screen, input.phone, songs.length),
+    panel: panelOf(input),
     icon: input.icon,
     title: t("music.player.title"),
     earned: t("music.player.earned", { count: songs.length, total: songs.length + input.locked }),

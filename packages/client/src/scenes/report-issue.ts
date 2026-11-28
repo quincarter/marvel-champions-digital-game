@@ -302,7 +302,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     region.setRect({ x: 0, y: 0, width, height });
     this.#glyphs.reset();
-    const glyph = this.#glyphs.glyph("close", ["cancel"], "paper", 44);
+    const glyph = this.#glyphs.glyph("close", ["cancel"], "paper", 44, "left");
     this.#actions = new Map<string, () => void>([
       ["close", () => this.scene.stop()],
       ["hide", () => this.#hideForScreenshot()],

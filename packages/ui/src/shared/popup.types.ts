@@ -27,6 +27,10 @@ export interface ControlGlyph {
   /** 0 (folded away) to 1 (open). */
   readonly openness: number;
   readonly still?: boolean;
+  /** Where it hangs: inside the control at its left (beside the word), or outside, to its left (a small control). */
+  readonly place?: "inside" | "left";
+  /** The glyph's drawn width in px: an inside glyph slides the control's word over by half of it. */
+  readonly width?: number;
 }
 
 /** The glyphs of a popup's controls, by the control's key. */

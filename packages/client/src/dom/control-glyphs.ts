@@ -8,12 +8,18 @@
  */
 import type Phaser from "phaser";
 import type { ControlGlyph, McGlyphGround } from "@mc/ui";
+import { layoutGlyph, measureGlyphText } from "@mc/ui/glyph";
+import { font } from "../tokens.js";
 import { bindInputHints, type InputHints, type InputHintsSnapshot } from "../ui/input-hints.js";
 import { glyphHeightFor, scaledGlyphHeight, specsSignature } from "../view/glyph-placement.js";
 import { glyphsForShortcut, type GlyphSpec } from "../view/input-glyph-model.js";
 import { glyphSetOf, glyphsExpanded } from "../view/input-mode.js";
 import { uiSpecOf } from "../view/glyph-ui-spec.js";
 import type { ShortcutId } from "../view/input-shortcuts.js";
+
+/** Keys measured in the font `mc-glyph` draws with (`--mc-font-body`). */
+const BODY_MEASURE = (label: string, size: number): number =>
+  measureGlyphText(label, size, `"${font.body}", sans-serif`);
 
 function specsFor(ids: readonly ShortcutId[], snapshot: InputHintsSnapshot): readonly GlyphSpec[] | null {
   if (glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource) === null) return null;
@@ -64,17 +70,22 @@ export class ControlGlyphs {
     ids: readonly ShortcutId[],
     ground: McGlyphGround,
     controlHeight: number,
+    place: "inside" | "left" = "inside",
   ): ControlGlyph | undefined {
     this.#asked.set(key, { ids, height: controlHeight });
     const snapshot = this.#snapshot;
     const specs = snapshot ? specsFor(ids, snapshot) : null;
     if (!snapshot || !specs) return undefined;
+    const height = scaledGlyphHeight(glyphHeightFor(controlHeight), snapshot.settings.glyphSize);
+    const uiSpecs = specs.map(uiSpecOf);
     return {
-      specs: specs.map(uiSpecOf),
-      height: scaledGlyphHeight(glyphHeightFor(controlHeight), snapshot.settings.glyphSize),
+      specs: uiSpecs,
+      width: layoutGlyph(uiSpecs, height, BODY_MEASURE).fullWidth,
+      height,
       ground,
       openness: glyphsExpanded(snapshot.state) ? 1 : 0,
       still: snapshot.settings.reducedMotion,
+      place,
     };
   }
 

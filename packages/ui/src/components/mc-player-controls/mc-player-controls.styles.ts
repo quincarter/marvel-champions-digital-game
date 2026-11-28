@@ -21,6 +21,9 @@ export const McPlayerControlsStyles = css`
     flex: 0 0 104px;
   }
   slot {
+    display: none;
+  }
+  :host([slider]) slot {
     display: block;
     flex: 1;
     min-width: 0;
