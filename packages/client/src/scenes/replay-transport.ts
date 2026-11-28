@@ -68,6 +68,7 @@ import {
 import type { BoardScene } from "./board.js";
 import { exitReplay } from "./replay-entry.js";
 import { SCENES } from "./keys.js";
+import { padLayoutUsableHere } from "../view/pad-mapping.js";
 
 /** The overlays that own the keyboard and the pad while they are up. */
 const OWNS_INPUT = [
@@ -705,7 +706,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const pads = globalThis.navigator?.getGamepads?.() ?? [];
     const out: { index: number; pad: Gamepad }[] = [];
     for (const pad of pads) {
-      if (!pad?.connected || (pad.mapping && pad.mapping !== "standard")) continue;
+      if (!pad?.connected || !padLayoutUsableHere(pad.mapping)) continue;
       out.push({ index: pad.index, pad });
       this.#padDown.set(
         pad.index,
