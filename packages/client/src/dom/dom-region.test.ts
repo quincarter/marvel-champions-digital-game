@@ -42,6 +42,11 @@ describe("regionTakesEvents", () => {
       "mc-deck-check",
       "mc-card-inspect",
       "mc-scenario-select",
+      "mc-reader",
+      "mc-side-story",
+      "mc-viewer",
+      "mc-extras",
+      "mc-rules",
     ]);
   });
 });
