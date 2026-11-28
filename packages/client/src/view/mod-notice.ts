@@ -2,6 +2,7 @@
  * The Mod Store's heads-up (`scenes/mod-notice.ts`): Deadpool and Spider-Man warn that mods carry risk. Pure
  * wording, when it shows, what its buttons do and where its two speakers sit, so all of it is tested once.
  */
+import { t } from "../i18n/translate.js";
 import type { Rect } from "./layout.js";
 
 export interface ModNoticeLine {
@@ -36,17 +37,17 @@ export const MOD_NOTICE_BUTTONS: readonly { readonly id: ModNoticeAnswer; readon
  * The caption box above the store's content (Quin, 2026-11-13): a comic narration box, not a speech bubble, saying
  * why the store is in beta. The top bar's BETA tag says the same in one word.
  */
-export const MOD_STORE_BETA_CAPTION = {
-  heading: "Beta",
-  body:
-    "The Mod Store is brand new. Every pack here is fan-made, and many needed new rules in the game to work, so expect " +
-    "rough edges: a card that resolves oddly, a picture that is missing. If something looks wrong, open About mods and " +
-    "report it.",
-  phoneBody: "Brand new and fan-made: expect rough edges. Spot one? Tap ! and report it.",
-} as const;
+export const modStoreBetaCaption = (): {
+  readonly heading: string;
+  readonly body: string;
+  readonly phoneBody: string;
+} => ({
+  heading: t("modStore.beta.heading"),
+  body: t("modStore.beta.body"),
+  phoneBody: t("modStore.beta.phoneBody"),
+});
 
-export const MOD_NOTICE_CONTROL_LABEL = "About mods";
-export const modNoticeControlLabelOf = (phone: boolean): string => (phone ? "!" : MOD_NOTICE_CONTROL_LABEL);
+export const modNoticeControlLabelOf = (phone: boolean): string => (phone ? "!" : t("modStore.about"));
 
 /** Opening the store shows the notice until it has been seen once. */
 export const showNoticeOnOpen = (seen: boolean): boolean => !seen;

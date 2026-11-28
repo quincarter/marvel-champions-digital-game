@@ -33,6 +33,9 @@ import {
 import { isNotReadyCard } from "@mc/cards";
 import { hiddenNotReadyCard } from "./not-ready-cards.js";
 import { perPlayerCostOf } from "./per-player-cost.js";
+import { artLanguageNow } from "../art/art-source.js";
+import type { CardLanguage } from "../art/card-language.js";
+import { t } from "../i18n/translate.js";
 import { matchesClauses, parsePoolQuery, type QueryClause } from "./pool-query.js";
 
 export interface PoolFilter {
@@ -437,12 +440,24 @@ export function poolRowNote(
   return null;
 }
 
-/** "event · cost 3", or "event · 3 per player" for a per player cost (read as Inspect words it, outside a game). */
-export function poolTypeLine(card: AnyCard): string {
-  const type = card.type.replace(/_/g, " ");
+/** A card type as a word in `lang` ("ally" / "aliado"), lower case as the pool's type lines write it. */
+export function typeWordOf(type: string, lang: CardLanguage): string {
+  const key =
+    type === "ally" || type === "event" || type === "upgrade" || type === "support" || type === "resource"
+      ? (`cardType.${type}` as const)
+      : type === "player_side_scheme"
+        ? ("cardType.sideScheme" as const)
+        : null;
+  return key ? t(key, undefined, lang).toLocaleLowerCase(lang) : type.replace(/_/g, " ");
+}
+
+/** "event · cost 3", or "event · 3 per player" for a per player cost, in the card language ("evento · coste 3"). */
+export function poolTypeLine(card: AnyCard, lang: CardLanguage = artLanguageNow()): string {
+  const type = typeWordOf(card.type, lang);
   const perPlayer = perPlayerCostOf(null, card);
-  if (perPlayer) return `${type} · ${perPlayer.rateLabel}`;
-  return `${type} · cost ${"cost" in card && typeof card.cost === "number" ? String(card.cost) : "—"}`;
+  if (perPlayer) return t("deckBuilder.typeLinePerPlayer", { type, rate: perPlayer.rate }, lang);
+  const cost = "cost" in card && typeof card.cost === "number" ? String(card.cost) : "—";
+  return t("deckBuilder.typeLineCost", { type, cost }, lang);
 }
 
 /** Steps `current` through [null (= all), ...choices] by `dir`, wrapping; an unknown `current` counts as all. */

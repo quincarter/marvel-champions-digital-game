@@ -1,0 +1,3 @@
+kind: Changed
+body: Decks and Collection's top bar, tabs and deck list (search, filters, deck rows with their hero pictures) are now a Lit panel over the canvas, in English and Spanish; the card pool, stats rail and Import/Export box keep their Phaser drawing.
+time: 2026-11-27T01:15:05.7833815-05:00

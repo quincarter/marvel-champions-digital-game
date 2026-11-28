@@ -1,0 +1,3 @@
+kind: Changed
+body: The first-run chooser (New to the fight?) is now a Lit panel over the canvas with the same look, and its picture is a small WebP copy made at build time (about a quarter of the bytes on a phone).
+time: 2026-11-26T22:58:53.8628851-05:00

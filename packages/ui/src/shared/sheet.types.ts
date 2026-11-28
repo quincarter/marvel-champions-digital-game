@@ -1,4 +1,5 @@
 import type { McArticleModel } from "../components/mc-article/mc-article.types.js";
+import type { McMediaRowModel } from "../components/mc-media-row/mc-media-row.types.js";
 import type { McListRowModel } from "../components/mc-list-row/mc-list-row.types.js";
 import type { McPictureCardModel } from "../components/mc-picture-card/mc-picture-card.types.js";
 import type { SectionHeaderLevel } from "../components/mc-section-header/mc-section-header.types.js";
@@ -438,25 +439,25 @@ export interface SheetFilterBar extends FilterBarModel {
   readonly rect: SheetRect;
 }
 
+/** A text field (`mc-text-field`) filling `rect`: one line or `multiline`; raises `mc-input` and `mc-field-focus`. */
+export interface SheetTextField {
+  readonly kind: "textField";
+  readonly key: string;
+  readonly rect: SheetRect;
+  readonly value: string;
+  readonly placeholder: string;
+  readonly multiline?: boolean;
+}
+
 /**
- * A framed row (`mc-media-row`): a portrait picture (or a letter), a title, meta lines and a state badge. Its own tap
- * raises `mc-activate` with `key`. A failed load raises `mc-image-error` for `retry`, as `SheetImage.retry`.
+ * A framed row (`mc-media-row`) filling `rect`, in its pack or deck look: a picture (or a letter), a title, meta lines
+ * and a state badge. Its own tap raises `mc-activate` with `key` (the deck look is decorative: put a `tap` over it). A
+ * failed load raises `mc-image-error` for `retry`, as `SheetImage.retry`.
  */
-export interface SheetMediaRow {
+export interface SheetMediaRow extends McMediaRowModel {
   readonly kind: "mediaRow";
   readonly key: string;
   readonly rect: SheetRect;
-  readonly heading: string;
-  readonly meta: string;
-  readonly summary: string;
-  readonly foot: string;
-  readonly badge: string;
-  readonly solid?: boolean;
-  readonly src: string | null;
-  readonly letter: string;
-  readonly retry?: string;
-  readonly focusY?: number;
-  readonly fit?: PictureFit;
 }
 
 /** A scrolling region: its own nodes, laid out in its content space (`height` tall). */
@@ -492,4 +493,5 @@ export type SheetNode =
   | SheetEmptyState
   | SheetFilterBar
   | SheetMediaRow
+  | SheetTextField
   | SheetScroll;

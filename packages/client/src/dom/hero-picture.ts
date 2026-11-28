@@ -7,7 +7,8 @@
 import type { AnyCard } from "@mc/content";
 import { artFor } from "../art/art-source.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import type { PackLeases } from "../art/pack-art.js";
+import { packPictureFor, type PackLeases } from "../art/pack-art.js";
+import type { Picture } from "../art/pictures.js";
 import { POOL_CARDS } from "../content/pool.js";
 
 /** Where the face usually is in a hero picture: the upper third. */
@@ -29,8 +30,14 @@ export function heroPictureOf(
   leases: PackLeases,
   /** "tile": the small copy where there is one (tiles, rows, a panel header); "large": the original. */
   size: "tile" | "large" = "tile",
+  /**
+   * The bundled picture a screen settled on for this hero (a hero with several pictures keeps one per visit); `null` says
+   * the hero has none. Left out, the first picture filed under the hero is used.
+   */
+  chosen?: Picture | null,
 ): HeroPicture {
-  const picture = identity ? heroArtForIdentity(HERO_ART, identity.id, POOL_CARDS, () => 0) : null;
+  const picture =
+    chosen !== undefined ? chosen : identity ? heroArtForIdentity(HERO_ART, identity.id, POOL_CARDS, () => 0) : null;
   if (picture) {
     const focus = picture.focus;
     return {
@@ -43,7 +50,8 @@ export function heroPictureOf(
     };
   }
   if (!identity) return { src: null, cover: { x: 0.5, y: SCAN_FOCUS_Y } };
-  const held = leases.image(artFor(identity, { kind: "hero" }));
+  // An installed pack's hero: its own picture (leased, so the cache does not revoke it under a mounted `<img>`), else its scan.
+  const held = leases.image(packPictureFor("hero", identity.id as string) ?? artFor(identity, { kind: "hero" }));
   return {
     src: held.src,
     cover: { x: 0.5, y: SCAN_FOCUS_Y },

@@ -8,7 +8,10 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./title": "./src/entries/title.ts",
+    "./tap": "./src/entries/tap.ts",
+    "./glyph": "./src/entries/glyph.ts"
   },
   "scripts": {
     "test": "vitest run",

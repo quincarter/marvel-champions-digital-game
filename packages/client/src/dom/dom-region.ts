@@ -27,7 +27,7 @@ import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import { CHROME_SCENES } from "../scenes/keys.js";
 import { sceneTakesPresses } from "./activation-gate.js";
-import { cancelPressesWithin } from "@mc/ui";
+import { cancelPressesWithin } from "@mc/ui/tap";
 import { drawnChromeBoxes, type DrawnObject } from "./chrome-holes.js";
 import { uiLayer } from "./ui-layer.js";
 
@@ -274,7 +274,11 @@ export function forwardMouseMoves(
   return () => source.removeEventListener("pointermove", onMove);
 }
 
-/** The panel events that act on the game or the settings (a slider drag included): stopped at the region while its scene isn't the one taking input. */
+/**
+ * The panel events that act on the game or the settings (a slider drag included): stopped at the region while its scene
+ * isn't the one taking input. A text field's own events are among them (`mc-input`, a late `compositionend` included):
+ * a field that kept the caret when a modal opened over it must not change the scene's state.
+ */
 export const GUARDED_EVENTS = [
   "mc-activate",
   "mc-inspect",
@@ -284,7 +288,96 @@ export const GUARDED_EVENTS = [
   "mc-submit",
   "mc-sort",
   "mc-filter-sheet",
+  "mc-input",
+  "mc-field-focus",
+  "mc-search-focus",
 ] as const;
+
+/** The guarded events that say the caret went into or left a field: its leaving (`focused: false`) always gets through, so the scene never keeps a stale "typing" flag. */
+const FOCUS_EVENTS: ReadonlySet<string> = new Set(["mc-field-focus", "mc-search-focus"]);
+
+/** Whether a guarded `event` is stopped, given whether the region takes events now. */
+export function guardStops(event: Event, takes: boolean): boolean {
+  if (takes) return false;
+  if (FOCUS_EVENTS.has(event.type) && (event as CustomEvent<{ focused?: boolean }>).detail?.focused === false)
+    return false;
+  return true;
+}
+
+/** The element holding the caret now, through any shadow roots (a field inside a panel's component). */
+function deepActiveElement(): HTMLElement | null {
+  let active: Element | null = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return (active as HTMLElement | null) ?? null;
+}
+
+/** A panel field that can be put back to a text (`McSearchField`, `McTextField`). */
+interface RestorableField extends HTMLElement {
+  value: string;
+  restoreValue(text: string): void;
+}
+
+const isRestorable = (node: unknown): node is RestorableField =>
+  typeof (node as RestorableField | null)?.restoreValue === "function";
+
+/**
+ * The field an `mc-input` or `mc-search` came from: the field itself (`mc-input` is raised from it), or the one the
+ * panel names in `detail.key` (`mc-sheet` raises a field's `mc-search` again, keyed).
+ */
+function fieldOf(event: Event): RestorableField | null {
+  const first = event.composedPath()[0];
+  if (isRestorable(first)) return first;
+  const key = (event as CustomEvent<{ key?: string }>).detail?.key;
+  const sheet = event.target as { elementOf?: (key: string) => Element | null } | null;
+  const found = key !== undefined ? sheet?.elementOf?.(key) : null;
+  return isRestorable(found) ? found : null;
+}
+
+/**
+ * Guards `wrap` (a region's box): every guarded event is stopped in the capture phase while `takes()` says no, and a
+ * field of the box that holds the caret then lets go of it, so a field that kept the caret under a modal takes no
+ * more keys or composition. (The box is not made inert: a press must still land on it, not fall through to the panel
+ * of a screen below.)
+ *
+ * A stopped edit never leaves the field showing text the screen did not take: the field is put back to the last text
+ * the screen accepted (what an event it let through carried, else the `value` the screen handed the field), and what
+ * was typed since is dropped. So the text on screen and the results the screen shows always agree.
+ *
+ * A screen hands a field the text it has accepted as its `value`, never the field's live draft (`McSearchField.text`):
+ * a redraw that copies the draft in would make the unaccepted text the baseline this puts the field back to.
+ *
+ * Returns the function that applies the blur; call it each time the answer may have changed.
+ */
+export function guardRegion(wrap: HTMLElement, takes: () => boolean, destroyed: () => boolean): () => void {
+  /** The text a field last handed the screen, with the `value` the screen had given it then (a screen that resets the field moves on). */
+  const accepted = new WeakMap<RestorableField, { readonly text: string; readonly model: string }>();
+  for (const name of GUARDED_EVENTS)
+    wrap.addEventListener(
+      name,
+      (event) => {
+        const stops = destroyed() || guardStops(event, takes());
+        if (name === "mc-input" || name === "mc-search") {
+          const field = fieldOf(event);
+          if (field) {
+            if (stops) {
+              const last = accepted.get(field);
+              field.restoreValue(last && last.model === field.value ? last.text : field.value);
+            } else {
+              const text = (event as CustomEvent<{ value: string }>).detail?.value;
+              if (typeof text === "string") accepted.set(field, { text, model: field.value });
+            }
+          }
+        }
+        if (stops) event.stopPropagation();
+      },
+      true,
+    );
+  return () => {
+    if (takes()) return;
+    const active = document.activeElement;
+    if (active && wrap.contains(active)) deepActiveElement()?.blur();
+  };
+}
 
 /**
  * Whether a panel's guarded event may reach its scene: the scene takes presses (`sceneTakesPresses`) and its panel is
@@ -357,18 +450,15 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     this.#wrap.dataset.scene = scene.sys.settings.key;
     Object.assign(this.#wrap.style, { position: "absolute", pointerEvents: "auto", opacity: "0" });
     this.#wrap.append(element);
-    // Every panel's `mc-activate`, `mc-inspect`, `mc-slide` and `mc-step` (a card hold's timer fires it) is stopped here, before its scene
-    // hears it, while the scene isn't taking presses (stopped, paused, input off for an exit) or its panel is covered
-    // by another modal: `pointer-events` follows the scene only at `postupdate`, so a tap in that gap would otherwise
-    // still act.
-    for (const name of GUARDED_EVENTS)
-      this.#wrap.addEventListener(
-        name,
-        (event) => {
-          if (this.#destroyed || !this.#takesEvents()) event.stopPropagation();
-        },
-        true,
-      );
+    // Every panel's `mc-activate`, `mc-inspect`, `mc-slide`, `mc-step` (a card hold's timer fires it) and its fields'
+    // `mc-input` are stopped here, before its scene hears them, while the scene isn't taking presses (stopped, paused,
+    // input off for an exit) or its panel is covered by another modal: `pointer-events` follows the scene only at
+    // `postupdate`, so a tap in that gap would otherwise still act. A field holding the caret lets go of it then (`guardRegion`).
+    this.#applyInert = guardRegion(
+      this.#wrap,
+      () => this.#takesEvents(),
+      () => this.#destroyed,
+    );
     this.#layer.append(this.#wrap);
     this.setRect(rect);
     this.#sync();
@@ -439,6 +529,8 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   }
 
   /** Whether the scene and the panel's cover state let an event through right now (read live, not at the last frame). */
+  #applyInert: () => void = () => undefined;
+
   #takesEvents(): boolean {
     return regionTakesEvents(
       sceneTakesPresses(this.#scene) && !sceneInputCovered(this.#scene, this.#shownUnder),
@@ -492,6 +584,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
       this.#live = live;
       this.#wrap.style.pointerEvents = live ? "auto" : "none";
     }
+    this.#applyInert();
     const clip = shown
       ? clipWithHoles(this.#rect, [
           ...chromeBoxes(this.#scene.game, this.#rect),

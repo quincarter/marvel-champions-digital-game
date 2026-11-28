@@ -707,7 +707,8 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     // The fields keep what is typed in them across a rebuild (the search's debounce lags behind the keys).
     b.search(controls.search, {
       key: SEARCH,
-      value: this.#field(SEARCH)?.text ?? this.#query,
+      // The text the picker has taken, never the field's live draft (`guardRegion` puts a covered field back to it).
+      value: this.#query,
       placeholder: t("room.picker.search"),
       clearLabel: t("deckPicker.searchClear"),
       maxLength: 80,
@@ -847,7 +848,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     if (!field || !go) return;
     b.search(field, {
       key: IMPORT_FIELD,
-      value: this.#field(IMPORT_FIELD)?.text ?? this.#importText,
+      value: this.#importText,
       placeholder: t("room.picker.importPlaceholder"),
       clearLabel: t("deckPicker.searchClear"),
       maxLength: 200,
