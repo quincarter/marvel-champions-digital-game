@@ -12,6 +12,17 @@ import type {
 
 export type { DeckCheckSize, DeckCheckTab };
 
+/** One aspect's tip, as its plate shows it. */
+export interface DeckCheckTipModel {
+  readonly heading: string;
+  readonly tagline: string;
+  readonly body: string;
+  readonly linkLabel: string;
+  /** Why the lesson link is not live (empty when it is). */
+  readonly linkReason: string;
+  readonly linkAvailable: boolean;
+}
+
 /** Everything Deck check shows, already computed and translated by the scene's view models. */
 export interface DeckCheckPageModel {
   readonly header: {
@@ -25,8 +36,8 @@ export interface DeckCheckPageModel {
   readonly rail: {
     readonly aspectHeading: string;
     readonly aspects: readonly AspectSegmentModel[];
-    /** The words of each aspect's tip, by aspect id. */
-    readonly tips: Readonly<Record<string, string>>;
+    /** Each aspect's tip, by aspect id. */
+    readonly tips: Readonly<Record<string, DeckCheckTipModel>>;
     readonly filterHeading: string;
     readonly chips: readonly TypeFilterChip[];
     readonly curveHeading: string;

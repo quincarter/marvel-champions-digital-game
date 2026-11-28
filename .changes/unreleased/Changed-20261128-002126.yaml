@@ -1,0 +1,3 @@
+kind: Changed
+body: Deck Check is a page element made of small custom elements (header, aspect segments with their tip plate, type filter, cost curve, deck list panel, card sections) instead of one sheet, with the same look, stops, hover and Spanish; the stat tile, chart bar and tip plate are shared elements
+time: 2026-11-28T00:21:26.1510536-05:00

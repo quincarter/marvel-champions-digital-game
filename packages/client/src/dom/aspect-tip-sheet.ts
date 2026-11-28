@@ -9,13 +9,61 @@ import type { AspectTipContent } from "../view/aspect-tip-model.js";
 import type { Rect } from "../view/layout.js";
 import type { SheetBuilder } from "./sheet-builder.js";
 
-import { TIP_ARROW as ARROW, TIP_WIDTH, tipPlacement, tipWidthFor, type TipPlacement } from "@mc/ui";
-
-// The placement math lives in `@mc/ui` (`shared/tip-placement.ts`) so the `mc-tip-plate` element and this sheet share it.
-export { TIP_WIDTH, tipPlacement, tipWidthFor, type TipPlacement };
+export const TIP_WIDTH = 220;
 const PAD = 10;
+const GAP = 8;
+const ARROW = 7;
 /** The key of the tip's lesson link (a tap on it opens the aspect's lesson). */
 export const TIP_LINK_KEY = "aspect-tip-link";
+
+/** The widest a tip grows to, so a long one wraps to fewer lines than the 220px plate would. */
+const WIDE_TIP = 300;
+
+/** The plate's width for a screen: wider where there is room (fewer lines), never wider than the screen less its margins. */
+export function tipWidthFor(viewport: Rect): number {
+  return Math.max(120, Math.min(WIDE_TIP, viewport.width - 8));
+}
+
+export interface TipPlacement {
+  /** The plate. */
+  readonly panel: Rect;
+  /** Where the arrow's point is: x along the plate's edge, which edge. */
+  readonly arrowX: number;
+  readonly above: boolean;
+  /** Whether the arrow is drawn: not when the plate had to sit over the segment for lack of room either side. */
+  readonly arrow: boolean;
+  /** The plate and its arrow, the region the sheet covers. */
+  readonly bounds: Rect;
+}
+
+/**
+ * Where the tip sits for a chip segment at `anchor` inside `viewport` (the placement math `ui/tooltip.ts` uses): centered on
+ * the segment and clamped to the viewport, below it unless there is no room, then above, whichever side has more room
+ * when neither fits; a plate that fits neither side is clamped inside the screen over the segment (no arrow), never
+ * off it. `width` is the plate's width (`tipWidthFor`).
+ */
+export function tipPlacement(anchor: Rect, contentHeight: number, viewport: Rect, width = TIP_WIDTH): TipPlacement {
+  const centerX = anchor.x + anchor.width / 2;
+  const x = Math.max(viewport.x + 4, Math.min(centerX - width / 2, viewport.x + viewport.width - width - 4));
+  const clearBelow = anchor.y + anchor.height;
+  const spaceBelow = viewport.y + viewport.height - clearBelow;
+  const spaceAbove = anchor.y - viewport.y;
+  const need = contentHeight + GAP + ARROW;
+  const above = spaceBelow < need && (spaceAbove >= need || spaceAbove > spaceBelow);
+  const wantedY = above ? anchor.y - GAP - ARROW - contentHeight : clearBelow + GAP + ARROW;
+  const top = viewport.y + 4;
+  const bottom = viewport.y + viewport.height - 4 - contentHeight;
+  const y = Math.max(top, Math.min(wantedY, Math.max(top, bottom)));
+  const arrow = y === wantedY;
+  const panel: Rect = { x, y, width, height: contentHeight };
+  const arrowX = Math.max(panel.x + ARROW, Math.min(centerX, panel.x + panel.width - ARROW));
+  const bounds: Rect = !arrow
+    ? panel
+    : above
+      ? { x: panel.x, y: panel.y, width: panel.width, height: panel.height + ARROW }
+      : { x: panel.x, y: panel.y - ARROW, width: panel.width, height: panel.height + ARROW };
+  return { panel, arrowX, above, arrow, bounds };
+}
 
 /** The words of a tip, measured and laid out: how tall the plate is and where each part sits inside it. */
 export function tipLayoutOf(

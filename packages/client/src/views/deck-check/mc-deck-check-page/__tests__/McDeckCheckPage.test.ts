@@ -15,7 +15,16 @@ const model: DeckCheckPageModel = {
   rail: {
     aspectHeading: "Aspect",
     aspects: [{ aspect: "pool", label: "'Pool", chosen: false, tipLabel: "'Pool" }],
-    tips: { pool: "'Pool. A tagline. A tip." },
+    tips: {
+      pool: {
+        heading: "'Pool",
+        tagline: "A tagline",
+        body: "A tip.",
+        linkLabel: "Aspects",
+        linkReason: "Soon",
+        linkAvailable: false,
+      },
+    },
     filterHeading: "Filter",
     chips: [
       { id: "all", label: "All" },
@@ -101,17 +110,26 @@ describe("mc-deck-check-page", () => {
     el.remove();
   });
 
-  it("shows the open aspect's tip on a plate above the page's content, and says tip-close when it is tapped", async () => {
+  it("shows the open aspect's tip on a plate pointing at its segment, and says tip-close and tip-link from it", async () => {
     const el = await mount("wide");
     expect(el.shadowRoot!.querySelector("mc-tip-plate")).toBeNull();
     el.openTip = "pool";
     await el.updateComplete;
-    const plate = el.shadowRoot!.querySelector<HTMLElement & { text: string }>("mc-tip-plate")!;
-    expect(plate.text).toBe("'Pool. A tagline. A tip.");
+    await el.updateComplete;
+    const plate = el.shadowRoot!.querySelector<HTMLElement & { heading: string; body: string; anchor: Element | null }>(
+      "mc-tip-plate",
+    )!;
+    expect(plate.heading).toBe("'Pool");
+    expect(plate.body).toBe("A tip.");
+    expect(plate.anchor).toBe(el.shadowRoot!.querySelector("mc-deck-composition")!.anchorOf("pool"));
     const heard = vi.fn();
     el.addEventListener("mc-deck-check", (event) => heard(event.detail));
-    plate.dispatchEvent(new CustomEvent("mc-tip-dismiss", { bubbles: true, composed: true }));
-    expect(heard).toHaveBeenCalledWith({ type: "tip-close" });
+    plate.dispatchEvent(new CustomEvent("mc-tip-close", { bubbles: true, composed: true }));
+    plate.dispatchEvent(new CustomEvent("mc-tip-link", { bubbles: true, composed: true }));
+    expect(heard.mock.calls.map(([detail]) => detail)).toEqual([
+      { type: "tip-close" },
+      { type: "tip-link", aspect: "pool" },
+    ]);
     el.remove();
   });
 });

@@ -16,7 +16,7 @@ import Phaser from "phaser";
 import "@mc/ui";
 import "../views/deck-check/mc-deck-check-page/mc-deck-check-page.js";
 import type { PictureSource } from "@mc/ui";
-import type { Deck } from "@mc/content";
+import type { CoreAspect, Deck } from "@mc/content";
 import { POOL_VERSION } from "../content/pool.js";
 import { type ArtSource } from "../art/art-source.js";
 import { PackLeases, refreshPackArt } from "../art/pack-art.js";
@@ -36,6 +36,7 @@ import { surface } from "../tokens.js";
 import { cssOf } from "../ui/theme.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
+import type { AspectLessonSceneData } from "./aspect-lesson.js";
 import { SCENES, type SceneKey } from "./keys.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { t } from "../i18n/translate.js";
@@ -255,6 +256,12 @@ export class DeckCheckScene extends Phaser.Scene {
       case "tip":
         this.#openTip = this.#openTip === detail.aspect ? null : detail.aspect;
         if (this.#page) this.#page.element.openTip = this.#openTip;
+        return;
+      case "tip-link":
+        this.scene.launch(SCENES.aspectLesson, {
+          aspect: detail.aspect as CoreAspect,
+          backTo: "previous",
+        } satisfies AspectLessonSceneData);
         return;
       case "tip-close":
         return this.#closeTip();

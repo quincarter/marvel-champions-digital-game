@@ -9,7 +9,7 @@
  * parts, `mc-image-error` and the card hover and Inspect events from the card pictures.
  */
 import { html, nothing, type PropertyDeclarations } from "lit";
-import { ThemeStyles, type TipRect } from "@mc/ui";
+import { ThemeStyles } from "@mc/ui";
 import { DeckCheckElement } from "../../../components/deck-check/shared/DeckCheckElement.js";
 import "../../../components/deck-check/mc-deck-check-header/mc-deck-check-header.js";
 import "../../../components/deck-check/mc-deck-composition/mc-deck-composition.js";
@@ -26,9 +26,6 @@ import type { DeckCheckPageModel, DeckCheckSize, DeckCheckTab } from "./mc-deck-
 import type { McDeckComposition } from "../../../components/deck-check/mc-deck-composition/McDeckComposition.js";
 import type { McDeckCardSections } from "../../../components/deck-check/mc-deck-card-sections/McDeckCardSections.js";
 
-const same = (a: TipRect | null, b: TipRect | null): boolean =>
-  a === b || (a !== null && b !== null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height);
-
 export class McDeckCheckPage extends DeckCheckElement {
   static override styles = [ThemeStyles, McDeckCheckPageStyles, DeckCheckResponsiveStyles];
 
@@ -38,8 +35,7 @@ export class McDeckCheckPage extends DeckCheckElement {
     typeFilter: { type: String, attribute: "type-filter" },
     openTip: { attribute: false },
     model: { attribute: false },
-    tipAnchor: { state: true },
-    pageBox: { state: true },
+    anchorEl: { state: true },
   };
 
   declare size: DeckCheckSize;
@@ -47,9 +43,8 @@ export class McDeckCheckPage extends DeckCheckElement {
   declare typeFilter: string;
   declare openTip: string | null;
   declare model: DeckCheckPageModel | null;
-  declare tipAnchor: TipRect | null;
-  declare pageBox: TipRect;
-  #resize: ResizeObserver | null = null;
+  /** The open tip's segment: what its plate points at. */
+  declare anchorEl: HTMLElement | null;
 
   constructor() {
     super();
@@ -58,8 +53,7 @@ export class McDeckCheckPage extends DeckCheckElement {
     this.typeFilter = "all";
     this.openTip = null;
     this.model = null;
-    this.tipAnchor = null;
-    this.pageBox = { x: 0, y: 0, width: 0, height: 0 };
+    this.anchorEl = null;
   }
 
   /** The card list's native scroller: what the pad's stick and paging move. */
@@ -67,45 +61,12 @@ export class McDeckCheckPage extends DeckCheckElement {
     return this.renderRoot.querySelector<McDeckCardSections>("mc-deck-card-sections")?.scroller ?? null;
   }
 
-  override connectedCallback(): void {
-    super.connectedCallback();
-    if (typeof ResizeObserver === "undefined") return;
-    this.#resize = new ResizeObserver(() => this.#seatTip());
-    this.#resize.observe(this);
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.#resize?.disconnect();
-    this.#resize = null;
-  }
-
   protected override updated(): void {
-    this.#seatTip();
-    this.emitRendered();
-  }
-
-  /** Reads where the open tip's segment is, in this page's own coordinates, so its plate sits beside it. */
-  #seatTip(): void {
-    const box: TipRect = { x: 0, y: 0, width: this.offsetWidth, height: this.offsetHeight };
-    if (!same(box, this.pageBox)) this.pageBox = box;
     const segment = this.openTip
-      ? this.renderRoot.querySelector<McDeckComposition>("mc-deck-composition")?.anchorOf(this.openTip)
+      ? (this.renderRoot.querySelector<McDeckComposition>("mc-deck-composition")?.anchorOf(this.openTip) ?? null)
       : null;
-    let anchor: TipRect | null = null;
-    if (segment) {
-      const own = this.getBoundingClientRect();
-      const at = segment.getBoundingClientRect();
-      // The panel layer may be scaled: this page's laid-out width against its box on screen.
-      const scale = this.offsetWidth > 0 ? own.width / this.offsetWidth : 1;
-      anchor = {
-        x: (at.left - own.left) / scale,
-        y: (at.top - own.top) / scale,
-        width: at.width / scale,
-        height: at.height / scale,
-      };
-    }
-    if (!same(anchor, this.tipAnchor)) this.tipAnchor = anchor;
+    if (segment !== this.anchorEl) this.anchorEl = segment;
+    this.emitRendered();
   }
 
   #tabBody(model: DeckCheckPageModel) {
@@ -224,12 +185,21 @@ export class McDeckCheckPage extends DeckCheckElement {
         tip && this.size === "wide"
           ? html`<mc-tip-plate
               data-key="aspect-tip-plate"
-              .text=${tip}
-              .anchor=${this.tipAnchor}
-              .viewport=${this.pageBox}
-              @mc-tip-dismiss=${(event: Event) => {
+              .anchor=${this.anchorEl}
+              .heading=${tip.heading}
+              .tagline=${tip.tagline}
+              .body=${tip.body}
+              .linkLabel=${tip.linkLabel}
+              .linkReason=${tip.linkReason}
+              .linkAvailable=${tip.linkAvailable}
+              link-stop="aspect-tip-link"
+              @mc-tip-close=${(event: Event) => {
                 event.stopPropagation();
                 this.emit({ type: "tip-close" });
+              }}
+              @mc-tip-link=${(event: Event) => {
+                event.stopPropagation();
+                if (this.openTip) this.emit({ type: "tip-link", aspect: this.openTip });
               }}
             ></mc-tip-plate>`
           : nothing

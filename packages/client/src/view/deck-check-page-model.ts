@@ -29,7 +29,10 @@ import { aspectLabelOf } from "./seat-slots.js";
 import { aspectTipContentOf } from "./aspect-tip-model.js";
 import { aspectName } from "./aspect-stamp.js";
 import { cardTypeWordOf } from "./card-type-word.js";
-import type { DeckCheckPageModel } from "../views/deck-check/mc-deck-check-page/mc-deck-check-page.types.js";
+import type {
+  DeckCheckPageModel,
+  DeckCheckTipModel,
+} from "../views/deck-check/mc-deck-check-page/mc-deck-check-page.types.js";
 import { surface } from "../tokens.js";
 import { costPipColor } from "../ui/deck-stats-widgets.js";
 import { sheetColor } from "../dom/sheet-builder.js";
@@ -128,10 +131,18 @@ export function deckCheckPageModel(input: DeckCheckModelInput): DeckCheckModelRe
         meta: input.inFlow ? "3/4" : verdictWords,
       };
 
-  const tips: Record<string, string> = {};
+  const tips: Record<string, DeckCheckTipModel> = {};
   const aspects = SELECTABLE_ASPECTS.map((aspect: CoreAspect) => {
     const content = aspectTipContentOf(aspect);
-    if (content) tips[aspect] = `${content.title}. ${content.tagline}. ${content.tipLine}`;
+    if (content)
+      tips[aspect] = {
+        heading: content.title,
+        tagline: content.tagline,
+        body: content.tipLine,
+        linkLabel: content.linkLabel,
+        linkReason: content.linkReason ?? "",
+        linkAvailable: content.linkAvailable,
+      };
     return {
       aspect,
       label: aspectName(aspect, language),

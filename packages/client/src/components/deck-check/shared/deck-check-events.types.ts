@@ -19,7 +19,9 @@ export type DeckCheckEventDetail =
   | { readonly type: "filter"; readonly filter: string }
   /** An aspect segment's "i": open or shut that aspect's tip. */
   | { readonly type: "tip"; readonly aspect: string }
-  /** A tap on the open tip's plate. */
+  /** A tap on the open tip's lesson link. */
+  | { readonly type: "tip-link"; readonly aspect: string }
+  /** A tap outside the open tip's plate: it shuts. */
   | { readonly type: "tip-close" }
   /** A tap on a card cell (`card:<id>`) or a face tile (`face:<id>`): the scene opens Inspect. */
   | { readonly type: "card"; readonly key: string };
