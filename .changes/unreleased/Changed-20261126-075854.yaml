@@ -1,3 +1,0 @@
-kind: Changed
-body: The in-game Pause menu is drawn with Lit web components over the table, with the same look and the same controller and keyboard navigation, and it now reads in Spanish.
-time: 2026-11-26T07:58:54.757922-05:00

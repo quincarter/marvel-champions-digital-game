@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Reduced memory growth during long games: card pictures are kept at the size the table shows them (full size only for the hover and Inspect), painted labels are capped by count, and Safari and the Mac and Linux apps keep a smaller picture cache.'
-time: 2026-11-26T09:11:57.9498597-05:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Game log: other players'' mulligans and effect discards no longer read "to help pay"; revealed and defeated cards are named instead of "a facedown card"; missing lines added, repeated lines (tough, surge, Temporary, counters) merged, and reasons given for blocked damage and effect-dealt encounter cards (#1006)'
-time: 2026-11-25T19:13:00.8586622-05:00

@@ -1,3 +1,0 @@
-kind: Engine
-body: An enemy attack ends when any player is eliminated partway through it, in its interrupt windows, its queued damage, and its indirect or evenly divided damage; an eliminated hero is never asked to divide or assign damage (#1012)
-time: 2026-11-25T21:22:34.1427734-05:00

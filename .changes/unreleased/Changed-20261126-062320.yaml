@@ -1,3 +1,0 @@
-kind: Changed
-body: The game spends less time each frame checking whether the screen changed, most of all on busy menu screens.
-time: 2026-11-26T06:23:20.2180475-05:00
