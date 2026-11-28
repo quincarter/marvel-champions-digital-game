@@ -13,6 +13,7 @@ import { accent, ink, surface, typeRole } from "../../../tokens.js";
 import { bangers } from "../../../ui/campaign-chrome.js";
 import { caseOf } from "../../../ui/theme.js";
 import { t } from "../../../i18n/translate.js";
+import { deckReasonText } from "../../../view/deck-reason.js";
 import type { PickerEntry, RosterDeckOption } from "../../../view/campaign-roster-model.js";
 import type { Rect } from "../../../view/layout.js";
 import { PICKER_DECK_NAME_STEP, PICKER_HEADING_HEIGHT, type RosterCtx } from "./context.js";
@@ -162,7 +163,9 @@ export function drawPickerRow(
   const extraLines = (Math.max(1, rows.length) - 1) * CHIP_LINE_STEP;
   const lastWidth = rows.at(-1)?.reduce((sum, index) => sum + widths[index]! + CHIP_GAP, 0) ?? 0;
   const noteX = textX + (lastWidth > 0 ? lastWidth - CHIP_GAP + 8 : 0);
-  const note = option.blocked ? (option.blockedReason ?? t("roster.blocked.seated")) : option.sourceLabel;
+  const note = option.blocked
+    ? (deckReasonText(option.blockedReason) ?? t("roster.blocked.seated"))
+    : option.sourceLabel;
   b.text(noteX, lineY + extraLines + 9, note, typeRole.emphasis, {
     size: 12,
     color: surface.ink.hex,

@@ -66,11 +66,11 @@ test("the Roster reads in Spanish", async ({ page }) => {
   await openRoster(page);
   expect((await findText(page, "FIRMAR LA PLANTILLA", "CampaignRoster")).length).toBeGreaterThan(0);
   expect((await findText(page, "QUIEN FIRMA AQUÍ", "CampaignRoster")).length, "the banner").toBeGreaterThan(0);
-  expect((await findText(page, "+ ASIENTO N.º 3", "CampaignRoster")).length).toBeGreaterThan(0);
+  expect((await findText(page, "+ ASIENTO NÚM. 3", "CampaignRoster")).length).toBeGreaterThan(0);
   expect((await findText(page, "FIRMAR Y ABRIR EL NÚMERO 1", "CampaignRoster")).length).toBeGreaterThan(0);
   await clickStop(page, "seat-2", "CampaignRoster");
   await waitFor(
-    async () => ((await findText(page, "ASIENTO N.º 2", "CampaignRoster")).length > 0 ? true : null),
+    async () => ((await findText(page, "ASIENTO NÚM. 2", "CampaignRoster")).length > 0 ? true : null),
     "the picker's title in Spanish",
     15_000,
   );

@@ -13,6 +13,7 @@ import { signal, surface, typeRole, ink, accent } from "../../../tokens.js";
 import { bangers, campaignFrame } from "../../../ui/campaign-chrome.js";
 import { caseOf } from "../../../ui/theme.js";
 import { t } from "../../../i18n/translate.js";
+import { deckReasonText } from "../../../view/deck-reason.js";
 import { seatedTeamUps } from "../../../view/seat-recommendations.js";
 import { PAIR_ROW_HEIGHT } from "../../../view/seats-layout.js";
 import type { Rect } from "../../../view/layout.js";
@@ -151,7 +152,7 @@ function drawSignButton(ctx: RosterCtx, b: SheetBuilder, actionBar: Rect, phone:
     type: bangers(16),
     row: true,
     chevron: !state.signing,
-    ...(enabled ? {} : { disabled: model?.blockedReason ?? true }),
+    ...(enabled ? {} : { disabled: deckReasonText(model?.blockedReason ?? null) ?? true }),
   });
   ctx.actions.set("cta", () => {
     if (enabled) ctx.onSign();
