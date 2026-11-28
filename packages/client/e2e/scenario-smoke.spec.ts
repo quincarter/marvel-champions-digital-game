@@ -73,15 +73,26 @@ async function startNewGameNoGuide(page: Page): Promise<void> {
   await waitFor(async () => (await hasStop(page, "next", "ScenarioSelect")) || null, "scenario list", 15000);
 }
 
-/** The villain's name from Table setup's "The game you'll get" panel ("Mojo I · 34 HP ..." beside VILLAIN). */
+/** The villain's name from Table setup's "The game you'll get" summary ("Mojo I · 34 HP ..." beside VILLAIN), from its debug hook. */
 async function villainNameOnSetup(page: Page): Promise<string> {
-  const texts = await visibleTexts(page);
-  const label = texts.find((t) => t.scene === "Setup" && /^villain$/i.test(t.text.trim()));
-  if (!label) throw new Error("Table setup shows no VILLAIN line");
-  const value = texts
-    .filter((t) => t.scene === "Setup" && Math.abs(t.y - label.y) < 6 && t.x > label.x + 10)
-    .sort((a, b) => a.x - b.x)[0];
-  if (!value) throw new Error("Table setup's VILLAIN line has no value");
+  // The hook is installed once the page has rendered, a moment after the scene starts.
+  const rows = await waitFor(
+    async () =>
+      (
+        await page.evaluate(
+          () =>
+            (
+              window as unknown as { __mcTableSetupDebug?: { summary: () => [string, string][] } }
+            ).__mcTableSetupDebug?.summary() ?? [],
+        )
+      ).find(([label]) => /^villain$/i.test(label.trim())) ?? null,
+    "Table setup's summary",
+    15000,
+  ).then((row) => [row]);
+  const row = rows.find(([label]) => /^villain$/i.test(label.trim()));
+  if (!row) throw new Error("Table setup shows no VILLAIN line");
+  const value = { text: row[1] };
+  if (value.text.trim().length === 0) throw new Error("Table setup's VILLAIN line has no value");
   // "Mojo I · 34 HP across both stages" -> "Mojo"; a villain's own roman numeral is its stage.
   const name = value.text
     .split("·")[0]!
