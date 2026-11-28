@@ -7,50 +7,64 @@
  * On a phone it fills the screen under the top bar, with Back at its top (and the music button and Esc still close it).
  *
  * While it is up, the screens under it take no input, and get it back when it closes, the same rule "Report an issue"
- * follows. The top bar's two chrome buttons stay live above it.
+ * follows. The top bar's chrome buttons stay live above it.
+ *
+ * It is a Lit panel over the canvas (`dom/popup-sheet.ts`, an overlay region), so a Lit screen under it (Title's menu on
+ * a tablet or desktop, the top bar's art on a phone) stays shown instead of hiding. The body is `music-player-body.ts`.
  */
 import Phaser from "phaser";
-import { accent, hit, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
-import { textStyle } from "../ui/theme.js";
-import { McButton, fitText } from "../ui/widgets.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { PopupSheet } from "../dom/popup-sheet.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { onTap } from "../ui/tap.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { shownMusicButton } from "../ui/music-slot.js";
-import { ListScroll } from "../view/list-scroll.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
-import {
-  PLAYER_FOOT_HEIGHT,
-  PLAYER_ROW_HEIGHT,
-  earnedSongsOf,
-  lockedSongCount,
-  playerPanelRect,
-  type PlayerSong,
-} from "../view/music-player.js";
+import { playerPanelRect, volumeAtTrack, steppedVolume, earnedSongsOf, lockedSongCount } from "../view/music-player.js";
+import type { PlayerSong } from "../view/music-player.js";
+import { clampMusicVolume } from "../settings.js";
 import { extras } from "../progression/progression.js";
 import { appSession } from "../session.js";
-import { drawNowPlayingPanel } from "../ui/now-playing-panel.js";
-import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { hasDesktopWindow } from "../platform/desktop-window.js";
+import {
+  followsWindowsMixer,
+  knownMixerVolume,
+  onMixerChange,
+  readMixerVolume,
+  writeMixerVolume,
+} from "../platform/app-volume.js";
+import { FocusRoute } from "./focus-route.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
+import { drawMusicPlayerBody, SONGS_KEY } from "./music-player-body.js";
 
-const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 12 };
+/** A popover appears where it hangs, with no slide of its own. */
+const STILL = { x: 0, y: 0, alpha: 1, active: true } as const;
 
 export class MusicPlayerOverlay extends Phaser.Scene {
-  #buttons: McButton[] = [];
-  #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
-  readonly #scroll = new ListScroll();
+  #panel!: PopupSheet;
+  #glyphs!: SheetGlyphs;
+  /** What each control does this draw, by key. */
+  #actions = new Map<string, () => void>();
   /** The input this panel turned off, to turn back on when it closes (see `scenes/report-issue.ts`). */
   #disabled: { readonly scene: Phaser.Scene; readonly pointer: boolean; readonly keyboard: boolean }[] = [];
   #unsubscribe: (() => void) | null = null;
   #alive = false;
-  /** The key and button glyphs beside the controls (pad and keyboard only). */
-  #hints!: GlyphHints;
   /** The songs drawn now, for LB / RB. */
   #songs: readonly PlayerSong[] = [];
-  /** Shuffle's button press, for X. */
+  /** Shuffle's press, for X. */
   #shuffle: (() => void) | null = null;
+  #slideBound = false;
+  /** The song list's scroll, kept across a redraw. */
+  #scrollTop = 0;
+  /** The volume shown: the Windows mixer's, in the Windows app, else the music volume setting. */
+  #volume = 100;
+  #changedAt = 0;
+  #dragging = false;
+  /** Where the slider's track is on screen now, for the e2e hook. */
+  #volumeRect: Rect | null = null;
+  #listRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  #stopRects = new Map<string, () => Rect | null>();
 
   constructor() {
     super(SCENES.musicPlayer);
@@ -67,31 +81,47 @@ export class MusicPlayerOverlay extends Phaser.Scene {
       if (pointer) scene.input.enabled = false;
       if (keyboard && scene.input.keyboard) scene.input.keyboard.enabled = false;
     }
+    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.());
+    this.#panel.follow(STILL);
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
+      blocked: () => this.#panel.leaving,
       // B / Esc / Q close it; A presses the focused control, or Play / Pause with nothing focused.
       onCancel: () => this.#close(),
       primary: () => "pause",
       // LB / RB (and R / F, [ / ]) play the previous / next song; X (G) is Shuffle. The list scrolls with the stick.
       onTab: (direction) => this.#step(direction),
       onToggle: () => this.#shuffle?.(),
-      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      onScroll: (_dx, dy) => this.#panel.element?.elementOf(SONGS_KEY)?.scrollBy({ top: dy }),
     });
     const offTrack = appSession().music?.onTrackStart(() => this.#redrawSoon());
     const offPause = appSession().music?.onPauseChange(() => this.#redrawSoon());
+    const mixer = followsWindowsMixer();
+    this.#volume = clampMusicVolume(mixer ? (knownMixerVolume() ?? 100) : appSession().settings.musicVolume);
+    // The Windows volume mixer can move while the player is open: read it now, then follow the shell's change events,
+    // except while the slider is in the hand or its last change is still on its way.
+    const show = (read: number | null): void => {
+      if (!this.#alive || read === null || read === this.#volume || this.#dragging) return;
+      if (Date.now() - this.#changedAt < 1000) return;
+      this.#volume = read;
+      this.#draw();
+    };
+    if (mixer) void readMixerVolume().then(show);
+    const offMixer = mixer ? onMixerChange(({ volume }) => show(volume)) : null;
     this.#unsubscribe = () => {
       offTrack?.();
       offPause?.();
+      offMixer?.();
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       this.scale.off("resize", onResize, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
-      this.#destroyWidgets();
-      this.#hints.dispose();
+      this.#glyphs.dispose();
       for (const { scene, pointer, keyboard } of this.#disabled) {
         if (!scene.sys.isActive()) continue;
         if (pointer) scene.input.enabled = true;
@@ -103,19 +133,12 @@ export class MusicPlayerOverlay extends Phaser.Scene {
   }
 
   #close(): void {
-    this.scene.stop();
+    this.#panel.close();
   }
 
   #redrawSoon(): void {
     if (!this.#alive) return;
     this.time.delayedCall(0, () => this.#draw());
-  }
-
-  #destroyWidgets(): void {
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-    this.#list?.destroy();
-    this.#list = null;
   }
 
   /** Plays the song before or after the one playing in the earned list, wrapping; the first (last) when none is. */
@@ -131,7 +154,7 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     const at = songs.findIndex((song) => song.track.key === music.nowPlaying()?.key);
     const to = at < 0 ? (direction === 1 ? 0 : songs.length - 1) : (at + direction + songs.length) % songs.length;
     this.#play(songs[to]!);
-    this.#list?.scrollIntoView(to);
+    this.#panel.element?.elementOf(`song:${songs[to]!.id}`)?.scrollIntoView({ block: "nearest" });
   }
 
   #play(song: PlayerSong): void {
@@ -141,225 +164,147 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** Heard now; saved only when `save` (a drag saves once, on release). The mixer is the Windows app's own slider. */
+  #setVolume(volume: number, save: boolean): void {
+    const session = appSession();
+    this.#volume = clampMusicVolume(volume);
+    if (followsWindowsMixer()) {
+      this.#changedAt = Date.now();
+      writeMixerVolume(this.#volume);
+    } else {
+      const next = { ...session.settings, musicVolume: this.#volume };
+      session.music?.syncSettings(next);
+      if (save) session.settings = next;
+    }
+    this.#draw();
+  }
+
+  #bindSlider(): void {
+    const element = this.#panel.element;
+    if (!element || this.#slideBound) return;
+    this.#slideBound = true;
+    element.addEventListener("mc-slide", (event) => {
+      const { share, commit } = (event as CustomEvent<{ share: number; commit: boolean }>).detail;
+      this.#dragging = !commit;
+      this.#setVolume(volumeAtTrack(share, { x: 0, width: 1 }), commit);
+    });
+    element.addEventListener("mc-step", (event) => {
+      const { direction } = (event as CustomEvent<{ direction: -1 | 1 }>).detail;
+      this.#setVolume(steppedVolume(this.#volume, direction), true);
+    });
+  }
+
   #draw(): void {
     if (!this.#alive) return;
-    this.#destroyWidgets();
+    const list = this.#panel.element?.elementOf(SONGS_KEY);
+    if (list) this.#scrollTop = list.scrollTop;
     destroyChildren(this);
+    this.#glyphs.reset();
 
     const { width, height } = this.scale.gameSize;
-    const formFactor = formFactorFor(width, height);
-    const phone = formFactor === "phone" || formFactor === "phoneLandscape";
+    const phone = ["phone", "phoneLandscape"].includes(formFactorFor(width, height));
     const icon = shownMusicButton() ?? { x: width - 104, y: 5, width: 44, height: 34 };
     const current = extras();
     const songs = earnedSongsOf(current);
     this.#songs = songs;
-    this.#hints.reset();
-    const locked = lockedSongCount(current);
     const panel = playerPanelRect(icon, { width, height }, phone, songs.length);
-    const playing = appSession().music?.nowPlaying() ?? null;
-    const stops = new Map<string, FocusStop>();
-    const order: string[] = [];
+    // Under the panel Phaser still hits a press: this shield keeps it from reaching the screen under, and answers a tap
+    // in a hole the panel leaves (outside the popover, over the screen's own art) as "outside".
+    const shield = this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
+    onTap(shield, () => this.#close(), "music-player-outside");
 
-    // A tap outside the popover closes it; on a phone the panel is all there is below the bar. A tap, not any release:
-    // a swipe of the song list that lifts outside the panel leaves it open.
-    const outside = this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    onTap(
-      outside,
-      (pointer) => {
-        const inside =
-          pointer.x >= panel.x &&
-          pointer.x <= panel.x + panel.width &&
-          pointer.y >= panel.y &&
-          pointer.y <= panel.y + panel.height;
-        if (!inside) this.#close();
+    const b = this.#panel.begin(width, height, 0);
+    const desktop = hasDesktopWindow() || formFactorFor(width, height) === "desktop";
+    const drawn = drawMusicPlayerBody(b, this.#glyphs, {
+      screen: { width, height },
+      panel,
+      icon,
+      phone,
+      songs,
+      locked: lockedSongCount(current),
+      playing: appSession().music?.nowPlaying() ?? null,
+      paused: appSession().music?.paused() ?? false,
+      shuffle: appSession().settings.musicShuffle,
+      volume: this.#volume,
+      withSlider: desktop,
+      actions: {
+        close: () => this.#close(),
+        outside: () => this.#close(),
+        shuffle: () => this.#toggleShuffle(),
+        next: () => this.#skip(),
+        pause: () => this.#togglePause(),
+        step: (direction) => this.#setVolume(steppedVolume(this.#volume, direction), true),
+        play: (song) => this.#play(song),
       },
-      "music-player-outside",
-    );
-
-    const g = this.add.graphics();
-    if (!phone) g.fillStyle(surface.void.hex, 0.28).fillRect(panel.x + 6, panel.y + 6, panel.width, panel.height);
-    g.fillStyle(surface.paper.hex, 1).fillRect(panel.x, panel.y, panel.width, panel.height);
-    if (!phone)
-      g.lineStyle(3, surface.ink.hex, 1).strokeRect(panel.x + 1.5, panel.y + 1.5, panel.width - 3, panel.height - 3);
-    // The caret up to the music button the popover hangs from: paper with an ink edge, so it reads on the table's
-    // ink bar and on Title's paper alike.
-    if (!phone) {
-      const cx = icon.x + icon.width / 2;
-      g.fillStyle(surface.paper.hex, 1).fillTriangle(cx - 10, panel.y + 3, cx + 10, panel.y + 3, cx, panel.y - 8);
-      g.lineStyle(3, surface.ink.hex, 1)
-        .lineBetween(cx - 10, panel.y + 1.5, cx, panel.y - 8)
-        .lineBetween(cx, panel.y - 8, cx + 10, panel.y + 1.5);
-    }
-
-    const pad = phone ? 16 : 14;
-    const inner = { x: panel.x + pad, width: panel.width - pad * 2 };
-    let y = panel.y + (phone ? 6 : 4);
-
-    // Header: Back (phone) or ✕, the title and the earned count.
-    const headHeight = 44;
-    const closeWidth = phone ? 92 : hit.target;
-    const closeRect: Rect = phone
-      ? { x: inner.x, y: y + (headHeight - 36) / 2, width: closeWidth, height: 36 }
-      : { x: inner.x + inner.width - 36, y: y + (headHeight - 36) / 2, width: 36, height: 36 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "quiet",
-        label: phone ? "◂ BACK" : "✕",
-        type: BUTTON_TYPE,
-        rect: closeRect,
-        onClick: () => this.#close(),
+    });
+    this.#actions = drawn.actions;
+    this.#shuffle = drawn.actions.get("shuffle") ?? null;
+    this.#listRect = drawn.listRect;
+    this.#panel.mount(b, width, height);
+    this.#bindSlider();
+    const scroller = this.#panel.element?.elementOf(SONGS_KEY);
+    if (scroller) scroller.scrollTop = this.#scrollTop;
+    // A stop inside the list reads its box off the panel, so it follows the scroll.
+    const panelRef = this.#panel;
+    const stops = new Map(
+      [...drawn.stops].map(([key, stop]) => {
+        if (!key.startsWith("song:")) return [key, stop] as const;
+        return [
+          key,
+          {
+            rect: () => {
+              const element = panelRef.element?.elementOf(key);
+              return (
+                (element && panelRef.rectOf(element)) || (typeof stop.rect === "function" ? stop.rect() : stop.rect)
+              );
+            },
+            activate: stop.activate,
+            ensureVisible: () => panelRef.element?.elementOf(key)?.scrollIntoView({ block: "nearest" }),
+          },
+        ] as const;
       }),
     );
-    stops.set("close", { rect: closeRect, activate: () => this.#close() });
-    order.push("close");
-    const titleX = phone ? closeRect.x + closeRect.width + 12 : inner.x;
-    const titleText = this.add
-      .text(titleX, y + headHeight / 2, "Music", textStyle(typeRole.sectionHeader, surface.ink.hex))
-      .setOrigin(0, 0.5);
-    const titleEnd = titleX + titleText.width;
-    const total = songs.length + locked;
-    this.add
-      .text(
-        phone ? inner.x + inner.width : closeRect.x - 10,
-        y + headHeight / 2,
-        `${songs.length} of ${total} earned`,
-        textStyle(typeRole.label, surface.ink.hex, ink.secondary),
-      )
-      .setOrigin(1, 0.5);
-    y += headHeight;
-
-    // Now playing, Shuffle and Next.
-    const head = drawNowPlayingPanel(this, {
-      x: inner.x,
-      y,
-      width: inner.width,
-      expanded: false,
-      songs,
-      onChange: () => this.#draw(),
-    });
-    this.#buttons.push(...head.buttons);
-    for (const stop of head.stops) {
-      stops.set(stop.id, { rect: stop.rect, activate: stop.activate });
-      order.push(stop.id);
-    }
-    this.#shuffle = head.stops.find((stop) => stop.id === "shuffle")?.activate ?? null;
-    // head.buttons: Shuffle, Next, then Pause and the volume row.
-    const [shuffleButton, nextButton, pauseButton] = head.buttons;
-    if (shuffleButton) this.#hints.button(shuffleButton, ["guide"], "paper");
-    if (nextButton) this.#hints.button(nextButton, ["zoneNext"], "paper");
-    if (pauseButton) this.#hints.button(pauseButton, ["activate"], "paper");
-    this.#hints.button(this.#buttons[0]!, ["cancel"], "paper");
-    // Previous song (LB): beside the title.
-    this.#hints.inline(titleEnd + 10, y - headHeight / 2, ["zonePrevious"], 20, { ground: "paper" });
-    y += head.height + 8;
-
-    // The songs.
-    const listRect: Rect = {
-      x: inner.x,
-      y,
-      width: inner.width,
-      height: Math.max(PLAYER_ROW_HEIGHT, panel.y + panel.height - PLAYER_FOOT_HEIGHT - y),
-    };
-    let list: McVirtualList;
-    list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight: PLAYER_ROW_HEIGHT,
-      count: songs.length,
-      scroll: this.#scroll,
-      background: false,
-      renderRow: (index, rect) => this.#songRow(songs[index]!, rect, playing?.key ?? null),
-      onRowActivate: (index) => this.#play(songs[index]!),
-    });
-    this.#list = list;
-    songs.forEach((song, index) => {
-      const id = `song:${song.id}`;
-      order.push(id);
-      stops.set(id, {
-        rect: () => list.rectFor(index),
-        activate: () => this.#play(song),
-        ensureVisible: () => list.scrollIntoView(index),
-      });
-    });
-    if (songs.length === 0) {
-      this.add
-        .text(
-          listRect.x,
-          listRect.y + 8,
-          "No songs earned yet.",
-          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-        )
-        .setFontSize(13);
-    }
-
-    const foot = this.add
-      .text(
-        inner.x,
-        panel.y + panel.height - PLAYER_FOOT_HEIGHT / 2,
-        locked > 0 ? `${locked} more to earn: play, beat and lose to villains.` : "Every song earned.",
-        textStyle(typeRole.body, surface.ink.hex, ink.meta),
-      )
-      .setOrigin(0, 0.5)
-      .setFontSize(11);
-    fitText(foot, inner.width, 11);
-
-    this.#route?.set(order, stops);
-
-    // Headless click-through hook only: the player's controls where they are drawn now, for the e2e specs.
-    if (import.meta.env.DEV) {
-      (window as unknown as { __mcMusicPlayerDebug?: unknown }).__mcMusicPlayerDebug = {
-        stopRect: (id: string): Rect | null => {
-          const stop = stops.get(id);
-          if (!stop) return null;
-          return typeof stop.rect === "function" ? stop.rect() : stop.rect;
-        },
-        volumeRect: (): Rect | null => {
-          const zone = this.children.getByName("music-volume") as Phaser.GameObjects.Zone | null;
-          return zone ? { x: zone.x, y: zone.y, width: zone.width, height: zone.height } : null;
-        },
-        listRect: (): Rect => listRect,
-        paused: (): boolean => appSession().music?.paused() ?? false,
-        nowPlaying: (): string | null => appSession().music?.nowPlaying()?.key ?? null,
-        volume: (): number => appSession().settings.musicVolume,
-      };
-    }
+    this.#route?.set(drawn.order, stops);
+    this.#stopRects = new Map(
+      [...stops].map(([key, stop]) => [key, () => (typeof stop.rect === "function" ? stop.rect() : stop.rect)]),
+    );
+    this.#volumeRect = drawn.volumeRect;
+    this.#exposeDebug();
   }
 
-  #songRow(song: PlayerSong, rect: Rect, playingKey: string | null): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const isPlaying = song.track.key === playingKey;
-    const row: Rect = { x: rect.x, y: rect.y + 3, width: rect.width - 10, height: rect.height - 6 };
-    const g = this.add.graphics();
-    g.fillStyle(isPlaying ? surface.ink.hex : surface.parchment.hex, 1).fillRect(row.x, row.y, row.width, row.height);
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(row.x + 1, row.y + 1, row.width - 2, row.height - 2);
-    objects.push(g);
+  #toggleShuffle(): void {
+    const session = appSession();
+    if (this.#songs.length === 0) return;
+    const next = { ...session.settings, musicShuffle: !session.settings.musicShuffle };
+    session.music?.syncSettings(next);
+    session.settings = next;
+    this.#draw();
+  }
 
-    const fg = isPlaying ? surface.paper.hex : surface.ink.hex;
-    const disc = row.height - 14;
-    const cx = row.x + 7 + disc / 2;
-    const cy = row.y + row.height / 2;
-    const circle = this.add.graphics();
-    circle.fillStyle(accent.heroRed.hex, 1).fillCircle(cx, cy, disc / 2);
-    objects.push(circle);
-    objects.push(
-      this.add
-        .text(cx + (isPlaying ? 0 : 1), cy, isPlaying ? "♪" : "▶", textStyle(typeRole.rowTitle, surface.paper.hex))
-        .setFontSize(isPlaying ? 15 : 12)
-        .setOrigin(0.5),
-    );
-    const textX = row.x + 14 + disc;
-    const textWidth = row.x + row.width - 10 - textX;
-    const title = this.add.text(textX, row.y + 6, song.title, textStyle(typeRole.rowTitle, fg)).setFontSize(13);
-    fitText(title, textWidth, 13);
-    const detail = this.add
-      .text(
-        textX,
-        row.y + row.height - 18,
-        isPlaying ? `Now playing · ${song.where}` : song.where,
-        textStyle(typeRole.body, fg, ink.secondary),
-      )
-      .setFontSize(10);
-    fitText(detail, textWidth, 10);
-    objects.push(title, detail);
-    return { objects };
+  #skip(): void {
+    if (this.#songs.length === 0) return;
+    appSession().music?.next();
+    this.#draw();
+  }
+
+  #togglePause(): void {
+    const music = appSession().music;
+    if (!music) return;
+    if (music.paused()) music.resume();
+    else music.pause();
+    this.#draw();
+  }
+
+  /** Headless click-through hook only: the player's controls where they are drawn now, for the e2e specs. */
+  #exposeDebug(): void {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __mcMusicPlayerDebug?: unknown }).__mcMusicPlayerDebug = {
+      stopRect: (id: string): Rect | null => this.#stopRects.get(id)?.() ?? null,
+      volumeRect: (): Rect | null => this.#volumeRect,
+      listRect: (): Rect => this.#listRect,
+      paused: (): boolean => appSession().music?.paused() ?? false,
+      nowPlaying: (): string | null => appSession().music?.nowPlaying()?.key ?? null,
+      volume: (): number => appSession().settings.musicVolume,
+    };
   }
 }
