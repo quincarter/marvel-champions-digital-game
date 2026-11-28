@@ -9,9 +9,7 @@
 import Phaser from "phaser";
 import "@mc/ui";
 import type { Deck } from "@mc/content";
-import type { InstanceId } from "@mc/engine";
 import "../views/table-setup/mc-table-setup-page/mc-table-setup-page";
-import type { McSetupSetTile } from "../components/table-setup/mc-setup-set-tile/McSetupSetTile.js";
 import type { SetupMode } from "../components/table-setup/shared/setup-events.types.js";
 import type { McTableSetupPage } from "../views/table-setup/mc-table-setup-page/mc-table-setup-page.js";
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
@@ -26,14 +24,12 @@ import { CardEvents } from "../dom/card-events.js";
 import { DomRegion } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { settleElements } from "../dom/element-settle.js";
-import { bindStopFocus, collectStops, focusStopsOf } from "../dom/element-stops.js";
+import { bindStopFocus, focusStopsOf } from "../dom/element-stops.js";
 import { mountElement } from "../dom/element-region.js";
 import { houseModularSetIdsOf, withHouseModularSetIds } from "../view/house-modular-sets.js";
 import { parseSeed } from "../view/seed.js";
 import { setSeed, type SetupDraft } from "../view/setup-draft.js";
-import { difficultySetSections, difficultySetsSubtitle } from "../view/difficulty-sets.js";
-import { setSheetFor } from "../view/civil-war-builder-model.js";
-import { currentCardsById, currentEncounterSets, packNameOf, POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { currentCardsById } from "../content/pool.js";
 import { liveWatchDefault } from "../platform/live-watch.js";
 import { cardHoverFactor } from "../settings.js";
 import { appSession, deckStorage } from "../session.js";
@@ -41,7 +37,7 @@ import { reportRoomSetup } from "./room-setup-report.js";
 import { leaveRoomSetup, roomSetupActive } from "../view/room-table-setup.js";
 import { t } from "../i18n/translate.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { SET_CARDS_ACTION_EVENT, type SetCardsData } from "./set-cards.js";
+import { SET_CARDS_ACTION_EVENT } from "./set-cards.js";
 import type { SeatsData } from "./seats.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import type { InspectData } from "./inspect.js";
@@ -55,7 +51,9 @@ import { dealIt } from "./table-setup/deal.js";
 import { clearDevHook, installDevHook } from "./table-setup/dev-hook.js";
 import { scenarioOf, tableModelOf, type TableModel } from "./table-setup/model.js";
 import { pageInputOf } from "./table-setup/page-input.js";
+import { openSetCards, openSetsSheet } from "./table-setup/set-sheets.js";
 import { stopOrderOf } from "./table-setup/stop-order.js";
+import { zoomTargetOf } from "./table-setup/zoom.js";
 
 export interface TableSetupData {
   readonly draft: SetupDraft;
@@ -64,12 +62,6 @@ export interface TableSetupData {
 /** From this width the page is the wide layout (the ink sidebar beside the body); below it, the phone's single page. */
 const WIDE_FROM = 900;
 const TOP_BAR_HEIGHT = 64;
-
-/** The product a Standard or Expert set comes from ("Core Set", "The Hood"), by the set's own pack. */
-const setProductName = (setId: string): string => {
-  const code = POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === setId)?.packCodes[0];
-  return code ? packNameOf(code as string) : setId;
-};
 
 export class TableSetupScene extends Phaser.Scene {
   #draft!: SetupDraft;
@@ -220,8 +212,8 @@ export class TableSetupScene extends Phaser.Scene {
       this.#watchable = !this.#watchable;
       this.#compose();
     },
-    openSetCards: (setId) => this.#openSetCards(setId),
-    openSetsSheet: () => this.#openSetsSheet(),
+    openSetCards: (setId) => openSetCards(this, this.#model, setId),
+    openSetsSheet: () => openSetsSheet(this, this.#model),
     editScenario: () => {
       this.scale.off("resize", this.#compose, this);
       goToScreen(this, SCENES.civilWarBuilder, { draft: this.#draft, step: 5 } satisfies CivilWarBuilderData);
@@ -355,53 +347,10 @@ export class TableSetupScene extends Phaser.Scene {
     this.#hover?.pin(() => {
       const page = this.#page;
       const region = this.#region;
-      const key = this.#route?.focused;
-      if (!page || !region || !key?.startsWith("modular:")) return null;
-      const stop = collectStops(page).find((s) => s.key === key);
-      const host = (stop?.element.getRootNode() as ShadowRoot | undefined)?.host as McSetupSetTile | undefined;
-      const picture = host?.tile?.picture;
-      const pic = host?.shadowRoot?.querySelector(".pic");
+      if (!page || !region) return null;
       const area = screenHoverArea(this, this.input.activePointer);
-      return picture && pic && area
-        ? {
-            id: picture.cardId as InstanceId,
-            rect: region.rectOf(pic),
-            area,
-            plain: { ...(picture.face ? { face: picture.face } : {}) },
-          }
-        : null;
+      return zoomTargetOf(page, this.#route?.focused, (target) => region.rectOf(target), area);
     });
-  }
-
-  /** The "cards in this set" sheet over this screen, with "Add this set" / "Remove this set" at its foot. */
-  #openSetCards(setId: string): void {
-    const option = this.#model?.modularOptions.find((o) => o.id === setId);
-    if (!option) return;
-    this.scene.launch(SCENES.setCards, {
-      setId,
-      action: {
-        label: t(option.selected ? "tableSetup.removeSet" : "tableSetup.addSet"),
-        enabled: !(option.disabledReason !== null && !option.selected),
-      },
-      from: SCENES.setup,
-    } satisfies SetCardsData);
-    this.scene.bringToTop(SCENES.setCards);
-  }
-
-  /** "Cards" on a Standard/Expert set row: one sheet with every set the rows offer, each under where it comes from. */
-  #openSetsSheet(): void {
-    const rows = this.#model?.setChoices ?? [];
-    const ctx = { cards: currentCardsById(), encounterSets: currentEncounterSets() };
-    const sections = difficultySetSections(rows, setProductName, (id) => setSheetFor(ctx, id).totalCards);
-    if (sections.length === 0) return;
-    this.scene.launch(SCENES.setCards, {
-      setId: sections[0]!.setId,
-      title: t(rows.length > 1 ? "tableSetup.setsBoth" : "tableSetup.setsStandard"),
-      subtitle: difficultySetsSubtitle(rows),
-      sections,
-      from: SCENES.setup,
-    } satisfies SetCardsData);
-    this.scene.bringToTop(SCENES.setCards);
   }
 
   /** The sheet's "Add this set" / "Remove this set": the same toggle a tap on the tile makes. */
