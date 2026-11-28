@@ -172,3 +172,9 @@ export type { AlertBannerModel } from "./components/mc-alert-banner/mc-alert-ban
 export type { PromoPanelModel } from "./components/mc-promo-panel/mc-promo-panel.types.js";
 export type { FooterBarLink, FooterBarModel } from "./components/mc-footer-bar/mc-footer-bar.types.js";
 export type { Placed, TitlePanelModel } from "./components/mc-title-panel/mc-title-panel.types.js";
+export { McStatTile } from "./components/mc-stat-tile/mc-stat-tile.js";
+export { McChartBar } from "./components/mc-chart-bar/mc-chart-bar.js";
+export { McTipPlate } from "./components/mc-tip-plate/mc-tip-plate.js";
+export { TIP_ARROW, TIP_GAP, TIP_WIDTH, tipPlacement, tipWidthFor } from "./shared/tip-placement.js";
+export type { TipPlacement, TipRect } from "./shared/tip-placement.js";
+export type { McTipPlateDismissDetail } from "./components/mc-tip-plate/mc-tip-plate.types.js";

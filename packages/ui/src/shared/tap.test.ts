@@ -59,6 +59,14 @@ describe("cancelPressesWithin", () => {
 });
 
 describe("onTap", () => {
+  it("taps on a click with no pointer behind it (the focus route's click()), not on a pointer's own click", () => {
+    const { button, handler } = setup();
+    button.click();
+    expect(handler).toHaveBeenCalledTimes(1);
+    button.dispatchEvent(new MouseEvent("click", { detail: 1, bubbles: true }));
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
   it("taps when the release is on the element", () => {
     const { button, handler } = setup();
     fire(button, "pointerdown", 50, 20);

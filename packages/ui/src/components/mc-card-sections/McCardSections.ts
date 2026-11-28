@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { tapped } from "../../shared/tapped.js";
+import { watchCard } from "../../shared/card-events.js";
 import "../mc-empty-state/mc-empty-state.js";
 import "../mc-picture-tile/mc-picture-tile.js";
 import "../mc-section-header/mc-section-header.js";
@@ -167,6 +168,46 @@ export class McCardSections extends LitElement {
     this.model = { sections: [], contentWidth: 0, columns: 1, cellHeight: 200, gap: 0 };
   }
 
+  /** Each card picture's `watchCard` (hover and Inspect events), by the item that holds it. */
+  readonly #watched = new Map<Element, () => void>();
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    for (const stop of this.#watched.values()) stop();
+    this.#watched.clear();
+  }
+
+  /** Every card picture raises the card hover and Inspect events (`watchCard`); gone pictures are let go. */
+  protected override updated(): void {
+    const items = new Set(this.renderRoot.querySelectorAll<HTMLElement>("[data-card]"));
+    for (const [item, stop] of this.#watched) {
+      if (items.has(item as HTMLElement)) continue;
+      stop();
+      this.#watched.delete(item);
+    }
+    for (const item of items) {
+      const picture = item.querySelector<HTMLElement>("mc-picture-tile");
+      if (!picture || this.#watched.has(item)) continue;
+      this.#watched.set(
+        item,
+        watchCard(picture, () => {
+          const face = this.#faceOf(item.dataset.key ?? "");
+          return { cardId: item.dataset.card!, ...(face !== undefined ? { face } : {}) };
+        }),
+      );
+    }
+  }
+
+  /** The face a `face:<id>` item shows, when its tile names one. */
+  #faceOf(key: string): unknown {
+    for (const section of this.model.sections) {
+      if (section.kind !== "faces") continue;
+      const tile = section.tiles.find((t) => `face:${t.id}` === key);
+      if (tile) return tile.face;
+    }
+    return undefined;
+  }
+
   get scroller(): HTMLElement | null {
     return this.renderRoot.querySelector(".scroller");
   }
@@ -193,6 +234,7 @@ export class McCardSections extends LitElement {
     return html`<div
       class="face"
       data-key=${`face:${tile.id}`}
+      data-stop=${`face:${tile.id}`}
       data-card=${tile.cardId}
       style=${`width:${width}px;margin:0 ${gap}px ${gap}px 0`}
       ${tapped(() => this.#press(`face:${tile.id}`))}
@@ -207,6 +249,7 @@ export class McCardSections extends LitElement {
     return html`<div
       class="cell"
       data-key=${`card:${cell.id}`}
+      data-stop=${`card:${cell.id}`}
       data-card=${cell.cardId}
       style=${`width:${width}px;height:${height}px`}
       ${tapped(() => this.#press(`card:${cell.id}`))}

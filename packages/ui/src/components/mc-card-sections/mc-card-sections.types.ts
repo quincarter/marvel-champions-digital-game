@@ -8,6 +8,8 @@ export interface CardFaceTileModel {
   readonly picture: PictureSource;
   readonly label: string;
   readonly name: string;
+  /** Which face of the card this is, when not its default one: handed to the hover popover and Inspect. */
+  readonly face?: unknown;
 }
 
 /** One card a deck runs: a cost pip, the name and type over the scan, a line or two of rules and a copies badge. */

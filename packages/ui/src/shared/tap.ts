@@ -119,7 +119,13 @@ export function onTap(
     )
       end();
   };
+  // A click with no pointer behind it (`detail` 0: the focus route's `click()`, a screen reader's or a keyboard's
+  // activation) is a press too. A pointer's own click has `detail` 1 or more and is already handled by `up`.
+  const activate = (event: MouseEvent): void => {
+    if (event.detail === 0 && options.enabled?.() !== false) handler(event as PointerEvent);
+  };
   tapCancels.set(element, end);
+  element.addEventListener("click", activate);
   element.addEventListener("pointerdown", down);
   element.addEventListener("pointerup", up);
   element.addEventListener("pointermove", move);
@@ -129,6 +135,7 @@ export function onTap(
   return () => {
     end();
     tapCancels.delete(element);
+    element.removeEventListener("click", activate);
     element.removeEventListener("pointerdown", down);
     element.removeEventListener("pointerup", up);
     element.removeEventListener("pointermove", move);
