@@ -145,3 +145,26 @@ describe("rankInputOf", () => {
     expect(up).toMatchObject({ up: true, title: "Costumed Vigilante", points: null, next: null });
   });
 });
+
+describe("gamesInputOf through the page", () => {
+  const save = (id: string, lastPlayedOn?: object) =>
+    ({
+      id,
+      config: { scenarioId: "rhino", difficulty: "standard", players: [] },
+      round: 2,
+      updatedAt: 0,
+      campaignId: null,
+      ...(lastPlayedOn ? { lastPlayedOn } : {}),
+    }) as never;
+  const row = (id: string, needsUpdate: boolean) =>
+    ({ id, title: id, kicker: null, detail: "Round 2", needsUpdate, save: save(id) }) as never;
+
+  it("says a game needs an update only when a newer build wrote it, and lists the rows", () => {
+    const input = titlePageInputOf(facts({ games: [row("a", false), row("b", true)] }));
+    expect(input.games!.rows.map((r) => r.needsUpdate !== null)).toEqual([false, true]);
+    expect(input.games!.enabled).toBe(true);
+    expect(input.games!.confirming).toBeNull();
+    const asking = titlePageInputOf(facts({ games: [row("a", false)], removing: "a", removeError: "x" }));
+    expect(asking.games!.confirming).toMatchObject({ id: "a", error: "x" });
+  });
+});
