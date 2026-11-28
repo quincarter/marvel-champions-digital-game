@@ -128,4 +128,18 @@ describe("mc-picture-card press control", () => {
     (card.shadowRoot!.querySelector("button.tap") as HTMLButtonElement).focus();
     expect(keys).toEqual(["entry:spider"]);
   });
+
+  it("does not move the screen's route when the focus comes from a pointer press", async () => {
+    const card = document.createElement("mc-picture-card");
+    card.model = model;
+    card.setAttribute("activate-key", "entry:spider");
+    document.body.append(card);
+    await card.updateComplete;
+    const keys: string[] = [];
+    card.addEventListener("mc-tile-focus", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
+    const button = card.shadowRoot!.querySelector("button.tap") as HTMLButtonElement;
+    button.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    button.focus();
+    expect(keys).toEqual([]);
+  });
 });

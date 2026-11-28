@@ -103,6 +103,8 @@ export class McPictureCard extends LitElement {
     fitTextWithin(this.renderRoot);
   }
 
+  #pressing = false;
+
   #activate(): void {
     this.dispatchEvent(
       new CustomEvent("mc-activate", { detail: { key: this.activateKey }, bubbles: true, composed: true }),
