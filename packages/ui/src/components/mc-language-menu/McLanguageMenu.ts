@@ -1,6 +1,7 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { activate, tapOn } from "../../shared/popup-parts.js";
+import { onTap } from "../../shared/tap.js";
+import type { ActivateDetail } from "../../shared/popup.types.js";
 import "../mc-language-option/mc-language-option.js";
 import "../mc-popup-button/mc-popup-button.js";
 import { McLanguageMenuStyles } from "./mc-language-menu.styles.js";
@@ -47,7 +48,14 @@ export class McLanguageMenu extends LitElement {
 
   override updated(): void {
     if (this.#stopScrim) return;
-    this.#stopScrim = tapOn(this.renderRoot.querySelector(".scrim"), () => activate(this, "outside"));
+    const scrim = this.renderRoot.querySelector<HTMLElement>(".scrim");
+    if (!scrim) return;
+    // The tap rule: press and release both on the scrim, nothing scrolled between.
+    this.#stopScrim = onTap(scrim, () =>
+      this.dispatchEvent(
+        new CustomEvent<ActivateDetail>("mc-activate", { detail: { key: "outside" }, bubbles: true, composed: true }),
+      ),
+    );
   }
 
   override disconnectedCallback(): void {

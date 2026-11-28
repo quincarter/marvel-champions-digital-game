@@ -16,7 +16,7 @@ export const McPlayerControlsStyles = css`
     flex: 1;
   }
   :host([slider]) .pause mc-popup-button {
-    flex: 0 0 104px;
+    flex: 0 0 128px;
   }
   slot {
     display: none;
