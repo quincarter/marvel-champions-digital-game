@@ -13,4 +13,17 @@ export const McSeatsButtonsStyles = css`
     height: 44px;
     --mc-button-size: 11px;
   }
+  /* A phone's row: the three buttons share the width, their words wrap inside them. */
+  @media (max-width: 767px) {
+    :host {
+      flex: 1 1 100%;
+      flex-wrap: nowrap;
+      gap: 6px;
+    }
+    mc-button {
+      flex: 1 1 0;
+      min-width: 0;
+      --mc-button-size: 10px;
+    }
+  }
 `;

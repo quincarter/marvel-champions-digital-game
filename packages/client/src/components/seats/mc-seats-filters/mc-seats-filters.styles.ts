@@ -49,4 +49,13 @@ export const McSeatsFiltersStyles = css`
   mc-seats-buttons {
     flex: 0 1 auto;
   }
+  @media (max-width: 767px) {
+    .filters {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    mc-seats-buttons {
+      flex: 1 1 100%;
+    }
+  }
 `;

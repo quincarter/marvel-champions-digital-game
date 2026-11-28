@@ -43,6 +43,7 @@ export class McSeatsButtons extends SeatsElement {
     return this.buttons.map(
       (button) =>
         html`<mc-button
+          wrap
           kind="quiet"
           data-stop=${STOPS[button.action]}
           .label=${button.label}
