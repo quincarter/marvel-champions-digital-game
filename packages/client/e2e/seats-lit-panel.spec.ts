@@ -206,7 +206,8 @@ test.describe("Take your seats panels", () => {
       "Enter pressed the focused tile",
       5000,
     );
-    expect(await focusKey()).toBe(key);
+    // The deck sheet (a hero with several decks) takes the route while it is up; otherwise focus stays on the tile.
+    if (!(await hook<boolean>(page, "__mcSeatsDebug", "decksOpen"))) expect(await focusKey()).toBe(key);
     expect(errors).toEqual([]);
   });
 });
