@@ -5,6 +5,9 @@ export const McOptionCardStyles = [
   PressBaseStyles,
   CardFrameStyles,
   css`
+    :host {
+      container-type: inline-size;
+    }
     .frame {
       padding: 8px 10px;
       display: flex;
@@ -56,6 +59,7 @@ export const McOptionCardStyles = [
     }
     .value {
       font-family: var(--mc-font-display);
+      letter-spacing: 2px;
       font-size: 20px;
       min-width: 56px;
       text-align: center;
@@ -84,6 +88,27 @@ export const McOptionCardStyles = [
     }
     mc-press-card {
       display: block;
+    }
+    /* Narrower than this the name sits over its controls, as the compact attribute forces. */
+    @container (max-width: 300px) {
+      .frame {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+      .names {
+        flex: none;
+        max-width: none;
+      }
+      .controls {
+        justify-content: flex-start;
+      }
+      .controls mc-chip {
+        max-width: 120px;
+      }
+      .groups {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
   `,
 ];

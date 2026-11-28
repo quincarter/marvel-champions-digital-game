@@ -18,6 +18,7 @@ export const McChipStyles = [
       color: var(--chip-color, inherit);
       border: 2px var(--chip-border, solid) var(--chip-line, var(--mc-line-ink));
       font-family: var(--mc-font-display);
+      letter-spacing: 2px;
       text-transform: uppercase;
       font-size: var(--chip-size, 20px);
       line-height: 1;

@@ -66,6 +66,11 @@ export class McSetupSummary extends LitElement {
     this.renderRoot.querySelector<HTMLElement & { focusInput(): void }>("mc-text-field")?.focusInput();
   }
 
+  /** Takes the caret out of the field (a pad's B, A or Start). */
+  blurSeed(): void {
+    this.renderRoot.querySelector<HTMLElement & { blurInput(): void }>("mc-text-field")?.blurInput();
+  }
+
   #typed = (event: CustomEvent<McInputDetail>): void => {
     event.stopPropagation();
     this.dispatchEvent(setupEvent({ type: "seed-input", value: event.detail.value }));
@@ -127,7 +132,9 @@ export class McSetupSummary extends LitElement {
           .slice(0, SUMMARY_ROWS)
           .map(
             (row) =>
-              html`<div class="row"><span class="label">${row.label}</span><span class="value">${row.value}</span></div>`,
+              html`<div class="row">
+                <span class="label">${row.label}</span><span class="value">${row.value}</span>
+              </div>`,
           )}
       </div>
       <hr />

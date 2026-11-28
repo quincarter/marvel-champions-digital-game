@@ -1,4 +1,4 @@
-import { t, tPlural } from "../../../i18n/translate.js";
+import { t, tPlural } from "../../i18n/translate.js";
 
 export interface FooterFacts {
   readonly villainName: string;

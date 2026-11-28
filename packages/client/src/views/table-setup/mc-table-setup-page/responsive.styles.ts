@@ -9,6 +9,7 @@ export const ResponsiveStyles = css`
   :host([mode="wide"]) .body {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-rows: minmax(0, 1fr);
     min-height: 0;
     flex: 1;
   }
@@ -24,12 +25,16 @@ export const ResponsiveStyles = css`
     display: flex;
     flex-direction: column;
     gap: 14px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* The summary scrolls when the screen is short; the deal bar under it stays in view and is no part of that scroller. */
+  :host([mode="wide"]) .side mc-setup-summary {
+    flex: 1 1 0;
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
-  }
-  :host([mode="wide"]) .side mc-setup-summary {
-    flex: 1 1 auto;
   }
   :host([mode="phone"]) .body {
     display: flex;

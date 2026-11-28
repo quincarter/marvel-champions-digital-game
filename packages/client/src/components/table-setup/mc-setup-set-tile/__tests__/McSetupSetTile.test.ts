@@ -7,6 +7,9 @@ import type { SetTileInput } from "../mc-setup-set-tile.types";
 
 afterEach(() => document.body.replaceChildren());
 
+/** Presses a control a query found by its attribute (typed as a plain `Element`). */
+const press = (el: Element | null | undefined): void => (el as unknown as { press(): void }).press();
+
 const tile = (over: Partial<SetTileInput> = {}): SetTileInput => ({
   id: "bomb_scare",
   name: "Bomb Scare",
@@ -44,7 +47,7 @@ describe("mc-setup-set-tile", () => {
   it("opens the set's cards from the picture's area, the Cards tab and a hold, none of which toggle", async () => {
     const { el, seen } = await make(tile());
     el.shadowRoot!.querySelector("mc-hit-area")!.press();
-    el.shadowRoot!.querySelector("mc-chip.tab")!.press();
+    press(el.shadowRoot!.querySelector("mc-chip.tab")!);
     el.shadowRoot!.querySelector("mc-press-card")!.inspect();
     expect(seen).toEqual([
       { type: "modular-cards", id: "bomb_scare" },

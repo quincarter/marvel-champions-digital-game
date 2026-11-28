@@ -49,7 +49,7 @@ export const McSetupDifficultyStyles = [
       gap: 10px;
     }
     .setrow .who {
-      flex: 0 0 96px;
+      flex: 0 1 112px;
       min-width: 0;
     }
     .setrow .name {
@@ -63,6 +63,7 @@ export const McSetupDifficultyStyles = [
     }
     .chips mc-chip {
       flex: 1 1 0;
+      min-width: 0;
       max-width: 80px;
     }
     .opts {

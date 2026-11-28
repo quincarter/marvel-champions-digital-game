@@ -7,7 +7,7 @@ export const McSetupSetTileStyles = [
     :host {
       display: block;
       position: relative;
-      min-height: var(--tile-height, 58px);
+      min-height: var(--tile-height, 66px);
     }
     mc-press-card,
     mc-check-row {
@@ -16,6 +16,7 @@ export const McSetupSetTileStyles = [
     .copy {
       padding-left: var(--pic-room, 40px);
       min-height: 40px;
+      padding-bottom: 14px;
     }
     .copy .name {
       --name-size: 15px;

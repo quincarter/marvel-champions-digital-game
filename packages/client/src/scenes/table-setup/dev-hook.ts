@@ -11,7 +11,6 @@ import type { TableModel } from "./model.js";
 export interface DevHookInput {
   readonly model: TableModel;
   readonly stops: () => ReadonlyMap<string, FocusStop>;
-  readonly live: (key: string) => Rect | null;
   /** The rect the modular tiles scroll inside (the grid's panel; on a phone, the page between header and footer). */
   readonly viewport: () => Rect | null;
   readonly watchable: () => boolean;
@@ -35,6 +34,8 @@ export function installDevHook(input: DevHookInput): void {
     difficulty: () => m.draft.difficulty,
     firstPlayer: () => m.seats.find((s) => s.selected)?.index ?? null,
     modularViewport: input.viewport,
+    /** Brings a stop into view in the page's scroller. */
+    reveal: (key: string) => input.stops().get(key)?.ensureVisible?.(),
     modularHeader: () => m.modularRight,
     encounterDeckSize: () => m.encounterDeckSize,
     watchable: input.watchable,

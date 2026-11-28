@@ -1,21 +1,21 @@
 /** "Deal it out": starts the engine on the draft, then routes to the deal (or the scenario's intro), or back to a fix. */
 import type Phaser from "phaser";
-import { currentScenarios } from "../../../content/pool.js";
-import { appSession } from "../../../session.js";
-import { tableRulesOf } from "../../../settings.js";
-import { noteDeckFeat } from "../../../progression/deck-feats.js";
-import { refreshUnlocks } from "../../../progression/progression.js";
-import { ART_CATALOG, introArtFor } from "../../../art/scenario-art.js";
-import { scenarioIntroFor } from "../../../campaign/scenario-intros.js";
-import { keepRoomDraft, roomSetupActive } from "../../../view/room-table-setup.js";
-import { corePlayerForSeat } from "../../../view/deck-seat.js";
-import { toSessionConfig, type SetupDraft } from "../../../view/setup-draft.js";
-import { parseSeed } from "../../../view/seed.js";
-import type { DeckOption } from "../../../view/deck-list-model.js";
-import { goToScreen } from "../../../ui/transitions.js";
-import { SCENES } from "../../keys.js";
-import type { DecksSceneData } from "../../decks.js";
-import type { ScenarioIntroData } from "../../scenario-intro.js";
+import { currentScenarios } from "../../content/pool.js";
+import { appSession } from "../../session.js";
+import { tableRulesOf } from "../../settings.js";
+import { noteDeckFeat } from "../../progression/deck-feats.js";
+import { refreshUnlocks } from "../../progression/progression.js";
+import { ART_CATALOG, introArtFor } from "../../art/scenario-art.js";
+import { scenarioIntroFor } from "../../campaign/scenario-intros.js";
+import { keepRoomDraft, roomSetupActive } from "../../view/room-table-setup.js";
+import { corePlayerForSeat } from "../../view/deck-seat.js";
+import { toSessionConfig, type SetupDraft } from "../../view/setup-draft.js";
+import { parseSeed } from "../../view/seed.js";
+import type { DeckOption } from "../../view/deck-list-model.js";
+import { goToScreen } from "../../ui/transitions.js";
+import { SCENES } from "../keys.js";
+import type { DecksSceneData } from "../decks.js";
+import type { ScenarioIntroData } from "../scenario-intro.js";
 
 /** What dealing needs of the screen. */
 export interface DealHost {

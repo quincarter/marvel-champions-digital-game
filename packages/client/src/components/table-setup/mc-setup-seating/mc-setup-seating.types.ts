@@ -20,12 +20,12 @@ export interface SeatingInput {
   readonly pictures: ReadonlyMap<number, PictureSource>;
 }
 
-/** Where the first player token is and is drawn now, in viewport pixels: what the e2e hook reads. */
+/** Where the first player token is and is drawn now, as elements (the scene reads their rects): what the e2e hook reads. */
 export interface TokenProbe {
   readonly index: number;
-  /** The centre of the token's drawn body (its flight transform included). */
-  readonly drawn: { readonly x: number; readonly y: number };
-  /** The centre of the spot it rests on. */
-  readonly at: { readonly x: number; readonly y: number };
+  /** The token's drawn body (its flight transform included); the scene reads its rect. */
+  readonly drawn: Element;
+  /** The token's own box: the spot it rests on. */
+  readonly at: Element;
   readonly flying: boolean;
 }

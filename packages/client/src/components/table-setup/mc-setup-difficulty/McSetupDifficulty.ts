@@ -49,18 +49,25 @@ export class McSetupDifficulty extends LitElement {
         return html`<div class="setrow">
           <div class="who">
             <div class="name">${row.name}</div>
-            ${index === 0
-              ? html`<mc-chip link label=${t("tableSetup.cards")} .action=${{ type: "sets-sheet" } as const}></mc-chip>`
-              : nothing}
+            ${
+              index === 0
+                ? html`<mc-chip
+                    link
+                    label=${t("tableSetup.cards")}
+                    .action=${{ type: "sets-sheet" } as const}
+                  ></mc-chip>`
+                : nothing
+            }
           </div>
           <div class="chips">
             ${row.control.groups[0]!.chips.map(
-              (chip) => html`<mc-chip
-                .stop=${`option:${chip.action}`}
-                label=${chip.label}
-                ?selected=${chip.selected}
-                .action=${chip.action}
-              ></mc-chip>`,
+              (chip) =>
+                html`<mc-chip
+                  .stop=${`option:${chip.action}`}
+                  label=${chip.label}
+                  ?selected=${chip.selected}
+                  .action=${chip.action}
+                ></mc-chip>`,
             )}
           </div>
         </div>`;
@@ -73,14 +80,15 @@ export class McSetupDifficulty extends LitElement {
     const slots = Math.max(3, input.cards.length + (input.setChoices.length > 0 ? 1 : 0));
     return html`<div class="cards" style=${`--slots:${slots}`}>
       ${input.cards.map(
-        (card) => html`<mc-press-card
-          .stop=${`difficulty:${card.id}`}
-          ?selected=${input.selected === card.id}
-          .action=${{ type: "difficulty", id: card.id } as const}
-        >
-          <div class="name">${card.name}</div>
-          <div class="meta">${card.description}</div>
-        </mc-press-card>`,
+        (card) =>
+          html`<mc-press-card
+            .stop=${`difficulty:${card.id}`}
+            ?selected=${input.selected === card.id}
+            .action=${{ type: "difficulty", id: card.id } as const}
+          >
+            <div class="name">${card.name}</div>
+            <div class="meta">${card.description}</div>
+          </mc-press-card>`,
       )}
       ${input.setChoices.length > 0 ? this.#setsCard(input.setChoices) : nothing}
     </div>`;
@@ -89,12 +97,13 @@ export class McSetupDifficulty extends LitElement {
   #strip(input: DifficultyInput) {
     return html`<div class="strip">
       ${input.cards.map(
-        (card) => html`<mc-chip
-          .stop=${`difficulty:${card.id}`}
-          label=${card.name}
-          ?selected=${input.selected === card.id}
-          .action=${{ type: "difficulty", id: card.id } as const}
-        ></mc-chip>`,
+        (card) =>
+          html`<mc-chip
+            .stop=${`difficulty:${card.id}`}
+            label=${card.name}
+            ?selected=${input.selected === card.id}
+            .action=${{ type: "difficulty", id: card.id } as const}
+          ></mc-chip>`,
       )}
     </div>`;
   }
@@ -128,8 +137,7 @@ export class McSetupDifficulty extends LitElement {
       ${phone && input.setChoices.length > 0 ? this.#setsCard(input.setChoices) : nothing}
       <div class="opts">
         ${input.optionRows.map(
-          (row) =>
-            html`<mc-option-card class=${row.span === 2 ? "span2" : ""} .row=${row} ?compact=${phone}></mc-option-card>`,
+          (row) => html`<mc-option-card class=${row.span === 2 ? "span2" : ""} .row=${row}></mc-option-card>`,
         )}
         ${this.#towerDefense(input, phone)}
       </div>

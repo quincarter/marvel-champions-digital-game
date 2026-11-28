@@ -18,9 +18,6 @@ import type { SetTileInput } from "../mc-setup-set-tile/mc-setup-set-tile.types.
 import type { ModularsInput } from "./mc-setup-modulars.types.js";
 import { McSetupModularsStyles } from "./mc-setup-modulars.styles.js";
 
-/** The header right label that no longer fits beside Random on a phone drops under the heading. */
-const STACK_FROM = 26;
-
 /**
  * # Setup modular sets section
  * The Modular sets section: the header with its Random draw, the picker (the scenario's required set(s), then every
@@ -75,20 +72,22 @@ export class McSetupModulars extends LitElement {
 
   #requiredWide(input: ModularsInput) {
     return input.required.map(
-      (set) => html`<div class="required">
-        <div class="name">${set.name}</div>
-        <div class="label">${lt(requiredCardLabel(input.villainName, set.cardCount))}</div>
-      </div>`,
+      (set) =>
+        html`<div class="required">
+          <div class="name">${set.name}</div>
+          <div class="label">${lt(requiredCardLabel(input.villainName, set.cardCount))}</div>
+        </div>`,
     );
   }
 
   #requiredPhone(input: ModularsInput) {
     return input.required.map(
-      (set) => html`<mc-check-row
-        locked
-        name=${set.name}
-        meta=${t("tableSetup.requiredBy", { villain: input.villainName })}
-      ></mc-check-row>`,
+      (set) =>
+        html`<mc-check-row
+          locked
+          name=${set.name}
+          meta=${t("tableSetup.requiredBy", { villain: input.villainName })}
+        ></mc-check-row>`,
     );
   }
 
@@ -123,7 +122,10 @@ export class McSetupModulars extends LitElement {
         continue;
       }
       if (section.label) out.push(html`<div class="label group-label">${section.label}</div>`);
-      for (const option of input.options.slice(next - input.required.length, next - input.required.length + section.itemCount))
+      for (const option of input.options.slice(
+        next - input.required.length,
+        next - input.required.length + section.itemCount,
+      ))
         out.push(this.#tile(input, option));
       next += section.itemCount;
     }
@@ -168,8 +170,19 @@ export class McSetupModulars extends LitElement {
       : t("tableSetup.hoodAside", { cards: tPlural("tableSetup.cardsN", option.cardCount) });
     const action = { type: "hood-toggle", id: option.id } as const;
     return this.mode === "phone"
-      ? html`<mc-check-row .stop=${`hoodSet:${option.id}`} name=${option.name} meta=${label} ?checked=${option.included} .action=${action}></mc-check-row>`
-      : html`<mc-press-card class="hood-tile" .stop=${`hoodSet:${option.id}`} ?selected=${option.included} .action=${action}>
+      ? html`<mc-check-row
+          .stop=${`hoodSet:${option.id}`}
+          name=${option.name}
+          meta=${label}
+          ?checked=${option.included}
+          .action=${action}
+        ></mc-check-row>`
+      : html`<mc-press-card
+          class="hood-tile"
+          .stop=${`hoodSet:${option.id}`}
+          ?selected=${option.included}
+          .action=${action}
+        >
           <div class="name">${option.name}</div>
           <div class="label">${label}</div>
         </mc-press-card>`;
@@ -195,18 +208,20 @@ export class McSetupModulars extends LitElement {
       <mc-section-heading
         label=${input.cw ? SUMMARY_SECTION_TITLE : t("tableSetup.modular")}
         right=${input.right}
-        ?stacked=${phone && input.right.length > STACK_FROM}
         ?onink=${this.onink}
       >
-        ${input.randomSets
-          ? html`<mc-chip
-              .stop=${"modular:random-draw"}
-              label=${t("tableSetup.random")}
-              .action=${{ type: "modular-random" } as const}
-            ></mc-chip>`
-          : nothing}
+        ${
+          input.randomSets
+            ? html`<mc-chip
+                .stop=${"modular:random-draw"}
+                label=${t("tableSetup.random")}
+                .action=${{ type: "modular-random" } as const}
+              ></mc-chip>`
+            : nothing
+        }
       </mc-section-heading>
-      ${input.cw ? this.#summary(input, phone) : phone ? this.#list(input) : this.#grid(input)} ${this.#hood(input, phone)}
+      ${input.cw ? this.#summary(input, phone) : phone ? this.#list(input) : this.#grid(input)}
+      ${this.#hood(input, phone)}
     `;
   }
 }

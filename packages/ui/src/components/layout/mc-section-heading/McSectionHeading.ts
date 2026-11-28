@@ -5,7 +5,7 @@ import { McSectionHeadingStyles } from "./mc-section-heading.styles.js";
  * # Section heading
  * A section's Bangers heading with its rule running on, and an optional label at the right end; the heading shrinks to
  * its ellipsis, never over the label. `onink` is for an ink ground (paper words and rule); `stacked` drops the label
- * under the heading (a phone with a long one). Slotted content (a button) sits at the very end of the row.
+ * under the heading, and so does a heading narrower than 520px (a phone). Slotted content (a button) sits at the very end of the row.
  *
  * @element mc-section-heading
  * @attr label - The heading, already translated.
@@ -21,7 +21,7 @@ export class McSectionHeading extends LitElement {
     label: { type: String },
     right: { type: String },
     onink: { type: Boolean, reflect: true },
-    stacked: { type: Boolean },
+    stacked: { type: Boolean, reflect: true },
   };
 
   declare label: string;
@@ -44,6 +44,6 @@ export class McSectionHeading extends LitElement {
         ${this.right && !this.stacked ? html`<span class="label right">${this.right}</span>` : ""}
         <slot></slot>
       </div>
-      ${this.right && this.stacked ? html`<div class="label stack">${this.right}</div>` : ""}`;
+      ${this.right ? html`<div class="label stack">${this.right}</div>` : ""}`;
   }
 }

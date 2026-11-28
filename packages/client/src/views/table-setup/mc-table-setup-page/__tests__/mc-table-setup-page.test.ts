@@ -27,7 +27,16 @@ const input = (): TableSetupPageInput => ({
     pictures: new Map(),
   },
   seating: {
-    seats: [{ index: 0, name: "Spider-Man", meta: "First player", chipLabel: "YOU", selected: true, identityCardId: undefined }],
+    seats: [
+      {
+        index: 0,
+        name: "Spider-Man",
+        meta: "First player",
+        chipLabel: "YOU",
+        selected: true,
+        identityCardId: undefined,
+      },
+    ],
     room: false,
     pictures: new Map(),
   },

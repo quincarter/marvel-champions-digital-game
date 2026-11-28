@@ -6,6 +6,7 @@ export const McSectionHeadingStyles = [
   css`
     :host {
       color: var(--mc-text-ink);
+      container-type: inline-size;
     }
     :host([onink]) {
       color: var(--mc-text-paper);
@@ -17,6 +18,7 @@ export const McSectionHeadingStyles = [
     }
     .title {
       font-family: var(--mc-font-display);
+      letter-spacing: 2px;
       text-transform: uppercase;
       font-size: 19px;
       line-height: 1.2;
@@ -41,7 +43,19 @@ export const McSectionHeadingStyles = [
       margin-left: 4px;
     }
     .stack {
+      display: none;
       margin-top: 2px;
+    }
+    :host([stacked]) .stack {
+      display: block;
+    }
+    @container (max-width: 520px) {
+      .right {
+        display: none;
+      }
+      .stack {
+        display: block;
+      }
     }
   `,
 ];

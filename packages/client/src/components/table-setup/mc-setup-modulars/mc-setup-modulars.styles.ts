@@ -66,7 +66,7 @@ export const McSetupModularsStyles = [
       font-size: var(--mc-small-11, 11px);
     }
     mc-setup-set-tile {
-      --tile-height: 58px;
+      --tile-height: 66px;
     }
     :host([mode="phone"]) mc-setup-set-tile {
       --tile-height: 64px;

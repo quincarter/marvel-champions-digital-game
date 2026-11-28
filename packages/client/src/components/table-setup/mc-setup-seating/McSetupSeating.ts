@@ -110,15 +110,12 @@ export class McSetupSeating extends LitElement {
     token.fly(reduced ? null : flightFrom(style, flipOffset(before, after)), reduced);
   }
 
-  /** What an e2e reads: which seat holds the token, where it is drawn now (its transform included) and where it rests. */
+  /** What an e2e reads: which seat holds the token, its drawn body (its flight transform included), its resting box and whether it flies. */
   probe(): TokenProbe | null {
     const token = this.#token;
     if (!token?.isConnected || this.#index === null) return null;
-    const rest = token.getBoundingClientRect();
     const body = token.renderRoot.querySelector<HTMLElement>(".token");
-    const drawn = body ? body.getBoundingClientRect() : rest;
-    const centre = (r: DOMRect) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
-    return { index: this.#index, drawn: centre(drawn), at: centre(rest), flying: token.flying };
+    return { index: this.#index, drawn: body ?? token, at: token, flying: token.flying };
   }
 
   override render() {
@@ -140,12 +137,13 @@ export class McSetupSeating extends LitElement {
       </mc-section-heading>
       <div class="seats" style=${`--seats:${input.seats.length + (phone ? 1 : 0)}`}>
         ${input.seats.map(
-          (seat) => html`<mc-setup-seat
-            .stop=${`first-player:${seat.index}`}
-            .mode=${this.mode}
-            .input=${{ seat, picture: input.pictures.get(seat.index) ?? null }}
-            .action=${{ type: "seat-pick", index: seat.index } as const}
-          ></mc-setup-seat>`,
+          (seat) =>
+            html`<mc-setup-seat
+              .stop=${`first-player:${seat.index}`}
+              .mode=${this.mode}
+              .input=${{ seat, picture: input.pictures.get(seat.index) ?? null }}
+              .action=${{ type: "seat-pick", index: seat.index } as const}
+            ></mc-setup-seat>`,
         )}
         ${phone ? random : nothing}
       </div>`;

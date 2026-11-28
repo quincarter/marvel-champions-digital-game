@@ -10,11 +10,11 @@ html`<mc-section-heading label="Modular sets" right="1 CHOSEN"><mc-chip label="R
 
 ## Properties
 
-| Name | Type | Meaning |
-| --- | --- | --- |
-| `label` | string | The heading. |
-| `right` | string | The label at the right end. |
-| `onink` | boolean | Paper words and rule on an ink ground. |
+| Name      | Type    | Meaning                                  |
+| --------- | ------- | ---------------------------------------- |
+| `label`   | string  | The heading.                             |
+| `right`   | string  | The label at the right end.              |
+| `onink`   | boolean | Paper words and rule on an ink ground.   |
 | `stacked` | boolean | The right label drops under the heading. |
 
 ## Events

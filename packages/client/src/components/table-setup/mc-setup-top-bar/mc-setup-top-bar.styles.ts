@@ -34,8 +34,9 @@ export const McSetupTopBarStyles = [
       flex: 0 1 auto;
       min-width: 0;
       max-width: var(--max, none);
-      margin-top: var(--drop, 0);
+      transform: translateY(var(--drop, 0));
       font-family: var(--mc-font-display);
+      letter-spacing: 2px;
       text-transform: uppercase;
       font-size: 28px;
       line-height: 1.1;

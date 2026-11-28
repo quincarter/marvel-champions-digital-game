@@ -77,16 +77,19 @@ export class McOptionCard extends LitElement {
     const groups = control.groups;
     return html`<div class="frame ${state}">
       ${names}
-      ${groups.length === 1
-        ? html`<div class="controls">${groups[0]!.chips.map((chip) => this.#chip(chip))}</div>`
-        : html`<div class="groups" style=${`--per-row:${this.compact ? 2 : groups.length}`}>
-            ${groups.map(
-              (group) => html`<div class="group">
-                <div class="label">${group.label ?? ""}</div>
-                <div class="pair">${group.chips.map((chip) => this.#chip(chip))}</div>
-              </div>`,
-            )}
-          </div>`}
+      ${
+        groups.length === 1
+          ? html`<div class="controls">${groups[0]!.chips.map((chip) => this.#chip(chip))}</div>`
+          : html`<div class="groups" style=${`--per-row:${this.compact ? 2 : groups.length}`}>
+              ${groups.map(
+                (group) =>
+                  html`<div class="group">
+                    <div class="label">${group.label ?? ""}</div>
+                    <div class="pair">${group.chips.map((chip) => this.#chip(chip))}</div>
+                  </div>`,
+              )}
+            </div>`
+      }
     </div>`;
   }
 }

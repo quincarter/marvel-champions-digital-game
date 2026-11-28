@@ -11,6 +11,9 @@ vi.mock("../../../../session.js", () => ({
 
 afterEach(() => document.body.replaceChildren());
 
+/** Presses a control a query found by its attribute (typed as a plain `Element`). */
+const press = (el: Element | null | undefined): void => (el as unknown as { press(): void }).press();
+
 const seat = (index: number, selected: boolean): SeatCell => ({
   index,
   name: `Hero ${index}`,
@@ -52,7 +55,7 @@ describe("mc-setup-seating", () => {
     seatsOf(el)[2]!.press();
     const random = el.shadowRoot!.querySelector("mc-section-heading mc-chip")!;
     expect(random.getAttribute("data-stop")).toBe("first-player:random");
-    random.press();
+    press(random);
     expect(seen).toEqual([{ type: "seat-pick", index: 2 }, { type: "seat-roll" }]);
   });
 

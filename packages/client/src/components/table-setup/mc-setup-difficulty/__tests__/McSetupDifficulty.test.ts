@@ -8,6 +8,9 @@ import type { DifficultyInput } from "../mc-setup-difficulty.types";
 
 afterEach(() => document.body.replaceChildren());
 
+/** Presses a control a query found by its attribute (typed as a plain `Element`). */
+const press = (el: Element | null | undefined): void => (el as unknown as { press(): void }).press();
+
 const input = (over: Partial<DifficultyInput> = {}): DifficultyInput => ({
   cards: [
     { id: "standard", name: "Standard", description: "Standard encounter set only." },
@@ -73,7 +76,7 @@ describe("mc-setup-difficulty", () => {
     const chips = [...el.shadowRoot!.querySelectorAll(".strip mc-chip")];
     expect(chips.map((c) => c.getAttribute("data-stop"))).toEqual(["difficulty:standard", "difficulty:expert"]);
     const seen = heard(el);
-    chips[0]!.press();
+    press(chips[0]!);
     expect(seen).toEqual([{ type: "difficulty", id: "standard" }]);
   });
 
@@ -82,8 +85,8 @@ describe("mc-setup-difficulty", () => {
     const seen = heard(el);
     const chips = [...el.shadowRoot!.querySelectorAll(".sets mc-chip")];
     const link = chips.find((c) => c.hasAttribute("link"))!;
-    link.press();
-    chips.find((c) => c.getAttribute("data-stop") === "option:standardSet:ii")!.press();
+    press(link);
+    press(chips.find((c) => c.getAttribute("data-stop") === "option:standardSet:ii")!);
     expect(seen).toEqual([{ type: "sets-sheet" }, { type: "option", action: "standardSet:ii" }]);
   });
 

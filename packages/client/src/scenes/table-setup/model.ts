@@ -59,7 +59,7 @@ import {
 } from "../../view/table-setup-preview.js";
 import { t } from "../../i18n/translate.js";
 import { localizeModel } from "./text/localize-model.js";
-import type { SeatCell } from "./seating/seating.types.js";
+import type { SeatCell } from "../../components/table-setup/mc-setup-seating/mc-setup-seating.types.js";
 
 /** Every encounter set's printed name, for the Standard and Expert chips. */
 const POOL_SET_NAMES: ReadonlyMap<string, string> = new Map(

@@ -8,6 +8,9 @@ import type { ModularsInput } from "../mc-setup-modulars.types";
 
 afterEach(() => document.body.replaceChildren());
 
+/** Presses a control a query found by its attribute (typed as a plain `Element`). */
+const press = (el: Element | null | undefined): void => (el as unknown as { press(): void }).press();
+
 const option = (id: string, over: Partial<ModularSetOption> = {}): ModularSetOption => ({
   kind: "set",
   id,
@@ -50,8 +53,7 @@ async function make(i: ModularsInput, mode: "wide" | "phone" = "wide") {
   return { el, seen };
 }
 
-const tiles = (el: HTMLElement) =>
-  [...el.shadowRoot!.querySelectorAll("mc-setup-set-tile")].map((tile) => tile.tile!);
+const tiles = (el: HTMLElement) => [...el.shadowRoot!.querySelectorAll("mc-setup-set-tile")].map((tile) => tile.tile!);
 
 describe("mc-setup-modulars", () => {
   it("lists the required set, then each group's label with its count over its tiles, barred sets faded", async () => {
@@ -103,16 +105,21 @@ describe("mc-setup-modulars", () => {
     const cards = [...el.shadowRoot!.querySelectorAll(".hood mc-press-card")];
     expect(cards.map((c) => c.getAttribute("data-stop"))).toEqual(["hoodSet:a", "hoodSet:b"]);
     expect(cards.map((c) => c.hasAttribute("selected"))).toEqual([true, false]);
-    cards[1]!.press();
+    press(cards[1]!);
     expect(seen).toEqual([{ type: "hood-toggle", id: "b" }]);
   });
 
   it("shows a Civil War build's summary and an Edit control in place of the picker", async () => {
-    const cw = { build: "Ready-made", rows: [{ id: "x", label: "Heroes", value: "Two" }], editLabel: "Edit scenario", setCount: 2 };
+    const cw = {
+      build: "Ready-made",
+      rows: [{ id: "x", label: "Heroes", value: "Two" }],
+      editLabel: "Edit scenario",
+      setCount: 2,
+    };
     const { el, seen } = await make(input({ cw: cw as never }));
     expect(el.shadowRoot!.querySelectorAll("mc-setup-set-tile").length).toBe(0);
     expect(el.shadowRoot!.querySelector(".info")!.textContent).toContain("Two");
-    el.shadowRoot!.querySelector('[data-stop="modular:civil-war-edit"]')!.press();
+    press(el.shadowRoot!.querySelector('[data-stop="modular:civil-war-edit"]')!);
     expect(seen).toEqual([{ type: "edit-scenario" }]);
   });
 });

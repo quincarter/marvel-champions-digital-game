@@ -10,11 +10,11 @@ html`<mc-option-card .row=${row} ?compact=${phone} stop-prefix="option:"></mc-op
 
 ## Properties
 
-| Name | Type | Meaning |
-| --- | --- | --- |
-| `row` | McOptionRow (property) | name, meta, active and the control. |
-| `compact` | boolean | The phone's stacked arrangement. |
-| `stop-prefix` | string | What a control's stop key starts with. |
+| Name          | Type                   | Meaning                                |
+| ------------- | ---------------------- | -------------------------------------- |
+| `row`         | McOptionRow (property) | name, meta, active and the control.    |
+| `compact`     | boolean                | The phone's stacked arrangement.       |
+| `stop-prefix` | string                 | What a control's stop key starts with. |
 
 ## Events
 

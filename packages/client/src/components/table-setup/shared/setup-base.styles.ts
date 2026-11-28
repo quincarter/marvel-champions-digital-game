@@ -24,6 +24,7 @@ export const SetupBaseStyles = css`
   /* A name in Bangers, shrunk by its owner's width rather than wrapped. */
   .name {
     font-family: var(--mc-font-display);
+    letter-spacing: 2px;
     text-transform: uppercase;
     font-size: var(--name-size, 15px);
     line-height: 1.15;

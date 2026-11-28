@@ -7,6 +7,9 @@ import type { SummaryInput } from "../mc-setup-summary.types";
 
 afterEach(() => document.body.replaceChildren());
 
+/** Presses a control a query found by its attribute (typed as a plain `Element`). */
+const press = (el: Element | null | undefined): void => (el as unknown as { press(): void }).press();
+
 const input = (over: Partial<SummaryInput> = {}): SummaryInput => ({
   rows: [
     { label: "Villain", value: "Rhino" },
@@ -42,8 +45,8 @@ describe("mc-setup-summary", () => {
     expect(field.getAttribute("data-stop")).toBe("seed");
     expect(field.value).toBe("123");
     expect(root.querySelector(".villain")!.textContent).toContain("Rhino");
-    root.querySelector('[data-stop="reroll"]')!.press();
-    root.querySelector('[data-stop="watch"]')!.press();
+    press(root.querySelector('[data-stop="reroll"]')!);
+    press(root.querySelector('[data-stop="watch"]')!);
     expect(seen).toEqual([{ type: "reroll" }, { type: "watch" }]);
   });
 
@@ -53,7 +56,9 @@ describe("mc-setup-summary", () => {
     document.body.addEventListener("mc-input", () => outside.push("input"));
     const field = el.shadowRoot!.querySelector("mc-text-field")!;
     field.dispatchEvent(new CustomEvent("mc-input", { detail: { value: "9" }, bubbles: true, composed: true }));
-    field.dispatchEvent(new CustomEvent("mc-field-focus", { detail: { focused: true }, bubbles: true, composed: true }));
+    field.dispatchEvent(
+      new CustomEvent("mc-field-focus", { detail: { focused: true }, bubbles: true, composed: true }),
+    );
     expect(seen).toEqual([
       { type: "seed-input", value: "9" },
       { type: "seed-focus", focused: true },
@@ -83,7 +88,9 @@ describe("mc-setup-summary", () => {
     const { el } = await make(input());
     const hovered: string[] = [];
     el.addEventListener("mc-card-hover", (e) => hovered.push(e.detail.cardId));
-    el.shadowRoot!.querySelector(".villain .pic")!.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }));
+    el.shadowRoot!.querySelector(".villain .pic")!.dispatchEvent(
+      new PointerEvent("pointerenter", { pointerType: "mouse" }),
+    );
     expect(hovered).toEqual(["01094"]);
   });
 });

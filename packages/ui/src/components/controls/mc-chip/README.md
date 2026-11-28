@@ -12,14 +12,14 @@ Press controls take no keyboard focus: the screen's focus route presses them (`p
 
 ## Properties
 
-| Name | Type | Meaning |
-| --- | --- | --- |
-| `label` | string | Its words, already translated. |
-| `selected` | boolean | Chosen. |
-| `link` | boolean | Words only, no box. |
-| `disabled` | boolean | Dimmed; a press does nothing. |
-| `data-stop` | string | Its focus stop's key. |
-| `action` | unknown (property) | What a tap raises. |
+| Name         | Type               | Meaning                        |
+| ------------ | ------------------ | ------------------------------ |
+| `label`      | string             | Its words, already translated. |
+| `selected`   | boolean            | Chosen.                        |
+| `link`       | boolean            | Words only, no box.            |
+| `disabled`   | boolean            | Dimmed; a press does nothing.  |
+| `data-stop`  | string             | Its focus stop's key.          |
+| `action`     | unknown (property) | What a tap raises.             |
 | `holdAction` | unknown (property) | What a hold or Inspect raises. |
 
 ## Events

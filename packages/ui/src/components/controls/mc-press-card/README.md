@@ -12,10 +12,10 @@ Press controls take no keyboard focus: the screen's focus route presses them (`p
 
 ## Properties
 
-| Name | Type | Meaning |
-| --- | --- | --- |
+| Name       | Type    | Meaning                 |
+| ---------- | ------- | ----------------------- |
 | `selected` | boolean | Chosen: the red border. |
-| `dim` | boolean | Unavailable: faded. |
+| `dim`      | boolean | Unavailable: faded.     |
 
 ## Events
 

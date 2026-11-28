@@ -65,6 +65,11 @@ export class McTableSetupPage extends LitElement {
     this.#summary?.focusSeed();
   }
 
+  /** Takes the caret out of the seed field. */
+  blurSeed(): void {
+    this.#summary?.blurSeed();
+  }
+
   override render() {
     const input = this.input;
     if (!input) return nothing;

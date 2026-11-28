@@ -184,10 +184,9 @@ test("a swipe of the setup list that lifts over the watch toggle leaves it alone
 
   // The page coasts after a quick lift, as any phone page does: bring the toggle back on screen before the tap.
   await page.evaluate(() =>
-    document
-      .querySelector("mc-sheet")
-      ?.shadowRoot?.querySelector('[data-key="watch"]')
-      ?.scrollIntoView({ block: "center" }),
+    (window as unknown as { __mcTableSetupDebug: { reveal: (key: string) => void } }).__mcTableSetupDebug.reveal(
+      "watch",
+    ),
   );
   await settle(page);
   after = (await watchStop(page)) ?? after;

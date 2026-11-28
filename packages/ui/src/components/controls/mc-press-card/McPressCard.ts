@@ -34,6 +34,8 @@ export class McPressCard extends McPress {
   }
 
   override render() {
-    return html`<div class="frame"><div class="inner"><slot></slot></div></div>`;
+    return html`<div class="frame">
+      <div class="inner"><slot></slot></div>
+    </div>`;
   }
 }
