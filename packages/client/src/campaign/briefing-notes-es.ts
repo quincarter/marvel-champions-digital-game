@@ -83,7 +83,7 @@ export const BRIEFING_NOTES_ES: Readonly<Record<string, readonly BriefingNoteEs[
       "La preparación lo baraja con todo lo demás. Si está en juego cuando ganas, la campaña lo recuerda.",
     ),
     row(
-      "Tu set de género entra en el mazo de Encuentros",
+      "Tu conjunto de género entra en el mazo de Encuentros",
       "El set que elegiste se baraja con las cartas de MaGog, así que este episodio se juega en ese género.",
     ),
     row(
@@ -91,13 +91,13 @@ export const BRIEFING_NOTES_ES: Readonly<Record<string, readonly BriefingNoteEs[
       "Se anota ahora el héroe de cada jugador, y es el mismo durante los tres números.",
     ),
     row(
-      "Una victoria tacha el set de género y anota una carta",
+      "Una victoria tacha el conjunto de género y anota una carta",
       "No podrás volver a elegir este set en el núm. 2, y cada jugador puede anotar un Apoyo o una Mejora.",
     ),
   ],
   "mojo/spiral": [
     row(
-      "Tres sets de género, ninguno ya usado",
+      "Tres conjuntos de género, ninguno ya usado",
       "Los sets tachados en el núm. 1 no se vuelven a ofrecer. Cada uno que elijas se baraja en el mazo de Encuentros.",
     ),
     row(
@@ -115,7 +115,7 @@ export const BRIEFING_NOTES_ES: Readonly<Record<string, readonly BriefingNoteEs[
   ],
   "mojo/mojo": [
     row(
-      "Un set de género, más uno por héroe",
+      "Un conjunto de género, más uno por héroe",
       "Los sets que elijas se apartan, y el primero que elijas entra primero. Si quedan menos sets sin tachar de los que hacen falta, se pueden elegir sets tachados una vez agotados los demás.",
     ),
     row(

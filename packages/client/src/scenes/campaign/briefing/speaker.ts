@@ -4,7 +4,12 @@
  */
 import type { CardId } from "@mc/content";
 import { CAMPAIGN_ART, campaignCoverFor } from "../../../art/campaign-art.js";
+import { briefingLineIn } from "../../../campaign/briefing-text.js";
+import { villainIn } from "../../../campaign/campaign-text.js";
 import { lineForRoster } from "../../../campaign/story.js";
+import { artLanguageNow } from "../../../art/art-source.js";
+import { localizedNameOf } from "../../../view/card-names.js";
+import { cardOfName } from "./names.js";
 import { campaignCardsById } from "../../../content/campaign-pool.js";
 import { heroPictureOf } from "../../../dom/hero-picture.js";
 import { sheetColor, type SheetBuilder } from "../../../dom/sheet-builder.js";
@@ -35,8 +40,9 @@ function coverOf(focus: { readonly x?: number; readonly y?: number } | undefined
 export function drawSpeaker(ctx: BriefingCtx, b: SheetBuilder, col: Column, top: number): number {
   const { record, story } = ctx.state;
   if (!record || !story) return top;
+  const nodeKey = record.attempt?.nodeId ?? record.position.nextNodeId ?? "";
   const resolved = lineForRoster(
-    story.briefing,
+    briefingLineIn(record.campaignId as string, nodeKey, story.briefing),
     record.seats.map((seat) => seat.identityCardId),
   );
   if (!resolved) return top;
@@ -82,7 +88,7 @@ export function drawSpeaker(ctx: BriefingCtx, b: SheetBuilder, col: Column, top:
     top,
     col.width - size - 16,
     briefingTextIn().bubble(resolved.text),
-    speaker.name,
+    speaker.name ? speakerNameIn(speaker.name) : null,
     col.phone ? 14 : 15,
   );
   return Math.max(top + size, bubble.y + bubble.height);
@@ -147,4 +153,14 @@ function drawBubble(
   }
   b.text(x + BUBBLE_PAD_X, textTop, text, typeRole.emphasis, { ...body, color: surface.ink.hex });
   return rect;
+}
+
+/** A speaker named in the story data, in the player's language: the villain table, else a card of that name's own Spanish name. */
+function speakerNameIn(name: string): string {
+  const lang = artLanguageNow();
+  if (lang === "en") return name;
+  const villain = villainIn(name, lang);
+  if (villain !== name) return villain;
+  const card = cardOfName(name);
+  return (card && localizedNameOf(card.id as string, lang)) || name;
 }

@@ -3,6 +3,7 @@
  * "Handled for you" so the answer does not disappear once the call is gone.
  */
 import { CAMPAIGNS as CONTENT_CAMPAIGNS } from "@mc/content";
+import { briefingNotesIn } from "../../../campaign/briefing-text.js";
 import { storyFor } from "../../../campaign/story.js";
 import { campaignCardsById } from "../../../content/campaign-pool.js";
 import { tPlural } from "../../../i18n/translate.js";
@@ -27,7 +28,7 @@ export function briefingViewFor(ctx: BriefingCtx): BriefingView | null {
     cardTypeOf,
     campaignStory?.poolCopy,
     first ? cardNameOf(first.identityCardId as string) : undefined,
-    story?.briefingNotes,
+    briefingNotesIn(record.campaignId as string, record.attempt.nodeId, story?.briefingNotes),
     ctx.deckProblems(record),
   );
   if (!base) return null;

@@ -5,6 +5,7 @@
  * steps"). Pure, over `CampaignRecord` plus a card-name lookup, so it is Vitest-tested against `seedDesignRun`
  * states without a scene.
  */
+import { handledWordsIn } from "../campaign/briefing-text.js";
 import type { CardId } from "@mc/content";
 import {
   CAMPAIGN_ACCEPT,
@@ -236,7 +237,9 @@ const BRIEFING_FIELD_WORDS: Readonly<Record<string, { readonly label: string; re
 
 /** The box's own plain sentences for the log facts a row shows, when its story writes some (`CampaignStory.handledWords`). */
 function stepWordsOf(definition: CampaignDefinition | undefined): StepWords | undefined {
-  const say = definition ? storyFor(definition.campaignId as string)?.handledWords : undefined;
+  const say = definition
+    ? handledWordsIn(definition.campaignId as string, storyFor(definition.campaignId as string)?.handledWords)
+    : undefined;
   if (!definition || !say) return undefined;
   return {
     say,

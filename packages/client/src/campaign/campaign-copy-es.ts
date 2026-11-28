@@ -201,7 +201,7 @@ export const ROSTER_COPY_ES: Readonly<Record<string, { readonly banner: string; 
   },
   mojo: {
     banner:
-      "Cada héroe se queda los tres episodios. Los sets de género que uses y las cartas que registres pasan de un número al siguiente.",
+      "Cada héroe se queda los tres episodios. Los conjuntos de género que uses y las cartas que registres pasan de un número al siguiente.",
     note: "Gambito y Pícara son el reparto por defecto, y sus viñetas de historia están escritas para ellos. Cualquier otro héroe recibe las mismas viñetas con textos del narrador.",
   },
   next_evol: {
