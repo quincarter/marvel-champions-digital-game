@@ -305,6 +305,7 @@ export const GUARDED_EVENTS = [
   "mc-field-focus",
   "mc-search-focus",
   "mc-tile-focus",
+  "mc-seats",
   // A rebuilt page's own events (`mc-<feature>`: one name per feature, listed here) and its card pictures' Inspect.
   "mc-setup",
   "mc-card-inspect",
