@@ -27,7 +27,8 @@ export type SeatsAction =
   | "preconstructed"
   | "rec-toggle"
   | "drill-back"
-  | "hero-clear";
+  | "hero-clear"
+  | "conflict-notice";
 
 export type SeatsEvent =
   /** A reachable seat card or chip was pressed: it becomes the active seat. */
@@ -40,8 +41,8 @@ export type SeatsEvent =
   | { readonly type: "action"; readonly action: SeatsAction }
   /** The search field's text changed (debounced by the field). */
   | { readonly type: "search"; readonly text: string }
-  /** The magnifier that opens or shuts the search field (narrow layouts), or the Filters button that folds the chips. */
-  | { readonly type: "toggle"; readonly what: "search" | "filters" }
+  /** The magnifier that opens or shuts the search field (narrow layouts), or the Filters button that folds the chips, or the seat summary's disclosure ("details"). */
+  | { readonly type: "toggle"; readonly what: "search" | "filters" | "details" }
   /** A filter chip's body pressed (`id` is the chip id: `aspect:justice`, `source:precon`, `playable-now`, `sort:wave`). */
   | { readonly type: "chip"; readonly id: string }
   /** An aspect chip's "i" segment: opens or shuts its tip. */
@@ -76,6 +77,8 @@ export interface SeatModel {
   readonly picture: PictureSource | null;
   /** The ✕'s accessible name; a filled card has one. */
   readonly clearLabel: string | null;
+  /** The narrow chip's own words, where they are shorter than the card's (`SEAT 1`, `Justice · 10 HP`, `Empty` / `Picking`). */
+  readonly chip?: { readonly label: string; readonly meta: string | null; readonly empty: string | null };
 }
 
 /** A Team-Up pair under the seats: which two seats, and its pill's words. */
@@ -262,4 +265,8 @@ export interface SeatsPageModel {
   readonly footer: SeatsFooterModel;
   /** The Pick a deck sheet over the page, or null. */
   readonly decks: DecksSheetModel | null;
+  /** The wide layout (desktop, tablet landscape): the seats are cards and the detail panel stands beside the roster. The scene's form factor, so its words and the page's CSS agree. */
+  readonly wide?: boolean;
+  /** "2 cards can't be played with these heroes ▸" while a same-name clash is unanswered (stop `conflict-notice`), or null. */
+  readonly notice?: string | null;
 }
