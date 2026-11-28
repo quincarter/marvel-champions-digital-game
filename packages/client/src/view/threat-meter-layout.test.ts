@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
   BESIDE_GAP,
-  COMPACT_TALL_GROWTH,
   TALL_METER_GROWTH,
   besideBoxWidth,
+  tallGrowthFor,
   threatMeterLayout,
 } from "./threat-meter-layout.js";
 
@@ -29,11 +29,19 @@ describe("threatMeterLayout", () => {
 
   test("tall on a slim side scheme row: the bar grows downward only, keeping clear of the subtitle above it", () => {
     const slim = { x: 100, y: 50, width: 280, height: 14 };
-    const layout = threatMeterLayout(slim, "tall", 60, COMPACT_TALL_GROWTH);
+    const growth = tallGrowthFor(0, 4);
+    expect(growth).toEqual({ up: 0, down: 4 });
+    const layout = threatMeterLayout(slim, "tall", 60, growth);
     expect(layout.bar.y).toBe(slim.y);
-    expect(layout.bar.height).toBe(14 + COMPACT_TALL_GROWTH.down);
+    expect(layout.bar.height).toBe(18);
     expect(layout.countBox!.height).toBe(10);
-    expect(layout.countBox!.y).toBeGreaterThan(layout.bar.y);
+  });
+
+  test("tallGrowthFor takes the room above first, then the rest below, never more than the full growth", () => {
+    expect(tallGrowthFor(20, 20)).toEqual({ up: TALL_METER_GROWTH, down: 0 });
+    expect(tallGrowthFor(2.6, 20)).toEqual({ up: 2, down: TALL_METER_GROWTH - 2 });
+    expect(tallGrowthFor(-3, 1)).toEqual({ up: 0, down: 1 });
+    expect(tallGrowthFor(-3, -2)).toEqual({ up: 0, down: 0 });
   });
 
   test("beside: the count gets its own box at the right end, and nothing covers the bar", () => {
