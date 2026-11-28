@@ -290,7 +290,9 @@ export async function deckPanel(page: Page): Promise<string[]> {
   // The panel ends at the first button under it (a saved deck also shows DELETE and a shorter PRECON label).
   const from = t.indexOf("YOUR DECK") + 1;
   const end = t.findIndex((x, i) => i >= from && ["DELETE", "PRECONSTRUCTED", "PRECON", "CLEAR"].includes(x));
-  return t.slice(from, end < 0 ? undefined : end).filter((x) => x !== "−");
+  // A keycap glyph ("F" beside the From your games tab) is drawn only while a keyboard is the input in use, so it is there
+  // after typing in the search and gone after a mouse press: it is input mode, not the deck, and is left out of the lines.
+  return t.slice(from, end < 0 ? undefined : end).filter((x) => x !== "−" && !/^[A-Z]$/.test(x));
 }
 /** The pool list's card ids as drawn right now. */
 export async function poolIds(page: Page): Promise<string[]> {

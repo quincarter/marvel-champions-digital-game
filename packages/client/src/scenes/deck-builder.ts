@@ -2842,7 +2842,9 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** The Your deck list's Sort (issue #594) and Review (issue #595) controls; returns where the list starts. */
   #drawDeckListControls(left: number, top: number, column: number, onDark: boolean): number {
     const gap = 8;
-    const width = (column - gap) / 2;
+    // On a phone's Deck tab Review sits in the pinned bar beside Save (`#drawSaveButton`), where no scroll or bar can hide it.
+    const reviewInBar = this.#reviewInSaveBar();
+    const width = reviewInBar ? column : (column - gap) / 2;
     const sortRect: Rect = { x: left, y: top, width, height: hit.target };
     const look = onDark ? "onInk" : "secondary";
     const sort = (): void => {
@@ -2851,6 +2853,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#rebuild();
     };
     this.#button("deck-sort", sortRect, deckListSortLabel(this.#deckSort), sort, { look });
+    if (reviewInBar) return top + hit.target + gap;
     const reviewRect: Rect = { x: left + width + gap, y: top, width, height: hit.target };
     // `this.#deck`, not the drawn `deck`: typing a name changes the deck without a redraw.
     const review = (): void => this.#reviewDeck(this.#deck!);
@@ -2975,9 +2978,29 @@ export class DeckBuilderScene extends Phaser.Scene {
     return this.#drawSaveButton(left, y, column);
   }
 
+  /** Whether Review rides in the pinned bar beside Save: a phone's Deck tab, whose list scrolls above that bar. */
+  #reviewInSaveBar(): boolean {
+    return !this.#isWide() && this.#tab === "deck";
+  }
+
   #drawSaveButton(left: number, y: number, column: number): number {
     const frozen = this.#campaignModel?.editingDisabled ?? false;
-    const saveRect: Rect = { x: left, y, width: column, height: hit.primary };
+    let saveLeft = left;
+    let saveWidth = column;
+    if (this.#reviewInSaveBar()) {
+      const gap = 8;
+      const reviewWidth = Math.round((column - gap) * 0.36);
+      const reviewRect: Rect = { x: left, y, width: reviewWidth, height: hit.primary };
+      // `this.#deck`, not the drawn `deck`: typing a name changes the deck without a redraw.
+      this.#button("deck-review", reviewRect, t("deckBuilder.review"), () => this.#reviewDeck(this.#deck!), {
+        look: "secondary",
+        type: typeRole.barTitle,
+        ...(this.#busy ? { disabled: true as const } : {}),
+      });
+      saveLeft = left + reviewWidth + gap;
+      saveWidth = column - reviewWidth - gap;
+    }
+    const saveRect: Rect = { x: saveLeft, y, width: saveWidth, height: hit.primary };
     this.#button(
       "save",
       saveRect,
