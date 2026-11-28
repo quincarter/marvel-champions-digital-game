@@ -29,6 +29,8 @@ describe("padInputTestLine", () => {
     );
   });
   it("adds no note for an unmapped pad on Android, which the game reads as standard", () => {
-    expect(padInputTestLine("button 2", "", "Mozilla/5.0 (Linux; Android 13; wv)")).toBe("Last input: button 2");
+    expect(padInputTestLine("button 2", "", "Mozilla/5.0 (Linux; Android 13; wv) Chrome/131.0.0.0 Mobile")).toBe(
+      "Last input: button 2",
+    );
   });
 });

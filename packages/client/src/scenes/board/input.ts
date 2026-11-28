@@ -11,7 +11,7 @@ import { eventOnce } from "../../view/event-once.js";
 import { navIntentOf, typingInTextField } from "../../view/keyboard-intent.js";
 import type { KeyboardHand } from "../../view/input-shortcuts.js";
 import { gamepadIntentFor, GAMEPAD_AXIS, GAMEPAD_BUTTON, type GamepadIntent } from "../../view/gamepad.js";
-import { padLayoutUsableHere } from "../../view/pad-mapping.js";
+import { padLayoutUsableHere, rightStickTrusted } from "../../view/pad-mapping.js";
 import {
   padIdentityOf,
   physicalIndexOf,
@@ -435,6 +435,8 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
   const repeater = createPadRepeater();
   // Each pad's own left-stick hysteresis: one pad's lean must not hold another's engaged.
   const leftSticks = new Map<number, FocusDirection | null>();
+  // Each connected pad's right stick, once it may scroll (`view/pad-mapping.ts`): an unmapped pad's waits for a rest.
+  const rightSticks = new Map<number, string>();
   const onUpdate = (time: number, delta: number): void => {
     let direction: FocusDirection | null = null;
     let scroll: { dx: number; dy: number } | null = null;
@@ -463,11 +465,12 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
         lean ??= stick;
         touched = true;
       }
-      const scrolled = scrollDelta(
-        pad.axes[GAMEPAD_AXIS.rightX]?.getValue() ?? 0,
-        pad.axes[GAMEPAD_AXIS.rightY]?.getValue() ?? 0,
-        delta,
-      );
+      const rightX = pad.axes[GAMEPAD_AXIS.rightX]?.getValue() ?? 0;
+      const rightY = pad.axes[GAMEPAD_AXIS.rightY]?.getValue() ?? 0;
+      const trusted = rightStickTrusted(rightSticks.get(pad.index) === pad.id, pad.pad?.mapping, rightX, rightY);
+      if (trusted) rightSticks.set(pad.index, pad.id);
+      else rightSticks.delete(pad.index);
+      const scrolled = trusted ? scrollDelta(rightX, rightY, delta) : null;
       if (scrolled !== null) {
         scroll ??= scrolled;
         touched = true;
