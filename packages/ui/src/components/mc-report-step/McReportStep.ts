@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { popupButton } from "../../shared/popup-parts.js";
+import "../mc-popup-button/mc-popup-button.js";
 import { McReportStepStyles } from "./mc-report-step.styles.js";
 import type { ReportStep } from "./mc-report-step.types.js";
 
@@ -34,6 +34,6 @@ export class McReportStep extends LitElement {
     if (!step) return nothing;
     return html`<h3>${step.title}</h3>
       <p>${step.body}</p>
-      ${step.rows.map((row) => html`<div class="row">${row.map((button) => popupButton(this, button))}</div>`)}`;
+      ${step.rows.map((row) => html`<div class="row">${row.map((button) => html`<mc-popup-button .button=${button}></mc-popup-button>`)}</div>`)}`;
   }
 }

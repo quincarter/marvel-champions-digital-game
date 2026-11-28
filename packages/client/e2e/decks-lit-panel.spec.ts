@@ -17,7 +17,7 @@ const focusOf = (page: Page, scene: string): Promise<{ focus: string | null; rin
 
 const PANEL = `#mc-ui [data-scene="Decks"]`;
 const search = (page: Page) => page.locator(`${PANEL} [data-key="deck-search"] input`);
-const rows = (page: Page) => page.locator(`${PANEL} [data-key^="deck:"]`);
+const rows = (page: Page) => page.locator(`${PANEL} [data-stop^="deck:"]`);
 
 async function openDecks(page: Page, query = "screen=decks"): Promise<void> {
   await openApp(page, query, { landing: "Decks" });
@@ -32,7 +32,7 @@ test("Decks draws its chrome and deck list as a Lit panel: rows, search through 
   await openDecks(page);
   expect(await findText(page, "DECKS & COLLECTION", "Decks")).not.toHaveLength(0);
   expect(await findText(page, "Your decks", "Decks")).not.toHaveLength(0);
-  await expect(page.locator(`${PANEL} [data-key="new-deck"]`)).toHaveCount(1);
+  await expect(page.locator(`${PANEL} [data-stop="new-deck"]`)).toHaveCount(1);
   await expect(search(page)).toHaveAttribute("placeholder", "search decks…");
   const all = await rows(page).count();
 
@@ -189,7 +189,7 @@ test("the card pool's free-word search still narrows the pool on a second visit 
   const cells = (): Promise<number> => page.locator(`${PANEL} [data-key^="cell:"]`).count();
   await waitFor(async () => ((await cells()) > 3 ? true : null), "the pool cards", 30_000);
   // Leave for the Title and come back: the scene (and its search worker) is made again.
-  await page.locator(`${PANEL} [data-key="back"]`).click();
+  await page.locator(`${PANEL} [data-stop="back"]`).click();
   await waitFor(async () => ((await activeScenes(page)).includes("Title") ? true : null), "the Title", 30_000);
   // As the Title's own Decks row does (`goToScreen`): the Title is stopped, not left running under Decks, where the
   // letters typed below would reach its shortcuts.
