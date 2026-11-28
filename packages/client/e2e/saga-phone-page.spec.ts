@@ -160,8 +160,8 @@ test("keyboard focus moving down the list scrolls the page so the focused row is
   // Tab through the stops until the last volume has the ring.
   const focused = async (): Promise<string | null> =>
     page.evaluate(() => {
-      const w = window as unknown as { __mcFocusState?: Record<string, () => { key: string | null }> };
-      return w.__mcFocusState?.CampaignSaga?.().key ?? null;
+      const w = window as unknown as { __mcFocusState?: Record<string, () => { focus: string | null }> };
+      return w.__mcFocusState?.CampaignSaga?.().focus ?? null;
     });
   for (let presses = 0; presses < 40 && (await focused()) !== "vol-11"; presses++) {
     await pressKey(page, "Tab");
