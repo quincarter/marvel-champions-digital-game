@@ -13,6 +13,7 @@
 import Phaser from "phaser";
 import { appSession } from "../session.js";
 import { hit, surface } from "../tokens.js";
+import { chromeDrawnByDom } from "../ui/dom-chrome.js";
 import { onTap } from "../ui/tap.js";
 import { musicSlots } from "../ui/music-slot.js";
 import { setShownThemeButton, themeSlots } from "../ui/theme-slot.js";
@@ -37,6 +38,8 @@ export class ThemeButtonScene extends Phaser.Scene {
   #zone: Phaser.GameObjects.Zone | null = null;
   #rect: Rect | null = null;
   #hovered = false;
+  /** The screen under draws this button itself in the DOM (`ui/dom-chrome.ts`): placed, but not painted. */
+  #dom = false;
   #drawnScheme: ColorScheme | null = null;
 
   constructor() {
@@ -83,6 +86,11 @@ export class ThemeButtonScene extends Phaser.Scene {
       .getScenes(true)
       .map((scene) => ({ key: scene.scene.key, visible: scene.sys.settings.visible }));
     const slot = reportButtonSlot(running, musicSlots());
+    const dom = chromeDrawnByDom(slot?.key);
+    if (dom !== this.#dom) {
+      this.#dom = dom;
+      this.#draw();
+    }
     if (slot) this.#place(themeSlotBeside(languageSlotBeside(slot.rect)));
     else this.#place(floatsOver(top) ? floatingThemeSlot(this.scale.gameSize) : null);
   }
@@ -126,7 +134,7 @@ export class ThemeButtonScene extends Phaser.Scene {
     graphics.clear();
     this.#drawnScheme = colorScheme();
     const rect = this.#rect;
-    if (!rect) {
+    if (!rect || this.#dom) {
       zone.disableInteractive();
       return;
     }
