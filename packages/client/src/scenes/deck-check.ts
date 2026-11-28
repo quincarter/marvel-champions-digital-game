@@ -112,6 +112,8 @@ export class DeckCheckScene extends Phaser.Scene {
   /** The cards list reads from its top on the next draw (a new filter, sort or tab). */
   #fromTop = false;
   #syncQueued = false;
+  /** The page's focus stops as last read: Escape's Back is the stop named `back`. */
+  #stops = new Map<string, FocusStop>();
 
   constructor() {
     super(SCENES.deckCheck);
@@ -161,7 +163,7 @@ export class DeckCheckScene extends Phaser.Scene {
       onCancel: () => {
         // An open aspect tip closes first; the next B leaves.
         if (this.#openTip !== null) this.#closeTip();
-        else this.#press("back");
+        else this.#stops.get("back")?.activate();
       },
       // LB / RB step Curve, Cards and Aspect on a narrow screen; the wide layout has no strip, so they page the cards.
       onTab: (direction) => {
@@ -270,11 +272,6 @@ export class DeckCheckScene extends Phaser.Scene {
     }
   }
 
-  /** Presses a stop as the focus route would (Escape's Back), so the scene has one way to leave. */
-  #press(key: string): void {
-    this.#page?.element.renderRoot.querySelector<HTMLElement>(`[data-stop="${key}"]`)?.click();
-  }
-
   #goBack(): void {
     this.#leaving = true;
     goToScreen(this, this.#returnTo.scene, this.#returnTo.data);
@@ -371,6 +368,7 @@ export class DeckCheckScene extends Phaser.Scene {
     for (const [key, stop] of stops) {
       if (key.startsWith("card:") || key.startsWith("face:")) stops.set(key, { ...stop, inspect: stop.activate });
     }
+    this.#stops = stops;
     const wide = this.#wide();
     this.#route.set(
       deckCheckFocusOrder({

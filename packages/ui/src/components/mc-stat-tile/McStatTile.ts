@@ -23,6 +23,6 @@ export class McStatTile extends LitElement implements McStatTileProps {
   }
 
   override render() {
-    return html`${this.text}`;
+    return html`<span>${this.text}</span>`;
   }
 }

@@ -28,6 +28,6 @@ export class McDeckStatusBadge extends LitElement implements McDeckStatusBadgePr
   }
 
   override render() {
-    return html`${this.text}`;
+    return html`<span>${this.text}</span>`;
   }
 }
