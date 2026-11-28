@@ -33,7 +33,7 @@ import {
   type TypeSpec,
 } from "../tokens.js";
 import { fieldClipPath } from "../view/card-hover.js";
-import { threatMeterLayout } from "../view/threat-meter-layout.js";
+import { threatMeterLayout, type TallGrowth } from "../view/threat-meter-layout.js";
 import type { ThreatMeterStyle } from "../settings.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
@@ -137,9 +137,11 @@ export function paintThreatMeter(
   /** A slim meter's own ceiling for the count's size (the board's compact side scheme row). */
   maxFontSize: number = typeRole.threatCount.size,
   style: ThreatMeterStyle = "box",
+  /** Where the "tall" style's bar takes its extra height (`view/threat-meter-layout.ts`). */
+  tallGrowth?: TallGrowth,
 ): void {
   const dim = alpha;
-  const { bar, countMaxWidth } = threatMeterLayout(meter, style);
+  const { bar, countMaxWidth } = threatMeterLayout(meter, style, 0, tallGrowth);
   mg.clear();
   mg.fillStyle(surface.parchment.hex, dim).fillRect(bar.x, bar.y, bar.width, bar.height);
   const previewed = projected !== null && projected < threat;
@@ -187,7 +189,7 @@ export function paintThreatMeter(
   // Ink on the red fill is hard to read, so by default the count sits on a parchment chip across the bar (the HP
   // plate's own parchment ground): legible over both the filled and the empty part, with the fill still showing
   // either side. "tall" leaves a strip of bar above and below the chip; "beside" gives the count its own box.
-  const layout = threatMeterLayout(meter, style, meterText.width + 10);
+  const layout = threatMeterLayout(meter, style, meterText.width + 10, tallGrowth);
   meterText.setPosition(layout.countCenter.x, layout.countCenter.y);
   const box = layout.countBox;
   if (box) {

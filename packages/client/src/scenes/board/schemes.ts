@@ -38,6 +38,7 @@ import { addTapTarget } from "./tap-target.js";
 import type { InstanceId } from "@mc/engine";
 import type { RowDrag } from "../../view/hand-scroll.js";
 import { McButton, fitText } from "../../ui/widgets.js";
+import { COMPACT_TALL_GROWTH } from "../../view/threat-meter-layout.js";
 import { schemeStackLayout, stackOrder } from "../../view/scheme-list-layout.js";
 import { StackSwipe, schemePickIds, stackFlip, stackFrontAfter, stackShowsEligible } from "../../view/scheme-stack.js";
 
@@ -548,7 +549,18 @@ export function drawScheme(
   // `onUpdate` (below) can slide the fill and count the number together the same way `McHpPlate.update()` re-runs
   // its own `redraw()`.
   const paintMeter = (threat: number): void =>
-    paintThreatMeter(mg, meterText, meter, scheme, threat, dim, null, compact ? 10 : undefined, ctx.threatMeterStyle);
+    paintThreatMeter(
+      mg,
+      meterText,
+      meter,
+      scheme,
+      threat,
+      dim,
+      null,
+      compact ? 10 : undefined,
+      ctx.threatMeterStyle,
+      compact ? COMPACT_TALL_GROWTH : undefined,
+    );
 
   const tick = ctx.motion.threatTick(scheme.instanceId);
   if (tick) {

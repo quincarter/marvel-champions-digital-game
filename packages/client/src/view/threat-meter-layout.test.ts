@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { BESIDE_GAP, TALL_METER_GROWTH, besideBoxWidth, threatMeterLayout } from "./threat-meter-layout.js";
+import {
+  BESIDE_GAP,
+  COMPACT_TALL_GROWTH,
+  TALL_METER_GROWTH,
+  besideBoxWidth,
+  threatMeterLayout,
+} from "./threat-meter-layout.js";
 
 const METER = { x: 100, y: 50, width: 280, height: 18 };
 
@@ -19,6 +25,15 @@ describe("threatMeterLayout", () => {
     expect(layout.countBox!.height).toBe(14);
     expect(layout.countBox!.y - layout.bar.y).toBe(5);
     expect(layout.bar.y + layout.bar.height - (layout.countBox!.y + layout.countBox!.height)).toBe(5);
+  });
+
+  test("tall on a slim side scheme row: the bar grows downward only, keeping clear of the subtitle above it", () => {
+    const slim = { x: 100, y: 50, width: 280, height: 14 };
+    const layout = threatMeterLayout(slim, "tall", 60, COMPACT_TALL_GROWTH);
+    expect(layout.bar.y).toBe(slim.y);
+    expect(layout.bar.height).toBe(14 + COMPACT_TALL_GROWTH.down);
+    expect(layout.countBox!.height).toBe(10);
+    expect(layout.countBox!.y).toBeGreaterThan(layout.bar.y);
   });
 
   test("beside: the count gets its own box at the right end, and nothing covers the bar", () => {
