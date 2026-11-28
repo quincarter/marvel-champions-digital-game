@@ -118,3 +118,23 @@ const cards = new CardEvents(region); // hover popover and Inspect for card pict
 The helpers: `dom/element-region.ts` (`mountElement`), `dom/element-stops.ts` (`collectStops`, `focusStopsOf`, `bindStopFocus`,
 `activateStop`), `dom/card-events.ts` (`CardEvents`), `@mc/ui` `watchCard`. Their tests: `dom/element-stops.test.ts`,
 `shared/card-events.test.ts`.
+
+## Pressable controls and sections (Set up the table)
+
+The first screen built this way, `views/table-setup/mc-table-setup-page`, settled these patterns:
+
+- **Generic press controls live in `@mc/ui`** (`components/controls/`: `mc-chip`, `mc-check-row`, `mc-press-card`,
+  `mc-hit-area`, `mc-option-card`; `components/layout/mc-section-heading`), on the `McPress` base (`shared/press/`). A control
+  knows nothing of any screen: a tap raises `mc-pressed` `{ action, hold }` with the `action` its owner gave it (a hold or the
+  route's Inspect raises `holdAction`). Set `data-stop` with a property binding (`.stop=${key}`: the attribute is `data-stop`).
+  `click()` presses it, so the focus route's Enter works. Colours that differ by use are custom properties (`--chip-fill`,
+  `--chip-color`, `--chip-line`, `--chip-border`), never a second element.
+- **A screen's own elements raise one typed event.** Each section in the client's `components/<feature>/` holds a
+  `SetupRelay`-style controller that turns `mc-pressed` into its feature event (`mc-setup`, a discriminated union) and stops the
+  original, so the scene hears one name and the panel region can guard it (`GUARDED_EVENTS`).
+- **A page composes sections and nothing else**; each section sets `mode` (`wide` | `phone`) and takes one typed `input`. Pictures
+  are resolved by the scene (`PictureSource`, leased) and handed in; a card picture raises hover and Inspect through `watchCard`.
+- **After setting properties the scene awaits `settleElements(page)`** (`dom/element-settle.ts`: a parent's render, then its
+  children's) before it reads `focusStopsOf` rects or hands the route its stops.
+- **Moving a rect-driven element is one imperative move**, not layout: the first player token is a single element the seating
+  section appends into the first player's `token` slot, measuring its box before and after for the FLIP flight.

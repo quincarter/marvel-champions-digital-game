@@ -73,14 +73,20 @@ export class McButton extends LitElement {
     this.reason = "";
   }
 
+  #onClick = (event: MouseEvent): void => {
+    if (event.detail !== 0 || (this.disabled && !this.pressable)) return;
+    this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true }));
+  };
+
   override connectedCallback(): void {
     super.connectedCallback();
-    this.addEventListener("click", this.#keyboardClick);
     this.#stopTap = onTap(
       this,
       () => this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true })),
       { enabled: () => !this.disabled || this.pressable },
     );
+    // `click()` from the focus route (Enter on a `data-stop`) has no pointer press behind it (`detail` 0): it presses.
+    this.addEventListener("click", this.#onClick);
     // The label is fitted to the button's own width, so a button sized after the fact (by its sheet) refits.
     if (typeof ResizeObserver !== "undefined") {
       this.#resize = new ResizeObserver(() => this.#fit());
@@ -92,15 +98,8 @@ export class McButton extends LitElement {
     }
   }
 
-  /** Enter or Space on a focus stop, or its `click()` (`detail` 0), presses an enabled button; a pointer click is the tap's. */
-  readonly #keyboardClick = (event: MouseEvent): void => {
-    if (event.detail !== 0 || (this.disabled && !this.pressable)) return;
-    this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true }));
-  };
-
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    this.removeEventListener("click", this.#keyboardClick);
     this.#stopTap?.();
     this.#stopTap = null;
     this.#resize?.disconnect();

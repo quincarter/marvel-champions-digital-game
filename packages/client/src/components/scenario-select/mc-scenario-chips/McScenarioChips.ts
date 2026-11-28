@@ -52,6 +52,10 @@ export class McScenarioChips extends LitElement {
             hug
             ?selected=${chip.selected}
             @mc-activate=${pressOf(this, `scenario-chip:${chip.id}`)}
+            @click=${(event: MouseEvent) => {
+              // A focus stop's click() (Enter) has no pointer behind it (`detail` 0); a pointer press is the chip's own tap.
+              if (event.detail === 0) pressOf(this, `scenario-chip:${chip.id}`)(event);
+            }}
           ></mc-filter-chip>`,
       )}
     </div>`;

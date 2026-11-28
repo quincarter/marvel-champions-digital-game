@@ -38,14 +38,17 @@ export function collectStops(root: ParentNode): ElementStop[] {
   return found;
 }
 
-/** The scroll container `element` sits in, through shadow roots, or null. */
+/** The scroll container `element` sits in (vertical or sideways), through shadow roots, or null. */
 export function scrollerOf(element: Element): HTMLElement | null {
   let node: Node | null = element.parentNode ?? (element.getRootNode() as ShadowRoot | undefined)?.host ?? null;
   while (node) {
     if (node instanceof ShadowRoot) node = node.host;
     if (node instanceof HTMLElement) {
-      const overflow = getComputedStyle(node).overflowY;
-      if ((overflow === "auto" || overflow === "scroll") && node.scrollHeight > node.clientHeight + 1) return node;
+      const style = getComputedStyle(node);
+      const scrolls = (overflow: string): boolean => overflow === "auto" || overflow === "scroll";
+      if (scrolls(style.overflowY) && node.scrollHeight > node.clientHeight + 1) return node;
+      // A sideways rail (the filter chips) is a scroller too: its chips scroll into view along it.
+      if (scrolls(style.overflowX) && node.scrollWidth > node.clientWidth + 1) return node;
     }
     node = node.parentNode;
   }
@@ -75,7 +78,7 @@ export function focusStopsOf(root: ParentNode, toGame: (target: Element) => Rect
         return scroller ? toGame(scroller) : toGame(element);
       },
       ensureVisible: () => {
-        if (scrollerOf(element)) element.scrollIntoView({ block: "nearest" });
+        if (scrollerOf(element)) element.scrollIntoView({ block: "nearest", inline: "nearest" });
       },
     });
   }

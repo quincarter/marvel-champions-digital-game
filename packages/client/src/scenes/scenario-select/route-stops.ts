@@ -1,7 +1,6 @@
 /**
  * The focus stops of the page element for `FocusRoute`: the `[data-stop]` parts the elements mark (`dom/element-stops.ts`),
- * those on screen now (the list a phone's open stages sheet covers is not walked), a sideways rail's chips scrolled into
- * view, and Y on a stop with no Inspect of its own jumping between the filters and the list.
+ * those on screen now (the list a phone's open stages sheet covers is not walked), and Y on a stop with no Inspect of its own jumping between the filters and the list.
  */
 import { collectStops, focusStopsOf } from "../../dom/element-stops.js";
 import type { Rect } from "../../view/layout.js";
@@ -27,9 +26,6 @@ export function routeStopsOf(
     if (!element) continue;
     stops.set(key, {
       ...stop,
-      ...(key.startsWith("scenario-chip:")
-        ? { ensureVisible: () => element.scrollIntoView({ block: "nearest", inline: "nearest" }) }
-        : {}),
       ...(stop.inspect ? {} : { inspect: inspectFallback }),
     });
   }

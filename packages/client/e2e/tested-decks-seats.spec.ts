@@ -71,16 +71,16 @@ test.describe("Take your seats: tested community decks", () => {
     await scrollStopIntoView(page, "hero:precon:core-spider-man-justice", "Seats");
     await press(page, "hero:precon:core-spider-man-justice");
     await waitFor(
-      async () => ((await activeScenes(page)).includes("HeroDecksSheet") ? true : null),
+      async () => ((await hook<boolean>(page, "__mcSeatsDebug", "decksOpen")) ? true : null),
       "Pick a deck",
       15000,
     );
-    const sheetDecks = ((await routeStops(page, "HeroDecksSheet"))?.stops ?? []).map((s) => s.key);
+    const sheetDecks = ((await routeStops(page, "Seats"))?.stops ?? []).map((s) => s.key);
     expect(sheetDecks).toContain("deck:precon:core-spider-man-justice");
     expect(sheetDecks).toContain(SPIDER_MAN.replace("hero:", "deck:"));
-    await clickStop(page, "back", "HeroDecksSheet");
+    await clickStop(page, "back", "Seats");
     await waitFor(
-      async () => (!(await activeScenes(page)).includes("HeroDecksSheet") ? true : null),
+      async () => (!(await hook<boolean>(page, "__mcSeatsDebug", "decksOpen")) ? true : null),
       "sheet closed",
       15000,
     );

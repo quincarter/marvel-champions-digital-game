@@ -5,7 +5,7 @@ import { hook, openApp } from "./wave6-helpers-b.js";
 /**
  * A shelf's scroll chevron on Take your seats (#218): pressing it scrolls its row and does nothing else. The card that
  * slides in under the pointer used to take the same click (opening its unlock prompt or seating it). The chevrons are
- * buttons in the shelf header of the roster panel (`mc-shelf-roster`) and the rows scroll natively.
+ * buttons in the shelf header (`mc-hero-row`) and the rows scroll natively.
  */
 
 const seats = async (page: Page): Promise<string[]> => (await hook<string[]>(page, "__mcSeatsDebug", "seats")) ?? [];
@@ -20,8 +20,8 @@ test.describe("Take your seats: shelf chevrons", () => {
     await waitFor(async () => ((await seats(page)).length > 0 ? true : null), "seats drawn", 30000);
     await settle(page);
 
-    const roster = page.locator('#mc-ui [data-scene="Seats"] mc-shelf-roster').first();
-    const row = roster.locator("[data-row]").first();
+    const roster = page.locator('#mc-ui [data-scene="Seats"] mc-hero-shelf').first();
+    const row = roster.locator(".row").first();
     const next = roster.locator(".chevrons button").nth(1);
     await next.scrollIntoViewIfNeeded();
     const scenesBefore = await activeScenes(page);

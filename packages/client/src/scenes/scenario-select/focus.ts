@@ -49,7 +49,7 @@ export class ScenarioFocus {
     if (!page || !region) return;
     this.stops = routeStopsOf(
       page,
-      (target) => region.rectOf(target),
+      (target) => region.visibleRectOf(target),
       () => this.jump(false),
     );
     const order = [...this.stops.keys()];

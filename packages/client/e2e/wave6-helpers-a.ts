@@ -1,5 +1,9 @@
 import type { Page } from "@playwright/test";
-import { findVisibleText } from "./wave6-helpers-b.js";
+import { findVisibleText, hook } from "./wave6-helpers-b.js";
+
+/** The Pick a deck sheet is open over Take your seats (it is part of the page, and its stops are the Seats route while it is). */
+const sheetOpen = async (page: Page): Promise<boolean> =>
+  (await hook<boolean>(page, "__mcSeatsDebug", "decksOpen")) === true;
 import {
   FOCUS_ONLY_STOP,
   activeScenes,
@@ -554,7 +558,7 @@ export async function seatDeckThroughTile(
     await clickStop(page, tileKey, "Seats");
     await settle(page);
     for (const start = Date.now(); Date.now() - start < 4000 && !sheetUp;) {
-      sheetUp = (await activeScenes(page)).includes("HeroDecksSheet");
+      sheetUp = await sheetOpen(page);
       if (!sheetUp && (await seatsFilled()) !== before) return;
       if (!sheetUp) await new Promise((r) => setTimeout(r, 100));
     }
@@ -562,16 +566,12 @@ export async function seatDeckThroughTile(
   if (!sheetUp) throw new Error(`tapping ${tileKey} neither opened the Pick a deck sheet nor filled a seat`);
   const rowKey = `deck:${deckId}`;
   await waitFor(
-    async () => ((await routeStops(page, "HeroDecksSheet"))?.stops.some((s) => s.key === rowKey) ? true : null),
+    async () => ((await routeStops(page, "Seats"))?.stops.some((s) => s.key === rowKey) ? true : null),
     `${deckId} on the Pick a deck sheet`,
     timeoutMs,
   );
-  await scrollStopIntoView(page, rowKey, "HeroDecksSheet", 0).catch(() => undefined);
-  await clickStop(page, rowKey, "HeroDecksSheet");
-  await waitFor(
-    async () => (!(await activeScenes(page)).includes("HeroDecksSheet") ? true : null),
-    "the Pick a deck sheet closes",
-    timeoutMs,
-  );
+  await scrollStopIntoView(page, rowKey, "Seats", 0).catch(() => undefined);
+  await clickStop(page, rowKey, "Seats");
+  await waitFor(async () => (!(await sheetOpen(page)) ? true : null), "the Pick a deck sheet closes", timeoutMs);
   await settle(page);
 }

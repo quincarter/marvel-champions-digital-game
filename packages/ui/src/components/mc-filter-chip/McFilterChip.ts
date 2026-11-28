@@ -73,22 +73,6 @@ export class McFilterChip extends LitElement {
     return `${check}${this.label}${count}`;
   }
 
-  /** A focus stop `click()` (`detail` 0) toggles the chip like a tap; a pointer click is the inner button's tap. */
-  readonly #keyboardClick = (event: MouseEvent): void => {
-    if (event.detail !== 0 || this.disabled) return;
-    this.dispatchEvent(new CustomEvent("mc-activate", { detail: { key: this.value }, bubbles: true, composed: true }));
-  };
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.addEventListener("click", this.#keyboardClick);
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.removeEventListener("click", this.#keyboardClick);
-  }
-
   override render() {
     return html`<mc-button
       kind="secondary"
