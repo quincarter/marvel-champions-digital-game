@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lobbyLayout } from "./room-lobby-layout.js";
+import { lobbyLayout, modeOf } from "./room-lobby-layout.js";
 
 const sizes: readonly [string, number, number][] = [
   ["se", 375, 667],
@@ -94,5 +94,21 @@ describe("lobbyLayout", () => {
   it("shows only the chosen panel on a phone", () => {
     expect(Object.keys(lobbyLayout(375, 667, 56, "chat", 16).panels)).toEqual(["chat"]);
     expect(Object.keys(lobbyLayout(768, 1024, 56, "chat", 24).panels).sort()).toEqual(["chat", "seats"]);
+  });
+});
+
+describe("modeOf", () => {
+  it.each([
+    [375, 667, "tabs"],
+    [699, 900, "tabs"],
+    [768, 1024, "stack"],
+    [899, 700, "stack"],
+    [1024, 768, "wide"],
+    [1199, 800, "wide"],
+    [1440, 900, "float"],
+    [1920, 1080, "float"],
+    [2560, 1080, "triple"],
+  ] as const)("gives %ix%i the %s layout", (width, height, mode) => {
+    expect(modeOf(width, height)).toBe(mode);
   });
 });
