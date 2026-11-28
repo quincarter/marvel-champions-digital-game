@@ -3,13 +3,13 @@ import { activeScenes, pressKey, trackPageErrors, waitFor, waitForText } from ".
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * The Title's menu, banners, rank plate, promo panel and footer are a Lit panel over the canvas (`@mc/ui`'s
- * `mc-title-panel`, `src/dom/dom-region.ts`); the picture, the logo and the corner buttons stay Phaser's. The panel is
- * pressed by taps, walked by the keyboard with the DOM focus ring (the same stops as before), reads in Spanish, and
- * goes with the screen.
+ * The Title is one custom element, `mc-title-page`, composed of the notice bar, the logo, the icon row, the menu, the
+ * rank card and the footer (`src/views/title/`); only the ink ground and the picture under it are Phaser's. The page is
+ * pressed by taps, walked by the keyboard with the DOM focus ring (the same stops as before), reads in Spanish, and goes
+ * with the screen.
  */
 
-const panel = (page: Page) => page.locator('#mc-ui [data-scene="Title"] mc-title-panel');
+const panel = (page: Page) => page.locator('#mc-ui [data-scene="Title"] mc-title-page');
 
 const focusOf = (page: Page) =>
   page.evaluate(() =>
@@ -46,7 +46,7 @@ test("a release that lifts on a row without pressing it does nothing (the tap ru
   await waitForText(page, "Extras", { sceneKey: "Title" });
   const before = await activeScenes(page);
   // The lift that ends a swipe: a pointerup with no press on the button, and a press that travelled before lifting.
-  const button = panel(page).locator("mc-menu-button").filter({ hasText: "Extras" }).first();
+  const button = panel(page).locator("mc-title-menu-button").filter({ hasText: "Extras" }).first();
   await button.evaluate((element) => {
     const inner = element.shadowRoot!.querySelector("mc-button")!;
     const at = (type: string, x: number, y: number) =>
@@ -90,10 +90,10 @@ test("the keyboard walks the same stops, with the ring drawn in the DOM over the
   await waitFor(async () => ((await activeScenes(page)).includes("Decks") ? true : null), "Enter opened Decks", 15000);
 });
 
-test("the rank plate is a control of the panel and opens the Trophy Room", async ({ page }) => {
+test("the rank card is a control of the page and opens the Trophy Room", async ({ page }) => {
   await openApp(page, "");
   await waitForText(page, "Trophy Room", { sceneKey: "Title" });
-  await panel(page).locator("mc-rank-bar").click();
+  await panel(page).locator("mc-title-rank").click();
   await waitFor(
     async () => ((await activeScenes(page)).includes("TrophyRoom") ? true : null),
     "the Trophy Room opened",

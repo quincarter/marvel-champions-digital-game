@@ -37,6 +37,7 @@ import { earnedAchievementIds, extras } from "../progression/progression.js";
 import type { Extras } from "../progression/extras.js";
 import { extrasNewsHeadline, newExtrasOf, openExtrasOf } from "../view/extras-news.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
+import { chromeDrawnByDom } from "../ui/dom-chrome.js";
 import { SCENES } from "./keys.js";
 
 /** The scenes that sort themselves above the screens: this one, its player, the Report button and panel, and Music. */
@@ -69,6 +70,8 @@ export class MusicButtonScene extends Phaser.Scene {
   #zone: Phaser.GameObjects.Zone | null = null;
   #rect: Rect | null = null;
   #hovered = false;
+  /** The screen under draws this button itself in the DOM (`ui/dom-chrome.ts`): placed, but not painted. */
+  #dom = false;
   #pressed = false;
   /** A song that started and has not been announced yet. */
   #pending: Announcement | null = null;
@@ -163,6 +166,11 @@ export class MusicButtonScene extends Phaser.Scene {
       .map((scene) => ({ key: scene.scene.key, visible: scene.sys.settings.visible }));
     const slot = reportButtonSlot(running, musicSlots());
     this.#place(slot?.rect ?? null);
+    const dom = chromeDrawnByDom(slot?.key);
+    if (dom !== this.#dom) {
+      this.#dom = dom;
+      this.#draw();
+    }
 
     const pending = this.#pending;
     if (pending && this.#rect) {
@@ -255,7 +263,7 @@ export class MusicButtonScene extends Phaser.Scene {
     if (!graphics || !zone) return;
     graphics.clear();
     const rect = this.#rect;
-    if (!rect) {
+    if (!rect || this.#dom) {
       zone.disableInteractive();
       return;
     }

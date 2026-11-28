@@ -5,6 +5,16 @@ export const McDeckRowStyles = css`
     display: block;
     min-width: 0;
   }
+  .listing {
+    position: relative;
+    height: var(--mc-deck-row-height, 84px);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .listing mc-media-row {
+    position: absolute;
+    inset: 0;
+  }
   .row {
     display: flex;
     align-items: center;
