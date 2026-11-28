@@ -34,7 +34,7 @@ export const McDeckCheckHeaderStyles = css`
   }
   .meta {
     flex: none;
-    max-width: 30%;
+    max-width: 48%;
     font-weight: 800;
     font-size: var(--mc-small-9, 9px);
     letter-spacing: 1.2px;
