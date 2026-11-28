@@ -481,6 +481,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
       if (this.#leaving) return;
       this.#inspects.get((event as CustomEvent<{ key: string }>).detail.key)?.();
     });
+    // A tile's native button took focus (a screen reader, or a click): the keyboard route follows, so Enter, Space and
+    // Inspect act on that tile and no other (the route owns the keys: `bindKeyboard` stops the browser acting on them).
+    element.addEventListener("mc-tile-focus", (event) => {
+      const { key } = (event as CustomEvent<{ key: string }>).detail;
+      this.#route?.focusKey(key.startsWith("entry:") ? `scenario:${key.slice("entry:".length)}` : key);
+    });
     // A pack picture's blob URL went stale before its lazy image loaded: read it again, once.
     element.addEventListener("mc-image-error", (event) => {
       const { key, src } = (event as CustomEvent<{ key?: string; src: string | null }>).detail;
@@ -512,7 +518,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.#leases.begin();
     resetHoverCards(this);
 
-    const frame = campaignFrame(this);
+    const baseFrame = campaignFrame(this);
+    // A phone's bar is taller here: the title ("CHOOSE A SCENARIO") drops under the dark mode tab whole (the shared theme
+    // rule, `view/theme-button.ts`) instead of being cut to fit beside it. Every height below follows `frame.topBar`.
+    const frame = baseFrame.phone ? { ...baseFrame, topBar: Math.max(baseFrame.topBar, 64) } : baseFrame;
     const { width, height } = frame;
     // The selection is always something the shelf shows: a chip or a search that hides it moves it to the first
     // scenario still visible (`view/scenario-selection.ts`); with none visible, "Choose heroes" is disabled.

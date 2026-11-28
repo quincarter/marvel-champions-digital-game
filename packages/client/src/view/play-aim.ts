@@ -86,7 +86,9 @@ export function aimedAt(state: GameState, deps: EngineDeps, command: Command, ta
 
 /**
  * What a payment is opened with once the player has picked `target`: an upgrade's host rides as the payment's target, but a
- * pick for a cost that searches the encounter deck (Hunted) is a cost choice and the card has no host to name.
+ * pick for a cost that searches the encounter deck (Hunted) is a cost choice and the card has no host to name. The card
+ * whose printed cost is paid (Make the Call) rides as both, so the pay step is priced for that card or not at all: with
+ * the target alone, a pick no longer listed (the ally left the discard pile) priced the first ally still there (#1050).
  */
 export function paymentAimOf(
   state: GameState,
@@ -96,7 +98,10 @@ export function paymentAimOf(
 ): { readonly target: InstanceId | null; readonly costChoices?: CostChoices } {
   if (target === null || action.kind !== "playCard") return { target };
   const searched = additionalPlayCostOf(state, deps, action.instanceId)?.attachToSlot;
-  return searched ? { target: null, costChoices: { [searched]: [target] } } : { target };
+  if (searched) return { target: null, costChoices: { [searched]: [target] } };
+  const holder = state.instances[action.instanceId]?.ownerId;
+  const paid = holder ? actionAbilityCost(state, deps, holder, action)?.payPrintedCostOf?.slot : undefined;
+  return paid ? { target, costChoices: { [paid]: [target] } } : { target };
 }
 
 /**
