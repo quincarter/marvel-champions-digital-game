@@ -204,7 +204,9 @@ test("theme and Discord: the Title's menu stays and still presses after each", a
 });
 
 test.describe("a real Android phone (Pixel 7 descriptor: Android user agent, touch)", () => {
-  test.use({ ...devices["Pixel 7"] });
+  // The descriptor minus `defaultBrowserType`, which a describe group may not set.
+  const { defaultBrowserType: _browser, ...pixel } = devices["Pixel 7"];
+  test.use(pixel);
 
   test("report says the Power and Volume down shortcut, and the rank plate reads in Spanish", async ({ page }) => {
     await openSpanishTitle(page);
