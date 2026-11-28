@@ -14,6 +14,9 @@ export const McStepperStyles = css`
   .arrow mc-chip {
     height: 100%;
   }
+  ::slotted(*) {
+    height: 100%;
+  }
   .name {
     flex: 1 1 0;
     min-width: 0;

@@ -30,4 +30,4 @@ html`<mc-stepper
 
 ## Slots
 
-None.
+`prev` and `next` replace an arrow with the owner's own control (it fills the arrow's box); the chip arrows are their fallback.

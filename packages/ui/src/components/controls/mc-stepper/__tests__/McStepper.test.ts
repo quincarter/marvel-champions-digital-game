@@ -46,4 +46,11 @@ describe("mc-stepper", () => {
     });
     expect(el.shadowRoot!.querySelector(".name")!.getAttribute("data-stop")).toBe("hero:01001a");
   });
+
+  it("offers a prev and a next slot for an owner's own arrows, with the chips as their fallback", async () => {
+    const el = await stepper(() => {});
+    const slots = [...el.shadowRoot!.querySelectorAll("slot")];
+    expect(slots.map((s) => s.name)).toEqual(["prev", "next"]);
+    expect(slots.map((s) => s.querySelectorAll("mc-chip").length)).toEqual([1, 1]);
+  });
 });

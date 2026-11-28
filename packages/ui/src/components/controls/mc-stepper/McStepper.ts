@@ -12,6 +12,11 @@ import type { McStepperProps } from "./mc-stepper.types.js";
  * Previous, what is chosen, next: two arrow chips either side of a chip that says the choice (a hero of several, a
  * villain of a list). The arrows are fixed width and the middle takes the rest, so the three never wrap. Each arrow is a
  * press control (`mc-chip`) that raises `mc-pressed` with its own action; the middle chip is a stop only when it has one.
+ * An owner whose arrows are not plain chips (a "−" and a "+" that say why they are off) fills the `prev` and `next` slots
+ * instead; the slotted control takes the arrow's box.
+ *
+ * @slot prev - Replaces the previous arrow.
+ * @slot next - Replaces the next arrow.
  *
  * @element mc-stepper
  * @fires mc-pressed - From an arrow: `{ action: prevAction | nextAction, hold: false }`.
@@ -56,13 +61,15 @@ export class McStepper extends LitElement implements McStepperProps {
 
   #arrow(word: string, stop: string, action: unknown, glyph: ControlGlyph | undefined) {
     return html`<div class="arrow" style=${styleMap({ "--mc-label-shift": `${glyphLabelShift(glyph)}px` })}>
-      <mc-chip
-        label=${word}
-        .stop=${stop}
-        .action=${action}
-        ?disabled=${!this.several}
-        aria-label=${word === "◂" ? "Previous" : "Next"}
-      ></mc-chip>
+      <slot name=${word === "◂" ? "prev" : "next"}>
+        <mc-chip
+          label=${word}
+          .stop=${stop}
+          .action=${action}
+          ?disabled=${!this.several}
+          aria-label=${word === "◂" ? "Previous" : "Next"}
+        ></mc-chip>
+      </slot>
       <mc-glyph-hint .glyph=${glyph}></mc-glyph-hint>
     </div>`;
   }
