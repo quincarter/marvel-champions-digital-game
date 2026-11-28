@@ -17,7 +17,9 @@ async function mount() {
   el.src = "/assets/first-player-token.svg";
   document.body.append(el);
   await el.updateComplete;
-  const animate = vi.fn(() => ({ cancel: vi.fn(), playState: "running" }) as unknown as Animation);
+  const animate = vi.fn(
+    (_frames: unknown, _options?: unknown) => ({ cancel: vi.fn(), playState: "running" }) as unknown as Animation,
+  );
   for (const part of el.shadowRoot!.querySelectorAll<HTMLElement>(".token, .shadow")) part.animate = animate;
   return { el, animate };
 }

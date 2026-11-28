@@ -94,7 +94,9 @@ describe("the Modular sets section", () => {
 
   it("lists the phone's groups and rows, and a group that is hidden hides its sets", () => {
     const shown = compactModulars(input());
-    const hidden = compactModulars(input({ openGroups: new Map(shown.groups.keys().map((id) => [id, false])) }));
+    const hidden = compactModulars(
+      input({ openGroups: new Map([...shown.groups.keys()].map((id): [string, boolean] => [id, false])) }),
+    );
     expect(hidden.entries.length).toBeLessThanOrEqual(shown.entries.length);
   });
 
