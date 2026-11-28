@@ -1,6 +1,6 @@
 import type { ControlGlyph, PictureFocus } from "@mc/ui";
 import type { ModNoticeAnswer } from "../../../view/mod-notice.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 /** One speaker of the heads-up. */
 export interface ModNoticeLineModel {

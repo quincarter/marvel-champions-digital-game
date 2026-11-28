@@ -3,7 +3,7 @@ import { ThemeStyles } from "@mc/ui";
 import { ModStorePress } from "../shared/ModStorePress.js";
 import type { ModStoreEventDetail } from "../shared/mod-store-events.types.js";
 import { McCreatorRowStyles } from "./mc-creator-row.styles.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 import type { CreatorModel, McCreatorRowProps } from "./mc-creator-row.types.js";
 
 /**

@@ -39,15 +39,8 @@ describe("mc-player-stats-page", () => {
       controls: [],
       body: { kind: "list", scrollKey: "overview", blocks: [], side: null },
     });
-    const kids = [
-      ...el.shadowRoot!.querySelectorAll("mc-stats-header, mc-stats-tabs, mc-stats-controls, mc-stats-list"),
-    ];
-    expect(kids.map((k) => k.localName)).toEqual([
-      "mc-stats-header",
-      "mc-stats-tabs",
-      "mc-stats-controls",
-      "mc-stats-list",
-    ]);
+    const kids = [...el.shadowRoot!.querySelectorAll("mc-top-bar, mc-stats-tabs, mc-stats-controls, mc-stats-list")];
+    expect(kids.map((k) => k.localName)).toEqual(["mc-top-bar", "mc-stats-tabs", "mc-stats-controls", "mc-stats-list"]);
     expect(el.list).not.toBeNull();
     expect(el.grid).toBeNull();
   });

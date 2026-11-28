@@ -84,8 +84,6 @@ export class McPastGamesPage extends LitElement {
         .heading=${m.bar.title}
         .backLabel=${m.bar.backLabel}
         .backGlyph=${hintGlyphOf(m.bar.backGlyph)}
-        .titleDrop=${m.bar.titleDrop}
-        .titleMaxRight=${m.bar.titleMaxRight}
         ?compact=${m.phone}
         @mc-press=${() => this.dispatchEvent(pastGamesEvent({ type: "back" }))}
       >

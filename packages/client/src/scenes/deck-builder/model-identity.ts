@@ -8,7 +8,7 @@ import { qualifiedHeroName } from "../../view/hero-names.js";
 import { currentStarterDecks } from "../../content/pool.js";
 import { inputDevice } from "../../platform/input-device.js";
 import { t } from "../../i18n/translate.js";
-import type { BuilderHeaderModel } from "../../components/deck-builder/mc-builder-header/mc-builder-header.types.js";
+import type { BuilderHeaderModel } from "../../components/deck-builder/shared/builder-header.types.js";
 import type { IdentityPickerModel } from "../../components/deck-builder/mc-identity-picker/mc-identity-picker.types.js";
 import type { IdentityRowModel } from "../../components/deck-builder/mc-identity-row/mc-identity-row.types.js";
 import type { StartFromModel } from "../../components/deck-builder/mc-start-from/mc-start-from.types.js";

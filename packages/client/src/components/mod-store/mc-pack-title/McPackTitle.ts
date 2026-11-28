@@ -3,7 +3,7 @@ import { ThemeStyles } from "@mc/ui";
 import "../mc-pack-state-chip/mc-pack-state-chip.js";
 import { McPackTitleStyles } from "./mc-pack-title.styles.js";
 import type { McPackTitleProps, PackTitleModel } from "./mc-pack-title.types.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 /**
  * # Pack title

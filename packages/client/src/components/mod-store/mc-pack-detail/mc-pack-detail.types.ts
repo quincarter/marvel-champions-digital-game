@@ -1,5 +1,5 @@
 import type { PackAction } from "../../../view/mod-store-model.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 import type { PackFacesModel } from "../mc-pack-faces/mc-pack-faces.types.js";
 import type { GallerySectionModel } from "../mc-pack-gallery/mc-pack-gallery.types.js";
 import type { PackStatusModel } from "../mc-pack-status/mc-pack-status.types.js";

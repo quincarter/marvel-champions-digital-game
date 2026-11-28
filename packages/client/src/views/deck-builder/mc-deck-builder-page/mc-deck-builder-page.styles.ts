@@ -34,9 +34,23 @@ export const McDeckBuilderPageStyles = css`
     max-width: 720px;
     margin: 0 auto;
   }
-  mc-builder-header,
   mc-identity-row {
     flex: none;
+  }
+  /* The heading sits on the paper, not on an ink bar: no ground, no padding of its own, its own title size. */
+  .header {
+    flex: none;
+    --mc-top-bar-height: 0px;
+    --mc-top-bar-pad: 0px;
+    --mc-top-bar-title-size: 38px;
+  }
+  :host([layout="phone"]) .header {
+    --mc-top-bar-title-size: 28px;
+  }
+  .header .back {
+    width: 100px;
+    height: 44px;
+    --mc-button-size: 16px;
   }
   mc-identity-picker,
   .body {

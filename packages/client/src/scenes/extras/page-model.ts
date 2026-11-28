@@ -1,6 +1,6 @@
 /**
  * Extras' page model (`views/extras/mc-extras-page`), as plain data from what is open, the music controller and the
- * settings. No Phaser here: the scene hands in what it knows (the sizes, the glyphs, the bar's clearance).
+ * settings. No Phaser here: the scene hands in what it knows (the sizes, the glyphs).
  */
 import type { ControlGlyph, HintGlyph } from "@mc/ui";
 import type { ExtrasTile } from "../../components/extras/mc-extras-shelf/mc-extras-shelf.types.js";
@@ -27,7 +27,6 @@ export interface ExtrasModelInput {
   readonly volume: number;
   readonly backGlyph: HintGlyph | null;
   readonly tabsHint: ControlGlyph | undefined;
-  readonly clearance: { readonly drop: number; readonly maxRight: number };
   /** The tile views of this draw come back so the scene can answer a tap by id. */
   readonly onViews: (views: readonly ExtrasTileView[]) => void;
 }
@@ -112,8 +111,6 @@ export function extrasPageModelOf(input: ExtrasModelInput): ExtrasPageModel {
       title: t("title.extras"),
       right: extrasSummaryOf(extras),
       backGlyph: input.backGlyph,
-      titleDrop: input.clearance.drop,
-      titleMaxRight: input.clearance.maxRight,
     },
     doors: { trophies: phone ? t("extras.trophies") : `${t("title.trophyRoom")} ▸`, credits: t("extras.credits") },
     tabs: {

@@ -11,7 +11,8 @@
 import { html, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "@mc/ui";
 import { DeckCheckElement } from "../../../components/deck-check/shared/DeckCheckElement.js";
-import "../../../components/deck-check/mc-deck-check-header/mc-deck-check-header.js";
+import "../../../components/deck-check/mc-deck-status-badge/mc-deck-status-badge.js";
+import { hintGlyphOf } from "../../../dom/hint-glyph.js";
 import "../../../components/deck-check/mc-deck-composition/mc-deck-composition.js";
 import "../../../components/deck-check/mc-deck-type-filter/mc-deck-type-filter.js";
 import "../../../components/deck-check/mc-cost-curve/mc-cost-curve.js";
@@ -173,15 +174,30 @@ export class McDeckCheckPage extends DeckCheckElement {
     const model = this.model;
     if (!model) return nothing;
     const tip = this.openTip ? model.rail.tips[this.openTip] : undefined;
-    return html`<mc-deck-check-header
-        .size=${this.size}
-        .backLabel=${model.header.backLabel}
-        .title=${model.header.title}
-        .badgeText=${model.header.badgeText}
-        .badgeTone=${model.header.badgeTone}
-        .meta=${model.header.meta}
-        .backGlyph=${model.header.backGlyph}
-      ></mc-deck-check-header>
+    const head = model.header;
+    const wide = this.size === "wide";
+    return html`<mc-top-bar
+        class="bar"
+        ?compact=${this.size === "phone"}
+        .heading=${head.title}
+        .right=${wide ? "" : head.meta}
+        .backLabel=${head.backLabel}
+        .backGlyph=${hintGlyphOf(head.backGlyph)}
+        @mc-press=${(event: Event) => {
+          event.stopPropagation();
+          this.emit({ type: "back" });
+        }}
+      >
+        ${
+          wide && head.badgeText
+            ? html`<mc-deck-status-badge
+                slot="end"
+                .text=${head.badgeText}
+                .tone=${head.badgeTone}
+              ></mc-deck-status-badge>`
+            : nothing
+        }
+      </mc-top-bar>
       ${this.size === "wide" ? this.#wide(model) : this.#narrow(model)}
       ${
         tip && this.size === "wide"

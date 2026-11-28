@@ -25,7 +25,6 @@ import { REPO_FILE_URL, bookById, loadBook, type BookSpec } from "../content/boo
 import type { BookSection } from "../view/book-model.js";
 import { openExternal } from "../platform/platform.js";
 import { inputDevice } from "../platform/input-device.js";
-import { barClearance } from "../dom/bar-clearance.js";
 import { ControlGlyphs } from "../dom/control-glyphs.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { mountElement, type MountedElement } from "../dom/element-region.js";
@@ -33,7 +32,6 @@ import { settleElements } from "../dom/element-settle.js";
 import { bindStopFocus, focusStopsOf } from "../dom/element-stops.js";
 import { hintGlyphOf } from "../dom/hint-glyph.js";
 import type { ReaderEventDetail } from "../components/reader/shared/reader-events.types.js";
-import { t } from "../i18n/translate.js";
 import { onLanguageChange } from "../language-change.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
@@ -211,8 +209,6 @@ export class ExtrasReaderScene extends Phaser.Scene {
     const frame = campaignFrame(this);
     const { width, height, phone } = frame;
     const wide = this.#sideBySide();
-    const back = wide ? t("reader.back") : "◂";
-    const title = (this.#book?.title ?? t("reader.rulebook")).toUpperCase();
     const input = inputDevice();
     this.#glyphs.reset();
     const backGlyph = hintGlyphOf(this.#glyphs.glyph("back", ["cancel"], "ink", BACK_HEIGHT));
@@ -230,7 +226,6 @@ export class ExtrasReaderScene extends Phaser.Scene {
       height,
       padKeyboard: input.mode === "pad" && input.pad?.steam === true,
       backGlyph,
-      clearance: barClearance(this, { width, phone, back, title, right: "" }),
     });
     const draw = ++this.#drawn;
     void settleElements(mounted.element).then(() => draw === this.#drawn && this.#alive && this.#wire(mounted));

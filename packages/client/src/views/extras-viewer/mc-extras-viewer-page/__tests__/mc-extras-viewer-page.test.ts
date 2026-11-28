@@ -26,7 +26,7 @@ describe("mc-extras-viewer-page", () => {
   it("composes the header, the picture and the words, and reflects the wide layout", async () => {
     const el = await page(model({ subtitle: "Peter", lines: [], promo: null, note: "" }));
     const root = el.shadowRoot!;
-    expect(root.querySelector("mc-viewer-header")).not.toBeNull();
+    expect(root.querySelector("mc-top-bar")).not.toBeNull();
     expect(root.querySelector("mc-viewer-slide")).not.toBeNull();
     expect(root.querySelector("mc-viewer-text")).not.toBeNull();
     expect(el.hasAttribute("wide")).toBe(true);

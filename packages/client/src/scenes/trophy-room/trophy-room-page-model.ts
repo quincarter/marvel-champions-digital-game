@@ -16,7 +16,6 @@ import {
   type TrophyView,
 } from "../../view/trophy-room-model.js";
 import type { TrophyRoomPageModel } from "../../views/trophy-room/mc-trophy-room-page/mc-trophy-room-page.types.js";
-import { barClearanceOf } from "../screen-bar.js";
 
 export type AchievementRow = Extract<TrophyRow, { readonly kind: "achievement" }>;
 
@@ -79,21 +78,12 @@ function filtersOf(input: TrophyRoomPageInput, sheetOpen: boolean): TrophyFilter
 
 export function buildTrophyRoomPage(input: TrophyRoomPageInput): TrophyRoomPageBuild {
   const { scene, view, glyphs } = input;
-  const { width, phone } = campaignFrame(scene);
+  const { phone } = campaignFrame(scene);
   const statuses = achievementStatusesNow();
   const rows = trophyRowsOf(statuses, view);
   const open = rows.find((row): row is AchievementRow => row.kind === "achievement" && row.id === input.openId) ?? null;
   const back = phone ? "◂" : `◂ ${t("trophies.backTitle")}`;
   const title = t("trophies.title");
-  const statsWidth = phone ? 92 : 150;
-  const clearance = barClearanceOf(scene, {
-    width,
-    phone,
-    back,
-    title,
-    endWidth: statsWidth + 12,
-    backGlyph: glyphs.glyph("back", ["cancel"], "ink", 44) !== undefined,
-  });
   const groupLabels: Record<string, string> = {};
   for (const row of rows) if (row.kind === "group") groupLabels[row.id] = t("trophies.fromPack", { name: row.title });
   const model: TrophyRoomPageModel = {
@@ -102,8 +92,6 @@ export function buildTrophyRoomPage(input: TrophyRoomPageInput): TrophyRoomPageB
       backLabel: back,
       backGlyph: open ? undefined : glyphs.glyph("back", ["cancel"], "ink", 44),
       title,
-      titleDrop: clearance.drop,
-      titleMaxRight: clearance.maxRight,
     },
     // "Your stats" (X on a pad) at the bar's right; the earned count it displaced sits over the rank bar instead.
     stats: {

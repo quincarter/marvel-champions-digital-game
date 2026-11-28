@@ -9,6 +9,11 @@ export { McAspectChip } from "./components/mc-aspect-chip/mc-aspect-chip.js";
 export { McButton } from "./components/mc-button/mc-button.js";
 export { McHintButton } from "./components/mc-hint-button/mc-hint-button.js";
 export { McTopBar } from "./components/mc-top-bar/mc-top-bar.js";
+export { TOP_BAR_CLOSE_ACTION } from "./components/mc-top-bar/mc-top-bar.types.js";
+export { onThemeTabChange, setThemeTab, themeTab } from "./shared/theme-tab.js";
+export type { ThemeTabBox } from "./shared/theme-tab.js";
+export { NARROW_BAR, TAB_GAP, titleClearance } from "./shared/title-clearance.js";
+export type { TitleClearance, TitleClearanceInput } from "./shared/title-clearance.js";
 export { McSearchToggle } from "./components/mc-search-toggle/mc-search-toggle.js";
 export type { HintGlyph } from "./components/mc-hint-button/mc-hint-button.types.js";
 export { McSettingsBody } from "./components/mc-settings-body/mc-settings-body.js";
@@ -96,8 +101,6 @@ export type {
   McOptionRow,
 } from "./components/controls/mc-option-card/mc-option-card.types.js";
 export { McSectionHeading } from "./components/layout/mc-section-heading/mc-section-heading.js";
-export { McCloseBar } from "./components/layout/mc-close-bar/mc-close-bar.js";
-export { CLOSE_BAR_ACTION } from "./components/layout/mc-close-bar/mc-close-bar.types.js";
 export { McStepTicks } from "./components/layout/mc-step-ticks/mc-step-ticks.js";
 export { McStamp } from "./components/layout/mc-stamp/mc-stamp.js";
 export type { McStampTone } from "./components/layout/mc-stamp/mc-stamp.types.js";

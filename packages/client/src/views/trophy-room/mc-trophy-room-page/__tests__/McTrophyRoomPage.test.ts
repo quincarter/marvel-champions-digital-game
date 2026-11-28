@@ -9,7 +9,7 @@ afterEach(() => document.body.replaceChildren());
 
 const model = (over: Partial<TrophyRoomPageModel> = {}): TrophyRoomPageModel => ({
   phone: false,
-  bar: { backLabel: "Title", backGlyph: undefined, title: "Trophy Room", titleDrop: 0, titleMaxRight: 0 },
+  bar: { backLabel: "Title", backGlyph: undefined, title: "Trophy Room" },
   stats: { label: "Your stats", glyph: undefined },
   header: {
     rankLabel: "Rank 1 of 9",

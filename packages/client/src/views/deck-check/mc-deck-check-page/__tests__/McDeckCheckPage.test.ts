@@ -68,7 +68,7 @@ describe("mc-deck-check-page", () => {
     const el = await mount("wide");
     const parts = tags(el);
     for (const tag of [
-      "mc-deck-check-header",
+      "mc-top-bar",
       "mc-deck-composition",
       "mc-deck-type-filter",
       "mc-cost-curve",

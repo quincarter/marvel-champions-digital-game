@@ -24,8 +24,14 @@ export const HowToWinPageStyles = [
     *::after {
       box-sizing: border-box;
     }
-    mc-learn-header {
+    .bar {
       flex: none;
+      --mc-top-bar-height: 56px;
+      --mc-top-bar-pad: 16px;
+      --mc-top-bar-title-size: 18px;
+    }
+    :host([mode="wide"]) .bar {
+      --mc-top-bar-pad: 24px;
     }
     /* The page's one scroller. A tip is placed over the page, so nothing between it and the page clips it. */
     .main {

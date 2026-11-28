@@ -3,8 +3,6 @@ import type { Scenario } from "@mc/content";
 import type { ScenarioSelectPageModel } from "../../views/scenario-select/mc-scenario-select-page/mc-scenario-select-page.types.js";
 import { t } from "../../i18n/translate.js";
 import { artLanguageNow } from "../../art/art-source.js";
-import { hit } from "../../tokens.js";
-import { estimateBangersWidth, sheetThemeFor } from "../../ui/campaign-chrome.js";
 import { filtersLabel } from "../../view/filters-layout.js";
 import type { ScenarioDetail } from "../../view/scenario-detail.js";
 import type { ScenarioRecord } from "../../view/results-history.js";
@@ -43,37 +41,10 @@ export interface PageInput {
   readonly liveSearchText: string | null;
 }
 
-/** The dark mode tab hangs from the top centre: the title drops under it or ends before it (`sheetThemeFor`). */
-function titleClearance(
-  input: PageInput,
-  title: string,
-  right: string,
-  back: string,
-): { drop: number; maxRight: number } {
-  const pad = input.phone ? 12 : 22;
-  const backWidth = Math.max(input.phone ? hit.target : 64, estimateBangersWidth(back, 22) + 26);
-  const x = pad + backWidth + 14;
-  const rightWidth = right.length * 7.5 + 16;
-  const size = input.phone ? 22 : 28;
-  const room = input.width - pad - rightWidth - x;
-  const barHeight = input.phone ? 64 : 60;
-  const { drop, maxRight } = sheetThemeFor(input.scene, {
-    width: input.width,
-    textLeft: x,
-    textRight: x + Math.min(room, estimateBangersWidth(title, size)),
-    textTop: barHeight / 2 - size / 2,
-    textHeight: size,
-    barHeight,
-  });
-  return { drop, maxRight: maxRight ?? 0 };
-}
-
 export function pageModelOf(input: PageInput): ScenarioSelectPageModel {
   const { wide, phone, hints, padMode, selection, lock } = input;
   const back = t("scenario.back");
-  const title = t("scenario.title").toUpperCase();
   const right = t("scenario.step");
-  const clearance = titleClearance(input, title, right, back);
   const searchToggle = wide
     ? null
     : {
@@ -103,8 +74,6 @@ export function pageModelOf(input: PageInput): ScenarioSelectPageModel {
       title: t("scenario.title"),
       right,
       backGlyph: hints.glyph("back"),
-      titleDrop: clearance.drop,
-      titleMaxRight: clearance.maxRight,
     },
     filters: {
       searchValue: input.liveSearchText ?? input.filter.text,

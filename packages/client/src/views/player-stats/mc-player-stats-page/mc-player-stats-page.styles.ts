@@ -8,11 +8,27 @@ export const McPlayerStatsPageStyles = css`
     width: 100%;
     height: 100%;
     overflow: hidden;
+    container-type: inline-size;
     /* The backdrop is drawn on the canvas under the panel: the body is left clear, the tiles and rows are opaque. */
     background: transparent;
   }
-  mc-stats-header {
+  mc-top-bar {
     flex: none;
+  }
+  /* The count of games gives way to the You / Everyone switch where it would crowd it. */
+  .played {
+    flex: none;
+    font-weight: 800;
+    font-size: var(--mc-small-10, 10px);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    white-space: nowrap;
+  }
+  @container (max-width: 1000px) {
+    .played {
+      display: none;
+    }
   }
   .body {
     flex: 1;

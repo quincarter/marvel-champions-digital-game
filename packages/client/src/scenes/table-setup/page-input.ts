@@ -19,8 +19,6 @@ export interface PageState {
   readonly starting: boolean;
   readonly status: string;
   readonly openGroups: ReadonlyMap<string, boolean>;
-  /** Where the dark mode tab leaves the top bar's title room. */
-  readonly title: { readonly drop: number; readonly max: number };
 }
 
 /** The Back and Deal buttons' control heights, for the glyphs hung on them. */
@@ -93,7 +91,5 @@ export function pageInputOf(
     },
     // A phone's Back is a plain arrow with no room for a glyph, as it always was.
     backGlyph: wide ? glyphs.glyph("back", ["cancel"], "ink", BACK_HEIGHT) : undefined,
-    titleDrop: s.title.drop,
-    titleMax: s.title.max,
   };
 }

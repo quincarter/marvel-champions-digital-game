@@ -9,7 +9,7 @@ afterEach(() => document.body.replaceChildren());
 const model = (over: Partial<ExtrasPageModel> = {}): ExtrasPageModel => ({
   phone: false,
   stackDoors: false,
-  bar: { backLabel: "◂ TITLE", title: "EXTRAS", right: "1 of 2 open", backGlyph: null, titleDrop: 0, titleMaxRight: 0 },
+  bar: { backLabel: "◂ TITLE", title: "EXTRAS", right: "1 of 2 open", backGlyph: null },
   doors: { trophies: "Trophy Room", credits: "Credits" },
   tabs: { tabs: [{ id: "stories", label: "Stories 1/2" }], selected: "stories", size: 0, hint: undefined },
   player: null,

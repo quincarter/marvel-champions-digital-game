@@ -6,9 +6,16 @@ export const McSideStoryPageStyles = css`
     display: block;
     width: 100%;
     height: 100%;
-    --reader-bar: auto;
   }
   mc-reader {
     background: var(--mc-fill-ink);
+  }
+  .close {
+    width: 96px;
+    height: 30px;
+    --mc-button-size: 11px;
+  }
+  :host([compact]) .close {
+    width: 78px;
   }
 `;

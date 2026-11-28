@@ -12,15 +12,12 @@ export const McExtrasPageStyles = css`
     height: 100%;
     background: var(--mc-fill-paper);
     --gutter: 24px;
-    --bar: 60px;
   }
   :host([phone]) {
     --gutter: 16px;
-    --bar: 52px;
   }
   mc-top-bar {
     flex: none;
-    height: var(--bar);
   }
   .nav {
     flex: none;

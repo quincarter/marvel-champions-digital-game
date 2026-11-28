@@ -8,7 +8,6 @@ import type { ControlGlyphs } from "../../dom/control-glyphs.js";
 import { t, tPlural } from "../../i18n/translate.js";
 import { earnedPromoSets } from "../../progression/progression.js";
 import { appSession } from "../../session.js";
-import { estimateBangersWidth, sheetThemeFor } from "../../ui/campaign-chrome.js";
 import { heroArtInForce, heroPromoShown } from "../../view/hero-art-choice.js";
 import { formFactorFor } from "../../view/layout.js";
 import { conflictNoticeOf } from "../../view/name-conflicts.js";
@@ -54,39 +53,23 @@ export interface PageBuild {
   readonly firstTileKey: string | null;
 }
 
-/** The header bar's words fitted to the width: the step line gives way to its shorter forms, the title clears the dark mode tab. */
+/** The header bar's words: the step line gives way to its shorter forms as the bar narrows (the bar keeps its title clear of the dark mode tab itself). */
 function headerOf(
-  scene: Phaser.Scene,
   width: number,
   seatCount: number,
   backGlyph: SeatsPageModel["header"]["backGlyph"],
 ): SeatsPageModel["header"] {
-  const titleSize = width < 768 ? 22 : 28;
-  const title = t("seats.title");
-  const titleX = 16 + 140 + 16;
-  const stepRight = width - 16;
-  const stepWidth = (text: string): number => text.length * 8.4;
-  const titleWidth = estimateBangersWidth(title, titleSize);
-  const fits = (text: string): boolean => titleX + titleWidth + 12 + stepWidth(text) <= stepRight;
-  let step = tPlural("seats.stepFilled", seatCount);
-  if (!fits(step)) step = t("seats.stepCount", { count: seatCount });
-  if (!fits(step)) step = t("seats.step");
-  const room = stepRight - stepWidth(step) - titleX - 12;
-  const { drop, maxRight } = sheetThemeFor(scene, {
-    width,
-    textLeft: titleX,
-    textRight: titleX + Math.min(titleWidth, room),
-    textTop: 32 - titleSize / 2,
-    textHeight: titleSize,
-    barHeight: 64,
-  });
+  const step =
+    width >= 768
+      ? tPlural("seats.stepFilled", seatCount)
+      : width >= 480
+        ? t("seats.stepCount", { count: seatCount })
+        : t("seats.step");
   return {
     backLabel: t("seats.backToScenarios"),
-    title,
+    title: t("seats.title"),
     step,
     ...(backGlyph ? { backGlyph } : {}),
-    titleDrop: drop,
-    titleMaxRight: maxRight,
   };
 }
 
@@ -127,7 +110,7 @@ export function buildSeatsPage(input: PageInput): PageBuild {
   if (st.decksKey !== null && !group) st.decksKey = null;
   const activeDeckId = draft.seats[draft.activeSeatIndex];
   const page: SeatsPageModel = {
-    header: headerOf(input.scene, width, draft.seats.length, backGlyph),
+    header: headerOf(width, draft.seats.length, backGlyph),
     seats: seatModelsOf(
       draft,
       options,

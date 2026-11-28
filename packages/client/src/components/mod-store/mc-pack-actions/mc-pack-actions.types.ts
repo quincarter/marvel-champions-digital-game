@@ -1,6 +1,6 @@
 import type { PackAction } from "../../../view/mod-store-model.js";
 
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 export interface McPackActionsProps {
   /** A phone's buttons share the row equally. */

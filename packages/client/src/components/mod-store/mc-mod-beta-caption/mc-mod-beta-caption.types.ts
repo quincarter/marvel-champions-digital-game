@@ -1,4 +1,4 @@
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 export interface McModBetaCaptionProps {
   /** A phone's caption is smaller. */

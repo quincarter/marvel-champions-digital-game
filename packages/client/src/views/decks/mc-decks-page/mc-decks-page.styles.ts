@@ -28,6 +28,11 @@ export const McDecksPageStyles = [
     .header {
       flex: none;
     }
+    .stats-button {
+      width: 150px;
+      height: 44px;
+      --mc-button-size: 18px;
+    }
     .panes {
       flex: 1;
       min-height: 0;

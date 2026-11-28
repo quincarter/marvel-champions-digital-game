@@ -16,7 +16,7 @@ export const McDeckCheckPageStyles = css`
     );
     background-size: 6px 6px;
   }
-  mc-deck-check-header {
+  mc-top-bar {
     flex: none;
   }
 `;

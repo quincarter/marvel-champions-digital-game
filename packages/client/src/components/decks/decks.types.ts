@@ -74,11 +74,6 @@ export interface DecksHeaderModel {
   readonly poolMeta: string | null;
   readonly statsLabel: string;
   readonly statsGlyph?: ControlGlyph | undefined;
-  /** The title drops under, or ends before, the dark mode tab (`sheetThemeFor`). */
-  readonly titleDrop: number;
-  readonly titleMaxRight: number | null;
-  /** A narrow bar: Back and Your stats on one row (the dark mode toggle between them) and the title on its own row under it. */
-  readonly stacked: boolean;
 }
 
 // ---- The deck list -------------------------------------------------------------------------------------------------------

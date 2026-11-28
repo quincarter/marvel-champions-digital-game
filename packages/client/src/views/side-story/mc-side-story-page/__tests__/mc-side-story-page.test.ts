@@ -21,7 +21,7 @@ describe("mc-side-story-page", () => {
     await el.updateComplete;
     const root = el.shadowRoot!;
     expect(root.querySelector("mc-reader")!.hasAttribute("no-side")).toBe(true);
-    expect(root.querySelector("mc-side-story-header")).not.toBeNull();
+    expect(root.querySelector("mc-top-bar")).not.toBeNull();
     expect(root.querySelector("mc-side-story-actions")).not.toBeNull();
     await root.querySelector("mc-side-story-stage")!.updateComplete;
     expect(el.readingArea).not.toBeNull();

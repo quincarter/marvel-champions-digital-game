@@ -11,7 +11,6 @@ export const McReaderStyles = css`
   }
   .bar {
     flex: none;
-    height: var(--reader-bar, 56px);
   }
   .toolbar {
     flex: none;

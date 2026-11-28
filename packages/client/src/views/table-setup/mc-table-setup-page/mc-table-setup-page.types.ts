@@ -14,10 +14,6 @@ export interface TableSetupPageInput {
   readonly summary: SummaryInput;
   readonly encounter: EncounterInput;
   readonly deal: DealBarInput;
-  /** Where the dark mode tab leaves the top bar's title room (`ui/campaign-chrome.ts` `sheetThemeFor`). */
-  readonly titleDrop: number;
-  /** The width the title may take, or 0 for no limit. */
-  readonly titleMax: number;
   /** The Cancel glyph on Back (wide only), while a keyboard or pad is in use. */
   readonly backGlyph?: ControlGlyph | undefined;
 }

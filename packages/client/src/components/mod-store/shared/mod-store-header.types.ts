@@ -1,10 +1,7 @@
 import type { ControlGlyph } from "@mc/ui";
 
-/** Which layout the screen is in: the wide one, or a phone's (a shorter bar, a "!" for About mods, no BETA tag). */
-export type ModStoreSize = "wide" | "phone";
-
-export interface McModStoreHeaderProps {
-  size: ModStoreSize;
+/** What the Mod Store's top bar says: the scene's view model fills it in. */
+export interface ModStoreHeaderModel {
   /** The Back button's words ("◂ STORE", "◂ TITLE", "◂" on a phone). */
   backLabel: string;
   /** "Mod Store". */

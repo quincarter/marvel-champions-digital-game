@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "@mc/ui";
-import "../../../components/side-story/mc-side-story-header/mc-side-story-header.js";
+import { sideStoryEvent } from "../../../components/side-story/shared/side-story-events.types.js";
 import "../../../components/side-story/mc-side-story-stage/mc-side-story-stage.js";
 import "../../../components/side-story/mc-side-story-actions/mc-side-story-actions.js";
 import type { McSideStoryStage } from "../../../components/side-story/mc-side-story-stage/McSideStoryStage.js";
@@ -41,15 +41,26 @@ export class McSideStoryPage extends LitElement {
     const m = this.model;
     if (!m) return nothing;
     return html`<mc-reader no-side pane="main">
-      <mc-side-story-header
+      <mc-top-bar
         slot="bar"
         ?compact=${m.compact}
-        .label=${m.header.label}
-        .title=${m.header.title}
-        .credit=${m.header.credit}
-        .closeLabel=${m.header.closeLabel}
-        .closeGlyph=${m.header.closeGlyph}
-      ></mc-side-story-header>
+        .eyebrow=${m.header.label}
+        .heading=${m.header.title}
+        .subtitle=${m.header.credit}
+      >
+        <mc-hint-button
+          slot="end"
+          class="close"
+          data-stop="close"
+          kind="onInk"
+          .label=${m.header.closeLabel}
+          .glyph=${m.header.closeGlyph}
+          @mc-press=${(event: Event) => {
+            event.stopPropagation();
+            this.dispatchEvent(sideStoryEvent({ type: "close" }));
+          }}
+        ></mc-hint-button>
+      </mc-top-bar>
       <mc-side-story-stage slot="main" .where=${m.where}></mc-side-story-stage>
       <mc-side-story-actions
         slot="foot"

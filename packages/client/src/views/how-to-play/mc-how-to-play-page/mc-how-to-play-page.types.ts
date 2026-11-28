@@ -13,9 +13,6 @@ export interface HowToPlayPageModel {
     readonly closeLabel: string;
     /** The Cancel glyph after the title while a keyboard or pad is in use. */
     readonly glyph: ControlGlyph | undefined;
-    /** How far the title drops under the dark mode tab, and how wide it may be (0: no limit). */
-    readonly drop: number;
-    readonly max: number;
   };
   readonly lessons: { readonly heading: string; readonly rows: readonly LessonRowModel[] };
   readonly aspects: { readonly heading: string; readonly rows: readonly AspectRowModel[] };

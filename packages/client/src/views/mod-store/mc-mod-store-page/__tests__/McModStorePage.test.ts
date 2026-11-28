@@ -65,7 +65,7 @@ describe("mc-mod-store-page", () => {
   it("composes the header, caption, tabs and the grid in the browse view", async () => {
     const page = await mountPage(model());
     const root = page.shadowRoot!;
-    for (const tag of ["mc-mod-store-header", "mc-mod-beta-caption", "mc-mod-tabs", "mc-pack-grid"]) {
+    for (const tag of ["mc-top-bar", "mc-mod-beta-caption", "mc-mod-tabs", "mc-pack-grid"]) {
       expect(root.querySelector(tag), tag).not.toBeNull();
     }
     expect(root.querySelector("mc-pack-detail")).toBeNull();

@@ -1,6 +1,5 @@
 import type { BarChartBar, ControlGlyph, StatTile, LineListGroup } from "@mc/ui";
 import type { DeckCheckTab } from "../../../components/deck-check/shared/deck-check-events.types.js";
-import type { DeckCheckSize } from "../../../components/deck-check/mc-deck-check-header/mc-deck-check-header.types.js";
 import type { DeckStatusBadgeTone } from "../../../components/deck-check/mc-deck-status-badge/mc-deck-status-badge.types.js";
 import type { AspectSegmentModel } from "../../../components/deck-check/mc-aspect-segment/mc-aspect-segment.types.js";
 import type { TypeFilterChip } from "../../../components/deck-check/mc-deck-type-filter/mc-deck-type-filter.types.js";
@@ -10,7 +9,9 @@ import type {
   DeckFaceGroupModel,
 } from "../../../components/deck-check/mc-deck-card-sections/mc-deck-card-sections.types.js";
 
-export type { DeckCheckSize, DeckCheckTab };
+export type { DeckCheckTab };
+/** Which layout the screen is in: the three-column desktop, the one-column tablet, or the phone. */
+export type DeckCheckSize = "wide" | "narrow" | "phone";
 
 /** One aspect's tip, as its plate shows it. */
 export interface DeckCheckTipModel {

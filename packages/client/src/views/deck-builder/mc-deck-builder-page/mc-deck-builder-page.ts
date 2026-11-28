@@ -6,13 +6,13 @@
  * elements are defined by the ui entry) and holds only what crosses them: which layout the scene says is current, and where the
  * open aspect tip's plate points.
  *
- * In: `layout`, `titleDrop`, `titleMax` and the `model`. Out: `mc-deck-builder` (`DeckBuilderEventDetail`) from the parts,
+ * In: `layout` and the `model`. Out: `mc-deck-builder` (`DeckBuilderEventDetail`) from the parts,
  * `mc-window` from the pool, `mc-image-error`, and the card hover and Inspect events from the card pictures.
  */
 import { html, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "@mc/ui";
+import { hintGlyphOf } from "../../../dom/hint-glyph.js";
 import { BuilderElement } from "../../../components/deck-builder/shared/BuilderElement.js";
-import "../../../components/deck-builder/mc-builder-header/mc-builder-header.js";
 import "../../../components/deck-builder/mc-identity-picker/mc-identity-picker.js";
 import "../../../components/deck-builder/mc-start-from/mc-start-from.js";
 import "../../../components/deck-builder/mc-identity-row/mc-identity-row.js";
@@ -33,7 +33,6 @@ import "../../../components/deck-builder/mc-games-panel/mc-games-panel.js";
 import "../../../components/deck-builder/mc-builder-actions/mc-builder-actions.js";
 import "../../../components/deck-builder/mc-builder-save-bar/mc-builder-save-bar.js";
 import type { McAspectPicker } from "../../../components/deck-builder/mc-aspect-picker/McAspectPicker.js";
-import type { McBuilderHeader } from "../../../components/deck-builder/mc-builder-header/McBuilderHeader.js";
 import type { McPoolList } from "../../../components/deck-builder/mc-pool-list/McPoolList.js";
 import type { McDeckList } from "../../../components/deck-builder/mc-deck-list/McDeckList.js";
 import type { McDeckName } from "../../../components/deck-builder/mc-deck-name/McDeckName.js";
@@ -49,16 +48,11 @@ export class McDeckBuilderPage extends BuilderElement {
 
   static override properties: PropertyDeclarations = {
     layout: { type: String, reflect: true },
-    titleDrop: { type: Number },
-    titleMax: { type: Number },
     model: { attribute: false },
     anchorEl: { state: true },
   };
 
   declare layout: BuilderLayout;
-  /** How far the header drops, and how long its title may run, to clear the dark mode toggle (the scene measures it). */
-  declare titleDrop: number;
-  declare titleMax: number;
   declare model: DeckBuilderPageModel | null;
   /** The open tip's "i" segment: what its plate points at. */
   declare anchorEl: HTMLElement | null;
@@ -66,19 +60,12 @@ export class McDeckBuilderPage extends BuilderElement {
   constructor() {
     super();
     this.layout = "wide";
-    this.titleDrop = 0;
-    this.titleMax = 0;
     this.model = null;
     this.anchorEl = null;
   }
 
   #find<T extends Element>(selector: string): T | null {
     return this.renderRoot.querySelector<T>(selector);
-  }
-
-  /** The header, and its title at natural size: what the scene measures for the dark mode toggle's clearance. */
-  get headerElement(): McBuilderHeader | null {
-    return this.#find<McBuilderHeader>("mc-builder-header");
   }
 
   /** The pool list: where the stops of cards out of the window come from. */
@@ -283,12 +270,18 @@ export class McDeckBuilderPage extends BuilderElement {
     if (!model) return nothing;
     const { build } = model;
     return html`<div class="page">
-        <mc-builder-header
-          .model=${model.header}
-          .layout=${this.layout}
-          .drop=${this.titleDrop}
-          .maxWidth=${this.titleMax}
-        ></mc-builder-header>
+        <mc-top-bar class="header" tone="paper" ?compact=${this.layout === "phone"} .heading=${model.header.title}>
+          <mc-hint-button
+            slot="end"
+            class="back"
+            data-stop="back"
+            kind="secondary"
+            display
+            .label=${model.header.backLabel}
+            .glyph=${hintGlyphOf(model.header.backGlyph)}
+            @mc-press=${this.send({ type: "back" })}
+          ></mc-hint-button>
+        </mc-top-bar>
         ${model.stage === "pick" && model.pick ? html`<mc-identity-picker .model=${model.pick}></mc-identity-picker>` : nothing}
         ${model.stage === "start" && model.start ? html`<mc-start-from .model=${model.start}></mc-start-from>` : nothing}
         ${

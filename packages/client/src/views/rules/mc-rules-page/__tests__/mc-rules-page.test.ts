@@ -11,8 +11,6 @@ const model = (over: Partial<RulesPageModel> = {}): RulesPageModel => ({
     backLabel: "Back",
     heading: "Rules reference",
     backGlyph: null,
-    titleDrop: 0,
-    titleMax: 0,
     caption: "All",
     toggle: null,
   },
@@ -38,7 +36,7 @@ describe("mc-rules-page", () => {
     const el = await page(model());
     const root = el.shadowRoot!;
     expect(root.querySelector("mc-reader")!.hasAttribute("no-side")).toBe(true);
-    for (const tag of ["mc-rules-header", "mc-rules-tabs", "mc-search-field", "mc-rules-glossary"]) {
+    for (const tag of ["mc-top-bar", "mc-rules-tabs", "mc-search-field", "mc-rules-glossary"]) {
       expect(root.querySelector(tag), tag).not.toBeNull();
     }
     expect(root.querySelector("mc-rules-card-list")).toBeNull();

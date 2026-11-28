@@ -30,10 +30,6 @@ export const McTrophyRoomPageStyles = [
     }
     .bar {
       flex: none;
-      height: 60px;
-    }
-    :host([phone]) .bar {
-      height: 52px;
     }
     .stats {
       width: 150px;

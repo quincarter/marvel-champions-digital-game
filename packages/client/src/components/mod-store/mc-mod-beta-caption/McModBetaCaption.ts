@@ -1,7 +1,7 @@
 import { html, LitElement, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "@mc/ui";
 import { McModBetaCaptionStyles } from "./mc-mod-beta-caption.styles.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 import type { McModBetaCaptionProps } from "./mc-mod-beta-caption.types.js";
 
 /**

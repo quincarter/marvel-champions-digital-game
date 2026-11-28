@@ -8,7 +8,7 @@ import type { LearnEventDetail } from "../../../../components/learn/shared/learn
 afterEach(() => document.body.replaceChildren());
 
 const MODEL: HowToPlayPageModel = {
-  header: { heading: "How to play", closeLabel: "Back", glyph: undefined, drop: 0, max: 0 },
+  header: { heading: "How to play", closeLabel: "Back", glyph: undefined },
   lessons: {
     heading: "THE BASICS",
     rows: [
@@ -47,7 +47,7 @@ async function page(model: HowToPlayPageModel | null = MODEL, mode: "wide" | "na
 describe("mc-how-to-play-page", () => {
   it("composes the header, the lists and the continue bar", async () => {
     const root = (await page()).shadowRoot!;
-    for (const tag of ["mc-learn-header", "mc-lesson-list", "mc-aspect-list", "mc-continue-bar"])
+    for (const tag of ["mc-top-bar", "mc-lesson-list", "mc-aspect-list", "mc-continue-bar"])
       expect(root.querySelectorAll(tag), tag).toHaveLength(1);
     expect(root.querySelectorAll("mc-link-list")).toHaveLength(2);
     expect(root.querySelector('mc-link-list[heading="NEW IN EACH BOX"]')!.getAttribute("columns")).toBe("2");

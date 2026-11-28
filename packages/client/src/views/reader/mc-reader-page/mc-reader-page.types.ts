@@ -9,9 +9,6 @@ export interface ReaderBarModel {
   /** "3 / 12" while a section shows, else "". */
   readonly right: string;
   readonly backGlyph: HintGlyph | null;
-  /** How far the title drops, and where it must end, to clear the dark mode tab (`barClearance`). */
-  readonly titleDrop: number;
-  readonly titleMaxRight: number;
 }
 
 /** What the page shows while there is no section to read: the book is not in this build, is loading, or failed. */

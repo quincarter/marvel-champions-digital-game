@@ -1,6 +1,6 @@
 # mc-seats-page
 
-Take your seats as one page element. It composes the sections and nothing else: `mc-seats-header`, `mc-seats-table` (seats,
+Take your seats as one page element. It composes the sections and nothing else: the shared `mc-top-bar`, `mc-seats-table` (seats,
 Team-Up pairs, narrow summary), `mc-seats-notice`, `mc-seats-filters`, `mc-seats-roster`, `mc-seats-detail` (wide only),
 `mc-seats-footer` and, over everything while `model.decks` is set, `mc-hero-decks-sheet`. Each section's define file is
 imported once, here (the filters and roster defines are imported by their own views of the page's tree: see the file).

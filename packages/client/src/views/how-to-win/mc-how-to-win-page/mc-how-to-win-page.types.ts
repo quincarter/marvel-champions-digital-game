@@ -1,5 +1,5 @@
 import type { ControlGlyph } from "@mc/ui";
-import type { LearnHeaderTicks } from "../../../components/learn/mc-learn-header/mc-learn-header.types.js";
+import type { LearnHeaderTicks } from "../../../components/learn/shared/learn-ticks.types.js";
 import type { WinCardsInput } from "../../../components/learn/mc-win-cards/mc-win-cards.types.js";
 
 /** Wide (a tablet in landscape, a desktop): two columns of cards; narrow: one. */
@@ -13,9 +13,6 @@ export interface HowToWinPageModel {
     /** The Cancel glyph after the title while a keyboard or pad is in use. */
     readonly glyph: ControlGlyph | undefined;
     readonly ticks: LearnHeaderTicks;
-    /** How far the title drops under the dark mode tab, and how wide it may be (0: no limit). */
-    readonly drop: number;
-    readonly max: number;
   };
   readonly title: { readonly first: string; readonly second: string };
   readonly cards: WinCardsInput;

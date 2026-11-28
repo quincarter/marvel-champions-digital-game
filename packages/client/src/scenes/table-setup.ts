@@ -19,7 +19,6 @@ import { PackLeases, refreshPackArt } from "../art/pack-art.js";
 import { defaultFaceFor } from "../art/art-source.js";
 import { onArtChange, onLanguageChange } from "../language-change.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
-import { sheetThemeFor, estimateBangersWidth } from "../ui/campaign-chrome.js";
 import { CardEvents } from "../dom/card-events.js";
 import { ControlGlyphs } from "../dom/control-glyphs.js";
 import { DomRegion } from "../dom/dom-region.js";
@@ -62,7 +61,6 @@ export interface TableSetupData {
 
 /** From this width the page is the wide layout (the ink sidebar beside the body); below it, the phone's single page. */
 const WIDE_FROM = 900;
-const TOP_BAR_HEIGHT = 64;
 
 export class TableSetupScene extends Phaser.Scene {
   #draft!: SetupDraft;
@@ -254,25 +252,6 @@ export class TableSetupScene extends Phaser.Scene {
     }
   }
 
-  /** Where the dark mode tab leaves the top bar's title room (the one rule every panel bar follows). */
-  #title(mode: SetupMode): { readonly drop: number; readonly max: number } {
-    const { width } = this.scale.gameSize;
-    const phone = mode === "phone";
-    const size = phone ? 22 : 28;
-    const back = phone ? 44 : Math.max(64, estimateBangersWidth(t("tableSetup.back"), 22) + 26);
-    const left = (phone ? 12 : 22) + back + (phone ? 12 : 16);
-    const room = width - (phone ? 12 : 22) - (phone ? 40 : 120) - left - 8;
-    const { drop, maxRight } = sheetThemeFor(this, {
-      width,
-      textLeft: left,
-      textRight: left + room,
-      textTop: TOP_BAR_HEIGHT / 2 - size / 2,
-      textHeight: size,
-      barHeight: TOP_BAR_HEIGHT,
-    });
-    return { drop, max: maxRight === null ? 0 : Math.max(40, Math.min(room, maxRight - left)) };
-  }
-
   /** Sets the page's properties from the draft, then, once it has rendered, hands the route its stops and the hover its cards. */
   #compose(): void {
     const page = this.#page;
@@ -296,7 +275,6 @@ export class TableSetupScene extends Phaser.Scene {
         starting: this.#starting,
         status: this.#status,
         openGroups: this.#openGroups,
-        title: this.#title(mode),
       },
       this.#leases,
       this.#glyphs,

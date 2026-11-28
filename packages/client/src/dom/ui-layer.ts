@@ -79,6 +79,8 @@ export function uiLayer(game: Phaser.Game): HTMLElement {
   const host = (game as unknown as { domContainer?: HTMLElement | null }).domContainer ?? document.body;
   layer = document.createElement("div");
   layer.id = "mc-ui";
+  // The panels measure where they sit in it (`mc-top-bar` keeps its title clear of the dark mode tab).
+  layer.dataset.mcLayer = "";
   // Over the whole canvas and passing every press through, except on a panel (`DomRegion` turns its own back on).
   Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", overflow: "hidden" });
   // No browser context menu over a panel, as `main.ts` has none over the canvas: a right-click is a card's Inspect.

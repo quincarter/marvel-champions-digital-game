@@ -6,7 +6,6 @@ import { currentPool } from "../../content/pool.js";
 import type { ControlGlyphs } from "../../dom/control-glyphs.js";
 import { t } from "../../i18n/translate.js";
 import { hit } from "../../tokens.js";
-import { estimateBangersWidth, sheetThemeFor } from "../../ui/campaign-chrome.js";
 import { decksLayout } from "../../view/decks-layout.js";
 import type { DeckOption } from "../../view/deck-list-model.js";
 import type { CommunityOffer } from "../../view/community-decks-model.js";
@@ -17,7 +16,6 @@ import type { DecksState } from "./decks-state.js";
 import { statsModelOf } from "./decks-stats-model.js";
 
 const COMPACT_ROW = 28;
-const HEADER_HEIGHT = 60;
 
 export interface PageInput {
   readonly scene: Phaser.Scene;
@@ -39,38 +37,14 @@ export interface PageBuild {
   readonly offers: readonly CommunityOffer[];
 }
 
-function headerOf(input: PageInput, phone: boolean, glyphs: ControlGlyphs): DecksHeaderModel {
-  const { scene, width } = input;
-  const statsWidth = phone ? 112 : 150;
-  const poolMeta = phone ? null : t("decks.poolMeta", { count: currentPool().length });
-  const title = t("decks.title");
-  const titleSize = 28;
-  const titleLeft = (width >= 1280 ? 32 : phone ? 12 : 16) + 100 + (phone ? 8 : 12);
-  const titleRight = Math.min(
-    width - statsWidth - 32 - (poolMeta ? 200 : 0),
-    titleLeft + estimateBangersWidth(title, titleSize),
-  );
-  // Narrow: the title has its own row under the buttons, clear of the toggle that hangs between them.
-  const stacked = width < 768;
-  const { drop, maxRight } = sheetThemeFor(scene, {
-    width,
-    textLeft: titleLeft,
-    textRight: titleRight,
-    textTop: stacked ? HEADER_HEIGHT : 6,
-    textHeight: titleSize + 12,
-    barHeight: stacked ? HEADER_HEIGHT + 44 : HEADER_HEIGHT,
-  });
+function headerOf(phone: boolean, glyphs: ControlGlyphs): DecksHeaderModel {
   return {
     backLabel: t("decks.back"),
     backGlyph: glyphs.glyph("back", ["cancel"], "ink", hit.target),
-    title,
-    poolMeta,
+    title: t("decks.title"),
+    poolMeta: phone ? null : t("decks.poolMeta", { count: currentPool().length }),
     statsLabel: t("decks.yourStats"),
     statsGlyph: glyphs.glyph("player-stats", ["guide"], "ink", hit.target),
-    stacked,
-    titleDrop: stacked ? 0 : drop,
-    // The bar caps the title by its width, from where it starts.
-    titleMaxRight: stacked || maxRight === null ? null : Math.max(40, maxRight - titleLeft),
   };
 }
 
@@ -108,7 +82,7 @@ export function buildDecksPage(input: PageInput): PageBuild {
       { id: "stats", label: t("decks.tab.stats") },
     ],
     tabsGlyph: wide ? undefined : glyphs.glyph("tab-step", ["zonePrevious", "zoneNext"], "paper", 14),
-    header: headerOf(input, phone, glyphs),
+    header: headerOf(phone, glyphs),
     list: list.model,
     cards: cards.model,
     stats,

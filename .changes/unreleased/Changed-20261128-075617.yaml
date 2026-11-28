@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Every screen''s title now clears the dark mode toggle the same way: one shared top bar drops the whole title to its own row under the toggle on a phone or when it would not fit beside it, instead of shrinking or cutting it (the Rules title on a phone and the Spanish How to play title no longer sit under it or lose letters)'
+time: 2026-11-28T07:56:17.7335159-05:00

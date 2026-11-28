@@ -14,6 +14,19 @@ export const McExtrasViewerPageStyles = css`
   :host([compact]) {
     --pad: 12px;
   }
+  .bar {
+    flex: none;
+    border-bottom: 2px solid var(--mc-fill-red);
+    --mc-top-bar-title-size: 32px;
+  }
+  :host([compact]) .bar {
+    --mc-top-bar-title-size: 24px;
+  }
+  .close {
+    width: 40px;
+    height: 40px;
+    --mc-button-size: 16px;
+  }
   .body {
     flex: 1 1 0;
     min-height: 0;

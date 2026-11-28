@@ -39,7 +39,6 @@ import "@mc/ui";
 import "../views/how-to-play/mc-how-to-play-page/mc-how-to-play-page.js";
 import { surface } from "../tokens.js";
 import { cssOf } from "../ui/theme.js";
-import { estimateBangersWidth, sheetThemeFor } from "../ui/campaign-chrome.js";
 import {
   continueLearningLesson,
   howToPlayFocusOrder,
@@ -72,9 +71,8 @@ import { openBoxPages, type NewInBoxSceneData } from "./new-in-box.js";
 
 type Page = MountedElement<HTMLElementTagNameMap["mc-how-to-play-page"]>;
 
+/** The ink band behind the bar, for the fade (the bar itself is as tall as its rows). */
 const BAR_HEIGHT = 64;
-const TITLE_SIZE = 22;
-const CLOSE_SIZE = 44;
 /** The height the close's Cancel glyph is drawn for. */
 const CLOSE_HINT_HEIGHT = 30;
 
@@ -187,20 +185,8 @@ export class HowToPlayScene extends Phaser.Scene {
     }
   }
 
-  #model(modules: HowToPlayModules, width: number, wide: boolean): HowToPlayPageModel {
+  #model(modules: HowToPlayModules): HowToPlayPageModel {
     const title = t("title.howToPlay");
-    // Set under the dark mode tab, or stopped before it, when a long title would run under it.
-    const pad = wide ? 28 : 16;
-    const left = pad + CLOSE_SIZE + 12;
-    const room = width - pad - left;
-    const { drop, maxRight } = sheetThemeFor(this, {
-      width,
-      textLeft: left,
-      textRight: left + Math.min(room, estimateBangersWidth(title, TITLE_SIZE)),
-      textTop: BAR_HEIGHT / 2 - 14,
-      textHeight: 28,
-      barHeight: BAR_HEIGHT,
-    });
     const done = t("howToPlay.done");
     return {
       header: {
@@ -208,8 +194,6 @@ export class HowToPlayScene extends Phaser.Scene {
         closeLabel: t("scenario.back"),
         // The close is a drawn ×, not a button: its Cancel glyph follows the title.
         glyph: this.#glyphs.glyph("close", ["cancel"], "ink", CLOSE_HINT_HEIGHT),
-        drop,
-        max: maxRight === null ? 0 : Math.max(40, Math.min(room, maxRight - left)),
       },
       lessons: {
         heading: t("howToPlay.basics"),
@@ -277,7 +261,7 @@ export class HowToPlayScene extends Phaser.Scene {
     const { region, element } = this.#page;
     region.setRect({ x: 0, y: 0, width, height });
     element.mode = wide ? "wide" : "narrow";
-    element.model = this.#model(modules, width, wide);
+    element.model = this.#model(modules);
     this.#glyphs.settled();
     this.#queueStops();
     this.#publishDebug(modules);

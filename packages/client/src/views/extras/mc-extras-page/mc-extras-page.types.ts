@@ -11,9 +11,6 @@ export interface ExtrasBarModel {
   /** "12 of 64 open". */
   readonly right: string;
   readonly backGlyph: HintGlyph | null;
-  /** How far the title drops, and where it must end, to clear the dark mode tab (`barClearance`). */
-  readonly titleDrop: number;
-  readonly titleMaxRight: number;
 }
 
 /** Everything Extras shows; the scene builds it from what is open and sets it on the page. */

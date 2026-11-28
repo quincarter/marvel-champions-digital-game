@@ -1,6 +1,6 @@
 /**
  * The Extras reader's page model (`views/reader/mc-reader-page`), as plain data from the book, the search and which pane a
- * phone shows. No Phaser here: the scene hands in what it knows (the sizes, the glyph, the bar's clearance).
+ * phone shows. No Phaser here: the scene hands in what it knows (the sizes, the glyph).
  */
 import type { HintGlyph, McArticleBlock } from "@mc/ui";
 import { CAMPAIGN_ART, campaignRulebookPageFor } from "../../art/campaign-art.js";
@@ -22,7 +22,6 @@ export interface ReaderModelInput {
   readonly height: number;
   readonly padKeyboard: boolean;
   readonly backGlyph: HintGlyph | null;
-  readonly clearance: { readonly drop: number; readonly maxRight: number };
 }
 
 /** A book block as the article draws it: an illustration becomes the page picture (or the conversion's note). */
@@ -65,8 +64,6 @@ export function readerPageModelOf(input: ReaderModelInput): ReaderPageModel {
       title: book?.title ?? t("reader.rulebook"),
       right: ready && showText && sections.length > 0 ? `${current + 1} / ${sections.length}` : "",
       backGlyph: input.backGlyph,
-      titleDrop: input.clearance.drop,
-      titleMaxRight: input.clearance.maxRight,
     },
     status,
     message: status === "ready" ? "" : MESSAGES[status](),

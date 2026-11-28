@@ -138,3 +138,17 @@ The first screen built this way, `views/table-setup/mc-table-setup-page`, settle
   children's) before it reads `focusStopsOf` rects or hands the route its stops.
 - **Moving a rect-driven element is one imperative move**, not layout: the first player token is a single element the seating
   section appends into the first player's `token` slot, measuring its box before and after for the FLIP flight.
+
+## The top bar and the dark mode tab
+
+Every screen's top bar is the one `<mc-top-bar>` (`@mc/ui`): a screen composes it, with its `end` slot for what sits at the
+right (a button, a counter, a progress strip), and never writes a header of its own. Its `variant="close"` is the learning
+screens' drawn ×, and `tone="paper"` is a page heading on the paper (the Deck builder's).
+
+The dark mode toggle hangs from the top centre of a screen, and a title must never sit under it. The bar owns that rule
+(`shared/title-clearance.ts`, `titleClearance`): on a wide bar the title stays beside Back when the whole of it ends before
+the tab, else it drops to its own row under it; on a narrow bar (a phone) it always drops. A title is never shrunk or
+truncated, so a bar is as tall as its rows: size it by `min-height` (`--mc-top-bar-height`), never by a fixed height, and
+give it an `auto` row. The tab's box comes from one place, `shared/theme-tab.ts`: the client's theme button publishes its press
+area with `setThemeTab` whenever it moves. A screen does not measure its title, ask the theme button for a slot or pass a drop
+or a limit to the bar.

@@ -20,7 +20,6 @@ import {
   type PastGameFilter,
   type PastGameRow,
 } from "../../view/past-games-model.js";
-import { barClearanceOf } from "../screen-bar.js";
 import { picturedRecords, picturesOf } from "./past-games-pictures.js";
 import { seatModelOf, summaryOf } from "./past-games-words.js";
 
@@ -133,14 +132,6 @@ export function buildPastGamesPage(input: PastGamesPageInput): PastGamesPageBuil
   const back = phone ? "◂" : `◂ ${t(input.fromStats ? "pastGames.backStats" : "pastGames.backTitle")}`;
   const title = t("pastGames.title");
   const fileLabel = t(phone ? "pastGames.openFileShort" : "pastGames.openFile");
-  const clearance = barClearanceOf(scene, {
-    width,
-    phone,
-    back,
-    title,
-    endWidth: (phone ? 128 : 220) + 12,
-    backGlyph: input.glyphs.glyph("back", ["cancel"], "ink", 44) !== undefined,
-  });
   const model: PastGamesPageModel = {
     side,
     phone,
@@ -148,8 +139,6 @@ export function buildPastGamesPage(input: PastGamesPageInput): PastGamesPageBuil
       backLabel: back,
       backGlyph: input.glyphs.glyph("back", ["cancel"], "ink", 44),
       title,
-      titleDrop: clearance.drop,
-      titleMaxRight: clearance.maxRight,
     },
     file: { label: fileLabel, disabled: busy !== null },
     filters: {

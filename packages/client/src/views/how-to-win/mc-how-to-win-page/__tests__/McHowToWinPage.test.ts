@@ -26,8 +26,6 @@ const MODEL: HowToWinPageModel = {
     closeLabel: "Back",
     glyph: undefined,
     ticks: { count: 5, filled: 1, label: "Lesson 1 of 5" },
-    drop: 0,
-    max: 0,
   },
   title: { first: "ONE WAY TO WIN.", second: "TWO WAYS TO LOSE." },
   cards: { win: card("win"), scheme: card("scheme"), hero: card("hero") },
@@ -47,10 +45,10 @@ async function page() {
 describe("mc-how-to-win-page", () => {
   it("composes the header, the headline, the cards, the strip and the actions", async () => {
     const root = (await page()).shadowRoot!;
-    for (const tag of ["mc-learn-header", "mc-win-title", "mc-win-cards", "mc-round-strip", "mc-win-actions"])
+    for (const tag of ["mc-top-bar", "mc-win-title", "mc-win-cards", "mc-round-strip", "mc-win-actions"])
       expect(root.querySelectorAll(tag), tag).toHaveLength(1);
     expect(root.querySelector("mc-win-cards")!.getAttribute("mode")).toBe("wide");
-    expect(root.querySelector("mc-learn-header")!.getAttribute("heading")).toBe("LESSON 1 OF 5");
+    expect(root.querySelector("mc-top-bar")!.heading).toBe("LESSON 1 OF 5");
   });
 
   it("draws nothing without a model", async () => {

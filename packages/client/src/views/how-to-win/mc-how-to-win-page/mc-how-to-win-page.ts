@@ -8,7 +8,7 @@
  * Inspect events from the scans. `closeTip()` closes the open glossary tip.
  */
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
-import "../../../components/learn/mc-learn-header/mc-learn-header.js";
+import { learnEvent } from "../../../components/learn/shared/learn-events.types.js";
 import "../../../components/learn/mc-win-title/mc-win-title.js";
 import "../../../components/learn/mc-win-cards/mc-win-cards.js";
 import "../../../components/learn/mc-round-strip/mc-round-strip.js";
@@ -48,17 +48,24 @@ export class McHowToWinPage extends LitElement {
     const model = this.model;
     if (!model) return nothing;
     const { header } = model;
-    return html`<mc-learn-header
-        heading=${header.heading}
-        close-label=${header.closeLabel}
-        bar-height="56"
-        pad=${this.mode === "wide" ? 24 : 16}
-        title-size="18"
-        drop=${header.drop}
-        max=${header.max}
-        .glyph=${header.glyph}
-        .ticks=${header.ticks}
-      ></mc-learn-header>
+    return html`<mc-top-bar
+        class="bar"
+        variant="close"
+        .heading=${header.heading}
+        .backLabel=${header.closeLabel}
+        .backGlyph=${header.glyph ?? null}
+        @mc-press=${(event: Event) => {
+          event.stopPropagation();
+          this.dispatchEvent(learnEvent({ type: "close" }));
+        }}
+      >
+        <mc-step-ticks
+          slot="end"
+          count=${header.ticks.count}
+          filled=${header.ticks.filled}
+          label=${header.ticks.label}
+        ></mc-step-ticks>
+      </mc-top-bar>
       <div class="main">
         <div class="column">
           <mc-win-title first=${model.title.first} second=${model.title.second}></mc-win-title>
