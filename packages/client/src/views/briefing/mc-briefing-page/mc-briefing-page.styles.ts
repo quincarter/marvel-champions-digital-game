@@ -15,6 +15,7 @@ export const McBriefingPageStyles = css`
     height: 100%;
     overflow: hidden;
     background: var(--mc-fill-paper);
+    container-type: inline-size;
   }
   .page-art {
     position: absolute;
@@ -141,8 +142,10 @@ export const McBriefingPageStyles = css`
     min-width: 0;
     padding: 28px;
   }
-  :host([wide-desktop]) .right {
-    padding: 40px;
+  @container (min-width: 1000px) {
+    .right {
+      padding: 40px;
+    }
   }
   .right .panel {
     flex: 0 1 auto;

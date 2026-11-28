@@ -10,11 +10,10 @@ export const McBriefingActionBarStyles = css`
     padding: 0 16px 0 var(--gutter, 24px);
     background: var(--mc-fill-ink);
     color: var(--mc-text-paper);
-    container-type: inline-size;
   }
   .beside {
     flex: 1 1 0;
-    min-width: 0;
+    min-width: 220px;
     display: flex;
     align-items: center;
   }
@@ -29,6 +28,7 @@ export const McBriefingActionBarStyles = css`
   }
   .watch {
     max-width: 380px;
+    min-width: 0;
   }
   .edit {
     flex: none;
@@ -56,10 +56,5 @@ export const McBriefingActionBarStyles = css`
     min-width: 0;
     height: 48px;
     --mc-button-size: 15px;
-  }
-  @container (max-width: 780px) {
-    :host(:not([phone])) .watch {
-      display: none;
-    }
   }
 `;

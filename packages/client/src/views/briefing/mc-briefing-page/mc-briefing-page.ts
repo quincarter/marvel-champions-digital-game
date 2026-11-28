@@ -42,19 +42,16 @@ export class McBriefingPage extends LitElement {
   static override properties: PropertyDeclarations = {
     model: { attribute: false },
     phone: { type: Boolean, reflect: true },
-    wideDesktop: { type: Boolean, reflect: true, attribute: "wide-desktop" },
   };
 
   declare model: BriefingPageModel | null;
   declare phone: boolean;
-  declare wideDesktop: boolean;
   #callKey: string | null = null;
 
   constructor() {
     super();
     this.model = null;
     this.phone = false;
-    this.wideDesktop = false;
     new BriefingRelay(this);
   }
 
@@ -63,7 +60,6 @@ export class McBriefingPage extends LitElement {
   }
 
   protected override updated(changed: PropertyValues): void {
-    if (this.wideDesktop !== this.clientWidth >= 1000 && !this.phone) this.wideDesktop = this.clientWidth >= 1000;
     // A new question reads from the top.
     const key = this.model?.call?.key ?? null;
     if (changed.has("model") && key !== this.#callKey) {

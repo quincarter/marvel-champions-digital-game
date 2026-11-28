@@ -19,7 +19,6 @@ import { surface } from "../../tokens.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../../ui/card-hover-preview.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { onArtChange, onLanguageChange } from "../../language-change.js";
-import { refreshPackArt } from "../../art/pack-art.js";
 import { CardEvents } from "../../dom/card-events.js";
 import { domFocusRing } from "../../dom/dom-ring.js";
 import { mountElement, type MountedElement } from "../../dom/element-region.js";
@@ -109,14 +108,22 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const mounted = mountElement(this, "mc-briefing-page", { x: 0, y: 0, width, height });
     this.#page = mounted;
     const { element, region } = mounted;
+    // A pack picture blob URL went stale before its lazy image loaded: the leases read it again, once (mc-image-error).
     this.#leases.watch(element);
     element.addEventListener(BRIEFING_EVENT, (event) => this.#heard(event.detail));
-    // A pack picture blob URL went stale before its lazy image loaded: read it again, once.
-    element.addEventListener("mc-image-error", (event) => {
-      const { key, src } = (event as CustomEvent<{ key?: string; src: string | null }>).detail;
-      if (key) refreshPackArt(key, src ?? undefined);
+    // A native button took focus (a screen reader, Tab): the route follows. A pointer press is the screen own tap.
+    let pressing = false;
+    element.addEventListener(
+      "pointerdown",
+      () => {
+        pressing = true;
+        setTimeout(() => (pressing = false), 0);
+      },
+      true,
+    );
+    this.#unbind = bindStopFocus(element, (key) => {
+      if (!pressing) this.#routeOf().focusKey(key);
     });
-    this.#unbind = bindStopFocus(element, (key) => this.#routeOf().focusKey(key));
     // The hover popover is drawn in the canvas, so its box is left out of the panel; a picture raises the events.
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#cards?.hovered() ?? new Map(),
@@ -127,8 +134,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
       const popover = this.#hover?.shownRect;
       return popover ? [popover] : [];
     });
+    // Hover only: a picture opens Inspect by its own press and hold (`mc-briefing` `inspect`, which can carry a "Take this card"
+    // choice), so the hold `watchCard` also raises is not opened a second time.
     this.#cards = new CardEvents(region);
-    this.#cards.onInspect = (cardId) => this.#inspectCard(cardId);
   }
 
   /** What the page said (a tap, or the focus route click on a stop). */

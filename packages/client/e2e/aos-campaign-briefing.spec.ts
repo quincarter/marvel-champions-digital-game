@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { revealText } from "./briefing-helpers.js";
 import { findText, settle } from "./helpers.js";
 import {
   assertNoRawText,
@@ -60,14 +61,20 @@ test("after scenario 1 the Briefing's case file shows the evidence, the board an
   const { runId } = await openBriefing(page);
 
   await expect.poll(async () => (await findText(page, "THE CASE FILE", "CampaignBriefing")).length).toBeGreaterThan(0);
+  await revealText(page, "EVIDENCE · 1 GAINED");
   expect((await findText(page, "EVIDENCE · 1 GAINED", "CampaignBriefing")).length).toBeGreaterThan(0);
+  await revealText(page, "EXECUTIVE BOARD · AFTER SCENARIO #1");
   expect((await findText(page, "EXECUTIVE BOARD · AFTER SCENARIO #1", "CampaignBriefing")).length).toBeGreaterThan(0);
+  await revealText(page, "A Board Member flips at 4 secrets");
   expect(
     (await findText(page, "A Board Member flips at 4 secrets and stays flipped.", "CampaignBriefing")).length,
   ).toBe(1);
   // One evidence card crosses out the 9 combinations that include it; the envelope is only a count.
+  await revealText(page, "18 of 27 combinations still open");
   expect((await findText(page, "18 of 27 combinations still open", "CampaignBriefing")).length).toBeGreaterThan(0);
+  await revealText(page, "holds 3 sealed cards");
   expect((await findText(page, "holds 3 sealed cards", "CampaignBriefing")).length).toBeGreaterThan(0);
+  await revealText(page, "Alert Level");
   expect((await findText(page, "Alert Level", "CampaignBriefing")).length).toBeGreaterThan(0);
   await assertNoRawText(page, "the case file");
 
