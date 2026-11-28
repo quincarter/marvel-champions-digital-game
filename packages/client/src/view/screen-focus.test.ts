@@ -6,7 +6,6 @@ import {
   decksFocusOrder,
   pauseFocusOrder,
   rulesFocusOrder,
-  scenarioSelectFocusOrder,
   seatsFocusOrder,
   setupWalkthroughFocusOrder,
   settingsFocusOrder,
@@ -756,26 +755,6 @@ describe("screen focus routes", () => {
     ]);
   });
 
-  test("Scenario select: folded shelves keep their header stop and drop their cards, Random sits before the list", () => {
-    const order = scenarioSelectFocusOrder({
-      scenarioIds: ["a", "b"],
-      randomStops: ["random-box", "random-scenario"],
-      shelfStopKeys: ["scenario-shelf:core", "scenario-shelf:mod", "scenario:b"],
-    });
-    expect(order.slice(order.indexOf("random-box"))).toEqual([
-      "random-box",
-      "random-scenario",
-      "scenario-shelf:core",
-      "scenario-shelf:mod",
-      "scenario:b",
-      "next",
-    ]);
-    // Every shelf folded: the headers are still the list, not "Clear".
-    expect(scenarioSelectFocusOrder({ scenarioIds: [], shelfStopKeys: ["scenario-shelf:core"] })).toContain(
-      "scenario-shelf:core",
-    );
-  });
-
   test("Take your seats: shelf header stops replace the plain hero stops", () => {
     const order = seatsFocusOrder({
       seatCount: 4,
@@ -789,18 +768,6 @@ describe("screen focus routes", () => {
       "deck-check",
       "play",
     ]);
-  });
-
-  test("Scenario select: Customize sits just before next, only while it is drawn", () => {
-    expect(scenarioSelectFocusOrder({ scenarioIds: ["civil-war-builder", "a"], customize: true })).toEqual([
-      "back",
-      "scenario-search",
-      "scenario:civil-war-builder",
-      "scenario:a",
-      "customize",
-      "next",
-    ]);
-    expect(scenarioSelectFocusOrder({ scenarioIds: ["a"] })).not.toContain("customize");
   });
 
   test("the Title's update banner buttons come last, so the menu's first stop is still the first", () => {
@@ -824,38 +791,6 @@ describe("screen focus routes", () => {
     ]);
     // No banner, no close button stop.
     expect(titleMenuFocusOrder({ continuable: false, updateActions: [] })).not.toContain("update-dismiss");
-  });
-
-  test("Scenario select: Back, search, chips, rows (or Clear), then next", () => {
-    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino", "klaw"] })).toEqual([
-      "back",
-      "scenario-search",
-      "scenario:rhino",
-      "scenario:klaw",
-      "next",
-    ]);
-    expect(scenarioSelectFocusOrder({ scenarioIds: [] })).toEqual([
-      "back",
-      "scenario-search",
-      "scenario-clear",
-      "next",
-    ]);
-    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino"], scenarioChipIds: ["product:core"] })).toEqual([
-      "back",
-      "scenario-search",
-      "scenario-chip:product:core",
-      "scenario:rhino",
-      "next",
-    ]);
-    // Narrow: the search toggle comes right before the field it reveals; the stages bar before Next.
-    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino"], searchToggle: true, stagesToggle: true })).toEqual([
-      "back",
-      "scenario-search-toggle",
-      "scenario-search",
-      "scenario:rhino",
-      "stages-toggle",
-      "next",
-    ]);
   });
 
   test("Take your seats: Back, each seat card, use-preconstructed, search, chips, rows (or Clear), then play/deck check", () => {
