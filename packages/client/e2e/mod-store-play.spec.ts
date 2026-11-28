@@ -6,15 +6,19 @@ import {
   clickText,
   findText,
   focusRect,
-  hasText,
   installPageHelpers,
-  isSceneUp,
   pressEndTurn,
   settle,
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
-import { communityHeroPackIds, communityPreconId, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
+import {
+  communityHeroPackIds,
+  communityPreconId,
+  serveCatalog,
+  stageCatalog,
+  answerModNotice,
+} from "./pack-catalog-helpers.js";
 import { clickStop, hasStop, seatDeckThroughTile, waitForScene } from "./wave6-helpers-a.js";
 import { dealToFirstTurn, quietGuide } from "./wave6-helpers-b.js";
 import { press } from "./x-men-helpers.js";
@@ -71,10 +75,7 @@ for (const packId of communityHeroPackIds()) {
     await waitForScene(page, "ModStore");
     // The first visit shows Deadpool and Spider-Man's heads-up over the store, and it holds the store's input until
     // it is answered: a press on Install would never reach the store.
-    await waitForScene(page, "ModNoticeOverlay");
-    expect(await hasText(page, "Got it", "ModNoticeOverlay")).toBe(true);
-    await clickText(page, "Got it", { sceneKey: "ModNoticeOverlay" });
-    await waitFor(async () => (!(await isSceneUp(page, "ModNoticeOverlay")) ? true : null), "the notice closes");
+    await answerModNotice(page);
     await settle(page);
     await clickText(page, "INSTALL (", { sceneKey: "ModStore", timeoutMs: 30_000 });
     await waitFor(

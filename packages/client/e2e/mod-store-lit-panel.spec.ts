@@ -4,16 +4,17 @@ import { communityPackIds, serveCatalog, stageCatalog, type StagedCatalog } from
 import { waitForScene } from "./wave6-helpers-a.js";
 
 /**
- * The Mod Store is a Lit panel over the canvas (`scenes/mod-store.ts`): the tab rails, the search box (a real input), the
- * sort and tag chips, the pack tiles and a pack's page are parts of one `mc-sheet`. The lists scroll natively, every
+ * The Mod Store is one page element over the canvas (`views/mod-store/mc-mod-store-page`, made of the elements in
+ * `components/mod-store/`): the tab rail, the search box (a real input), the
+ * sort and tag chips, the pack tiles and a pack's page. The lists scroll natively, every
  * press is a tap, and the keyboard walks the same stops as before with the DOM focus ring. Run against a catalog built
  * from the community packs and served through `page.route`, so nothing reaches the network.
  */
 
 const SCENE = "ModStore";
-const sheet = (page: Page) => page.locator(`#mc-ui [data-scene="${SCENE}"] mc-sheet`);
+const sheet = (page: Page) => page.locator(`#mc-ui [data-scene="${SCENE}"] mc-mod-store-page`);
 const key = (page: Page, name: string) => sheet(page).locator(`[data-key="${name}"]`).first();
-const tiles = (page: Page) => sheet(page).locator('mc-media-row[data-key^="tile:"]');
+const tiles = (page: Page) => sheet(page).locator('mc-pack-tile[data-key^="tile:"]');
 
 const focusOf = (page: Page) =>
   page.evaluate(
@@ -90,7 +91,7 @@ test("the search box is a real input: typing narrows the grid, Escape leaves it,
   expect(await tiles(page).count()).toBeLessThan(all);
   // The clear button empties it too.
   await input.fill("zzzz-no-such-pack");
-  await expect(sheet(page).locator("mc-media-row")).toHaveCount(0, { timeout: 10_000 });
+  await expect(sheet(page).locator("mc-pack-tile")).toHaveCount(0, { timeout: 10_000 });
   await sheet(page).locator('mc-search-field[data-key="search"] .clear').click();
   await expect(input).toHaveValue("");
   await expect.poll(async () => tiles(page).count(), { timeout: 10_000 }).toBe(all);

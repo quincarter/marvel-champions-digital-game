@@ -28,8 +28,8 @@ export const McChipStyles = [
       text-overflow: ellipsis;
     }
     :host([selected]) .box {
-      background: var(--mc-fill-ink);
-      color: var(--mc-text-paper);
+      background: var(--chip-on-fill, var(--mc-fill-ink));
+      color: var(--chip-on-color, var(--mc-text-paper));
     }
     :host([disabled]) .box {
       opacity: 0.5;

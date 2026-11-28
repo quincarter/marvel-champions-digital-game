@@ -23,6 +23,11 @@ export class CardEvents {
   /** Called with the card to inspect (a press-and-hold on a picture); the scene opens Inspect. */
   onInspect: (cardId: string, face: unknown) => void = () => undefined;
   /**
+   * Adds what the popover needs for a picture whose card no pool has (the Mod Store before an install: the card record, the
+   * picture to show); called as the hovered picture is read, so it sees the scene's current state.
+   */
+  enrich: (rect: HoverCardIdRect) => HoverCardIdRect = (rect) => rect;
+  /**
    * The card record of a picture whose card is in no installed pool (a finished game's custom hero, its pack since removed):
    * the hover popover draws from it. Absent: the card is looked up by id.
    */
@@ -63,7 +68,9 @@ export class CardEvents {
 
   /** The hovered picture, for `HoverPreviewDeps.cardIds` (empty while the mouse is on no card picture). */
   hovered(): ReadonlyMap<string, HoverCardIdRect> {
-    return this.#current ? new Map([[hoverSlotOf(this.#current.cardId, "panel"), this.#current.rect]]) : new Map();
+    return this.#current
+      ? new Map([[hoverSlotOf(this.#current.cardId, "panel"), this.enrich(this.#current.rect)]])
+      : new Map();
   }
 
   destroy(): void {

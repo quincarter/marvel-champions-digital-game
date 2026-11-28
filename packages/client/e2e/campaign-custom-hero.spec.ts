@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { clickText, findText, isSceneUp, settle, waitFor } from "./helpers.js";
-import { communityHeroPackIds, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
+import { clickText, findText, settle, waitFor } from "./helpers.js";
+import { communityHeroPackIds, serveCatalog, stageCatalog, answerModNotice } from "./pack-catalog-helpers.js";
 import {
   boardRound,
   clickStop,
@@ -44,9 +44,7 @@ async function installFromStore(page: Page, packId: string): Promise<void> {
   await page.goto(`/?screen=mod-store&pack=${packId}&unlock=all`);
   await waitForScene(page, "ModStore");
   // The first visit's heads-up holds the store's input until it is answered.
-  await waitForScene(page, "ModNoticeOverlay");
-  await clickText(page, "Got it", { sceneKey: "ModNoticeOverlay" });
-  await waitFor(async () => (!(await isSceneUp(page, "ModNoticeOverlay")) ? true : null), "the notice closes");
+  await answerModNotice(page);
   await settle(page);
   await clickText(page, "INSTALL (", { sceneKey: "ModStore", timeoutMs: 30_000 });
   await waitFor(

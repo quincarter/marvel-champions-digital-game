@@ -1,15 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  activeScenes,
-  clickText,
-  findText,
-  installPageHelpers,
-  isSceneUp,
-  settle,
-  trackPageErrors,
-  waitFor,
-} from "./helpers.js";
-import { communityHeroPackIds, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
+import { activeScenes, clickText, findText, installPageHelpers, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { communityHeroPackIds, serveCatalog, stageCatalog, answerModNotice } from "./pack-catalog-helpers.js";
 import { waitForScene } from "./wave6-helpers-a.js";
 import { quietGuide } from "./wave6-helpers-b.js";
 
@@ -50,9 +41,7 @@ test("the Title counts installed mod packs with an update", async ({ page, baseU
   // Install the pack from its store page.
   await page.goto(`/?screen=mod-store&pack=${packId}`);
   await waitForScene(page, "ModStore");
-  await waitForScene(page, "ModNoticeOverlay");
-  await clickText(page, "Got it", { sceneKey: "ModNoticeOverlay" });
-  await waitFor(async () => (!(await isSceneUp(page, "ModNoticeOverlay")) ? true : null), "the notice closes");
+  await answerModNotice(page);
   await settle(page);
   await clickText(page, "INSTALL (", { sceneKey: "ModStore", timeoutMs: 30_000 });
   await waitFor(
