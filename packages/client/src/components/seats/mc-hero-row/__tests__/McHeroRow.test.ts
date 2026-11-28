@@ -92,7 +92,8 @@ describe("mc-hero-row", () => {
     Object.defineProperty(scroller, "scrollWidth", { value: 1000 });
     scroller.getBoundingClientRect = () => ({ left: 0 }) as DOMRect;
     tiles(row).forEach((element, index) => {
-      element.getBoundingClientRect = () => ({ right: 200 * (index + 1) - scroller.scrollLeft }) as DOMRect;
+      element.getBoundingClientRect = () =>
+        ({ left: 200 * index - scroller.scrollLeft, right: 200 * (index + 1) - scroller.scrollLeft }) as DOMRect;
     });
     expect(row.canPage(-1)).toBe(false);
     expect(row.canPage(1)).toBe(true);
