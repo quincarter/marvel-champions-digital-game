@@ -417,10 +417,13 @@ export class SheetBuilder {
       readonly cover?: PictureFocus;
       /** A gray, faded ghost of the picture on its ground (a locked tile). */
       readonly dim?: boolean;
+      /** Cut to a circle (a square box). */
+      readonly round?: boolean;
     },
   ): void {
     this.nodes.push({
       kind: "image",
+      ...(options.round ? { round: true } : {}),
       ...(options.cover ? { cover: options.cover } : {}),
       ...(options.dim ? { dim: true } : {}),
       rect: this.#rect(rect),

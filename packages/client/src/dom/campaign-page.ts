@@ -8,7 +8,13 @@ import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { appSession } from "../session.js";
 import { signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { campaignCoverPicture, villainPicture } from "../ui/campaign-chrome.js";
-import { PAGE_ART_ALPHA } from "../view/campaign-fade-color.js";
+import {
+  PAGE_ART_ALPHA,
+  PANE_ART_ALPHA,
+  PANE_VEIL_ALPHA,
+  PANE_VEIL_COLOR,
+  campaignFadeFillOf,
+} from "../view/campaign-fade-color.js";
 import type { Rect } from "../view/layout.js";
 import type { SheetBuilder } from "./sheet-builder.js";
 
@@ -58,4 +64,65 @@ export function drawCaptionBox(b: SheetBuilder, x: number, y: number, maxWidth: 
     lineSpacing: 2,
   });
   return rect;
+}
+
+/** Moves the parts `b` took since `mark` to index `at`, under what was drawn after `at` (a panel measured after its text). */
+function slotUnder(b: SheetBuilder, mark: number, at: number | undefined): void {
+  if (at === undefined) return;
+  b.nodes.splice(at, 0, ...b.nodes.splice(mark));
+}
+
+/**
+ * The coloured side pane's ground in `rect` (`ui/campaign-pane.ts`'s `drawCampaignPaneGround`): the chosen fade colour,
+ * the box art faded over it unless `Settings.fadedCampaignArt` is off, and the dark veil with its frame. `at` slots it
+ * under the parts already drawn from that index of `b.nodes` (a stacked pane is measured after its content).
+ */
+export function drawPaneGround(
+  b: SheetBuilder,
+  leases: PictureLeases,
+  campaignId: string,
+  rect: Rect,
+  at?: number,
+): void {
+  if (rect.width <= 0 || rect.height <= 0) return;
+  const mark = b.nodes.length;
+  const settings = appSession().settings;
+  const ground = campaignFadeFillOf(settings.campaignFadeColor);
+  b.box(rect, { fill: ground });
+  if (settings.fadedCampaignArt) {
+    const finale = CAMPAIGN_RECORDS[campaignId]?.scenarioIds.at(-1) as string | undefined;
+    const picture = campaignCoverPicture(campaignId) ?? (finale ? villainPicture(finale) : null);
+    const held = leases.image(picture);
+    if (held.src !== null) {
+      b.image(rect, {
+        src: held.src,
+        cover: { x: 0.5, y: 0.2 },
+        key: `pane-art:${Math.round(rect.y)}`,
+        ...(held.retry !== undefined ? { retry: held.retry } : {}),
+      });
+      // The picture sits at its own opacity over the ground: the ground again over it, at what the picture does not take.
+      b.box(rect, { fill: ground, fillAlpha: 1 - PANE_ART_ALPHA });
+    }
+  }
+  b.box(rect, { fill: PANE_VEIL_COLOR, fillAlpha: PANE_VEIL_ALPHA });
+  b.box(
+    { x: rect.x + 1.5, y: rect.y + 1.5, width: rect.width - 3, height: rect.height - 3 },
+    { stroke: PANE_VEIL_COLOR, strokeWidth: 3 },
+  );
+  slotUnder(b, mark, at);
+}
+
+/**
+ * A paper panel on the pane for a column of ink-on-paper content (the Briefing's decks and schemes), so its text keeps
+ * its colours on any fade colour (`ui/campaign-pane.ts`'s `drawPanePaper`).
+ */
+export function drawPanePaper(b: SheetBuilder, rect: Rect, at?: number): void {
+  if (rect.width <= 0 || rect.height <= 0) return;
+  const mark = b.nodes.length;
+  b.box(rect, { fill: surface.paper.hex });
+  b.box(
+    { x: rect.x + 1, y: rect.y + 1, width: rect.width - 2, height: rect.height - 2 },
+    { stroke: surface.ink.hex, strokeWidth: 2 },
+  );
+  slotUnder(b, mark, at);
 }

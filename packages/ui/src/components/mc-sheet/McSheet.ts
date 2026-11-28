@@ -560,6 +560,7 @@ export class McSheet extends LitElement {
           px(node.rect),
           node.fill ? `background:${node.fill}` : "",
           node.color ? `color:${node.color}` : "",
+          node.round ? "border-radius:50%;overflow:hidden" : "",
         ].join(";");
         return html`<div
           class="part image"

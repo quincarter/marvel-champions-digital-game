@@ -192,6 +192,8 @@ export interface SheetImage {
   readonly cover?: PictureFocus;
   /** A gray, faded ghost of the picture on its ground (a locked tile: what there is to earn). */
   readonly dim?: boolean;
+  /** Cut to a circle: the box is square (a speaker's portrait). */
+  readonly round?: boolean;
 }
 
 /** Ink dots thickening toward the foot of a box, the way the comic pages shade a panel (a game mode box's art). */
