@@ -3,6 +3,28 @@ import { GLOSSARY_ES } from "../content/glossary-es.js";
 import { MECHANIC_TRYITS_ES } from "../content/mechanic-tryits-es.js";
 import { searchHelpRows } from "../view/search-help.js";
 import { es } from "./es.js";
+import { BRIEFING_LINE_ES } from "../campaign/briefing-copy-es.js";
+import { BRIEFING_NOTES_ES } from "../campaign/briefing-notes-es.js";
+import { SETUP_CALL_COPY_ES } from "../campaign/briefing-calls-es.js";
+
+/** The campaign Briefing's Spanish story text (`campaign/briefing-*-es.ts`), labelled by where each string lives. */
+const BRIEFING_STRINGS: readonly [string, string][] = [
+  ...Object.entries(BRIEFING_LINE_ES).flatMap(([key, line]): [string, string][] => [
+    [`briefing ${key} text`, line.text],
+    [`briefing ${key} fallback`, line.fallback ?? ""],
+  ]),
+  ...Object.entries(BRIEFING_NOTES_ES).flatMap(([key, rows]) =>
+    rows.flatMap((row, index): [string, string][] => [
+      [`briefing note ${key} #${index} title`, row.title],
+      [`briefing note ${key} #${index} detail`, row.detail],
+      [`briefing note ${key} #${index} repeat`, row.repeatDetail ?? ""],
+    ]),
+  ),
+  ...Object.entries(SETUP_CALL_COPY_ES).flatMap(([id, copy]): [string, string][] => [
+    [`setup call ${id} name`, copy.name],
+    [`setup call ${id} explain`, copy.explain],
+  ]),
+];
 
 /**
  * The Spanish game terms, pinned to the official Spanish rules reference (Asmodee Espana's 2019 "Guia de referencia",
@@ -70,6 +92,7 @@ describe("the Spanish terms follow the official guide", () => {
         [`try-it ${id} title`, entry.title],
         [`try-it ${id} tagline`, entry.tagline],
       ]),
+      ...BRIEFING_STRINGS,
     ];
     expect(strings.filter(([, text]) => BANNED.test(text)).map(([where]) => where)).toEqual([]);
   });
@@ -83,6 +106,7 @@ describe("the Spanish terms follow the official guide", () => {
     const texts = [
       ...Object.values(es),
       ...Object.values(GLOSSARY_ES).flatMap((entry) => [entry.name, entry.definition, entry.note ?? ""]),
+      ...BRIEFING_STRINGS.map(([, text]) => text),
     ];
     const found = texts.flatMap((text) => text?.match(/mazo de encuentros?/gi) ?? []);
     expect(found.length).toBeGreaterThan(0);
