@@ -1,0 +1,80 @@
+[WebServer] 
+[WebServer]   VITE v8.3.8  ready in 10555 ms
+[WebServer] 
+[WebServer]   ➜  Local:   http://localhost:5191/
+[WebServer]   ➜  Network: http://192.168.86.75:5191/  Ethernet
+[WebServer]   ➜  Network: http://172.19.16.1:5191/    vEthernet (WSL (Hyp…
+
+Running 36 tests using 8 workers
+
+  -   1 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:20:1 › campaign deck edit has From your games and Review, and Review keeps unsaved edits
+  -   2 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:51:1 › Review on a narrow screen counts a campaign deck as the campaign does, leaving its pinned cards out
+  -   4 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:120:1 › a phone starts on the volume rows and can switch to box art tiles
+  -   3 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:141:3 › an upright tablet › stacks the selected campaign over box art tiles, with a list view it remembers
+  -   7 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:200:3 › the narrowest wide layout › keeps the search field usable with a query in it
+  -   5 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:97:3 › a tablet held sideways › folds the filters behind a chip that opens them in the pool's place
+  -   8 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:225:3 › the pool at tablet size › draws in batches, not an object at a time
+[WebServer] 2:46:19 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:21 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:21 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:21 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:21 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:21 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:21 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:21 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 15 [desktop] › e2e\deck-check-lit-panel.spec.ts:32:1 › the screen is Lit panels: the legality badge, the cards and Edit deck are found under it (15.7s)
+  ok  6 [desktop] › e2e\controller-decks-extras.spec.ts:108:3 › Extras: RB and LB switch the tabs, B goes back (1280x800) (16.8s)
+  ok 10 [desktop] › e2e\controller-decks-extras.spec.ts:108:3 › Extras: RB and LB switch the tabs, B goes back (390x844) (17.6s)
+  -  18 [desktop] › e2e\deck-check-lit-panel.spec.ts:74:1 › a phone's tabs switch between Curve, Cards and Aspect
+  ok 12 [desktop] › e2e\controller-decks-extras.spec.ts:161:1 › Decks on a phone: RB and LB step Decks, Cards and Stats (18.6s)
+  ok 11 [desktop] › e2e\controller-decks-extras.spec.ts:180:1 › Decks: A on the search field puts the caret in, B takes it out, and the D-pad moves again (19.1s)
+  ok  9 [desktop] › e2e\controller-decks-extras.spec.ts:130:1 › Decks: the D-pad reaches a deck and A selects it (19.5s)
+  ok 14 [desktop] › e2e\controller-decks-extras.spec.ts:236:1 › Decks: Y on a pool card opens the inspect view (20.3s)
+  ok 13 [desktop] › e2e\controller-decks-extras.spec.ts:206:1 › Deck builder: B with unsaved changes asks to Leave, and a second B leaves (23.0s)
+[WebServer] 2:46:37 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:37 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:38 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:39 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:39 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:39 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:41 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:42 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 16 [desktop] › e2e\deck-check-lit-panel.spec.ts:43:1 › a tap on a card opens Inspect (15.8s)
+  ok 17 [desktop] › e2e\deck-check-lit-panel.spec.ts:55:1 › the type filter narrows the cards to that type (wide) (15.5s)
+  ok 20 [desktop] › e2e\deck-check-lit-panel.spec.ts:107:1 › the screen reads in Spanish (14.0s)
+[WebServer] 2:46:46 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+[WebServer] 2:46:46 AM [vite] (client) [console.warn] Element mc-tip-plate scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  ok 21 [desktop] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath (13.8s)
+  ok 19 [desktop] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back (15.1s)
+[WebServer] 2:46:52 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:52 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:53 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 24 [phone] › e2e\campaign-deck-edit-parity.spec.ts:51:1 › Review on a narrow screen counts a campaign deck as the campaign does, leaving its pinned cards out (15.6s)
+[WebServer] 2:46:53 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:46:53 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 23 [phone] › e2e\campaign-deck-edit-parity.spec.ts:20:1 › campaign deck edit has From your games and Review, and Review keeps unsaved edits (20.7s)
+[WebServer] 2:46:58 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 22 [desktop] › e2e\tested-decks-seats.spec.ts:59:3 › Take your seats: tested community decks › TESTED lists the community decks, BUILT includes them, and a picked one is played (27.4s)
+[WebServer] 2:47:01 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 26 [phone] › e2e\campaign-deck-edit-parity.spec.ts:120:1 › a phone starts on the volume rows and can switch to box art tiles (15.1s)
+  ok 29 [phone] › e2e\campaign-deck-edit-parity.spec.ts:225:3 › the pool at tablet size › draws in batches, not an object at a time (14.0s)
+  -  34 [phone] › e2e\deck-check-lit-panel.spec.ts:55:1 › the type filter narrows the cards to that type (wide)
+  ok 25 [phone] › e2e\campaign-deck-edit-parity.spec.ts:97:3 › a tablet held sideways › folds the filters behind a chip that opens them in the pool's place (16.2s)
+  -  36 [phone] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath
+e2e: press repeated, the first changed nothing: click at 391,223
+  ok 28 [phone] › e2e\campaign-deck-edit-parity.spec.ts:200:3 › the narrowest wide layout › keeps the search field usable with a query in it (17.1s)
+  ok 30 [phone] › e2e\deck-check-lit-panel.spec.ts:32:1 › the screen is Lit panels: the legality badge, the cards and Edit deck are found under it (12.2s)
+[WebServer] 2:47:06 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:47:06 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:47:06 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 2:47:07 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 31 [phone] › e2e\deck-check-lit-panel.spec.ts:43:1 › a tap on a card opens Inspect (12.5s)
+  ok 35 [phone] › e2e\deck-check-lit-panel.spec.ts:107:1 › the screen reads in Spanish (9.5s)
+  ok 32 [phone] › e2e\deck-check-lit-panel.spec.ts:74:1 › a phone's tabs switch between Curve, Cards and Aspect (10.6s)
+  ok 27 [phone] › e2e\campaign-deck-edit-parity.spec.ts:141:3 › an upright tablet › stacks the selected campaign over box art tiles, with a list view it remembers (25.1s)
+  ok 33 [phone] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back (10.5s)
+
+  10 skipped
+  26 passed (1.5m)
+exit 0
+lock released

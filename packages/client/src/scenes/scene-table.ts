@@ -77,7 +77,6 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.roomAsk]: () => import("./room-ask.js").then((m) => m.RoomAskOverlay),
   [SCENES.rejoin]: () => import("./rejoin.js").then((m) => m.RejoinOverlay),
   [SCENES.nameConflict]: () => import("./name-conflict.js").then((m) => m.NameConflictOverlay),
-  [SCENES.heroDecks]: () => import("./hero-decks-sheet.js").then((m) => m.HeroDecksSheet),
   [SCENES.deckActions]: () => import("./deck-actions-sheet.js").then((m) => m.DeckActionsSheet),
   [SCENES.searchHelp]: () => import("./search-help-sheet.js").then((m) => m.SearchHelpSheet),
   [SCENES.poolPick]: () => import("./pool-pick-sheet.js").then((m) => m.PoolPickSheet),
@@ -97,7 +96,6 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.gamesList]: () => import("./games-list.js").then((m) => m.GamesListOverlay),
   [SCENES.manualAdjust]: () => import("./manual-adjust.js").then((m) => m.ManualAdjustOverlay),
   [SCENES.endTurnConfirm]: () => import("./end-turn-confirm.js").then((m) => m.EndTurnConfirmOverlay),
-  [SCENES.modNotice]: () => import("./mod-notice.js").then((m) => m.ModNoticeOverlay),
   [SCENES.optionNotice]: () => import("./option-notice.js").then((m) => m.OptionNoticeOverlay),
   [SCENES.tutorialResumeConfirm]: () =>
     import("./tutorial-resume-confirm.js").then((m) => m.TutorialResumeConfirmOverlay),

@@ -12,7 +12,7 @@ import { openApp } from "./wave6-helpers-b.js";
 const CONFIRM = "EndTurnConfirmOverlay";
 
 const confirmSheet = (page: Page) => page.locator(`#mc-ui [data-scene="${CONFIRM}"] mc-sheet`);
-const pauseSheet = (page: Page) => page.locator('#mc-ui [data-scene="PauseOverlay"] mc-sheet');
+const pauseSheet = (page: Page) => page.locator('#mc-ui [data-scene="PauseOverlay"] mc-pause-page');
 
 const focusOf = (page: Page) =>
   page.evaluate(

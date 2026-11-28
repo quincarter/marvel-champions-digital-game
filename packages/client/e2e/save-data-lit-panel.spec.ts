@@ -3,13 +3,14 @@ import { pressKey, trackPageErrors } from "./helpers.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * Settings ▸ Save data draws as a Lit panel over the canvas (`mc-sheet`): the six action rows are DOM buttons, Receive
- * swaps to the code step (its field is a Phaser DOM element seen through a hole in the panel), Back and Escape step out
- * one level at a time, and the keyboard walks the buttons with the ring drawn in the panel layer.
+ * Settings ▸ Save data is one Lit element over the canvas (`mc-save-data-page`): the six action rows are DOM buttons,
+ * Receive swaps to the code step (its field is an `mc-text-field`), Back and Escape step out one level at a time, and
+ * the keyboard walks the buttons with the ring drawn in the panel layer.
  */
 
-const sheet = (page: Page) => page.locator('#mc-ui [data-scene="SaveDataOverlay"] mc-sheet');
-const key = (page: Page, id: string) => sheet(page).locator(`[data-key="${id}"]`);
+const sheet = (page: Page) => page.locator('#mc-ui [data-scene="SaveDataOverlay"] mc-save-data-page');
+/** A focus stop (`data-stop`). */
+const key = (page: Page, id: string) => sheet(page).locator(`[data-stop="${id}"]`);
 
 test("Save data is a panel: Receive opens the code step, Back and Escape step out", async ({ page }) => {
   const errors = trackPageErrors(page);

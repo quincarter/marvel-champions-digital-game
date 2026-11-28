@@ -18,9 +18,13 @@ import "../mc-search-field/mc-search-field.js";
 import "../mc-article/mc-article.js";
 import "../mc-filter-bar/mc-filter-bar.js";
 import "../mc-media-row/mc-media-row.js";
+import "../mc-stat-tiles/mc-stat-tiles.js";
+import "../mc-bar-chart/mc-bar-chart.js";
+import "../mc-line-list/mc-line-list.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { PictureErrorDetail } from "../mc-picture-tile/mc-picture-tile.types.js";
 import { objectPositionFor } from "../../shared/crop.js";
+import { svgOpTemplate } from "../../shared/svg-op.js";
 import type { SheetImage, SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
 
@@ -58,6 +62,7 @@ const px = (rect: SheetRect): string =>
  * @element mc-sheet
  * @fires mc-activate - `detail.key`: a button or tap area was tapped.
  * @fires mc-inspect - `detail.key`: a tap area with `inspect` was held or right-clicked.
+ * @fires mc-info - `detail.key`, `detail.id`: a filter bar chip's info segment was tapped.
  * @fires mc-image-error - `detail.key` (the image's `retry`), `detail.src`: a picture with `retry` failed to load, once per key until one loads.
  * @fires mc-search - `detail.key`, `detail.value`, `detail.immediate`: a search field text changed (debounced).
  * @fires mc-submit - `detail.key`, `detail.value`: Enter in a search field.
@@ -212,32 +217,10 @@ export class McSheet extends LitElement {
   }
 
   #svgOp(op: SvgOp): unknown {
-    if (op.k === "text") {
-      return svg`<text x=${op.x} y=${op.y} text-anchor=${op.anchor} fill=${op.fill} fill-opacity=${op.alpha ?? 1}
-        font-size=${op.size} font-weight=${op.weight} letter-spacing=${op.spacing ?? 0}
-        font-family=${`var(--mc-font-${op.font})`}>${op.text}</text>`;
-    }
-    if (op.k === "image") {
-      return svg`<image href=${op.href} x=${op.x} y=${op.y} width=${op.w} height=${op.h} @error=${() => {
-        this.#failed.add(op.href);
-        this.requestUpdate();
-      }}></image>`;
-    }
-    const fill = op.fill ?? "none";
-    const stroke = op.stroke ?? "none";
-    const width = op.sw ?? 1;
-    const opacity = op.alpha ?? 1;
-    const dash = op.dash ? `${op.dash[0]} ${op.dash[1]}` : "none";
-    switch (op.k) {
-      case "rect":
-        return svg`<rect x=${op.x} y=${op.y} width=${op.w} height=${op.h} rx=${op.rx ?? 0} fill=${fill} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></rect>`;
-      case "circle":
-        return svg`<circle cx=${op.cx} cy=${op.cy} r=${op.r} fill=${fill} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></circle>`;
-      case "line":
-        return svg`<line x1=${op.x1} y1=${op.y1} x2=${op.x2} y2=${op.y2} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></line>`;
-      case "path":
-        return svg`<path d=${op.d} fill=${fill} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></path>`;
-    }
+    return svgOpTemplate(op, (href) => {
+      this.#failed.add(href);
+      this.requestUpdate();
+    });
   }
 
   /** The press that is on a slider's track now: where it began, and whether it turned into a drag or the page's scroll. */
@@ -354,7 +337,12 @@ export class McSheet extends LitElement {
         .label=${node.stepLabels[1]}
         @mc-press=${() => this.#step(key, 1)}
       ></mc-button>
-      <span class="part text slider-label" data-key=${`${key}:label`}>${node.label}</span>
+      <span
+        class="part text slider-label"
+        data-key=${`${key}:label`}
+        style=${node.ground === "paper" ? "color:var(--mc-text-ink, #14110e)" : ""}
+        >${node.label}</span
+      >
     </div>`;
   }
 
@@ -746,11 +734,32 @@ export class McSheet extends LitElement {
           .rows=${node.rows ?? 0}
           .rowHeight=${node.rowHeight ?? 0}
           .gap=${node.gap ?? 8}
+          ?rail=${node.rail ?? false}
           @mc-activate=${(event: CustomEvent<{ key: string }>) => {
             event.stopPropagation();
             this.#activate(event.detail.key);
           }}
+          @mc-info=${(event: CustomEvent<{ key: string; id: string }>) => {
+            event.stopPropagation();
+            this.dispatchEvent(new CustomEvent("mc-info", { detail: event.detail, bubbles: true, composed: true }));
+          }}
         ></mc-filter-bar>`;
+      case "statTiles":
+        return html`<mc-stat-tiles class="part" style=${px(node.rect)} .rows=${node.rows}></mc-stat-tiles>`;
+      case "barChart":
+        return html`<mc-bar-chart
+          class="part"
+          style=${px(node.rect)}
+          .bars=${node.bars}
+          .height=${node.rect.height}
+        ></mc-bar-chart>`;
+      case "lineList":
+        return html`<mc-line-list
+          class="part"
+          style=${px(node.rect)}
+          .groups=${node.groups}
+          ?dark=${node.dark ?? false}
+        ></mc-line-list>`;
       case "mediaRow": {
         const events = this.#pictureEvents(node.retry);
         return html`<mc-media-row

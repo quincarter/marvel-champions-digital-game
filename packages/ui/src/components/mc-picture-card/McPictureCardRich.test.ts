@@ -51,3 +51,39 @@ describe("mc-picture-card with lines, a stripe and an activate key", () => {
     expect(card.shadowRoot!.querySelector(".tap")).toBeNull();
   });
 });
+
+describe("mc-picture-card hero tile parts", () => {
+  it("draws stamps on the picture, a tag, a team-up plate and a two-line display caption, and a red frame when chosen", async () => {
+    const card = document.createElement("mc-picture-card");
+    card.model = {
+      src: null,
+      focusY: 0.2,
+      dim: false,
+      chip: "",
+      chipTone: "action",
+      title: "Spider-Man",
+      detail: "Precon · Peter Parker",
+      detailTone: "caution",
+      initial: "S",
+      stamps: [{ label: "Justice", fill: "#f0c040", ink: "#111111" }],
+      tag: "Seat 1",
+      plate: "Team-up with Ms. Marvel",
+      selected: true,
+      detailLines: 2,
+      titleDisplay: true,
+      titleSize: 22,
+    };
+    document.body.append(card);
+    await card.updateComplete;
+    const root = card.shadowRoot!;
+    expect(root.querySelector(".chip")).toBeNull();
+    expect(root.querySelector(".stamp")!.textContent).toBe("Justice");
+    expect(root.querySelector(".tag")!.textContent).toBe("Seat 1");
+    expect(root.querySelector(".plate")!.textContent).toBe("Team-up with Ms. Marvel");
+    expect(root.querySelector(".title.display")!.getAttribute("style")).toContain("22px");
+    expect(root.querySelector(".detail.caution.two")).toBeTruthy();
+    expect(card.style.getPropertyValue("--mc-card-frame")).toBe("var(--mc-line-red)");
+    expect(card.style.getPropertyValue("--mc-card-border")).toBe("4px");
+    card.remove();
+  });
+});

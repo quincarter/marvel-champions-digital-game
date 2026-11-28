@@ -1,0 +1,3 @@
+kind: Changed
+body: Past games and the Trophy Room are now built from composed custom elements (a page of section elements) instead of one panel sheet, with the same look, and a top bar that takes a control at its right end
+time: 2026-11-28T07:05:00.000000-05:00

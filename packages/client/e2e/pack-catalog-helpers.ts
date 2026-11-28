@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
+import { clickText, hasText, settle, waitFor } from "./helpers.js";
 // @ts-expect-error: a plain .mjs script with no declarations
 import { stagePackSource } from "../../../scripts/lib/stage-pack.mjs";
 // @ts-expect-error: a plain .mjs script with no declarations
@@ -115,3 +116,22 @@ export const communityPreconId = (packId: string): string => {
   const [file] = readdirSync(join(COMMUNITY, packId, "decks")).filter((name) => name.endsWith(".json"));
   return JSON.parse(readFileSync(join(COMMUNITY, packId, "decks", file!), "utf8")).id as string;
 };
+
+/**
+ * Answers the Mod Store's first-visit heads-up about mods with "Got it". It is an element over the store (`mc-mod-notice`),
+ * so its text is the store scene's; a press on Install would never reach the store until it is answered. `optional`: the
+ * notice may not have opened (a spec that visits the store twice).
+ */
+export async function answerModNotice(page: Page, opts: { optional?: boolean } = {}): Promise<void> {
+  const open = opts.optional
+    ? await hasText(page, "Got it", "ModStore")
+    : await waitFor(
+        async () => ((await hasText(page, "Got it", "ModStore")) ? true : null),
+        "the mods notice opens",
+        30_000,
+      );
+  if (!open) return;
+  await clickText(page, "Got it", { sceneKey: "ModStore" });
+  await waitFor(async () => (!(await hasText(page, "Got it", "ModStore")) ? true : null), "the notice closes");
+  await settle(page);
+}

@@ -117,3 +117,27 @@ describe("devAspectOf", () => {
     expect(devAspectOf("nope")).toBe("justice");
   });
 });
+
+describe("the 'Pool and Basic wording", () => {
+  // Deadpool insert "Using the 'Pool Aspect"; RRG 1.8 FAQ p.64 (Crisis of Infinite Deadpools #37); RRG 1.8 "Basic Card"
+  // p.10 and Appendix I p.49.
+  const guide = (aspect: string) => ASPECT_GUIDES.find((g) => g.aspect === aspect)!;
+
+  it("says choosing 'Pool shuffles Crisis of Infinite Deadpools in, which brings the Dreadpool set", () => {
+    expect(guide("pool").tipLine).toBe(
+      "Pick it for wild, risky cards. Choosing 'Pool shuffles one Crisis of Infinite Deadpools into the encounter deck. When it is revealed, Dreadpool and his side scheme come into play, and the rest of the Dreadpool set is shuffled in.",
+    );
+    expect(guide("pool").pickItWhen[1]).toBe(
+      "Choosing 'Pool puts one Crisis of Infinite Deadpools in the encounter deck; when it is revealed, Dreadpool and his side scheme enter play and the rest of the Dreadpool set is shuffled in. 'Pool cards in another aspect's deck don't.",
+    );
+  });
+
+  it("says Basic cards have no aspect and are open to any deck, none required", () => {
+    expect(guide("basic").tagline).toBe("Cards with no aspect, open to any deck");
+    expect(guide("basic").tipLine).toBe("Any deck may add these alongside its aspect cards; none are required.");
+    expect(guide("basic").whatItsFor).toMatch(/Any deck may include them; none is required\.$/);
+    expect(guide("basic").pickItWhen[0]).toBe(
+      "Whenever a card fits: Basic cards go in alongside your chosen aspect, never instead of it, and none is required.",
+    );
+  });
+});

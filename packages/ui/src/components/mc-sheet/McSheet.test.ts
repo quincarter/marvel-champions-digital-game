@@ -525,6 +525,28 @@ describe("mc-sheet drawings, QR codes and sliders", () => {
     return { sheet, slides, track };
   };
 
+  it("reads a slider's percent in ink on a paper ground, and in paper on ink", async () => {
+    for (const ground of ["paper", "ink"] as const) {
+      const sheet = document.createElement("mc-sheet");
+      sheet.nodes = [
+        {
+          kind: "slider",
+          key: "volume",
+          rect: rect(0, 0, 300, 30),
+          share: 0.5,
+          label: "50%",
+          ground,
+          stepLabels: ["-", "+"],
+        },
+      ];
+      document.body.append(sheet);
+      await sheet.updateComplete;
+      const color = sheet.elementOf("volume:label")!.style.color;
+      expect(color !== "").toBe(ground === "paper");
+      sheet.remove();
+    }
+  });
+
   it("stops a dragged slider changing anything once the panel cancels its holds", async () => {
     const { sheet, slides, track } = await sliderSheet();
     const at = (clientX: number) => ({

@@ -1,128 +1,62 @@
 /**
- * Scenario select (docs/phase4-screen-gaps.md §3 W2/W2b, D02/P02): a
- * searchable pack-shelf roster of every scenario in the pool (S8, the owner's
- * pack-shelves decision), drill-in to one pack as a full grid (the owner's
- * second-pass "drill into the packs" ask), a full-height detail panel for
- * whichever scenario is selected (stage boxes, the played record, data only —
- * §4: no blurb), Back to the Title menu, and "Choose heroes ▸" into
- * `SeatsScene`.
+ * Scenario select (docs/phase4-screen-gaps.md §3 W2/W2b, D02/P02): a searchable pack-shelf roster of every scenario in the
+ * pool (S8), drill-in to one pack as a full grid, a detail panel for whichever scenario is selected (stage boxes, the
+ * played record, data only: §4, no blurb), Back to the Title menu, and "Choose heroes ▸" into `SeatsScene`.
+ *
+ * The screen is one custom element, `mc-scenario-select-page` (`views/scenario-select/`), that only composes sections
+ * (`components/scenario-select/`). This scene mounts it in a `DomRegion`, hands it the model built from the draft and the
+ * pool (`scenario-select/page-model.ts`), and handles its `mc-scenario-select` event. It keeps the focus route (its ring
+ * drawn in the panel layer), the card hover popover and the ground. Layout is the page's own CSS.
  */
 import Phaser from "phaser";
+import "@mc/ui";
+import "../views/scenario-select/mc-scenario-select-page/mc-scenario-select-page.js";
+import type { McScenarioSelectPage } from "../views/scenario-select/mc-scenario-select-page/mc-scenario-select-page.js";
+import { type ScenarioSelectDetail } from "../components/scenario-select/scenario-select.types.js";
 import { reportRoomSetup } from "./room-setup-report.js";
-import { leaveRoomSetup, placeholderSeats, roomSeatCount, roomSetupActive } from "../view/room-table-setup.js";
-import type { TableSetupData } from "./table-setup.js";
-import type { CardId, Deck, Scenario } from "@mc/content";
-import {
-  CUSTOM_SHELF_ID,
-  POOL_PACKS,
-  currentCardsById,
-  currentEncounterSets,
-  currentPoolKey,
-  currentScenarios,
-  isPackScenario,
-  packNameOf,
-} from "../content/pool.js";
-import { packPictureFor } from "../art/pack-art.js";
-import { CUSTOM_BADGE } from "../view/custom-content.js";
-import { placeScenarioShelves } from "../packs/custom-placement.js";
-import { loadedPacks } from "../packs/pack-registry.js";
-import { customContentPrefsNow } from "../packs/custom-content-prefs.js";
-import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
-import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
-import { ART_CATALOG, packCoverFor, villainArtFor } from "../art/scenario-art.js";
-import type { Picture } from "../art/pictures.js";
-import { artFor } from "../art/art-source.js";
-import { hasRandomChosenVillain } from "../view/random-villain.js";
-import { cardArt } from "../art/card-art.js";
-import { accent, border, dotGrid, ink, signal, surface, typeRole } from "../tokens.js";
-import { cssOf, textStyle } from "../ui/theme.js";
-import { CAPTION_FLOOR, McButton, McTextInput, fitText, label, paintDotGrid } from "../ui/widgets.js";
-import { McShelfRoster } from "../ui/shelf-roster.js";
-import { McVirtualList } from "../ui/virtual-list.js";
-import {
-  encounterSetsCellText,
-  lockCaptionOf,
-  scenarioDetailOf,
-  shelfSubtitleOf,
-  type ScenarioDetail,
-} from "../view/scenario-detail.js";
-import { foeWord } from "../view/foe-words.js";
-import { formatScaling } from "../view/scaling-text.js";
+import type { Deck, Scenario } from "@mc/content";
+import { currentCardsById, currentEncounterSets, currentScenarios } from "../content/pool.js";
+import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
+import { surface } from "../tokens.js";
+import { cssOf } from "../ui/theme.js";
+import { scenarioDetailOf } from "../view/scenario-detail.js";
 import { selectionAmongVisible } from "../view/scenario-selection.js";
-import { scenarioProductsOf, withSelectionPinned } from "../view/roster-filter.js";
-import { packCompactChipsToRows } from "../view/chip-layout.js";
-import { DeckSearchClient } from "../view/deck-search-client.js";
-import { rankShelvesByScore } from "../view/deck-search.js";
-import { scenarioSearchDocumentOf } from "../view/scenario-search.js";
-import { shelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
-import { ALL_PACKS, drillIntoPack, drillOut, gridColumnsFor, type ShelfDrillState } from "../view/shelf-drill.js";
+import { flattenShelves } from "../view/roster-shelves.js";
+import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../view/shelf-drill.js";
 import { padInputTracked } from "../platform/input-device.js";
 import { resultsHistoryOf, type ScenarioRecord } from "../view/results-history.js";
 import { setScenario, setScenarioFilter, clearScenarioFilter, type SetupDraft } from "../view/setup-draft.js";
-import {
-  BUILD_YOUR_OWN_SUBTITLE,
-  isCivilWarScenario,
-  BUILD_YOUR_OWN_TITLE,
-  customizeEntryOf,
-  enterBuilder,
-  setBuilderOrigin,
-  isBuilderTile,
-  shelvesWithBuilderTile,
-  type RosterEntry,
-} from "../view/civil-war-entry.js";
-import type { CivilWarBuilderData } from "./civil-war-builder.js";
-import { scenarioSelectFocusOrder } from "../view/screen-focus.js";
-import {
-  DETAIL_COLLAPSED_HEIGHT,
-  FOOTER_HEIGHT,
-  scenarioSelectLayout,
-  detailPanelWidthFor,
-} from "../view/scenario-select-layout.js";
-import { estimateWrappedLines, type Rect } from "../view/layout.js";
-import { ListScroll } from "../view/list-scroll.js";
+import { isBuilderTile, isCivilWarScenario, customizeEntryOf, type RosterEntry } from "../view/civil-war-entry.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
-import {
-  drawCompactChipStrip,
-  drawPackGrid,
-  drawSearchField,
-  drawSearchToggle,
-  drawShelfRosterPanel,
-  renderShelfCard,
-  renderShelfHeader,
-} from "./roster-panel.js";
-import { McChipRail } from "../ui/chip-rail.js";
-import { RailScroll } from "../view/rail-scroll.js";
-import { onTap } from "../ui/tap.js";
-import { rebuildOnPackChange } from "../ui/pack-redraw.js";
-import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { createHints, forwardHint } from "./campaign/pad-hints.js";
-import type { GlyphHints } from "../ui/glyph-hints.js";
+import { FocusRoute } from "./focus-route.js";
 import { PadFilters } from "./pad-filters.js";
-import { drawFiltersControl, searchRectForInspectHint } from "./filters-control.js";
-import { filtersLabel } from "../view/filters-layout.js";
-import { shelfPagingHints } from "./shelf-row-hints.js";
-import {
-  foldShelves,
-  loadShelfFolds,
-  openShelfItems,
-  saveShelfFolds,
-  shelfFocusKeys,
-  toggleShelfFold,
-  unfoldShelf,
-} from "../view/shelf-folds.js";
-import { randomBox, randomScenario, randomVillainIn } from "../view/scenario-random.js";
-import { bindExtraInput } from "./extra-input.js";
-import { bindTextFieldEscape } from "./text-field-escape.js";
-import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
+import { SCENARIO_FILTERS_BREAKPOINT } from "../view/filters-layout.js";
+import { loadShelfFolds, saveShelfFolds, toggleShelfFold, unfoldShelf } from "../view/shelf-folds.js";
 import { SCENES } from "./keys.js";
-import type { SeatsData } from "./seats.js";
-import { destroyChildren } from "../ui/destroy-children.js";
-import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { fadeScreenIn } from "../ui/transitions.js";
 import { artLanguageNow } from "../art/art-source.js";
-import { t, tPlural } from "../i18n/translate.js";
-import { onLanguageChange } from "../language-change.js";
+import { onArtChange, onLanguageChange } from "../language-change.js";
 import { refreshUnlocks, unlocks } from "../progression/progression.js";
 import { unlockCostOf, unlockOrAsk } from "./unlock-confirm.js";
+import { rebuildOnPackChange } from "../ui/pack-redraw.js";
+import { renderNow, type DomRegion } from "../dom/dom-region.js";
+import { CardEvents } from "../dom/card-events.js";
+import { campaignFrame } from "../ui/campaign-chrome.js";
+import { ScenarioSearch } from "./scenario-select/search.js";
+import { ScenarioHints } from "./scenario-select/hints.js";
+import { pageModelOf } from "./scenario-select/page-model.js";
+import { recordTextOf } from "./scenario-select/picked-model.js";
+import { chipsOf, rosterShelvesOf } from "./scenario-select/roster.js";
+import { renderTree } from "./scenario-select/render-tree.js";
+import { rowOfKeyOf, shelvesModelOf } from "./scenario-select/shelves-model.js";
+import { ScenarioTiles } from "./scenario-select/tiles.js";
+import { ScenarioFocus } from "./scenario-select/focus.js";
+import { randomOutcome, type RandomKind } from "./scenario-select/random.js";
+import { mountScenarioPage } from "./scenario-select/mount.js";
+import { createScenarioRoute } from "./scenario-select/route.js";
+import { installDebugHook } from "./scenario-select/debug-hook.js";
+import { chooseHeroes, goBack, inspectScenario, openBuilder } from "./scenario-select/leave.js";
 
 export interface ScenarioSelectData {
   readonly draft: SetupDraft;
@@ -130,77 +64,51 @@ export interface ScenarioSelectData {
   readonly seedDecks?: readonly Deck[];
 }
 
-/** Matches `view/layout.ts`'s own `toggleRowHeight` constants — a conservative per-character estimate for `typeRole.body` at 11px, so a detail line's *real* wrapped height is known before a live text object exists to measure it. */
-const DETAIL_CHAR_WIDTH = 5.4;
-const DETAIL_LINE_PX = 15;
-const DETAIL_TEXT_PAD = 24;
-const ROMAN = ["", "I", "II", "III", "IV", "V", "VI"] as const;
-const roman = (n: number): string => ROMAN[n] ?? String(n);
-
-/** The stops that are the filters (search and the product chips), and the ones that are the list. */
-const FILTER_STOP = /^(scenario-search-toggle|scenario-search|filters-toggle|scenario-chip:.*)$/;
-const LIST_STOP = /^(drill-back|random-.*|scenario-clear|scenario:.*|scenario-shelf:.*)$/;
-/** The row above the list that holds its Random buttons (and, drilled into a box, "◂ All packs"). */
-const RANDOM_ROW_HEIGHT = 36;
-const RANDOM_BUTTON_WIDTH = 150;
-
-const scenarioCountCaption = (count: number): string => tPlural("scenario.countCaption", count);
+/** Where the shelves were scrolled to, kept outside the scene: a trip to Take your seats and back stops and starts it. */
+let scrollMemory: { readonly top: number; readonly rows: Readonly<Record<string, number>> } = { top: 0, rows: {} };
 
 export class ScenarioSelectScene extends Phaser.Scene {
   #draft!: SetupDraft;
-  #buttons: McButton[] = [];
-  #stops = new Map<string, FocusStop>();
+  #alive = false;
   /** Whether the phone's stages panel is open. Shut by default: it is reading, not choosing, and it crowds a small screen. */
   #stagesOpen = false;
-  /** Narrow only: whether the search field is shown (`ScenarioSelectLayout.searchToggle`). Off by default — the roster gets the row. */
+  /** Narrow only: whether the search field is shown. Off by default: the roster gets the row. */
   #searchOpen = false;
-  #searchInput: McTextInput | null = null;
-  /** Text search runs in a worker (view/deck-search-client.ts); #ranking is its last answer, shown until the next one arrives. Null when no search is active. */
-  readonly #search = new DeckSearchClient();
-  #ranking: ReadonlyMap<string, number> | null = null;
-  #roster: McShelfRoster<RosterEntry> | null = null;
-  /** The desktop hover popover over the scenario tiles (`ui/card-hover-preview.ts`). */
+  readonly #search = new ScenarioSearch();
+  #region: DomRegion<McScenarioSelectPage> | null = null;
+  #page: McScenarioSelectPage | null = null;
+  readonly #tiles = new ScenarioTiles();
   #hover: HoverPreview | null = null;
-  #hoverViewport: Rect | null = null;
-  /** Whether "Choose heroes" can be pressed now, for the route's primary stop (Start). */
+  #cards: CardEvents | null = null;
   #canContinue = false;
   /** A screen change is under way (Back, Choose heroes): later presses do nothing. */
   #leaving = false;
-  #grid: McVirtualList | null = null;
-  /** The columns of the open box's grid, for the row a tile sits in. */
-  #gridColumns = 0;
-  /** Narrow only: the sideways-scrolling product chip rail (`ScenarioSelectLayout.chipsScroll`). Null on wide, where the chips wrap. */
-  #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
-  /** The filters and the list as two areas of the route, for Y and B (`view/focus-areas.ts`). */
-  readonly #areaJump = new AreaJump();
-  #areas: FocusAreas = { filters: [], entry: null, list: [] };
-  /** The Start glyph on "Choose heroes", the Y / View hints and the LT / RT glyphs by the row chevrons (pad or keyboard only). */
-  #hints!: GlyphHints;
+  readonly #focus = new ScenarioFocus({
+    page: () => this.#page,
+    region: () => this.#region,
+    route: () => this.#route,
+    padFilters: () => this.#padFilters,
+    chipsFolded: () => this.#chipsFolded,
+    compose: () => this.#compose(),
+    rowOfKey: () => this.#rowOfKey,
+  });
+  #hints!: ScenarioHints;
   /** The chips fold away while a controller is in use (`view/pad-filters.ts`). */
   #padFilters!: PadFilters;
-  /** Each scenario tile's shelf row, by focus key, for LT / RT. */
-  readonly #rowOfKey = new Map<string, { readonly shelfIndex: number; readonly itemIndex: number }>();
-  /** Whether the last redraw folded the chips, so Y knows whether it opens or folds them. */
+  #rowOfKey: ReadonlyMap<string, { readonly shelfId: string; readonly itemIndex: number }> = new Map();
+  #entries = new Map<string, RosterEntry>();
   #chipsFolded = false;
   #drill: ShelfDrillState = ALL_PACKS;
   /** The shelves folded to their header, remembered across visits (#753). */
   #folded: ReadonlySet<string> = loadShelfFolds("scenario-select");
-  /** A scenario a Random just picked: scrolled to once the rebuild has drawn its shelf. */
+  /** A scenario a Random just picked: scrolled to once the compose has drawn its shelf. */
   #revealId: string | null = null;
-  /** Every scenario's played record, keyed by scenario id, so the side panel reads the *current* selection's row on each redraw (issue 141). */
   #history: ReadonlyMap<string, ScenarioRecord> = new Map();
-  /** The record line last drawn in the side panel, for the dev e2e hook only. */
   #recordText = "";
-  /** The focus key of the topmost scenario tile as of the last rebuild, where focus starts on arrival. */
-  #firstTileKey: string | null = null;
-  readonly #artCache = new Map<string, Picture | null>();
-  /** Dev e2e hook only: every tile drawn so far (see `create`). */
-  readonly #tileDebug = new Map<string, { id: string; title: string; villainArt: boolean; baked: boolean }>();
-  readonly #coverCache = new Map<string, Picture | null>();
   #seedDecks: readonly Deck[] = [];
-  readonly #gridScroll = new ListScroll();
-  readonly #chipScroll = new RailScroll();
+  /** A pointer is going down: the focus it gives a native button is the screen's own tap, not the route's to chase. */
+  #restored = false;
 
   constructor() {
     super(SCENES.scenarioSelect);
@@ -209,150 +117,107 @@ export class ScenarioSelectScene extends Phaser.Scene {
   init(data: ScenarioSelectData): void {
     this.#draft = data.draft;
     this.#seedDecks = data.seedDecks ?? [];
+    this.#region = null;
+    this.#page = null;
+    this.#restored = false;
   }
 
   create(): void {
+    this.#alive = true;
     this.#leaving = false;
     reportRoomSetup("scenario");
     // The scene is reused: a visit starts on the full shelf list with the stages panel shut.
     this.#drill = ALL_PACKS;
     this.#stagesOpen = false;
-    this.#hints = createHints(this);
-    this.#padFilters = new PadFilters(this, () => this.#rebuild());
+    this.#hints = new ScenarioHints(this, () => this.#compose());
+    this.#padFilters = new PadFilters(this, () => this.#compose(), SCENARIO_FILTERS_BREAKPOINT);
     this.#padFilters.reset();
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
-    this.scale.on("resize", this.#rebuild, this);
-    // The villain stage-I card-scan fallback (`#renderScenarioCard`) is drawn through `cardArt(this).request`,
-    // which only *asks* the loader — nothing about that call redraws the scene once the scan actually arrives.
-    // Without this, a card whose own fallback happened to still be in flight when the last unrelated redraw ran
-    // stayed a blank parchment box forever, even though the scan had long since loaded (found by fresh-navigating
-    // and waiting several seconds with no interaction — the same "art hasn't arrived yet, draw the frame now,
-    // redraw when it does" contract every other art-consuming scene already subscribes to this way).
-    const artOff = cardArt(this).onArrived(() => this.#refreshArt());
-    // A language switch (#390): the screen reads again in the new language.
-    const languageOff = onLanguageChange(() => {
-      if (this.sys.isActive()) this.#rebuild();
-    });
-    // Dev e2e hook (never referenced by product code): the tiles drawn so far (their printed title, whether the
-    // scenario has villain art of its own, whether that face has been baked and drawn) and every control's rect.
+    this.scale.on("resize", this.#compose, this);
+    // A pack picture that resolves later draws in place of the plain ground; a language switch (#390) rereads the screen.
+    const artOff = onArtChange(() => this.sys.isActive() && this.#compose());
+    const languageOff = onLanguageChange(() => this.sys.isActive() && this.#compose());
     if (import.meta.env.DEV) {
-      this.#tileDebug.clear();
-      (window as unknown as { __mcScenarioSelectDebug?: unknown }).__mcScenarioSelectDebug = {
-        tiles: () => [...this.#tileDebug.values()],
-        selectedId: () => (this.#scenarioPicked() ? this.#draft.scenarioId : null),
-        folded: () => [...this.#folded],
+      installDebugHook({
+        tiles: this.#tiles,
+        selectedId: () => (this.#scenarioPicked() ? (this.#draft.scenarioId as string) : null),
+        folded: () => this.#folded,
         drilledPack: () => this.#drill.packId,
-        listRect: () => this.#roster?.rect ?? null,
+        listRect: () => this.#listRect(),
         recordText: () => this.#recordText,
-        stops: () =>
-          [...this.#stops].map(([key, stop]) => ({
-            key,
-            ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
-          })),
-      };
+        hoverKey: () => this.#hover?.shownKey ?? null,
+        stops: () => this.#focus.stops,
+      });
     }
+    resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
-      cardIds: () => this.#hoverCards(),
-      area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.#searchInput?.focused ?? false }),
+      cardIds: () => this.#cards?.hovered() ?? new Map(),
+      area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.#page?.searchField?.isFocused ?? false }),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#alive = false;
       this.#hover?.destroy();
       this.#hover = null;
-      this.scale.off("resize", this.#rebuild, this);
+      this.#cards?.destroy();
+      this.#cards = null;
+      this.scale.off("resize", this.#compose, this);
       artOff();
       languageOff();
+      this.#hints.dispose();
+      this.#tiles.leases.dispose();
       this.#search.destroy();
-      this.#searchInput?.destroy();
-      this.#searchInput = null;
-      this.#roster?.destroy();
-      this.#roster = null;
-      this.#grid?.destroy();
-      this.#grid = null;
-      this.#chipRail?.destroy();
-      this.#chipRail = null;
+      // The panel goes with the scene (`DomRegion`); the next visit makes a new one.
+      const rows = this.#page?.roster?.readScroll();
+      if (rows) scrollMemory = rows;
+      this.#region = null;
+      this.#page = null;
     });
-    const covered = (): boolean => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.unlockConfirm);
-    this.#route = new FocusRoute(this, {
-      // The LT / RT glyphs belong to the row focus is in.
-      onFocusChange: () => this.#hints.refresh(),
-      blocked: () => covered() || (this.#searchInput?.focused ?? false),
-      // B from the list returns to the filters (scrolled back to the top); from the filters it backs out.
-      // Y is the filters' fold while a controller is in use (the keyboard's Inspect key is unchanged); View inspects.
-      onInspect: (source) => {
-        if (source === "key" || !this.#padFilters.padMode) return false;
-        this.#toggleFilters();
-        return true;
-      },
-      // LT / RT page the focused row, like its ‹ / › chevrons.
-      onTrigger: (trigger) => this.#pageRow(trigger === "lt" ? -1 : 1),
-      onCancel: () => {
-        if (areaOf(this.#route?.focused ?? null, this.#areas) === "list") {
-          this.#jumpAreas(true);
-          return;
-        }
-        if (this.#drill.packId !== null) this.#drillOut();
-        else this.#back();
-      },
-      // Start / Menu (and A with nothing focused) is "Choose heroes ▸".
-      primary: () => (this.#canContinue ? "next" : null),
-      onScroll: (_dx, dy) => (this.#grid ?? this.#roster)?.scrollByPx(dy),
-      onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
-      onHomeEnd: (edge) => {
-        const active = this.#grid ?? this.#roster;
-        if (edge === "home") active?.scrollToStart();
-        else active?.scrollToEnd();
-      },
+    this.#route = createScenarioRoute(this, {
+      page: () => this.#page,
+      focus: this.#focus,
+      padFilters: () => this.#padFilters,
+      canContinue: () => this.#canContinue,
+      drilledPack: () => this.#drill.packId,
+      drillOut: () => this.#drillOut(),
+      back: () => this.#back(),
     });
-    bindExtraInput(this, {
-      blocked: () => covered() || (this.#searchInput?.focused ?? false),
-      intents: {
-        view: () => {
-          const key = this.#route?.focused ?? null;
-          if (this.#padFilters.padMode && key?.startsWith("scenario:")) this.#route?.inspectFocused();
-        },
-      },
-    });
-    // A pad that put the caret in the search field can take it out again (B, A or Start).
-    bindTextFieldEscape(this, () => this.#searchInput, covered);
     this.game.events.on("mc-choice-toggle", this.#onInspectChoose, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.game.events.off("mc-choice-toggle", this.#onInspectChoose, this);
-    });
-    const setSearchDocuments = (): void => {
-      this.#search.setDocuments(
-        currentScenarios().map((s) =>
-          scenarioSearchDocumentOf(s, currentCardsById(), currentEncounterSets(), packNameOf),
-        ),
-        currentPoolKey() + ":scenarios",
-      );
-    };
-    setSearchDocuments();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
+      this.game.events.off("mc-choice-toggle", this.#onInspectChoose, this),
+    );
+    this.#search.setDocuments();
     // Packs load a moment after boot and change in the Mod Store: their scenarios appear (or go) under this screen.
     rebuildOnPackChange(this, () => {
-      setSearchDocuments();
-      this.#rebuild();
+      this.#search.setDocuments();
+      this.#compose();
     });
-    this.#rebuild();
+    this.#compose();
     // Arriving by pad, focus is on the picked villain (coming back from Seats) or else the topmost one; a mouse or
     // touch player gets no ring, which would read as a preselection.
     if (padInputTracked()) {
       const picked = this.#scenarioPicked() ? `scenario:${this.#draft.scenarioId}` : null;
-      const key = picked !== null && this.#stops.has(picked) ? picked : this.#firstTileKey;
+      const key = picked !== null && this.#focus.stops.has(picked) ? picked : this.#focus.firstTileKey;
       if (key !== null) this.#route?.focusKey(key);
     }
     if (this.#draft.scenarioFilter.text.trim() !== "") this.#requestSearch(this.#draft.scenarioFilter.text);
     fadeScreenIn(this);
     void refreshUnlocks().then((changed) => {
-      if (changed && this.sys.isActive()) this.#rebuild();
+      if (changed && this.sys.isActive()) this.#compose();
     });
     void appSession()
       .store.listSaves()
       .then((saves) => {
         if (!this.sys.isActive()) return;
         this.#history = new Map(resultsHistoryOf(saves).scenarios.map((r) => [r.scenarioId, r]));
-        this.#rebuild();
+        this.#compose();
       });
+  }
+
+  /** The box the shelves scroll in, on screen. */
+  #listRect(): Rect {
+    const roster = this.#page?.roster;
+    return roster && this.#region ? this.#region.rectOf(roster) : { x: 0, y: 0, width: 0, height: 0 };
   }
 
   /** False on a fresh New game until the player taps a villain (`SetupDraft.scenarioPicked`). */
@@ -363,86 +228,193 @@ export class ScenarioSelectScene extends Phaser.Scene {
   #back(): void {
     if (this.#leaving) return;
     this.#leaving = true;
-    this.scale.off("resize", this.#rebuild, this);
-    // Room mode (#880): the host set the table up from the lobby, and Back returns there.
-    if (roomSetupActive()) {
-      leaveRoomSetup();
-      goToScreen(this, SCENES.roomLobby);
-      return;
-    }
-    goToScreen(this, SCENES.title);
+    this.scale.off("resize", this.#compose, this);
+    goBack(this);
   }
 
-  /** Whether a search or a chip is narrowing the list: folds are set aside so every match shows. */
-  #filtering(): boolean {
-    return this.#ranking !== null || !!this.#draft.scenarioFilter.product;
+  /** Mounts the page once per visit; later composes only resize its region. */
+  #mount(rect: Rect): McScenarioSelectPage {
+    if (this.#page && this.#region) {
+      this.#region.setRect(rect);
+      return this.#page;
+    }
+    const mounted = mountScenarioPage(this, rect, {
+      onSelect: (detail) => this.#onSelect(detail),
+      leaving: () => this.#leaving,
+      focusKey: (key) => this.#route?.focusKey(key),
+      hover: () => this.#hover,
+    });
+    this.#region = mounted.region;
+    this.#page = mounted.element;
+    this.#cards = mounted.cards;
+    return mounted.element;
+  }
+
+  #onSelect(detail: ScenarioSelectDetail): void {
+    if (detail.type === "search") {
+      this.#draft = setScenarioFilter(this.#draft, { ...this.#draft.scenarioFilter, text: detail.value });
+      this.#requestSearch(detail.value);
+      return;
+    }
+    const { key } = detail;
+    if (detail.type === "inspect") {
+      const entry = this.#entries.get(key.replace(/^entry:/, ""));
+      if (entry && !isBuilderTile(entry)) inspectScenario(this, entry);
+      return;
+    }
+    if (key.startsWith("entry:")) {
+      const entry = this.#entries.get(key.slice("entry:".length));
+      if (entry) this.#activateEntry(entry);
+    } else if (key.startsWith("fold:")) this.#toggleFold(key.slice("fold:".length));
+    else if (key.startsWith("all:")) this.#drillInto(key.slice("all:".length));
+    else if (key.startsWith("scenario-chip:")) this.#toggleChip(key.slice("scenario-chip:product:".length));
+    else if (key === "clear") this.#clearFilters();
+    else if (key === "back") this.#back();
+    else if (key === "drill-back") this.#drillOut();
+    else if (key === "scenario-search-toggle") this.#toggleSearch();
+    else if (key === "filters-toggle") this.#focus.toggleFilters();
+    else if (key === "stages-toggle") this.#toggleStages();
+    else if (key === "random-box" || key === "random-scenario" || key === "random-villain") this.#random(key);
+    else if (key === "customize") this.#customize();
+    else if (key === "next") this.#next();
+  }
+
+  #shelves(): ReturnType<typeof rosterShelvesOf> {
+    return rosterShelvesOf({
+      ranking: this.#search.ranking,
+      product: this.#draft.scenarioFilter.product ?? null,
+      pickedId: this.#scenarioPicked() ? (this.#draft.scenarioId as string) : null,
+      folded: this.#folded,
+    });
+  }
+
+  /** Builds the page model from the current state, hands it over and reads the focus stops off what it drew. */
+  #compose(): void {
+    // Not before `create` has bound the hints and the filters' fold (the hints' first snapshot arrives while it does).
+    if (!this.#alive || !this.#padFilters || !this.#hints) return;
+    this.#tiles.leases.begin();
+    resetHoverCards(this);
+    const frame = campaignFrame(this);
+    const { width, height } = frame;
+    const wide = ["desktop", "tabletLandscape"].includes(formFactorFor(width, height));
+    // The selection is always something the shelf shows: a chip or a search that hides it moves it to the first
+    // scenario still visible; with none visible, "Choose heroes" is disabled.
+    const shelves = this.#shelves();
+    const selection = selectionAmongVisible(
+      this.#scenarioPicked() ? (this.#draft.scenarioId as string) : null,
+      flattenShelves(shelves)
+        .filter((entry): entry is Scenario => !isBuilderTile(entry))
+        .map((entry) => entry.id as string),
+    );
+    const scenario = currentScenarios().find((candidate) => (candidate.id as string) === selection.selectedId);
+    // Nothing is picked until the player picks one: the draft is left alone (its scenarioId is only a placeholder).
+    if (selection.selectedId !== null) this.#draft = setScenario(this.#draft, scenario, selection.selectedId);
+    this.#entries = new Map(flattenShelves(shelves).map((entry) => [entry.id as string, entry]));
+    const drilled = this.#drill.packId;
+    this.#rowOfKey = rowOfKeyOf(shelves, drilled);
+    const lock = scenario ? unlocks().scenarioLock(scenario) : null;
+    const behindButton = this.#padFilters.behindButton(width);
+    this.#chipsFolded = this.#padFilters.folded(width);
+    const detail = scenario
+      ? scenarioDetailOf(scenario, currentCardsById(), currentEncounterSets(), artLanguageNow())
+      : null;
+    const record = this.#history.get(this.#draft.scenarioId as string) ?? null;
+    this.#recordText = detail ? recordTextOf(record) : "";
+    const customize = customizeEntryOf(scenario);
+    const page = this.#mount({ x: 0, y: 0, width, height });
+    this.#canContinue = selection.canContinue;
+    page.model = pageModelOf({
+      scene: this,
+      width,
+      wide,
+      phone: frame.phone,
+      hints: this.#hints,
+      padMode: this.#padFilters.padMode,
+      behindButton,
+      folded: this.#chipsFolded,
+      searchOpen: this.#searchOpen,
+      stagesOpen: this.#stagesOpen,
+      filter: { text: this.#draft.scenarioFilter.text, product: this.#draft.scenarioFilter.product ?? null },
+      chips: chipsOf(this.#draft.scenarioFilter.product ?? null),
+      shelves: shelvesModelOf({
+        shelves,
+        drilledPack: drilled,
+        tiles: this.#tiles,
+        selectedId: selection.selectedId !== null && this.#scenarioPicked() ? selection.selectedId : null,
+      }),
+      selection,
+      scenario,
+      detail,
+      difficulty: this.#draft.difficulty,
+      record,
+      lock,
+      unlockCost: unlockCostOf(this.#unlockTarget(scenario)),
+      customize: customize?.label ?? null,
+      liveSearchText: null,
+    });
+    renderNow(page);
+    renderTree(page.shadowRoot);
+    if (!this.#restored && this.#page?.roster) {
+      this.#restored = true;
+      this.#page.roster.restoreScroll(scrollMemory);
+    }
+    this.#focus.read();
+    this.#tiles.leases.end();
+    this.#revealPicked();
+    this.#hover?.onDraw();
+  }
+
+  #unlockTarget(scenario: Scenario | undefined) {
+    return { kind: "scenario", scenarioId: (scenario?.id ?? this.#draft.scenarioId) as string } as const;
+  }
+
+  /** After a Random pick, brings its tile into view (and the pad's focus onto it). */
+  #revealPicked(): void {
+    const id = this.#revealId;
+    if (id === null) return;
+    this.#revealId = null;
+    this.#page?.roster?.elementOf(`entry:${id}`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (padInputTracked() && this.#focus.stops.has(`scenario:${id}`)) this.#route?.focusKey(`scenario:${id}`);
   }
 
   #toggleFold(shelfId: string): void {
     this.#folded = toggleShelfFold(this.#folded, shelfId);
     saveShelfFolds("scenario-select", this.#folded);
-    this.#rebuild();
+    this.#compose();
   }
 
-  /**
-   * The row above the list: its Random buttons (drilled into a box, "◂ All packs" holds the left and they sit at the
-   * right). Each is a focus stop and a tap, the same control. Returns the roster's rect below the row and the stops.
-   */
-  #drawRandomRow(
-    area: Rect,
-    buttons: readonly { readonly id: string; readonly label: string; readonly onClick: () => void }[],
-  ): { readonly below: Rect; readonly stops: readonly string[] } {
-    const gap = 8;
-    const width = Math.min(RANDOM_BUTTON_WIDTH, Math.floor((area.width - gap * (buttons.length - 1)) / buttons.length));
-    let x =
-      this.#drill.packId === null
-        ? area.x
-        : area.x + area.width - (width * buttons.length + gap * (buttons.length - 1));
-    for (const button of buttons) {
-      const rect: Rect = { x, y: area.y, width, height: RANDOM_ROW_HEIGHT - 8 };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: button.label,
-          type: typeRole.label,
-          rect,
-          onClick: button.onClick,
-        }),
-      );
-      this.#stops.set(button.id, { rect, activate: button.onClick });
-      x += width + gap;
-    }
-    return {
-      below: { x: area.x, y: area.y + RANDOM_ROW_HEIGHT, width: area.width, height: area.height - RANDOM_ROW_HEIGHT },
-      stops: buttons.map((button) => button.id),
-    };
+  #toggleChip(code: string): void {
+    const filter = this.#draft.scenarioFilter;
+    this.#draft = setScenarioFilter(this.#draft, { ...filter, product: filter.product === code ? null : code });
+    this.#compose();
   }
 
-  readonly #isScenarioEntry = (entry: RosterEntry): entry is Scenario => !isBuilderTile(entry);
-
-  /** What Random may land on: a scenario that is on offer now, so not the builder tile and not one still locked. */
-  readonly #isRandomPick = (entry: RosterEntry): boolean =>
-    !isBuilderTile(entry) && unlocks().scenarioLock(entry) === null;
-
-  /** Step one: a random box of the ones showing, opened as its own grid of villains. */
-  #randomBox(): void {
-    const shelf = randomBox(this.#shelves(), this.#isRandomPick, Math.random);
-    if (!shelf) return;
-    this.#drill = drillIntoPack(shelf.id);
-    this.#rebuild();
+  #clearFilters(): void {
+    this.#draft = clearScenarioFilter(this.#draft);
+    this.#search.clear();
+    this.#compose();
   }
 
-  /** Both steps at once: a random box, then a random villain in it, picked. */
-  #randomScenario(): void {
-    const pick = randomScenario(this.#shelves(), this.#isRandomPick, Math.random);
-    if (pick && this.#isScenarioEntry(pick.item)) this.#pickRandom(pick.shelf.id, pick.item);
+  #toggleStages(): void {
+    this.#stagesOpen = !this.#stagesOpen;
+    this.#compose();
   }
 
-  /** Step two: a random villain of the box that is open. */
-  #randomVillain(): void {
-    const shelf = this.#shelves().find((s) => s.id === this.#drill.packId);
-    const item = shelf ? randomVillainIn(shelf, this.#isRandomPick, Math.random) : null;
-    if (shelf && item && this.#isScenarioEntry(item)) this.#pickRandom(shelf.id, item);
+  #drillInto(shelfId: string): void {
+    this.#drill = drillIntoPack(shelfId);
+    this.#compose();
+  }
+
+  #drillOut(): void {
+    this.#drill = drillOut();
+    this.#compose();
+  }
+
+  /** A Random button: opens a box as a grid, or picks a scenario. */
+  #random(kind: RandomKind): void {
+    const outcome = randomOutcome(kind, this.#shelves(), this.#drill.packId);
+    if (outcome?.kind === "box") this.#drillInto(outcome.shelfId);
+    else if (outcome) this.#pickRandom(outcome.shelfId, outcome.entry);
   }
 
   /** Picks what Random landed on, opening its shelf if it was folded so the pick is seen. */
@@ -455,567 +427,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.#activateEntry(entry);
   }
 
-  /** After a Random pick, brings its tile into view (and the pad's focus onto it). */
-  #revealPicked(): void {
-    const id = this.#revealId;
-    if (id === null) return;
-    this.#revealId = null;
-    const shelves = this.#shelvesNow;
-    const holdsId = (shelf: Shelf<RosterEntry>): boolean => shelf.items.some((item) => (item.id as string) === id);
-    // In a box's grid it is that box's tiles that are laid out, so the index counts within the open box.
-    const shelfIndex = shelves.findIndex(
-      (shelf) => (this.#drill.packId === null ? true : shelf.id === this.#drill.packId) && holdsId(shelf),
-    );
-    const itemIndex = shelfIndex < 0 ? -1 : shelves[shelfIndex]!.items.findIndex((item) => (item.id as string) === id);
-    if (itemIndex >= 0) {
-      this.#roster?.scrollIntoView(shelfIndex, itemIndex);
-      // Inside a box's grid there is no shelf roster: the grid scrolls to the row the picked tile sits in.
-      if (this.#grid && this.#gridColumns > 0) this.#grid.scrollIntoView(Math.floor(itemIndex / this.#gridColumns));
-    }
-    if (padInputTracked() && this.#stops.has(`scenario:${id}`)) this.#route?.focusKey(`scenario:${id}`);
-  }
-
-  #drillOut(): void {
-    this.#drill = drillOut();
-    this.#rebuild();
-  }
-
-  #villainArtFor(scenario: Scenario): Picture | null {
-    const id = scenario.id as string;
-    if (!this.#artCache.has(id)) this.#artCache.set(id, villainArtFor(ART_CATALOG, id));
-    return this.#artCache.get(id) ?? null;
-  }
-
-  #packCoverFor(packCode: string): Picture | null {
-    if (!this.#coverCache.has(packCode)) this.#coverCache.set(packCode, packCoverFor(ART_CATALOG, packCode));
-    return this.#coverCache.get(packCode) ?? null;
-  }
-
-  #rebuild(): void {
-    this.#hints.reset();
-    this.#rowOfKey.clear();
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-    this.#stops = new Map();
-    this.#roster?.destroy();
-    this.#roster = null;
-    this.#grid?.destroy();
-    this.#grid = null;
-    this.#chipRail?.destroy();
-    this.#chipRail = null;
-
-    const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
-    for (const node of kept) this.children.remove(node);
-    destroyChildren(this);
-    for (const node of kept) this.children.add(node);
-
-    const { width, height } = this.scale.gameSize;
-    // The selection is always something the shelf shows: a chip or a search that hides it moves it to the first
-    // scenario still visible (`view/scenario-selection.ts`); with none visible, "Choose heroes" is disabled.
-    const shelves = this.#shelves();
-    const selection = selectionAmongVisible(
-      this.#scenarioPicked() ? this.#draft.scenarioId : null,
-      flattenShelves(shelves)
-        .filter((entry): entry is Scenario => !isBuilderTile(entry))
-        .map((entry) => entry.id as string),
-    );
-    const scenario = currentScenarios().find((candidate) => (candidate.id as string) === selection.selectedId);
-    // Nothing is picked until the player picks one: the draft is left alone (its scenarioId is only a placeholder).
-    if (selection.selectedId !== null) this.#draft = setScenario(this.#draft, scenario, selection.selectedId);
-
-    const placement = this.#placement();
-    const chipDefs = scenarioProductsOf(currentScenarios(), placement.shelfOf, placement.order).map((code) => ({
-      id: `product:${code}`,
-      text: code === CUSTOM_SHELF_ID ? "Custom packs" : packNameOf(code),
-      selected: this.#draft.scenarioFilter.product === code,
-      onClick: () => {
-        this.#draft = setScenarioFilter(this.#draft, {
-          ...this.#draft.scenarioFilter,
-          product: this.#draft.scenarioFilter.product === code ? null : code,
-        });
-        this.#rebuild();
-      },
-    }));
-
-    // "Customize this scenario": only on a ready-made Civil War scenario (inert until one is in the pool).
-    const customize = customizeEntryOf(scenario);
-    const detail = scenario
-      ? scenarioDetailOf(scenario, currentCardsById(), currentEncounterSets(), artLanguageNow())
-      : null;
-    // The real wrapped line count against the panel's own text width, not a raw string count — a fixed
-    // per-string budget clipped a long line against a ~300px side panel.
-    const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
-
-    // Two passes: the chips wrap against the roster column's own width, which only the layout knows — wrapping
-    // against the full viewport width for the first estimate under-counted the rows (the column is at least two
-    // gutters narrower, 300px+ on wide) and drew the extra row straight through the first shelf's header
-    // (2026-09-19 phone check: "The Wrecking Crew" sat on top of "CORE SET").
-    // A lock reason is a sentence: it wraps in the footer, and the layout gives the footer the height it measures.
-    const lock = scenario ? unlocks().scenarioLock(scenario) : null;
-    let footerHeight = FOOTER_HEIGHT;
-    // Behind the Filters button while a controller is in use or the game is narrower than the breakpoint (Y or the
-    // button brings the chips back).
-    const behindButton = this.#padFilters.behindButton(width);
-    const folded = this.#padFilters.folded(width);
-    this.#chipsFolded = folded;
-    const layoutFor = (chipRowCount: number): ReturnType<typeof scenarioSelectLayout> =>
-      scenarioSelectLayout({
-        footerHeight,
-        width,
-        height,
-        chipRows: chipRowCount,
-        detailLines: 12,
-        // Nothing picked: the panel has no stages to show, so it stays a bar (it has no toggle either).
-        detailCollapsed: !this.#stagesOpen || scenario === undefined,
-        searchOpen: this.#searchOpen,
-        secondaryAction: customize !== null,
-        filtersButton: behindButton,
-        chipsShown: !folded,
-      });
-    const estimatedRows = folded ? 0 : packCompactChipsToRows(chipDefs, width).length;
-    const firstPass = layoutFor(estimatedRows);
-    const chipRows = folded ? [] : packCompactChipsToRows(chipDefs, firstPass.chips.width);
-    let layout = chipRows.length === estimatedRows ? firstPass : layoutFor(chipRows.length);
-    if (lock) {
-      const probe = label(this, 0, 0, lock, typeRole.label, surface.paper.hex, 1);
-      probe.setWordWrapWidth(layout.footer.width);
-      footerHeight = Math.ceil(probe.height);
-      probe.destroy();
-      if (footerHeight > FOOTER_HEIGHT) layout = layoutFor(chipRows.length);
-    }
-
-    // Ground: paper body under a full-width ink header bar (docs/design-renders/ScreensDesktop_01-02.png).
-    this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
-    paintDotGrid(
-      this,
-      { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height },
-      "paper",
-      dotGrid.onPaper,
-    );
-    this.add
-      .rectangle(
-        layout.headerBar.x,
-        layout.headerBar.y,
-        layout.headerBar.width,
-        layout.headerBar.height,
-        surface.ink.hex,
-      )
-      .setOrigin(0, 0);
-
-    const back = (): void => this.#back();
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: t("scenario.back"),
-        type: typeRole.backLabel,
-        rect: layout.back,
-        onClick: back,
-      }),
-    );
-    this.#stops.set("back", { rect: layout.back, activate: back });
-    const titleX = layout.back.x + layout.back.width + 16;
-    const title = this.add
-      .text(titleX, layout.headerBar.height / 2, t("scenario.title"), textStyle(typeRole.pageTitle, surface.paper.hex))
-      .setOrigin(0, 0.5);
-    fitText(title, layout.step.x - titleX - 12, typeRole.pageTitle.size);
-    this.add
-      .text(
-        layout.step.x + layout.step.width,
-        layout.headerBar.height / 2,
-        t("scenario.step"),
-        textStyle(typeRole.label, surface.paper.hex, ink.label),
-      )
-      .setOrigin(1, 0.5);
-
-    this.#drawSearchAndChips(layout, chipDefs, chipRows, folded);
-
-    // The Random row takes the top of the list, so the tiles are sized for what is left.
-    const cardMetrics = this.#cardMetrics({
-      ...layout.shelves,
-      height: layout.shelves.height - RANDOM_ROW_HEIGHT,
-    });
-    let cardIds: readonly string[];
-    let shelfStopKeys: readonly string[] | undefined;
-    let randomStops: readonly string[] = [];
-    if (this.#drill.packId !== null) {
-      const shelf = shelves.find((s) => s.id === this.#drill.packId);
-      const drillBack = (): void => this.#drillOut();
-      const randomRow = this.#drawRandomRow(layout.shelves, [
-        { id: "random-villain", label: t("scenario.randomVillain"), onClick: () => this.#randomVillain() },
-      ]);
-      randomStops = randomRow.stops;
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "quiet",
-          label: t("scenario.allPacks"),
-          type: typeRole.rowTitle,
-          rect: { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 },
-          onClick: drillBack,
-        }),
-      );
-      this.#stops.set("drill-back", {
-        rect: { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 },
-        activate: drillBack,
-      });
-      const drillTitle = this.add
-        .text(
-          layout.shelves.x + 140,
-          layout.shelves.y + 14,
-          shelf ? shelf.title.toUpperCase() : "",
-          textStyle(typeRole.sectionHeader, surface.ink.hex),
-        )
-        .setOrigin(0, 0.5);
-      fitText(drillTitle, layout.shelves.width - 140 - RANDOM_BUTTON_WIDTH - 12, typeRole.sectionHeader.size);
-      const gridRect: Rect = {
-        x: layout.shelves.x,
-        y: layout.shelves.y + 36,
-        width: layout.shelves.width,
-        height: layout.shelves.height - 36,
-      };
-      const items = shelf?.items ?? [];
-      this.#gridColumns = gridColumnsFor(gridRect.width, cardMetrics.cardWidth, cardMetrics.cardGap);
-      this.#grid = drawPackGrid({
-        scene: this,
-        rect: gridRect,
-        items,
-        cardWidth: cardMetrics.cardWidth,
-        cardHeight: cardMetrics.cardHeight,
-        cardGap: cardMetrics.cardGap,
-        rowGap: cardMetrics.shelfGap,
-        scroll: this.#gridScroll,
-        focusPrefix: "scenario",
-        idOf: (s) => s.id as string,
-        renderCard: (s, _index, rect) => this.#renderEntry(s, rect),
-        onCardActivate: (s) => this.#activateEntry(s),
-        inspect: (s) => this.#inspectEntry(s),
-        onClear: () => this.#drillOut(),
-        buttons: this.#buttons,
-        stops: this.#stops,
-      });
-      cardIds = ["drill-back", ...items.map((s) => s.id as string)];
-    } else {
-      const randomRow = this.#drawRandomRow(layout.shelves, [
-        { id: "random-box", label: t("scenario.randomBox"), onClick: () => this.#randomBox() },
-        { id: "random-scenario", label: t("scenario.randomScenario"), onClick: () => this.#randomScenario() },
-      ]);
-      randomStops = randomRow.stops;
-      this.#roster = drawShelfRosterPanel({
-        scene: this,
-        rect: randomRow.below,
-        shelves,
-        metrics: cardMetrics,
-        screen: "scenario-select",
-        focusPrefix: "scenario",
-        idOf: (s) => s.id as string,
-        renderHeader: (shelf, rect) =>
-          renderShelfHeader(
-            this,
-            shelf,
-            rect,
-            shelf.id === "your-decks" ? null : this.#packCoverFor(shelf.id),
-            () => this.#roster?.refreshVisible(),
-            scenarioCountCaption(shelf.items.filter((e) => !isBuilderTile(e)).length),
-            "▸",
-            shelf.collapsed ? "folded" : "open",
-            t("scenario.seeAll"),
-          ),
-        renderCard: (s, _shelfIndex, _itemIndex, rect) => this.#renderEntry(s, rect),
-        onCardActivate: (s) => this.#activateEntry(s),
-        // The header folds its shelf; the "See all" end opens the box as a full grid.
-        onHeaderActivate: (shelf, _index, zone) => {
-          if (zone === "all") {
-            this.#drill = drillIntoPack(shelf.id);
-            this.#rebuild();
-          } else {
-            this.#toggleFold(shelf.id);
-          }
-        },
-        headerStops: { prefix: "scenario-shelf", toggle: (shelf) => this.#toggleFold(shelf.id) },
-        inspect: (s) => this.#inspectEntry(s),
-        onClear: () => {
-          this.#draft = clearScenarioFilter(this.#draft);
-          this.#searchInput?.setValue("");
-          this.#rebuild();
-        },
-        buttons: this.#buttons,
-        stops: this.#stops,
-        rowOfKey: this.#rowOfKey,
-      });
-      cardIds = openShelfItems(shelves).map((s) => s.id as string);
-      const keys = shelfFocusKeys(shelves, "scenario-shelf", "scenario", (s) => s.id as string);
-      shelfStopKeys = keys.length > 0 ? keys : undefined;
-    }
-
-    // Stat strip (D02's own band below the roster): main scheme, starting threat, villain HP (stage I), encounter sets — the same `detail` the ink panel already computed, so the two can't disagree.
-    // Zero-height while the phone's disclosure is shut — the strip folds away with the stages.
-    // (An open phone sheet draws the strip itself, over its own ground — see `#drawSidePanel`.)
-    if (detail && layout.statStrip.height > 0 && !layout.detailOverlay)
-      this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
-
-    // The side panel (D02's own "SCENARIO STAGES" sidebar): a Bangers header, one outlined box per stage (bright at
-    // the draft's current difficulty, dim otherwise), the played record, and the CTA pinned at the foot.
-    this.#drawSidePanel(layout, detail, detailTextWidth);
-
-    // Locked, the CTA becomes the door to unlocking this one scenario with champion points, right here.
-    const unlockTarget = { kind: "scenario", scenarioId: (scenario?.id ?? this.#draft.scenarioId) as string } as const;
-    const next = (): void => {
-      if (this.#leaving) return;
-      if (lock) {
-        unlockOrAsk(this, unlockTarget, () => this.#rebuild());
-        return;
-      }
-      this.#leaving = true;
-      this.scale.off("resize", this.#rebuild, this);
-      // Room mode (#880): no hero step, the players bring their own decks; Table setup gets one placeholder per seat.
-      if (roomSetupActive()) {
-        reportRoomSetup("table", this.#draft.scenarioId as string);
-        goToScreen(this, SCENES.setup, {
-          draft: { ...this.#draft, seats: placeholderSeats(roomSeatCount()) },
-        } satisfies TableSetupData);
-        return;
-      }
-      goToScreen(this, SCENES.seats, {
-        draft: this.#draft,
-        ...(this.#seedDecks.length > 0 ? { seedDecks: this.#seedDecks } : {}),
-      } satisfies SeatsData);
-    };
-    const nextButton = new McButton(this, {
-      kind: "primary",
-      label: lock ? t("scenario.unlockCost", { cost: unlockCostOf(unlockTarget) }) : t("scenario.chooseHeroes"),
-      type: typeRole.barTitle,
-      rect: layout.next,
-      onClick: next,
-      enabled: selection.canContinue,
-      ...(selection.canContinue
-        ? {}
-        : {
-            reason: selection.selectedId === null ? t("scenario.pickVillainFirst") : t("scenario.noneShowing"),
-          }),
-    });
-    this.#buttons.push(nextButton);
-    // Start moves forward on this screen (the route's primary), so its glyph sits on the red button.
-    if (selection.canContinue) forwardHint(this.#hints, nextButton, "ink");
-    this.#canContinue = selection.canContinue;
-    // Kept a stop while greyed (specs wait on it as "the list is ready"); the route's primary is null until a pick.
-    this.#stops.set("next", { rect: layout.next, activate: selection.canContinue ? next : () => {} });
-    if (customize && layout.secondary) {
-      const open = (): void => this.#openBuilder("customize", customize.scenarioId);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: layout.wide ? "onInk" : "secondary",
-          label: customize.label,
-          type: typeRole.rowTitle,
-          rect: layout.secondary,
-          onClick: open,
-        }),
-      );
-      this.#stops.set("customize", { rect: layout.secondary, activate: open });
-    }
-    // Locked: the footer says how to open it for free, since the CTA itself is the paid way.
-    const footer = label(
-      this,
-      layout.footer.x,
-      layout.footer.y,
-      lock ?? t("scenario.stepFooter"),
-      typeRole.label,
-      // On the dark detail panel (wide) the caption is paper; on a phone it sits on the page's own ground.
-      layout.wide ? surface.paper.hex : surface.ink.hex,
-      lock ? 1 : ink.label,
-    );
-    if (lock) footer.setWordWrapWidth(layout.footer.width);
-
-    this.#firstTileKey = cardIds[0] !== undefined ? `scenario:${cardIds[0]}` : null;
-    const order = scenarioSelectFocusOrder({
-      scenarioIds: cardIds,
-      scenarioChipIds: folded ? [] : chipDefs.map((c) => c.id),
-      randomStops,
-      ...(shelfStopKeys ? { shelfStopKeys } : {}),
-      filtersToggle: this.#stops.has("filters-toggle"),
-      stagesToggle: !layout.wide,
-      searchToggle: !layout.wide,
-      customize: customize !== null,
-    });
-    this.#areas = {
-      filters: order.filter((key) => FILTER_STOP.test(key)),
-      entry:
-        order.find((key) => key.startsWith("scenario-chip:")) ??
-        order.find((key) => key === "filters-toggle") ??
-        order.find((key) => key === "scenario-search") ??
-        null,
-      list: order.filter((key) => LIST_STOP.test(key)),
-    };
-    // Y on a stop with no Inspect of its own jumps between the filters and the list; a scenario tile keeps its Inspect.
-    for (const [key, stop] of this.#stops) {
-      if (!stop.inspect) this.#stops.set(key, { ...stop, inspect: () => this.#jumpAreas(false) });
-    }
-    shelfPagingHints(this.#hints, {
-      roster: () => this.#roster,
-      shelfIndex: () => this.#rowOfKey.get(this.#route?.focused ?? "")?.shelfIndex ?? null,
-    });
-    this.#route?.set(order, this.#stops);
-    this.#revealPicked();
-    this.#hoverViewport = layout.shelves;
-    this.#hover?.onDraw();
-  }
-
-  /** The scenario tiles on screen, for the hover popover: each shows its villain's stage I (or the main scheme when the villain is drawn at random). */
-  #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
-    const found = new Map<string, HoverCardIdRect>();
-    const viewport = this.#hoverViewport;
-    if (!viewport) return found;
-    const scenarios = new Map(currentScenarios().map((s) => [s.id as string, s] as const));
-    for (const [key, stop] of this.#stops) {
-      if (!key.startsWith("scenario:")) continue;
-      const scenario = scenarios.get(key.slice("scenario:".length));
-      if (!scenario) continue;
-      const unknown = hasRandomChosenVillain(scenario);
-      const cardId = (unknown ? scenario.mainSchemeCardId : scenario.villainCardId) as string;
-      const card = currentCardsById().get(cardId);
-      if (!card) continue;
-      const rect = clipHoverRect(typeof stop.rect === "function" ? stop.rect() : stop.rect, viewport);
-      if (!rect) continue;
-      const face = unknown
-        ? ({ kind: "mainSchemeStage", stageIndex: 0, side: "A" } as const)
-        : card.type === "villain"
-          ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const)
-          : ({ kind: "hero" } as const);
-      found.set(hoverSlotOf(cardId, key), { ...rect, cardId, face, through: true });
-    }
-    return found;
-  }
-
-  /**
-   * Y (or the Filters button) while a controller is in use: shows the chips, or folds them away again. Opening moves
-   * focus to the first chip, remembering the tile it left; folding from a chip returns to that tile.
-   */
-  #toggleFilters(): void {
-    const focus = this.#route?.focused ?? null;
-    const opening = this.#chipsFolded;
-    const onChip = focus?.startsWith("scenario-chip:") ?? false;
-    this.#padFilters.toggle();
-    this.#rebuild();
-    // The ring follows a pad or keyboard user; a mouse press leaves focus alone (no ring appears for it).
-    if (focus === null && !this.#padFilters.padMode) return;
-    if (opening) {
-      const target = this.#areaJump.toFilters(focus, this.#areas);
-      if (target !== null) this.#route?.focusKey(target);
-    } else if (onChip) {
-      const target = this.#areaJump.toList(this.#areas);
-      if (target !== null) this.#route?.focusKey(target);
-    }
-  }
-
-  /** LT / RT: pages the shelf row focus is in, as its chevron would, and moves focus to the first card in view. */
-  #pageRow(direction: 1 | -1): void {
-    const row = this.#rowOfKey.get(this.#route?.focused ?? "");
-    if (!row || !this.#roster) return;
-    const first = this.#roster.pageShelf(row.shelfIndex, direction);
-    if (first === null) return;
-    const key = [...this.#rowOfKey].find(([, at]) => at.shelfIndex === row.shelfIndex && at.itemIndex === first)?.[0];
-    if (key) this.#route?.focusKey(key);
-    this.#hints.refresh();
-  }
-
-  /** Y toggles focus between the filters and the list (back to the row it left); B (`fromBack`) also scrolls the list to its start. */
-  #jumpAreas(fromBack: boolean): void {
-    // B from the list with the chips folded opens them first, so there is a row to land on.
-    if (this.#chipsFolded) {
-      this.#padFilters.open();
-      this.#rebuild();
-    }
-    const focus = this.#route?.focused ?? null;
-    const target = fromBack ? this.#areaJump.toFilters(focus, this.#areas) : this.#areaJump.toggle(focus, this.#areas);
-    if (target === null) return;
-    if (fromBack) (this.#grid ?? this.#roster)?.scrollToStart();
-    this.#route?.focusKey(target);
-  }
-
-  /**
-   * The search field and the product chips. Wide draws the field above wrapped chips, always. Narrow draws one
-   * row — the search toggle at its head, the chips as a sideways rail beside it — and the field only while the
-   * toggle is on (`view/scenario-select-layout.ts`'s `searchOpen`), so a phone's roster gets the row back.
-   */
-  #drawSearchAndChips(
-    layout: ReturnType<typeof scenarioSelectLayout>,
-    chipDefs: readonly { id: string; text: string; selected: boolean; onClick: () => void }[],
-    chipRows: readonly (readonly { id: string; text: string; selected: boolean; onClick: () => void }[])[],
-    folded: boolean,
-  ): void {
-    const filter = this.#draft.scenarioFilter;
-    // The View "Inspect" hint beside the button needs room a phone does not have.
-    const inspectHint = this.#padFilters.padMode && layout.wide && layout.filtersButton !== null;
-    if (layout.search.height > 0) {
-      this.#searchInput = drawSearchField(
-        this,
-        searchRectForInspectHint(layout.search, inspectHint),
-        "scenario-search",
-        filter.text,
-        t("scenario.search"),
-        (value) => {
-          this.#draft = setScenarioFilter(this.#draft, { ...this.#draft.scenarioFilter, text: value });
-          this.#requestSearch(value);
-        },
-        this.#searchInput,
-        this.#stops,
-      );
-      // The phone's open stages sheet covers this row, and a DOM field would show straight through it.
-      this.#searchInput.setVisible(!layout.detailOverlay);
-    } else if (this.#searchInput) {
-      this.#searchInput.destroy();
-      this.#searchInput = null;
-    }
-    if (layout.searchToggle) {
-      drawSearchToggle(
-        this,
-        layout.searchToggle,
-        "scenario-search-toggle",
-        this.#searchOpen || filter.text.length > 0,
-        () => this.#toggleSearch(),
-        this.#buttons,
-        this.#stops,
-      );
-    }
-    if (layout.filtersButton) {
-      drawFiltersControl(
-        this,
-        this.#hints,
-        layout.filtersButton,
-        filtersLabel(this.#draft.scenarioFilter.product ? 1 : 0, !folded, artLanguageNow()),
-        inspectHint,
-        () => this.#toggleFilters(),
-        this.#buttons,
-        this.#stops,
-      );
-    }
-    if (folded) return;
-    if (layout.chipsScroll) {
-      const rail = new McChipRail(this, { rect: layout.chips, chips: chipDefs, scroll: this.#chipScroll });
-      this.#chipRail = rail;
-      chipDefs.forEach((chip, index) => {
-        this.#stops.set(`scenario-chip:${chip.id}`, {
-          rect: () => rail.rectFor(index),
-          activate: chip.onClick,
-          ensureVisible: () => rail.scrollIntoView(index),
-        });
-      });
-    } else {
-      drawCompactChipStrip(this, layout.chips, chipRows, "scenario-chip", this.#buttons, this.#stops);
-    }
-  }
-
-  /** Asks the worker to rank the scenarios for the text; the screen redraws when the newest answer arrives. An empty text clears the search at once. */
   #requestSearch(text: string): void {
-    if (text.trim() === "") {
-      this.#search.cancel();
-      this.#ranking = null;
-      this.#rebuild();
-      return;
-    }
-    this.#search.search(text, (ranked) => {
-      if (!this.sys.isActive()) return;
-      this.#ranking = new Map(ranked.map((r) => [r.id, r.score]));
-      this.#rebuild();
-    });
+    this.#search.run(
+      text,
+      () => this.#compose(),
+      () => this.sys.isActive(),
+    );
   }
 
   #toggleSearch(): void {
@@ -1024,360 +441,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // scenarios. The product chips are their own visible controls and stay as they were.
     if (!this.#searchOpen && this.#draft.scenarioFilter.text) {
       this.#draft = setScenarioFilter(this.#draft, { ...this.#draft.scenarioFilter, text: "" });
-      this.#search.cancel();
-      this.#ranking = null;
+      this.#search.clear();
     }
-    this.#rebuild();
-    if (this.#searchOpen) this.#searchInput?.focus();
-  }
-
-  /** Card size: ~300px wide (D02's own roughly-300px-wide art-dominant cards), tall enough to fill most of the shelf viewport's own height, capped so it doesn't run away on a very tall monitor. */
-  #cardMetrics(shelvesRect: Rect): {
-    cardWidth: number;
-    cardHeight: number;
-    cardGap: number;
-    headerHeight: number;
-    headerToCardsGap: number;
-    shelfGap: number;
-  } {
-    const headerHeight = 30;
-    const headerToCardsGap = 8;
-    const shelfGap = 20;
-    const cardGap = 12;
-    const cardWidth = Math.min(300, shelvesRect.width - 40);
-    const available = shelvesRect.height - headerHeight - headerToCardsGap - shelfGap;
-    const cardHeight = Math.max(220, Math.min(440, available));
-    return { cardWidth, cardHeight, cardGap, headerHeight, headerToCardsGap, shelfGap };
-  }
-
-  #refreshArt(): void {
-    this.#roster?.refreshVisible();
-    if (this.#grid) this.#grid.layout(this.#grid.rect);
-  }
-
-  #renderScenarioCard(s: Scenario, rect: Rect): ReturnType<typeof renderShelfCard> {
-    // The villain's scene art, or — with none yet (Klaw, Risky Business, Mutagen Formula today) — its own stage-I
-    // card scan, cover-cropped, rather than an empty parchment box (second-pass item 7). Only the URL: the card-face
-    // worker fetches and decodes it, downscaled to the card, and the roster redraws when the face arrives.
-    const custom = isPackScenario(s.id as string);
-    // A pack scenario's villain picture comes from its pack (`pictures.villain`), else its card scan below.
-    const picture = custom ? packPictureFor("villain", s.villainCardId as string) : this.#villainArtFor(s);
-    const villainCard =
-      picture || hasRandomChosenVillain(s) ? undefined : currentCardsById().get(s.villainCardId as string);
-    const artUrl =
-      picture?.url ??
-      (villainCard ? artFor(villainCard, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }) : null)?.url ??
-      null;
-    const cardDetail = scenarioDetailOf(s, currentCardsById(), currentEncounterSets(), artLanguageNow());
-    const subtitle = shelfSubtitleOf(cardDetail);
-    const selected = this.#scenarioPicked() && this.#draft.scenarioId === (s.id as string);
-    // A locked scenario stays selectable, so its stages can be read ahead of time; only "Choose heroes" refuses it.
-    const lock = unlocks().scenarioLock(s);
-    const row = renderShelfCard(this, rect, {
-      artUrl,
-      artFocusY: 0,
-      titleRole: typeRole.villainTitle,
-      title: cardDetail.tileTitle,
-      subtitle,
-      blockedBy: lock,
-      warning: lock
-        ? lockCaptionOf(
-            unlocks().scenarioLockShort(s) ?? lock,
-            unlockCostOf({ kind: "scenario", scenarioId: s.id as string }),
-          )
-        : null,
-      subtitleLines: 2,
-      // A pack's scenario says so in words, beside SELECTED when both apply.
-      tag: lock
-        ? t("scenario.locked")
-        : [custom ? CUSTOM_BADGE : null, selected ? t("scenario.selected") : null].filter(Boolean).join(" · ") || null,
-      selected,
-    });
-    if (import.meta.env.DEV) {
-      this.#tileDebug.set(s.id as string, {
-        id: s.id as string,
-        title: cardDetail.tileTitle,
-        villainArt: picture !== null,
-        baked: row.objects[0]?.type === "Image",
-      });
-    }
-    return row;
-  }
-
-  /**
-   * The band under the roster (D02): main scheme, starting threat, stage I HP, and the fixed encounter sets — all
-   * read off the same `ScenarioDetail` the ink panel draws. Parchment ground with a 3px ink border and a vertical
-   * ink divider between cells, Bangers values (second-pass item 9) — safe now that the roster above it has no
-   * boxed background of its own to visually collide with (item 3).
-   *
-   * `rows` (`ScenarioSelectLayout.statStripRows`) lays four cells out across one row when there's room (wide) or
-   * 2×2 when there isn't (narrow).
-   */
-  #drawStatStrip(rect: Rect, detail: ScenarioDetail, rows: 1 | 2): void {
-    const g = this.add.graphics();
-    g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    g.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
-    const firstStage = detail.stages[0];
-    const accelerating = detail.startingAcceleration.base > 0 || detail.startingAcceleration.perPlayer > 0;
-    const accel = accelerating
-      ? t("scenario.accel", { accel: formatScaling(detail.startingAcceleration, artLanguageNow()) })
-      : "";
-    const cells: readonly { readonly label: string; readonly value: string }[] = [
-      { label: t("scenario.mainScheme"), value: detail.mainSchemeName },
-      {
-        label: t("scenario.startingThreat"),
-        value: `${t("scenario.threatStart", { threat: formatScaling(detail.startingThreat, artLanguageNow()) })}${accel}`,
-      },
-      {
-        label: t("scenario.foeHp", { foe: detail.foeWord }),
-        value: detail.villainIsRandom
-          ? t("scenario.varies")
-          : detail.stages.map((stage) => formatScaling(stage.hp, artLanguageNow()).split(" ")[0]).join(" · ") ||
-            (firstStage ? formatScaling(firstStage.hp, artLanguageNow()) : "—"),
-      },
-      {
-        // The strip's cell is narrow: its own, shorter label in a language that needs one (#390).
-        label: t("scenario.encounterSetsCell"),
-        value: encounterSetsCellText(detail),
-      },
-    ];
-    const perRow = Math.ceil(cells.length / rows);
-    const cellWidth = rect.width / perRow;
-    const rowHeight = rect.height / rows;
-    cells.forEach((cell, index) => {
-      const col = index % perRow;
-      const row = Math.floor(index / perRow);
-      const x = rect.x + col * cellWidth;
-      const y = rect.y + row * rowHeight;
-      if (col > 0) g.lineStyle(2, surface.ink.hex, 1).lineBetween(x, y + 6, x, y + rowHeight - 6);
-      if (row > 0) g.lineStyle(2, surface.ink.hex, 1).lineBetween(x, y, x + cellWidth, y);
-      // A longer translated label (#390: "CONJUNTOS DE ENCUENTROS") shrinks to its cell rather than run into the next.
-      fitText(
-        label(this, x + 12, y + 8, cell.label, typeRole.label, surface.ink.hex, ink.label),
-        cellWidth - 20,
-        typeRole.label.size,
-      );
-      const value = this.add.text(x + 12, y + 22, cell.value, textStyle(typeRole.sectionHeader, surface.ink.hex));
-      // One line at full size when it fits; else it wraps to the lines the cell has room for, stepping the type down
-      // until it does. Never cut with an ellipsis.
-      const room = rect.y + (row + 1) * rowHeight - 4 - value.y;
-      value.setWordWrapWidth(cellWidth - 20);
-      for (let size = Math.min(typeRole.sectionHeader.size, 16); size >= CAPTION_FLOOR; size--) {
-        value.setFontSize(size);
-        if (value.getWrappedText().length === 1 || value.height <= room) break;
-      }
-    });
-  }
-
-  /** The current difficulty's own stage range, so a stage box can read "used now" vs "the other mode". */
-  #currentStageRange(detail: ScenarioDetail): readonly [number, number] {
-    return this.#draft.difficulty === "standard" ? detail.villainStagesStandard : detail.villainStagesExpert;
-  }
-
-  #drawSidePanel(
-    layout: ReturnType<typeof scenarioSelectLayout>,
-    detail: ScenarioDetail | null,
-    detailTextWidth: number,
-  ): void {
-    const rect = layout.detail;
-    this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
-    if (detail === null) {
-      // No villain picked yet: the panel says what it will show, and the record below has nothing to read.
-      this.#recordText = "";
-      const headerY = layout.wide ? rect.y + 16 : rect.y + rect.height - DETAIL_COLLAPSED_HEIGHT / 2;
-      const header = this.add.text(
-        rect.x + 16,
-        headerY,
-        t("scenario.stages"),
-        textStyle(typeRole.sectionHeader, surface.paper.hex),
-      );
-      if (!layout.wide) header.setOrigin(0, 0.5);
-      const hint = this.add.text(
-        layout.wide ? rect.x + 16 : rect.x + rect.width - 16,
-        layout.wide ? headerY + 32 : headerY,
-        layout.wide ? t("scenario.pickVillainStages") : t("scenario.pickVillain"),
-        textStyle(layout.wide ? typeRole.body : typeRole.label, surface.paper.hex, ink.label),
-      );
-      if (!layout.wide) hint.setOrigin(1, 0.5);
-      else hint.setWordWrapWidth(rect.width - 32);
-      return;
-    }
-    let y = rect.y + 16;
-    if (layout.wide) {
-      this.add.text(rect.x + 16, y, t("scenario.stages"), textStyle(typeRole.sectionHeader, surface.paper.hex));
-      y += 28;
-    } else {
-      // On a phone the panel is a disclosure: its bar is the control, it starts shut, and open it is a sheet
-      // risen over the roster from that same bar (`view/scenario-select-layout.ts`). The bar names what is inside
-      // even when shut, so the stages are one tap away rather than gone.
-      const open = this.#stagesOpen;
-      const bar: Rect = {
-        x: rect.x,
-        y: rect.y + rect.height - DETAIL_COLLAPSED_HEIGHT,
-        width: rect.width,
-        height: DETAIL_COLLAPSED_HEIGHT,
-      };
-      if (open) {
-        // Swallows taps meant for the cards and chips the sheet is covering.
-        this.add
-          .zone(rect.x, rect.y, rect.width, rect.height - bar.height)
-          .setOrigin(0, 0)
-          .setInteractive();
-        const rule = this.add.graphics();
-        rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(bar.x, bar.y, bar.x + bar.width, bar.y);
-      }
-      const [from, to] = this.#currentStageRange(detail);
-      const summary = t("scenario.stageSummary", {
-        name: detail.displayName.toUpperCase(),
-        from: roman(from),
-        to: to > from ? `–${roman(to)}` : "",
-      });
-      this.add
-        .text(
-          bar.x + 16,
-          bar.y + bar.height / 2,
-          t("scenario.stages"),
-          textStyle(typeRole.sectionHeader, surface.paper.hex),
-        )
-        .setOrigin(0, 0.5);
-      this.add
-        .text(
-          bar.x + bar.width - 16,
-          bar.y + bar.height / 2,
-          open ? "▾" : "▴",
-          textStyle(typeRole.sectionHeader, surface.paper.hex),
-        )
-        .setOrigin(1, 0.5);
-      if (!open) {
-        const hint = this.add
-          .text(
-            bar.x + bar.width - 40,
-            bar.y + bar.height / 2,
-            summary,
-            textStyle(typeRole.label, surface.paper.hex, ink.label),
-          )
-          .setOrigin(1, 0.5);
-        fitText(hint, bar.width - 40 - 170, typeRole.label.size);
-      }
-      const toggle = (): void => {
-        this.#stagesOpen = !this.#stagesOpen;
-        this.#rebuild();
-      };
-      // A tap, not any release: a thumb scrolling the roster above often lifts over this bar.
-      onTap(
-        this.add.zone(bar.x, bar.y, bar.width, bar.height).setOrigin(0, 0).setInteractive({ useHandCursor: true }),
-        toggle,
-      );
-      this.#stops.set("stages-toggle", { rect: bar, activate: toggle });
-      if (!open) return;
-      this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
-      y = layout.statStrip.y + layout.statStrip.height + 14;
-    }
-    if (detail.otherVillainNames.length > 0) {
-      const note = this.add.text(
-        rect.x + 16,
-        y,
-        t("scenario.more", { count: detail.otherVillainNames.length, names: detail.otherVillainNames.join(", ") }),
-        textStyle(typeRole.label, surface.paper.hex, ink.label),
-      );
-      note.setWordWrapWidth(rect.width - 32);
-      y += note.height + 8;
-    }
-    // Where the panel's own content has to stop: above the CTA on a wide layout, above its own bar on a phone sheet.
-    const contentBottom = layout.wide
-      ? (layout.secondary ?? layout.next).y - 8
-      : rect.y + rect.height - DETAIL_COLLAPSED_HEIGHT - 8;
-    const [rangeStart, rangeEnd] = this.#currentStageRange(detail);
-    for (const stage of detail.villainIsRandom ? detail.stages.slice(0, 1) : detail.stages) {
-      const boxHeight = 44;
-      if (y + boxHeight > contentBottom) break;
-      const current = stage.stageNumber >= rangeStart && stage.stageNumber <= rangeEnd;
-      const box = this.add.graphics();
-      box
-        .lineStyle(current ? 2 : 1, surface.paper.hex, current ? 1 : ink.disabled)
-        .strokeRect(rect.x + 16, y, rect.width - 32, boxHeight);
-      const stageLabel = stage.stageLabel ?? roman(stage.stageNumber);
-      this.add
-        .text(
-          rect.x + 24,
-          y + 6,
-          `${stageLabel} · ${(detail.villainChoices.length > 0 ? t("scenario.yourVillain") : detail.villainName).toUpperCase()}`,
-          textStyle(typeRole.sectionHeader, surface.paper.hex, current ? 1 : ink.disabled),
-        )
-        .setFontSize(15);
-      this.add.text(
-        rect.x + 24,
-        y + 26,
-        detail.villainIsRandom
-          ? t("scenario.drawnAtRandom")
-          : t("scenario.stageStats", { sch: stage.sch, hp: formatScaling(stage.hp, artLanguageNow()), atk: stage.atk }),
-        textStyle(typeRole.label, surface.paper.hex, current ? ink.label : ink.disabled),
-      );
-      y += boxHeight + 8;
-    }
-    y += 8;
-    if (y + 64 > contentBottom) return;
-    const rule = this.add.graphics();
-    rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(rect.x + 16, y, rect.x + rect.width - 16, y);
-    y += 12;
-    const record = this.#history.get(this.#draft.scenarioId) ?? null;
-    const played = record !== null && record.combined.gamesPlayed > 0;
-    const tally = played
-      ? `${tPlural("scenario.wins", record.combined.wins)} · ${tPlural("scenario.losses", record.combined.losses)}`
-      : t("scenario.notPlayed");
-    const beaten = played && record.combined.wins > 0;
-    const subline = !played
-      ? null
-      : record.combined.bestClearRounds !== null
-        ? t("scenario.bestClear", { round: record.combined.bestClearRounds })
-        : beaten
-          ? null
-          : t("scenario.notBeaten");
-    this.#recordText = played
-      ? t("scenario.recordLine", { tally, subline: subline ? ` ${subline}.` : "" })
-      : t("scenario.notPlayedDot");
-    // The record is a filled band, not a dim body line (issue 141 follow-up), at menu-button size so it reads from the
-    // couch: win-state green once beaten, a deep red (darker than the Hero Red CTA) when played but never won, the
-    // advisory yellow before it has been played.
-    label(this, rect.x + 16, y, t("scenario.record"), typeRole.label, surface.paper.hex, ink.label);
-    y += 16;
-    const band = this.add.graphics();
-    const textColor = played ? surface.paper.hex : surface.inkOnHue.hex;
-    const tallyNode = this.add.text(rect.x + 28, y + 10, tally, textStyle(typeRole.menuButton, textColor));
-    tallyNode.setWordWrapWidth(rect.width - 56);
-    let bandHeight = tallyNode.height + 20;
-    if (subline) {
-      const sublineNode = this.add
-        .text(rect.x + 28, y + 10 + tallyNode.height + 2, subline, textStyle(typeRole.emphasis, textColor))
-        .setFontSize(13);
-      bandHeight += sublineNode.height + 2;
-    }
-    band
-      .fillStyle(beaten ? signal.heal.hex : played ? accent.redDeep.hex : signal.caution.hex, 1)
-      .fillRect(rect.x + 16, y, rect.width - 32, bandHeight)
-      .lineStyle(border.detail, surface.inkOnHue.hex, 1)
-      .strokeRect(rect.x + 16, y, rect.width - 32, bandHeight);
-    y += bandHeight + 14;
-    // "Encounter sets" / "Recommended modular" as label-over-value blocks (second-pass item 5), matching the
-    // seats panel's own OBLIGATION / NEMESIS SET treatment — not the old plain-text dump of every
-    // `scenarioDetailLines` line (a per-stage "Stage 1: 12 per player HP · ATK 0…" that duplicated the stage boxes
-    // above verbatim).
-    const blocks: readonly { readonly heading: string; readonly value: string }[] = [
-      { heading: t("scenario.encounterSets"), value: detail.fixedEncounterSetNames.join(", ") || t("scenario.none") },
-      detail.modularSummary
-        ? { heading: t("scenario.modularSets"), value: detail.modularSummary }
-        : {
-            heading: t("scenario.recommendedModular"),
-            value: detail.recommendedModularSetNames.join(", ") || t("scenario.none"),
-          },
-    ];
-    for (const block of blocks) {
-      if (y + 40 > contentBottom) break;
-      label(this, rect.x + 16, y, block.heading, typeRole.label, surface.paper.hex, ink.label);
-      y += 16;
-      const value = this.add.text(rect.x + 16, y, block.value, textStyle(typeRole.body, surface.paper.hex));
-      value.setWordWrapWidth(detailTextWidth);
-      y += estimateWrappedLines(block.value, detailTextWidth, DETAIL_CHAR_WIDTH) * DETAIL_LINE_PX + 12;
+    this.#compose();
+    if (this.#searchOpen) {
+      const field = this.#page?.searchField;
+      if (field) void field.updateComplete.then(() => field.focusInput());
     }
   }
 
@@ -1385,67 +454,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const s = currentScenarios().find((candidate) => (candidate.id as string) === rowId);
     if (s) {
       this.#draft = setScenario(this.#draft, s, s.id as string);
-      this.#rebuild();
+      this.#compose();
     }
-  }
-
-  /** The shelves as last built, for the reveal after a rebuild. */
-  #shelvesNow: readonly Shelf<RosterEntry>[] = [];
-
-  /**
-   * Where each scenario is shelved: installed packs' scenarios on a "Custom packs" shelf first or last, or beside the
-   * wave the pack names (issue #734). The product chips are these shelves too (issue #966).
-   */
-  #placement(): { readonly order: readonly string[]; readonly shelfOf: (scenario: Scenario) => string } {
-    const placed = placeScenarioShelves(
-      POOL_PACKS.map((p) => ({ code: p.code as string, cycleId: p.cycleId as string })),
-      customContentPrefsNow().placement,
-    );
-    const packWaves = new Map(
-      loadedPacks().flatMap((pack) => (pack.scenarios ?? []).map((one) => [one.id as string, pack.wave] as const)),
-    );
-    return {
-      order: placed.order,
-      shelfOf: (scenario) =>
-        isPackScenario(scenario.id as string)
-          ? placed.shelfOf(packWaves.get(scenario.id as string))
-          : (scenario.packCode as string),
-    };
-  }
-
-  #shelves(): readonly Shelf<RosterEntry>[] {
-    const ranking = this.#ranking;
-    const placed = this.#placement();
-    const candidates: ShelfCandidate<Scenario>[] = withSelectionPinned(
-      currentScenarios(),
-      () => true,
-      (s) => this.#scenarioPicked() && this.#draft.scenarioId === (s.id as string),
-    ).map((s) => {
-      const shelf = placed.shelfOf(s);
-      const passesChips =
-        (!this.#draft.scenarioFilter.product || shelf === this.#draft.scenarioFilter.product) &&
-        (ranking === null || ranking.has(s.id as string));
-      return {
-        item: s,
-        packCode: shelf,
-        searchHaystacks: [],
-        passesChips,
-      };
-    });
-    const shelves = shelvesOf(
-      candidates,
-      placed.order,
-      (code) => (code === CUSTOM_SHELF_ID ? "Custom packs" : packNameOf(code)),
-      "",
-    );
-    // A search puts the best match first, within each shelf and among the shelves.
-    const ordered = shelvesWithBuilderTile(
-      ranking ? rankShelvesByScore(shelves, (s) => ranking.get(s.id as string) ?? 0) : shelves,
-    );
-    // The shelves the player folded show as their header alone (#753), unless a search or chip is narrowing the list.
-    const result = foldShelves(ordered, this.#folded, this.#filtering());
-    this.#shelvesNow = result;
-    return result;
   }
 
   /** A roster entry's tap: a scenario becomes the draft's pick; the "Build your own" tile opens the builder. */
@@ -1456,65 +466,30 @@ export class ScenarioSelectScene extends Phaser.Scene {
       return;
     }
     this.#draft = setScenario(this.#draft, entry, entry.id as string);
-    this.#rebuild();
+    this.#compose();
   }
 
-  /** The builder scene on the draft: "Customize" (this scenario as printed) or "Build your own" (the last build, or the first leader). */
+  #customize(): void {
+    const scenario = currentScenarios().find((s) => (s.id as string) === (this.#draft.scenarioId as string));
+    const entry = customizeEntryOf(scenario);
+    if (entry) this.#openBuilder("customize", entry.scenarioId);
+  }
+
   #openBuilder(kind: "build" | "customize", scenarioId: string): void {
-    const entry = enterBuilder(kind, this.#draft, scenarioId);
-    setBuilderOrigin("scenarioSelect");
-    this.scale.off("resize", this.#rebuild, this);
-    goToScreen(this, SCENES.civilWarBuilder, {
-      draft: entry.draft,
-      step: entry.step,
-      ...(this.#seedDecks.length > 0 ? { seedDecks: this.#seedDecks } : {}),
-    } satisfies CivilWarBuilderData);
+    this.scale.off("resize", this.#compose, this);
+    openBuilder(this, this.#draft, this.#seedDecks, kind, scenarioId);
   }
 
-  #renderEntry(entry: RosterEntry, rect: Rect): ReturnType<typeof renderShelfCard> {
-    if (!isBuilderTile(entry)) return this.#renderScenarioCard(entry, rect);
-    // The box cover: Captain America against Iron Man over the flag, which says "pick a side" better than either
-    // leader's own picture or a split of the four (those read as four ready-made scenarios, not a builder).
-    const civilWar = currentScenarios().find((s) => isCivilWarScenario(s));
-    const cover = civilWar ? this.#packCoverFor(civilWar.packCode as string) : null;
-    return renderShelfCard(this, rect, {
-      artUrl: cover?.url ?? null,
-      artFocusY: 0.25,
-      titleRole: typeRole.villainTitle,
-      title: BUILD_YOUR_OWN_TITLE,
-      subtitle: BUILD_YOUR_OWN_SUBTITLE,
-      blockedBy: null,
-      warning: null,
-      subtitleLines: 2,
-      tag: t("scenario.builder"),
-      selected: false,
-    });
-  }
-
-  #inspectEntry(entry: RosterEntry): void {
-    if (!isBuilderTile(entry)) this.#inspectScenario(entry);
-  }
-
-  #inspectScenario(s: Scenario): void {
-    // A villain drawn at random (Shadows in the Night) is not known yet, so the sheet shows the main scheme instead.
-    const unknown = hasRandomChosenVillain(s);
-    const shownId = unknown ? s.mainSchemeCardId : s.villainCardId;
-    const card = currentCardsById().get(shownId as string);
-    const face = unknown
-      ? ({ kind: "mainSchemeStage", stageIndex: 0, side: "A" } as const)
-      : card?.type === "villain"
-        ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const)
-        : ({ kind: "hero" } as const);
-    this.scene.launch(SCENES.inspect, {
-      card: { cardId: shownId as CardId, face },
-      choice: {
-        optionId: s.id as string,
-        label: s.multipleVillains
-          ? t("scenario.playThis")
-          : t("scenario.playFoe", {
-              foe: foeWord(s, { cardsById: currentCardsById(), lower: true, lang: artLanguageNow() }),
-            }),
-      },
-    });
+  /** "Choose heroes ▸": locked, it becomes the door to unlocking this one scenario with champion points, right here. */
+  #next(): void {
+    if (this.#leaving || !this.#canContinue) return;
+    const scenario = currentScenarios().find((s) => (s.id as string) === (this.#draft.scenarioId as string));
+    if (scenario && unlocks().scenarioLock(scenario)) {
+      unlockOrAsk(this, this.#unlockTarget(scenario), () => this.#compose());
+      return;
+    }
+    this.#leaving = true;
+    this.scale.off("resize", this.#compose, this);
+    chooseHeroes(this, this.#draft, this.#seedDecks);
   }
 }

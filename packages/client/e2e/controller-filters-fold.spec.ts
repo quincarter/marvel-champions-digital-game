@@ -94,8 +94,39 @@ const focusOf = (page: Page, scene: string): Promise<string | null> =>
 const hasKey = async (page: Page, scene: string, prefix: string): Promise<boolean> =>
   (await stopsOf(page, scene)).some((stop) => stop.key.startsWith(prefix));
 
-/** Texts on `scene` containing `substr` that are actually drawn (visible, not faded out), at any depth. */
-const visibleTexts = (page: Page, scene: string, substr: string): Promise<string[]> =>
+/**
+ * Words of the Lit panels drawn for `scene` (`#mc-ui`, shadow roots included) that contain `substr`: Scenario select
+ * draws as panels, Take your seats still in the canvas.
+ */
+const panelTexts = (page: Page, scene: string, substr: string): Promise<string[]> =>
+  page.evaluate(
+    ([sceneKey, wanted]) => {
+      const found: string[] = [];
+      const visit = (node: Node): void => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.textContent?.trim() ?? "";
+          if (text && text.toLowerCase().includes(wanted!.toLowerCase())) found.push(text);
+          return;
+        }
+        const shadow = (node as Element).shadowRoot;
+        if (shadow) visit(shadow);
+        for (const child of node.childNodes) visit(child);
+      };
+      const root = document.querySelector(`#mc-ui [data-scene="${sceneKey}"]`);
+      if (root) visit(root);
+      return found;
+    },
+    [scene, substr],
+  );
+
+/** Texts on `scene` containing `substr` that are actually drawn (visible, not faded out), at any depth, in the canvas or a panel. */
+const visibleTexts = async (page: Page, scene: string, substr: string): Promise<string[]> => [
+  ...(await canvasTexts(page, scene, substr)),
+  ...(await panelTexts(page, scene, substr)),
+];
+
+/** The canvas's own texts for `scene` (see `visibleTexts`). */
+const canvasTexts = (page: Page, scene: string, substr: string): Promise<string[]> =>
   page.evaluate(
     ([sceneKey, wanted]) => {
       const game = (
@@ -282,7 +313,7 @@ test("Take your seats: LT and RT page the focused hero row, and the keyboard's I
   // It lands on the first card fully in view, at the row's left edge, inside the roster.
   const forwardRect = await rectOf(forward!);
   expect(forwardRect.y).toBe(before.y);
-  expect(forwardRect.x).toBeGreaterThanOrEqual(60);
+  expect(forwardRect.x).toBeGreaterThanOrEqual(0);
   expect(forwardRect.x + forwardRect.width).toBeLessThanOrEqual(1100);
   // LT pages back along the same row.
   await press(page, LT, async () => (await focusOf(page, "Seats")) !== forward);

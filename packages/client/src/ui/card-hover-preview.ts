@@ -10,6 +10,7 @@
  * rules for when it may show, how big it is and where it sits are in `view/card-hover.ts`.
  */
 
+import { resyncLiveRegions } from "../dom/dom-region.js";
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
@@ -113,7 +114,6 @@ const COVERING_SCENES: readonly string[] = [
   SCENES.saveData,
   SCENES.unlockConfirm,
   SCENES.nameConflict,
-  SCENES.heroDecks,
   SCENES.deckActions,
   SCENES.searchHelp,
   SCENES.poolPick,
@@ -500,6 +500,16 @@ export class HoverPreview {
     this.#visual = null;
     this.#waitingKey = null;
     if (!this.#destroyed) this.#coverFields();
+    // A Lit panel cuts the popover's box out of itself (`DomRegion.setHoles`) and reads it once a frame: read it now, or a
+    // press that follows at once lands in the stale hole, on the canvas, and is lost.
+    resyncLiveRegions();
+  }
+
+  /** A press began on a panel over the canvas (it never reaches Phaser's pointer-down): the popover goes down and stays down for this card. */
+  suppress(): void {
+    if (this.#pinned || this.#destroyed) return;
+    this.#suppressed = this.#shownId ?? this.#pendingId ?? this.#suppressed;
+    this.#clear();
   }
 
   /** The popover for one card: its scan (or a plain frame when the scan is missing) with the state strip under it. */
@@ -596,9 +606,9 @@ export class HoverPreview {
     if (scheme && instance) {
       const meter: Rect = { x: 10, y: bandTop + 7, width: size.width - 20, height: METER_HEIGHT };
       const mg = this.scene.add.graphics();
-      const meterText = this.scene.add.text(0, 0, "", textStyle(typeRole.threatCount, surface.ink.hex));
-      paintThreatMeter(mg, meterText, meter, scheme, instance.threat);
-      meterText.setOrigin(0.5).setPosition(meter.x + meter.width / 2, meter.y + meter.height / 2);
+      const meterText = this.scene.add.text(0, 0, "", textStyle(typeRole.threatCount, surface.ink.hex)).setOrigin(0.5);
+      const style = appSession().settings.threatMeterStyle;
+      paintThreatMeter(mg, meterText, meter, scheme, instance.threat, 1, null, undefined, style);
       container.add([mg, meterText]);
     }
     if (hp) {

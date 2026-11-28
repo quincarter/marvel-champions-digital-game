@@ -10,6 +10,7 @@
  * `identityCardTitledAs`), so it shows at seat time, when every hero is still in alter-ego form and the in-play
  * check (`activeTeamUps`) would say no. Plain data in, plain data out; the screens only draw it.
  */
+import { localHeroName } from "./deck-names.js";
 import type { AnyCard, CoreAspect, Deck } from "@mc/content";
 import { identityCardTitledAs } from "@mc/engine";
 import { teamUpPairsOf, type TeamUpPair } from "./team-up-model.js";
@@ -77,7 +78,8 @@ function identityOf(deck: Deck, pool: SeatCardPool) {
 
 /** The hero name a deck's identity answers to: its card name, used for "in Gambit's deck". */
 function heroNameOf(deck: Deck, pool: SeatCardPool): string {
-  return identityOf(deck, pool)?.name ?? deck.name;
+  const identity = identityOf(deck, pool);
+  return identity ? localHeroName(identity.id as string, identity.name) : deck.name;
 }
 
 /** Which of a pair's two titles this deck's identity answers to, or null. */

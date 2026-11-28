@@ -5,6 +5,9 @@
  * A row says which game it is (`gameLabelOf`), where it was last played (the platform mark), its round and when it
  * was last played. Guided lesson saves never reach this list (`EngineSessionCore.activeSaves`).
  */
+import { artLanguageNow } from "../art/art-source.js";
+import type { CardLanguage } from "../art/card-language.js";
+import { t } from "../i18n/translate.js";
 import { hit } from "../tokens.js";
 import { writtenByNewerApp, type SaveMeta } from "../engine/game-storage.js";
 import { CLIENT_VERSION } from "../version.js";
@@ -30,17 +33,20 @@ const dayStart = (at: number): number => {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 };
 
-/** "just now", "5 min ago", "2 h ago", "yesterday", "3 days ago", "2 wk ago", then a short date. */
-export function relativeTimeOf(then: number, now: number): string {
+/**
+ * "just now", "5 min. ago", "3 hr. ago", "yesterday", "3 days ago", "2 wk. ago", then a short date, in the app's
+ * language: the words come from `Intl.RelativeTimeFormat` (short style, `numeric: "auto"` for "yesterday").
+ */
+export function relativeTimeOf(then: number, now: number, lang: CardLanguage = artLanguageNow()): string {
   const elapsed = now - then;
-  if (elapsed < MINUTE) return "just now";
-  if (elapsed < HOUR) return `${Math.floor(elapsed / MINUTE)} min ago`;
+  if (elapsed < MINUTE) return t("games.justNow", undefined, lang);
+  const format = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "short" });
+  if (elapsed < HOUR) return format.format(-Math.floor(elapsed / MINUTE), "minute");
   const days = Math.round((dayStart(now) - dayStart(then)) / DAY);
-  if (days <= 0) return `${Math.floor(elapsed / HOUR)} h ago`;
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days} days ago`;
-  if (days < 35) return `${Math.floor(days / 7)} wk ago`;
-  return new Date(then).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  if (days <= 0) return format.format(-Math.floor(elapsed / HOUR), "hour");
+  if (days < 7) return format.format(-days, "day");
+  if (days < 35) return format.format(-Math.floor(days / 7), "week");
+  return new Date(then).toLocaleDateString(lang, { day: "numeric", month: "short", year: "numeric" });
 }
 
 export interface GamesListNames extends ContinueLabelNames {
@@ -79,8 +85,11 @@ export function gameRowsOf(
     .map((save) => ({
       id: save.id,
       title: gameLabelOf(save.config, names),
-      kicker: save.campaignId === null ? null : `Campaign: ${names.campaignName(save.campaignId) ?? save.campaignId}`,
-      detail: `Round ${save.round} · ${relativeTimeOf(save.updatedAt, now)}`,
+      kicker:
+        save.campaignId === null
+          ? null
+          : t("games.campaign", { name: names.campaignName(save.campaignId) ?? save.campaignId }),
+      detail: `${t("games.round", { n: save.round })} · ${relativeTimeOf(save.updatedAt, now)}`,
       needsUpdate: writtenByNewerApp(save, appVersion),
       save,
     }));

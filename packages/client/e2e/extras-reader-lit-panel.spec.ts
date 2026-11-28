@@ -17,8 +17,8 @@ const focusOf = (page: Page, scene: string): Promise<{ focus: string | null; rin
 
 const READER = `#mc-ui [data-scene="ExtrasReader"]`;
 const STORY = `#mc-ui [data-scene="SideStoryReader"]`;
-const search = (page: Page) => page.locator(`${READER} [data-key="search"] input`);
-const rows = (page: Page) => page.locator(`${READER} [data-key^="toc:"]`);
+const search = (page: Page) => page.locator(`${READER} [data-stop="search"] input`);
+const rows = (page: Page) => page.locator(`${READER} [data-stop^="toc:"]`);
 
 async function openReader(page: Page): Promise<void> {
   await openApp(page, "screen=extras-reader&book=book:rrg", { landing: "ExtrasReader" });
@@ -53,7 +53,7 @@ test("the reader searches the book with a real input: typing filters, clear empt
   expect(await activeScenes(page)).toContain("ExtrasReader");
 
   // The clear button empties it at once and the whole contents come back.
-  await page.locator(`${READER} [data-key="search"] .clear`).click();
+  await page.locator(`${READER} [data-stop="search"] .clear`).click();
   await expect(search(page)).toHaveValue("");
   await waitFor(async () => ((await rows(page).count()) === all ? true : null), "the contents are whole again", 10_000);
 
@@ -94,7 +94,7 @@ test("the keyboard reaches the search stop, Enter puts the caret in, and a secti
 
   // Open the section: its text is an article in the panel, scrolled natively.
   await rows(page).first().click();
-  const article = page.locator(`${READER} [data-key="reader-text"]`);
+  const article = page.locator(`${READER} mc-reader-text`);
   await expect(article).toHaveCount(1);
   await expect(article.locator("h2.title")).toContainText(/golden/i);
   const scroller = article.locator(".scroller");
@@ -109,7 +109,7 @@ test("the keyboard reaches the search stop, Enter puts the caret in, and a secti
     );
   }
   // NEXT moves on a section and the text starts from its top.
-  await page.locator(`${READER} [data-key="next"]`).click();
+  await page.locator(`${READER} [data-stop="next"]`).click();
   await waitFor(
     async () => ((await scroller.evaluate((el) => el.scrollTop)) === 0 ? true : null),
     "starts from the top",
@@ -123,7 +123,7 @@ test("on a phone the contents and a section are separate panes, and a swipe over
   test.skip(info.project.name !== "phone", "a touch layout");
   test.setTimeout(120_000);
   await openReader(page);
-  await expect(page.locator(`${READER} [data-key="reader-text"]`)).toHaveCount(0);
+  await expect(page.locator(`${READER} mc-reader-text`)).toHaveCount(0);
   const first = (await rows(page).nth(3).boundingBox())!;
   const cdp = await page.context().newCDPSession(page);
   const x = first.x + first.width / 2;
@@ -136,12 +136,12 @@ test("on a phone the contents and a section are separate panes, and a swipe over
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await cdp.detach();
   await page.waitForTimeout(600);
-  await expect(page.locator(`${READER} [data-key="reader-text"]`)).toHaveCount(0);
+  await expect(page.locator(`${READER} mc-reader-text`)).toHaveCount(0);
   // A tap opens one, and CONTENTS comes back.
   await rows(page).first().tap();
-  await expect(page.locator(`${READER} [data-key="reader-text"]`)).toHaveCount(1);
-  await page.locator(`${READER} [data-key="contents"]`).tap();
-  await expect(page.locator(`${READER} [data-key="reader-text"]`)).toHaveCount(0);
+  await expect(page.locator(`${READER} mc-reader-text`)).toHaveCount(1);
+  await page.locator(`${READER} [data-stop="contents"]`).tap();
+  await expect(page.locator(`${READER} mc-reader-text`)).toHaveCount(0);
 });
 
 test("the reader reads in Spanish", async ({ page }) => {
@@ -163,10 +163,10 @@ test("a side story keeps its comic in the canvas: NEXT turns the beat, CLOSE and
   const beat = (): Promise<number> =>
     page.evaluate(() => (window as unknown as { __mcSideStoryDebug: { beat(): number } }).__mcSideStoryDebug.beat());
   expect(await beat()).toBe(0);
-  await page.locator(`${STORY} [data-key="next"]`).click();
+  await page.locator(`${STORY} [data-stop="next"]`).click();
   await waitFor(async () => ((await beat()) === 1 ? true : null), "NEXT turns the beat", 10_000);
-  await expect(page.locator(`${STORY} [data-key="back"]`)).toHaveCount(1);
-  await page.locator(`${STORY} [data-key="back"]`).click();
+  await expect(page.locator(`${STORY} [data-stop="back"]`)).toHaveCount(1);
+  await page.locator(`${STORY} [data-stop="back"]`).click();
   await waitFor(async () => ((await beat()) === 0 ? true : null), "BACK returns", 10_000);
   await page.keyboard.press("Escape");
   await waitFor(async () => ((await activeScenes(page)).includes("Extras") ? true : null), "back on Extras", 15_000);

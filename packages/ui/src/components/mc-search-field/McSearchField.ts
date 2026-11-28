@@ -27,6 +27,7 @@ import { McSearchFieldStyles } from "./mc-search-field.styles.js";
  * @attr placeholder - What it says while empty, already translated.
  * @attr focus-placeholder - What it says while empty and focused (a Steam pad: "Steam + X opens the keyboard"); optional.
  * @attr clear-label - The clear button accessible name, already translated.
+ * @attr clear-stop - The clear button focus stop key (`data-stop`); none when empty.
  * @attr debounce - The typing pause in ms (200).
  * @attr max-length - The longest text in characters (0: no limit).
  * @attr clearable - Shows the clear button while there is text (on by default).
@@ -45,6 +46,7 @@ export class McSearchField extends LitElement {
     placeholder: { type: String },
     focusPlaceholder: { type: String, attribute: "focus-placeholder" },
     clearLabel: { type: String, attribute: "clear-label" },
+    clearStop: { type: String, attribute: "clear-stop" },
     debounce: { type: Number },
     size: { type: Number },
     escapeClears: { type: Boolean, attribute: "escape-clears" },
@@ -58,6 +60,7 @@ export class McSearchField extends LitElement {
   declare placeholder: string;
   declare focusPlaceholder: string;
   declare clearLabel: string;
+  declare clearStop: string;
   declare debounce: number;
   declare size: number;
   declare escapeClears: boolean;
@@ -80,6 +83,7 @@ export class McSearchField extends LitElement {
     this.placeholder = "";
     this.focusPlaceholder = "";
     this.clearLabel = "";
+    this.clearStop = "";
     this.debounce = 200;
     this.size = 16;
     this.escapeClears = false;
@@ -248,7 +252,18 @@ export class McSearchField extends LitElement {
       ${
         this.#text === "" || !this.clearable
           ? nothing
-          : html`<button type="button" class="clear" tabindex="-1" aria-label=${this.clearLabel} ${tapped(this.#clear)}>
+          : html`<button
+              type="button"
+              class="clear"
+              tabindex="-1"
+              aria-label=${this.clearLabel}
+              data-stop=${this.clearStop || nothing}
+              ${tapped(this.#clear)}
+              @click=${(event: MouseEvent) => {
+                // The focus route's Enter is `click()` with no pointer behind it (`detail` 0).
+                if (event.detail === 0) this.#clear();
+              }}
+            >
               ✕
             </button>`
       }

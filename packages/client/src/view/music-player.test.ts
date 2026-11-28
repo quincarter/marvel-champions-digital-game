@@ -10,7 +10,6 @@ import {
   nextShuffled,
   nowPlayingBanner,
   nowPlayingPill,
-  playerPanelRect,
   shuffledQueue,
   steppedVolume,
   volumeAtTrack,
@@ -132,26 +131,6 @@ describe("where it draws", () => {
       width: 374,
       height: 56,
     });
-  });
-
-  test("a phone's player fills the screen under the bar", () => {
-    expect(playerPanelRect(icon, { width: 390, height: 844 }, true, 3)).toEqual({
-      x: 0,
-      y: 41,
-      width: 390,
-      height: 803,
-    });
-  });
-
-  test("a desktop popover hangs from the button, inside the screen", () => {
-    const rect = playerPanelRect(icon, { width: 1440, height: 900 }, false, 3);
-    expect(rect.x + rect.width).toBe(892);
-    expect(rect.y).toBe(43);
-    expect(rect.width).toBe(380);
-    const many = playerPanelRect(icon, { width: 1440, height: 600 }, false, 40);
-    expect(many.y + many.height).toBe(592);
-    const nearLeft = playerPanelRect({ x: 20, y: 5, width: 44, height: 30 }, { width: 1440, height: 900 }, false, 3);
-    expect(nearLeft.x).toBe(8);
   });
 });
 

@@ -165,7 +165,13 @@ async function dealIt(page: Page): Promise<void> {
     await page.mouse.wheel(0, 120);
     await settle(page);
   }
-  const seedFocused = (): Promise<boolean> => page.evaluate(() => document.activeElement?.tagName === "INPUT");
+  // The seed field is a panel's own input, in shadow roots: follow the focus down to it.
+  const seedFocused = (): Promise<boolean> =>
+    page.evaluate(() => {
+      let el = document.activeElement as HTMLElement | null;
+      while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement as HTMLElement;
+      return el?.tagName === "INPUT";
+    });
   for (let tries = 0; tries < 5 && !(await seedFocused()); tries++) {
     await clickStop(page, "seed", "Setup");
     await settle(page, { quietMs: 150, maxMs: 600 });
@@ -174,7 +180,11 @@ async function dealIt(page: Page): Promise<void> {
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.type(SEED);
   expect(
-    await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.value ?? ""),
+    await page.evaluate(() => {
+      let el = document.activeElement as HTMLElement | null;
+      while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement as HTMLElement;
+      return (el as HTMLInputElement | null)?.value ?? "";
+    }),
     "the seed was typed into the field",
   ).toBe(SEED);
   await page.keyboard.press("Enter");

@@ -592,7 +592,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     const region = new DomRegion<E>(this, element, rect);
     // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas; the popover itself is
     // drawn in the canvas, so its box is left out of the panel.
-    region.forwardMouseMoves();
+    region.forwardMouseMoves(() => this.#hover?.suppress());
     region.setHoles(() => {
       const popover = this.#hover?.shownRect;
       return popover ? [popover] : [];

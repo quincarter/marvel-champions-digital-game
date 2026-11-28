@@ -49,6 +49,7 @@
     "@tauri-apps/plugin-http": "^2.9.0",
     "@tauri-apps/plugin-opener": "^2.7.3",
     "fflate": "^0.8.3",
+    "lit": "^3.3.3",
     "phaser": "^4.2.1",
     "phaser4-rex-plugins": "^4.2.0",
     "uqr": "^0.1.3"

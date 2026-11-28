@@ -13,12 +13,18 @@ import { t } from "../i18n/translate.js";
  */
 export const FILTERS_BREAKPOINT = 1000;
 
+/**
+ * Choose a scenario's own breakpoint: its 21+ pack chips wrap to about six rows at a 1024 tablet and leave the shelves a
+ * cropped strip, so a tablet folds them behind the Filters button too (the owner's tablet check, 2026-11-27).
+ */
+export const SCENARIO_FILTERS_BREAKPOINT = 1100;
+
 /** The Filters button's width, wide enough for "Filters (3) ▾". */
 export const FILTERS_BUTTON_WIDTH = 156;
 
 /** Whether the chips are behind the Filters button at this size: always in pad mode, else below the breakpoint. */
-export function filtersBehindButton(gameWidth: number, padMode: boolean): boolean {
-  return padMode || gameWidth < FILTERS_BREAKPOINT;
+export function filtersBehindButton(gameWidth: number, padMode: boolean, breakpoint = FILTERS_BREAKPOINT): boolean {
+  return padMode || gameWidth < breakpoint;
 }
 
 /**

@@ -96,10 +96,51 @@ describe("mc-filter-bar", () => {
     expect(events).toEqual(["sheet", "sort:old"]);
   });
 
+  it("lays a rail as one row that scrolls sideways, and wraps otherwise", async () => {
+    const wrapped = await mount({ chips: [{ id: "a", label: "A", selected: false }] });
+    expect(wrapped.shadowRoot!.querySelector(".bar.rail")).toBeNull();
+    const rail = await mount({ chips: [{ id: "a", label: "A", selected: false }], rail: true });
+    expect(rail.shadowRoot!.querySelector(".bar.rail")).not.toBeNull();
+  });
+
   it("leaves out the sort and the sheet button when there are none", async () => {
     const bar = await mount({ chips: [] });
     expect(bar.shadowRoot!.querySelector("select")).toBeNull();
     expect(bar.shadowRoot!.querySelector(".sheet")).toBeNull();
+  });
+});
+
+describe("mc-filter-bar tint, info segment and rail scroll", () => {
+  it("tints a chip, draws an info segment that raises mc-info and not mc-activate, and scrolls in one row", async () => {
+    const bar = document.createElement("mc-filter-bar");
+    bar.rail = true;
+    bar.prefix = "hero-chip:";
+    bar.chips = [
+      {
+        id: "aspect:justice",
+        label: "Justice",
+        selected: false,
+        tint: { fill: "#f0c040", ink: "#111111" },
+        info: { open: false, label: "About Justice" },
+      },
+      { id: "playable-now", label: "Playable now", selected: true },
+    ];
+    document.body.append(bar);
+    await bar.updateComplete;
+    expect(bar.hasAttribute("rail")).toBe(true);
+    const chip = bar.elementOf("hero-chip:aspect:justice") as HTMLElement & { tint: unknown };
+    expect(chip.tint).toEqual({ fill: "#f0c040", ink: "#111111" });
+    const info = bar.elementOf("hero-chip:aspect:justice:info")!;
+    expect(info).toBeTruthy();
+    expect(info.getAttribute("aria-label")).toBe("About Justice");
+    expect(bar.elementOf("hero-chip:playable-now:info")).toBeNull();
+    const heard: string[] = [];
+    bar.addEventListener("mc-info", (event) => heard.push(`info ${(event as CustomEvent<{ id: string }>).detail.id}`));
+    bar.addEventListener("mc-activate", () => heard.push("activate"));
+    info.dispatchEvent(new CustomEvent("mc-press", { bubbles: true }));
+    expect(heard).toEqual(["info aspect:justice"]);
+    expect(bar.scroller).toBeTruthy();
+    bar.remove();
   });
 });
 

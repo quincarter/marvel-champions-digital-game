@@ -1910,6 +1910,7 @@ export class BoardScene extends Phaser.Scene {
       cardScale,
       largeSchemes: this.#drawnSettings.largeSchemes,
       schemeStack: this.#drawnSettings.schemeStack,
+      threatMeterStyle: this.#drawnSettings.threatMeterStyle,
       requestDraw: () => {
         this.#scrollDirty = true;
       },

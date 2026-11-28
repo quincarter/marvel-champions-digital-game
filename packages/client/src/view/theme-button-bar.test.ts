@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { floatingThemeSlot, sheetThemePlan, themeHitRect, themeTabSlot, topBarThemePlan } from "./theme-button.js";
+import { floatingThemeSlot, themeTabSlot, topBarThemePlan } from "./theme-button.js";
 
 const overlaps = (a: { x: number; y: number; width: number; height: number }, b: typeof a): boolean =>
   a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
@@ -50,46 +50,5 @@ describe("topBarThemePlan", () => {
     const plan = topBarThemePlan({ width: 375, barHeight: 52, textLeft: 70, textRight: 250, textHeight: 24 });
     expect(plan.slot).toMatchObject({ x: themeTabSlot({ width: 375 }).x, y: 0, width: 34 });
     expect(plan.drop).toBeGreaterThan(0);
-  });
-});
-
-describe("sheetThemePlan", () => {
-  const hit = themeHitRect;
-  const cases = [
-    { name: "se", width: 375, bar: 52, left: 70, right: 260, size: 22 },
-    { name: "pixel", width: 412, bar: 52, left: 70, right: 300, size: 22 },
-    { name: "tablet portrait", width: 768, bar: 60, left: 297, right: 520, size: 28 },
-    { name: "desktop", width: 1440, bar: 60, left: 302, right: 1000, size: 28 },
-  ];
-  for (const c of cases) {
-    it(`keeps the words off the toggle's whole press area (${c.name})`, () => {
-      const top = c.bar / 2 - c.size / 2;
-      const plan = sheetThemePlan({
-        width: c.width,
-        textLeft: c.left,
-        textRight: c.right,
-        textTop: top,
-        textHeight: c.size,
-        barHeight: c.bar,
-      });
-      const press = hit(plan.slot ?? floatingThemeSlot({ width: c.width }));
-      const words = {
-        x: c.left,
-        y: top + plan.drop,
-        width: Math.min(c.right, plan.maxRight ?? Infinity) - c.left,
-        height: c.size,
-      };
-      expect(overlaps(press, words), `${c.name}: press ${JSON.stringify(press)} on ${JSON.stringify(words)}`).toBe(
-        false,
-      );
-      expect(words.y + words.height, "the words stay in the bar").toBeLessThanOrEqual(c.bar);
-    });
-  }
-
-  it("drops a heading on the page under the tab, however far, and leaves one that is clear alone", () => {
-    expect(sheetThemePlan({ width: 1440, textLeft: 22, textRight: 300, textTop: 14, textHeight: 38 }).drop).toBe(0);
-    const plan = sheetThemePlan({ width: 375, textLeft: 12, textRight: 300, textTop: 12, textHeight: 28 });
-    expect(12 + plan.drop).toBeGreaterThanOrEqual(hit(themeTabSlot({ width: 375 })).height);
-    expect(plan.maxRight).toBeNull();
   });
 });

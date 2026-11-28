@@ -34,6 +34,8 @@ const TERMS: readonly (readonly [key: keyof typeof es, expected: string, source:
   ["deckBuilder.type.scheme", "Plan secundario de jugador", "official Spanish Masacre insert, p. 2"],
   ["deckTypes.scheme", "Planes secundarios de jugador", "plural of the above"],
   ["comp.area.sideSchemes", "{count} planes secundarios", "guide line 679 (Cartas de Plan secundario)"],
+  ["unlock.name.core", "Caja básica", "guide line 2244 (la caja básica)"],
+  ["deckTitle.coreStarter", "{hero} — mazo inicial de la {box}", "box name as above"],
   ["deckList.basicCards", "Cartas básicas", "guide line 2216 (cartas Básicas)"],
 ];
 

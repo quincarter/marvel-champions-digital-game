@@ -10,6 +10,8 @@
  */
 import type { CoreAspect } from "@mc/content";
 import { aspectGuideOf } from "../guide/aspects.js";
+import { t, type MessageKey } from "../i18n/translate.js";
+import { aspectName } from "./aspect-stamp.js";
 
 export interface AspectTipContent {
   readonly aspect: CoreAspect;
@@ -39,11 +41,11 @@ export function aspectTipContentOf(aspect: CoreAspect): AspectTipContent | null 
   const linkAvailable = guide.aspect !== "basic";
   return {
     aspect,
-    title: guide.name,
-    tagline: guide.tagline,
-    tipLine: guide.tipLine,
-    linkLabel: "Aspects ▸",
+    title: aspectName(aspect),
+    tagline: t(`aspectTip.${aspect}.tagline` as MessageKey),
+    tipLine: t(`aspectTip.${aspect}.tip` as MessageKey),
+    linkLabel: t("aspectTip.link"),
     linkAvailable,
-    linkReason: linkAvailable ? null : "Coming soon",
+    linkReason: linkAvailable ? null : t("aspectTip.soon"),
   };
 }

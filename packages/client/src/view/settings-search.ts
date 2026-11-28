@@ -44,7 +44,7 @@ import { exportRowDetail, exportRowTitle, importRowDetail, importRowTitle } from
 import { receiveRowDetail, receiveRowTitle, sendRowDetail, sendRowTitle } from "./save-transfer-model.js";
 import { syncRowDetail, syncRowTitle } from "./sync-model.js";
 import { globalRowTitle, globalRowDetail } from "./global-stats-ui.js";
-import type { StatsTab } from "./player-stats-layout.js";
+import type { StatsTab } from "./player-stats-tabs.js";
 import { printAndPlayRowOf, unlockAllRowOf, unlockListRowsOf } from "./unlocks-model.js";
 import type { GlobalConsent } from "../global-stats/global-consent.js";
 import type { Settings } from "../settings.js";

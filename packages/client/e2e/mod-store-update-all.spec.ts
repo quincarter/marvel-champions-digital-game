@@ -3,17 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
+import { activeScenes, clickText, hasText, installPageHelpers, settle, trackPageErrors, waitFor } from "./helpers.js";
 import {
-  activeScenes,
-  clickText,
-  hasText,
-  installPageHelpers,
-  isSceneUp,
-  settle,
-  trackPageErrors,
-  waitFor,
-} from "./helpers.js";
-import { communityHeroPackIds, serveCatalog, stageCatalog, type StagedCatalog } from "./pack-catalog-helpers.js";
+  answerModNotice,
+  communityHeroPackIds,
+  serveCatalog,
+  stageCatalog,
+  type StagedCatalog,
+} from "./pack-catalog-helpers.js";
 import { waitForScene } from "./wave6-helpers-a.js";
 import { quietGuide } from "./wave6-helpers-b.js";
 
@@ -46,11 +43,7 @@ async function installFromPage(page: Page, packId: string): Promise<void> {
   await page.goto(`/?screen=mod-store&pack=${packId}`);
   await waitForScene(page, "ModStore");
   await settle(page);
-  if (await isSceneUp(page, "ModNoticeOverlay")) {
-    await clickText(page, "Got it", { sceneKey: "ModNoticeOverlay" });
-    await waitFor(async () => (!(await isSceneUp(page, "ModNoticeOverlay")) ? true : null), "the notice closes");
-    await settle(page);
-  }
+  await answerModNotice(page, { optional: true });
   await clickText(page, "INSTALL (", { sceneKey: "ModStore", timeoutMs: 30_000 });
   // Text matching ignores case, and a pack's description may say "remove": wait for the Install button to go instead,
   // so the next page load never cuts an install short.

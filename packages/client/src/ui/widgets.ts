@@ -33,6 +33,8 @@ import {
   type TypeSpec,
 } from "../tokens.js";
 import { fieldClipPath } from "../view/card-hover.js";
+import { threatMeterLayout, type TallGrowth } from "../view/threat-meter-layout.js";
+import type { ThreatMeterStyle } from "../settings.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
 import { PressArm, withinTapSlop } from "../view/press-arm.js";
@@ -120,7 +122,9 @@ export interface ThreatMeterScheme {
  * here, so they cannot drift apart. Drawn against `meterMax`, not `target`: a side scheme has no threshold but still
  * has somewhere it started from, and a bar that empties as it is thwarted says more than a bare number beside a main
  * scheme that has one. `projected` (below `threat`) hatches the part an effect would remove, the same texture guided
- * mode's thwart preview uses, and the count reads "threat → projected".
+ * mode's thwart preview uses, and the count reads "threat → projected". `style` (the Threat bar setting,
+ * `Settings.threatMeterStyle`) says how the count is shown; `view/threat-meter-layout.ts` places the parts. The count is
+ * also placed here (centered on its spot), so a caller only creates `meterText` with origin 0.5.
  */
 export function paintThreatMeter(
   mg: Phaser.GameObjects.Graphics,
@@ -132,20 +136,24 @@ export function paintThreatMeter(
   projected: number | null = null,
   /** A slim meter's own ceiling for the count's size (the board's compact side scheme row). */
   maxFontSize: number = typeRole.threatCount.size,
+  style: ThreatMeterStyle = "box",
+  /** Where the "tall" style's bar takes its extra height (`view/threat-meter-layout.ts`). */
+  tallGrowth?: TallGrowth,
 ): void {
   const dim = alpha;
+  const { bar, countMaxWidth } = threatMeterLayout(meter, style, 0, tallGrowth);
   mg.clear();
-  mg.fillStyle(surface.parchment.hex, dim).fillRect(meter.x, meter.y, meter.width, meter.height);
+  mg.fillStyle(surface.parchment.hex, dim).fillRect(bar.x, bar.y, bar.width, bar.height);
   const previewed = projected !== null && projected < threat;
   if (scheme.meterMax && scheme.meterMax > 0) {
     const ratio = (value: number) => Math.min(1, Math.max(0, value) / scheme.meterMax!);
-    const solidWidth = meter.width * ratio(previewed ? projected : threat);
+    const solidWidth = bar.width * ratio(previewed ? projected : threat);
     const fill = scheme.playerScheme ? threatMeter.playerFill.hex : threatMeter.fill.hex;
-    mg.fillStyle(fill, dim).fillRect(meter.x, meter.y, solidWidth, meter.height);
+    mg.fillStyle(fill, dim).fillRect(bar.x, bar.y, solidWidth, bar.height);
     if (previewed) {
       hatchRect(
         mg,
-        { x: meter.x + solidWidth, y: meter.y, width: meter.width * ratio(threat) - solidWidth, height: meter.height },
+        { x: bar.x + solidWidth, y: bar.y, width: bar.width * ratio(threat) - solidWidth, height: bar.height },
         fill,
         dim,
         6,
@@ -153,36 +161,41 @@ export function paintThreatMeter(
       );
     }
   }
-  mg.lineStyle(2, surface.ink.hex, dim).strokeRect(meter.x, meter.y, meter.width, meter.height);
+  mg.lineStyle(2, surface.ink.hex, dim).strokeRect(bar.x, bar.y, bar.width, bar.height);
   const shown = Math.round(threat);
   const reading = previewed ? `${shown} → ${Math.round(projected)}` : `${shown}`;
+  // Beside the bar, the count's own box has no room for the word, and the bar already says what it counts.
+  const word = style === "beside" ? "" : " THREAT";
   meterText.setText(
     scheme.target === null
       ? scheme.targetDashed
-        ? `${reading} / — THREAT`
-        : `${reading} THREAT`
-      : `${reading} / ${scheme.target} THREAT`,
+        ? `${reading} / —${word}`
+        : `${reading}${word}`
+      : `${reading} / ${scheme.target}${word}`,
   );
   // The count's own face (see `typeRole.threatCount`): set once, then only fitted, so a count tween does not re-rasterize.
   const face = fontFamilyOf(typeRole.threatCount);
   if (meterText.style.fontFamily !== face) meterText.setFontFamily(face).setFontStyle(`${typeRole.threatCount.weight}`);
   meterText.setLetterSpacing(typeRole.threatCount.letterSpacing);
-  fitText(meterText, meter.width - 12, maxFontSize);
-  // Ink on the red fill is hard to read, so the count sits on a parchment chip across the bar (the HP plate's
-  // own parchment ground): legible over both the filled and the empty part, with the fill still showing either side.
-  const chipWidth = Math.min(meter.width - 4, meterText.width + 10);
-  mg.fillStyle(surface.parchment.hex, dim).fillRect(
-    meter.x + (meter.width - chipWidth) / 2,
-    meter.y + 2,
-    chipWidth,
-    meter.height - 4,
-  );
-  mg.lineStyle(1, surface.ink.hex, dim).strokeRect(
-    meter.x + (meter.width - chipWidth) / 2,
-    meter.y + 2,
-    chipWidth,
-    meter.height - 4,
-  );
+  // "outline" draws the count in white with an ink edge straight on the bar; the others keep the caller's ink. The
+  // caller's color is kept on the text the first time, so switching style back restores it.
+  const inkColor = (meterText.getData("threatInk") as string | undefined) ?? String(meterText.style.color);
+  if (meterText.getData("threatInk") === undefined) meterText.setData("threatInk", inkColor);
+  const color = style === "outline" ? cssOf(0xffffff, dim) : inkColor;
+  const stroke = style === "outline" ? 3 : 0;
+  if (meterText.style.color !== color) meterText.setColor(color);
+  if (meterText.style.strokeThickness !== stroke) meterText.setStroke(cssOf(surface.ink.hex, dim), stroke);
+  fitText(meterText, countMaxWidth, maxFontSize);
+  // Ink on the red fill is hard to read, so by default the count sits on a parchment chip across the bar (the HP
+  // plate's own parchment ground): legible over both the filled and the empty part, with the fill still showing
+  // either side. "tall" leaves a strip of bar above and below the chip; "beside" gives the count its own box.
+  const layout = threatMeterLayout(meter, style, meterText.width + 10, tallGrowth);
+  meterText.setPosition(layout.countCenter.x, layout.countCenter.y);
+  const box = layout.countBox;
+  if (box) {
+    mg.fillStyle(surface.parchment.hex, dim).fillRect(box.x, box.y, box.width, box.height);
+    mg.lineStyle(layout.chip ? 1 : 2, surface.ink.hex, dim).strokeRect(box.x, box.y, box.width, box.height);
+  }
 }
 
 /**

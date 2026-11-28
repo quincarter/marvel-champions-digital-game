@@ -63,6 +63,8 @@ export function hasCopy(kind: CopyKind, pathUnderArt: string): boolean {
   if (kind === "display") return parts[0] === "title" && parts.length === 2;
   if (parts[0] === "heroes" && parts.length === 3) return stem === "hero" || stem.startsWith("hero-");
   if (parts[0] === "scenarios" && parts.length === 3) return stem === "villain" || /^villain-\d+$/.test(stem);
+  // A pack's cover is a shelf header's thumbnail: a tile-size copy is plenty.
+  if (parts[0] === "packs" && parts.length === 3) return stem === "cover" || /^cover-\d+$/.test(stem);
   return false;
 }
 

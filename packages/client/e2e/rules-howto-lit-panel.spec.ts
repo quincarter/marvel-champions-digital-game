@@ -92,14 +92,14 @@ test("The Rules reference is a Lit panel: tabs by keyboard, the search filters t
   expect((await focusOf(page, "RulesOverlay")).ringShown).toBe(true);
   await pressKey(page, "Enter");
   await waitForText(page, CITATION, { sceneKey: "RulesOverlay" });
-  await expect(page.locator(`${panel("RulesOverlay")} [data-key="tab:villainPhase"]`)).toHaveAttribute("selected", "");
+  await expect(page.locator(`${panel("RulesOverlay")} [data-stop="tab:villainPhase"]`)).toHaveAttribute("selected", "");
   // The six steps are cards in the list, each a stop of its own.
-  await expect(page.locator(`${panel("RulesOverlay")} [data-key^="step:"]`)).toHaveCount(6);
+  await expect(page.locator(`${panel("RulesOverlay")} [data-stop^="row:step:"]`)).toHaveCount(6);
 
   // The glossary: every term is a card in the list, and a query keeps only the terms that match.
   await walkTo(page, "RulesOverlay", "tab:glossary", ["ArrowLeft"]);
   await pressKey(page, "Enter");
-  const entries = page.locator(`${panel("RulesOverlay")} [data-key^="entry:"]`);
+  const entries = page.locator(`${panel("RulesOverlay")} mc-rules-entry`);
   await waitFor(async () => ((await entries.count()) > 5 ? true : null), "the glossary lists terms", 10_000);
   const all = await entries.count();
   const search = page.locator('input[placeholder^="Search rules"]');
@@ -191,14 +191,14 @@ test("on a phone, the lift that ends a swipe over the Rules reference's list pre
   test.setTimeout(120_000);
   await openApp(page, "screen=rules&unlock=all", { landing: "RulesOverlay" });
   await waitForText(page, "Glossary", { sceneKey: "RulesOverlay" });
-  await expect(page.locator(`${panel("RulesOverlay")} [data-key="tab:glossary"]`)).toHaveAttribute("selected", "");
+  await expect(page.locator(`${panel("RulesOverlay")} [data-stop="tab:glossary"]`)).toHaveAttribute("selected", "");
   const view = page.viewportSize()!;
-  const tab = await centerOf(page, `${panel("RulesOverlay")} [data-key="tab:villainPhase"]`);
+  const tab = await centerOf(page, `${panel("RulesOverlay")} [data-stop="tab:villainPhase"]`);
   // From low in the glossary up to the tab rail: a scroll of the list that lifts over the Villain phase tab.
   await swipe(page, { x: view.width / 2, y: view.height - 120 }, { x: tab.x, y: tab.y });
   await page.waitForTimeout(600);
   expect(await findText(page, CITATION, "RulesOverlay"), "the Villain phase tab was not pressed").toHaveLength(0);
-  await expect(page.locator(`${panel("RulesOverlay")} [data-key="tab:glossary"]`)).toHaveAttribute("selected", "");
+  await expect(page.locator(`${panel("RulesOverlay")} [data-stop="tab:glossary"]`)).toHaveAttribute("selected", "");
   expect(await activeScenes(page)).not.toContain("InspectOverlay");
 });
 
@@ -213,7 +213,7 @@ test("on a desktop, a card picture in the Rules reference shows the hover popove
   await walkTo(page, "HowToPlay", "reference");
   await pressKey(page, "Enter");
   await waitFor(async () => ((await activeScenes(page)).includes("RulesOverlay") ? true : null), "Rules opens", 10_000);
-  const thumb = page.locator(`${panel("RulesOverlay")} [data-key*=":card:"]`).first();
+  const thumb = page.locator(`${panel("RulesOverlay")} button.tile[data-stop*=":card:"]`).first();
   await expect(thumb).toHaveCount(1);
   await thumb.scrollIntoViewIfNeeded();
   const box = (await thumb.boundingBox())!;
@@ -268,7 +268,7 @@ test("a card hold armed in the Rules reference raises no Inspect once another mo
   await pressKey(page, "Enter");
   await waitFor(async () => ((await activeScenes(page)).includes("RulesOverlay") ? true : null), "Rules opens", 10_000);
   await waitForText(page, "Glossary", { sceneKey: "RulesOverlay" });
-  const thumb = page.locator(`${panel("RulesOverlay")} [data-key*=":card:"]`).first();
+  const thumb = page.locator(`${panel("RulesOverlay")} button.tile[data-stop*=":card:"]`).first();
   await expect(thumb).toHaveCount(1);
   await thumb.scrollIntoViewIfNeeded();
   const box = (await thumb.boundingBox())!;

@@ -5,6 +5,7 @@
  */
 import { lobbyUndoFor, type LobbyMod, type LobbyUndo, type RoomDevice } from "@mc/sync-worker/room-protocol";
 import { aspectName } from "./aspect-stamp.js";
+import { deckNameIn, localHeroName } from "./deck-names.js";
 import { en } from "../i18n/en.js";
 import { t, tPlural, type MessageKey, type PluralBase } from "../i18n/translate.js";
 import type { RoomStartResult, SeatDeckRefusal } from "../live/room-start.js";
@@ -296,9 +297,9 @@ function deckViewOf(deck: RoomSeat["deck"]): SeatDeckView | null {
   if (!deck) return null;
   return {
     cardId: deck.hero,
-    heroName: deck.heroName,
+    heroName: localHeroName(deck.hero, deck.heroName),
     aspects: deck.aspects.map((a) => aspectName(a)).join(" + "),
-    name: deck.name,
+    name: deckNameIn(deck.name, deck.hero, deck.aspects),
     cards: deck.cards,
     preset: deck.preset === true,
     mods: deck.mods,

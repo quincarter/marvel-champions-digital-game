@@ -11,6 +11,7 @@
  * length limit and a full game's commands do not fit, so the form asks the player to paste or attach it instead.
  */
 import { withoutDeckNames } from "../engine/shared-config.js";
+import { t } from "../i18n/translate.js";
 import { CARD_LANGUAGE_NAMES, type CardLanguage } from "../art/card-language.js";
 import { ADJUSTED_LOG_LINE } from "./log-export.js";
 import type { LogLine } from "./log-lines.js";
@@ -223,18 +224,7 @@ export function screenshotDeviceOf(userAgent: string): ScreenshotDevice {
   return "other";
 }
 
-/** How to take a screenshot on this device, as the panel's first step says it. */
+/** How to take a screenshot on this device, as the panel's first step says it, in the app's language. */
 export function screenshotTipOf(device: ScreenshotDevice): string {
-  switch (device) {
-    case "android":
-      return "Press Power and Volume down together.";
-    case "ios":
-      return "Press the side button and Volume up together.";
-    case "mac":
-      return "Press Cmd + Shift + 4, then drag over the game.";
-    case "windows":
-      return "Press Win + Shift + S, then drag over the game.";
-    case "other":
-      return "Use your device's screenshot shortcut.";
-  }
+  return t(`report.tip.${device}`);
 }

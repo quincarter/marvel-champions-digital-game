@@ -1,0 +1,373 @@
+[WebServer] 
+[WebServer]   VITE v8.3.8  ready in 2270 ms
+[WebServer] 
+[WebServer]   ➜  Local:   http://localhost:5191/
+[WebServer]   ➜  Network: http://192.168.86.75:5191/  Ethernet
+[WebServer]   ➜  Network: http://172.19.16.1:5191/    vEthernet (WSL (Hyp…
+
+Running 52 tests using 8 workers
+
+  -   2 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:141:3 › an upright tablet › stacks the selected campaign over box art tiles, with a list view it remembers
+  -   4 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:120:1 › a phone starts on the volume rows and can switch to box art tiles
+  -   1 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:97:3 › a tablet held sideways › folds the filters behind a chip that opens them in the pool's place
+  -  11 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:51:1 › Review on a narrow screen counts a campaign deck as the campaign does, leaving its pinned cards out
+  -   9 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:200:3 › the narrowest wide layout › keeps the search field usable with a query in it
+  -   5 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:20:1 › campaign deck edit has From your games and Review, and Review keeps unsaved edits
+  -   6 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:225:3 › the pool at tablet size › draws in batches, not an object at a time
+[WebServer] 12:19:26 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:19:27 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:19:27 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:19:27 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:19:27 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:19:27 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:19:27 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:19:28 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+e2e: press repeated, the first changed nothing: click at 812,450
+  ok 14 [desktop] › e2e\controller-decks-extras.spec.ts:180:1 › Decks: A on the search field puts the caret in, B takes it out, and the D-pad moves again (46.3s)
+  ok 12 [desktop] › e2e\controller-decks-extras.spec.ts:130:1 › Decks: the D-pad reaches a deck and A selects it (47.2s)
+  ok 10 [desktop] › e2e\controller-decks-extras.spec.ts:108:3 › Extras: RB and LB switch the tabs, B goes back (390x844) (49.5s)
+  ok 13 [desktop] › e2e\controller-decks-extras.spec.ts:161:1 › Decks on a phone: RB and LB step Decks, Cards and Stats (48.5s)
+  ok 15 [desktop] › e2e\controller-decks-extras.spec.ts:206:1 › Deck builder: B with unsaved changes asks to Leave, and a second B leaves (54.5s)
+  x   8 [desktop] › e2e\controller-decks-extras.spec.ts:108:3 › Extras: RB and LB switch the tabs, B goes back (1280x800) (51.1s)
+[WebServer] 12:20:02 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:20:03 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:20:03 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:20:03 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:20:03 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:20:03 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok  7 [desktop] › e2e\community-decks.spec.ts:271:3 › Decks & Collection: community decks › with everything unlocked, decks from three waves are offered by their authors, and building from scratch is still there (1.3m)
+e2e: press repeated, the first changed nothing: click at 1300,826
+[WebServer] 12:20:28 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  ok 20 [desktop] › e2e\controller-setup-screens.spec.ts:182:1 › B takes the pad out of the seed field instead of holding every button (39.1s)
+  ok 17 [desktop] › e2e\controller-setup-screens.spec.ts:93:1 › Start on Set the Table deals, and Back and Start never leave the screen deaf (47.7s)
+  ok 18 [desktop] › e2e\controller-setup-screens.spec.ts:112:1 › B on Set the Table goes back to Take your seats, which then answers the pad, the keyboard and the mouse (48.0s)
+[WebServer] 12:20:32 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 21 [desktop] › e2e\controller-setup-screens.spec.ts:212:1 › Start on Take your seats plays, and on Scenario select it chooses heroes (40.6s)
+  ok 19 [desktop] › e2e\controller-setup-screens.spec.ts:139:3 › inside the fade › Back and then Start inside the fade lands on Take your seats and deals nothing (48.8s)
+  ok 16 [desktop] › e2e\controller-decks-extras.spec.ts:236:1 › Decks: Y on a pool card opens the inspect view (57.1s)
+  -  28 [desktop] › e2e\deck-builder-review.spec.ts:103:1 › a swipe of Deck check's cards that lifts over Sort presses nothing
+  ok 22 [desktop] › e2e\controller-setup-screens.spec.ts:222:1 › X clears a seat, and an aspect's (i) opens only on a press (37.1s)
+[WebServer] 12:20:58 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:20:59 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:21:00 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:21:00 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:21:00 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:21:06 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 25 [desktop] › e2e\controller-setup-screens.spec.ts:322:3 › Scenario select: B from the list goes to the filters, Y goes back to the row, B there backs out (41.3s)
+[WebServer] 12:21:18 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:21:20 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  x   3 [desktop] › e2e\community-decks.spec.ts:140:3 › Decks & Collection: community decks › a new player previews a Core community deck, adds it, and plays the copy; a locked hero's deck cannot be added (2.2m)
+  ok 26 [desktop] › e2e\controller-setup-screens.spec.ts:361:1 › Take your seats: the pad's B and Y make the same jump (49.7s)
+  -  33 [desktop] › e2e\deck-check-lit-panel.spec.ts:74:1 › a phone's tabs switch between Curve, Cards and Aspect
+  ok 23 [desktop] › e2e\controller-setup-screens.spec.ts:273:1 › View on the Title opens the Trophy Room (56.7s)
+  ok 24 [desktop] › e2e\controller-setup-screens.spec.ts:322:3 › Take your seats: B from the list goes to the filters, Y goes back to the row, B there backs out (56.3s)
+[WebServer] 12:21:33 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+[WebServer] 12:21:35 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  ok 30 [desktop] › e2e\deck-check-lit-panel.spec.ts:43:1 › a tap on a card opens Inspect (44.2s)
+[WebServer] 12:21:42 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 27 [desktop] › e2e\deck-builder-review.spec.ts:64:1 › the deck list's sort is kept, and Review goes to Deck check and back (1.2m)
+[WebServer] 12:21:47 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:21:49 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+[WebServer] 12:21:50 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 31 [desktop] › e2e\deck-check-lit-panel.spec.ts:55:1 › the type filter narrows the cards to that type (wide) (37.4s)
+[WebServer] 12:21:50 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:21:50 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:21:56 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+[WebServer] 12:21:56 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  ok 34 [desktop] › e2e\deck-check-lit-panel.spec.ts:107:1 › the screen reads in Spanish (30.9s)
+[WebServer] 12:21:57 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+e2e: press repeated, the first changed nothing: key Escape
+  x  29 [desktop] › e2e\deck-check-lit-panel.spec.ts:32:1 › the screen is Lit panels: the legality badge, the cards and Edit deck are found under it (45.7s)
+[WebServer] 12:22:10 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+[WebServer] 12:22:13 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:22:20 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:22:23 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:22:24 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:22:28 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+e2e: press repeated, the first changed nothing: click at 79,802
+[WebServer] 12:22:39 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  ok 38 [phone] › e2e\campaign-deck-edit-parity.spec.ts:120:1 › a phone starts on the volume rows and can switch to box art tiles (39.3s)
+[WebServer] 12:22:42 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  x  35 [desktop] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath (37.0s)
+  ok 37 [phone] › e2e\campaign-deck-edit-parity.spec.ts:20:1 › campaign deck edit has From your games and Review, and Review keeps unsaved edits (47.2s)
+  ok 39 [phone] › e2e\campaign-deck-edit-parity.spec.ts:51:1 › Review on a narrow screen counts a campaign deck as the campaign does, leaving its pinned cards out (44.0s)
+  x  32 [desktop] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back (1.1m)
+[WebServer] 12:22:48 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 40 [phone] › e2e\campaign-deck-edit-parity.spec.ts:97:3 › a tablet held sideways › folds the filters behind a chip that opens them in the pool's place (44.6s)
+[WebServer] 12:22:59 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  x  36 [desktop] › e2e\tested-decks-seats.spec.ts:59:3 › Take your seats: tested community decks › TESTED lists the community decks, BUILT includes them, and a picked one is played (58.3s)
+[WebServer] 12:23:06 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:23:07 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:23:07 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:23:07 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+e2e: press repeated, the first changed nothing: click at 391,223
+  ok 42 [phone] › e2e\campaign-deck-edit-parity.spec.ts:200:3 › the narrowest wide layout › keeps the search field usable with a query in it (30.0s)
+  -  49 [phone] › e2e\deck-check-lit-panel.spec.ts:55:1 › the type filter narrows the cards to that type (wide)
+[WebServer] 12:23:20 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+[WebServer] 12:23:21 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+[WebServer] 12:23:22 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  ok 46 [phone] › e2e\deck-check-lit-panel.spec.ts:32:1 › the screen is Lit panels: the legality badge, the cards and Edit deck are found under it (33.5s)
+  ok 45 [phone] › e2e\deck-builder-review.spec.ts:103:1 › a swipe of Deck check's cards that lifts over Sort presses nothing (36.2s)
+e2e: press repeated, the first changed nothing: click at 195,86
+  -  52 [phone] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath
+  ok 44 [phone] › e2e\campaign-deck-edit-parity.spec.ts:225:3 › the pool at tablet size › draws in batches, not an object at a time (37.4s)
+[WebServer] 12:23:26 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+[WebServer] 12:23:30 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+  ok 47 [phone] › e2e\deck-check-lit-panel.spec.ts:43:1 › a tap on a card opens Inspect (44.4s)
+[WebServer] 12:23:34 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:23:35 AM [vite] (client) [console.warn] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+[WebServer] 12:23:36 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  ok 48 [phone] › e2e\deck-check-lit-panel.spec.ts:74:1 › a phone's tabs switch between Curve, Cards and Aspect (26.9s)
+[WebServer] 12:23:41 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  ok 43 [phone] › e2e\deck-builder-review.spec.ts:64:1 › the deck list's sort is kept, and Review goes to Deck check and back (56.9s)
+[WebServer] 12:23:42 AM [vite] (client) [console.warn] Element mc-deck-check-page scheduled an update (generally because a property was set) after an update completed, causing a new update to be scheduled. This is inefficient and should be avoided unless the next update can only be scheduled as a side effect of the previous update. See https://lit.dev/msg/change-in-update for more information.
+  ok 51 [phone] › e2e\deck-check-lit-panel.spec.ts:107:1 › the screen reads in Spanish (19.3s)
+e2e: press repeated, the first changed nothing: key Escape
+  x  41 [phone] › e2e\campaign-deck-edit-parity.spec.ts:141:3 › an upright tablet › stacks the selected campaign over box art tiles, with a list view it remembers (1.0m)
+  x  50 [phone] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back (56.8s)
+
+
+  1) [desktop] › e2e\community-decks.spec.ts:140:3 › Decks & Collection: community decks › a new player previews a Core community deck, adds it, and plays the copy; a locked hero's deck cannot be added 
+
+    Error: waitFor timed out (Scenario select), last=null
+
+       at helpers.ts:556
+
+      554 |     await new Promise((r) => setTimeout(r, 150));
+      555 |   }
+    > 556 |   throw new Error(`waitFor timed out (${label}), last=${JSON.stringify(last)}`);
+          |         ^
+      557 | }
+      558 |
+      559 | /**
+        at waitFor (C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\helpers.ts:556:9)
+        at C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\community-decks.spec.ts:226:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\community-decks-Decks-Coll-f0d63-hero-s-deck-cannot-be-added-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\community-decks-Decks-Coll-f0d63-hero-s-deck-cannot-be-added-desktop\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\community-decks-Decks-Coll-f0d63-hero-s-deck-cannot-be-added-desktop\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\community-decks-Decks-Coll-f0d63-hero-s-deck-cannot-be-added-desktop\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [desktop] › e2e\controller-decks-extras.spec.ts:108:3 › Extras: RB and LB switch the tabs, B goes back (1280x800) 
+
+    Error: browserContext.close: ENOENT: no such file or directory, open 'C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\test-results\.playwright-artifacts-3\traces\656233e47b26751739ef-f2df5dd7aff5bcb5ffbb-recording2.trace'
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\controller-decks-extras-Ex-2cf96--tabs-B-goes-back-1280x800--desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\controller-decks-extras-Ex-2cf96--tabs-B-goes-back-1280x800--desktop\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\controller-decks-extras-Ex-2cf96--tabs-B-goes-back-1280x800--desktop\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\controller-decks-extras-Ex-2cf96--tabs-B-goes-back-1280x800--desktop\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [desktop] › e2e\deck-check-lit-panel.spec.ts:32:1 › the screen is Lit panels: the legality badge, the cards and Edit deck are found under it 
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      34 |   const errors = trackPageErrors(page);
+      35 |   await open(page);
+    > 36 |   expect((await findText(page, "LEGAL", "DeckCheck")).length).toBeGreaterThan(0);
+         |                                                               ^
+      37 |   expect((await findText(page, "Edit deck", "DeckCheck")).length).toBeGreaterThan(0);
+      38 |   await showCards(page);
+      39 |   expect(await page.locator(`${panel} mc-card-sections [data-key^="face:"]`).count()).toBeGreaterThan(0);
+        at C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\deck-check-lit-panel.spec.ts:36:63
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\deck-check-lit-panel-the-s-f1dcb-dit-deck-are-found-under-it-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\deck-check-lit-panel-the-s-f1dcb-dit-deck-are-found-under-it-desktop\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\deck-check-lit-panel-the-s-f1dcb-dit-deck-are-found-under-it-desktop\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\deck-check-lit-panel-the-s-f1dcb-dit-deck-are-found-under-it-desktop\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [desktop] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back 
+
+    Error: waitFor timed out (left Deck check), last=null
+
+       at helpers.ts:556
+
+      554 |     await new Promise((r) => setTimeout(r, 150));
+      555 |   }
+    > 556 |   throw new Error(`waitFor timed out (${label}), last=${JSON.stringify(last)}`);
+          |         ^
+      557 | }
+      558 |
+      559 | /**
+        at waitFor (C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\helpers.ts:556:9)
+        at C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\deck-check-lit-panel.spec.ts:100:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\deck-check-lit-panel-the-k-e6f9e-he-DOM-and-Escape-goes-back-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\deck-check-lit-panel-the-k-e6f9e-he-DOM-and-Escape-goes-back-desktop\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\deck-check-lit-panel-the-k-e6f9e-he-DOM-and-Escape-goes-back-desktop\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\deck-check-lit-panel-the-k-e6f9e-he-DOM-and-Escape-goes-back-desktop\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [desktop] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath 
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      129 |   expect(box.x + box.width).toBeLessThanOrEqual(1280);
+      130 |   expect(box.y + box.height).toBeLessThanOrEqual(560);
+    > 131 |   expect((await findText(page, "Crisis of Infinite Deadpools", "DeckCheck")).length).toBeGreaterThan(0);
+          |                                                                                      ^
+      132 |   // A tap on the plate (over where the filter chips are) shuts the tip and presses no chip.
+      133 |   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      134 |   await plate.waitFor({ state: "detached", timeout: 10_000 });
+        at C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\deck-check-lit-panel.spec.ts:131:86
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\deck-check-lit-panel-an-op-38eb4--it-presses-nothing-beneath-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\deck-check-lit-panel-an-op-38eb4--it-presses-nothing-beneath-desktop\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\deck-check-lit-panel-an-op-38eb4--it-presses-nothing-beneath-desktop\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\deck-check-lit-panel-an-op-38eb4--it-presses-nothing-beneath-desktop\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [desktop] › e2e\tested-decks-seats.spec.ts:59:3 › Take your seats: tested community decks › TESTED lists the community decks, BUILT includes them, and a picked one is played 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      118 |     await waitFor(async () => ((await activeScenes(page)).includes("DeckCheck") ? true : null), "Deck check", 15000);
+      119 |     await shot(page, "04-deck-check");
+    > 120 |     expect(await shows(page, "Legal", "DeckCheck")).toBe(true);
+          |                                                     ^
+      121 |     await clickText(page, "Start game", { sceneKey: "DeckCheck", timeoutMs: 30000 });
+      122 |     await waitFor(async () => ((await activeScenes(page)).includes("Setup") ? true : null), "Table setup", 30000);
+      123 |     await pressUntilScene(page, "__mcTableSetupDebug", "deal-it-out", "SetupDeal", "ScenarioIntro");
+        at C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\tested-decks-seats.spec.ts:120:53
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\tested-decks-seats-Take-yo-d06ad--and-a-picked-one-is-played-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\tested-decks-seats-Take-yo-d06ad--and-a-picked-one-is-played-desktop\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\tested-decks-seats-Take-yo-d06ad--and-a-picked-one-is-played-desktop\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\tested-decks-seats-Take-yo-d06ad--and-a-picked-one-is-played-desktop\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [phone] › e2e\campaign-deck-edit-parity.spec.ts:141:3 › an upright tablet › stacks the selected campaign over box art tiles, with a list view it remembers 
+
+    Error: a full-width row
+
+    a full-width row
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 700
+    Received:   184
+
+    Call Log:
+    - Timeout 10000ms exceeded while waiting on the predicate
+
+      182 |     await expect
+      183 |       .poll(async () => (await volumeTwo())?.rect.width ?? 0, { message: "a full-width row", timeout: 10_000 })
+    > 184 |       .toBeGreaterThan(700);
+          |        ^
+      185 |
+      186 |     await page.reload();
+      187 |     await waitForScene(page, "CampaignSaga");
+        at C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\campaign-deck-edit-parity.spec.ts:184:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\campaign-deck-edit-parity--e624a-th-a-list-view-it-remembers-phone\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\campaign-deck-edit-parity--e624a-th-a-list-view-it-remembers-phone\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\campaign-deck-edit-parity--e624a-th-a-list-view-it-remembers-phone\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\campaign-deck-edit-parity--e624a-th-a-list-view-it-remembers-phone\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [phone] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back 
+
+    Error: waitFor timed out (left Deck check), last=null
+
+       at helpers.ts:556
+
+      554 |     await new Promise((r) => setTimeout(r, 150));
+      555 |   }
+    > 556 |   throw new Error(`waitFor timed out (${label}), last=${JSON.stringify(last)}`);
+          |         ^
+      557 | }
+      558 |
+      559 | /**
+        at waitFor (C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\helpers.ts:556:9)
+        at C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\deck-check-lit-panel.spec.ts:100:3
+
+    Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, copyfile 'C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\test-results\.playwright-artifacts-17\traces\f451a6edd5f611ea7126-374a362626d47a071c25-recording3.network' -> 'C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\test-results\.playwright-artifacts-17\traces\f451a6edd5f611ea7126-374a362626d47a071c25-recording3-pwnetcopy-1.network'
+
+    Error: browserContext._wrapApiCall: ENOENT: no such file or directory, open 'C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\test-results\.playwright-artifacts-17\traces\f451a6edd5f611ea7126-374a362626d47a071c25-recording2.trace'
+
+    Error: ENOENT: no such file or directory, open 'C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\test-results\.playwright-artifacts-17\176dee4e50b212f7b964baa355dbde2d.zip'
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\deck-check-lit-panel-the-k-e6f9e-he-DOM-and-Escape-goes-back-phone\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8 failed
+    [desktop] › e2e\community-decks.spec.ts:140:3 › Decks & Collection: community decks › a new player previews a Core community deck, adds it, and plays the copy; a locked hero's deck cannot be added 
+    [desktop] › e2e\controller-decks-extras.spec.ts:108:3 › Extras: RB and LB switch the tabs, B goes back (1280x800) 
+    [desktop] › e2e\deck-check-lit-panel.spec.ts:32:1 › the screen is Lit panels: the legality badge, the cards and Edit deck are found under it 
+    [desktop] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back 
+    [desktop] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath 
+    [desktop] › e2e\tested-decks-seats.spec.ts:59:3 › Take your seats: tested community decks › TESTED lists the community decks, BUILT includes them, and a picked one is played 
+    [phone] › e2e\campaign-deck-edit-parity.spec.ts:141:3 › an upright tablet › stacks the selected campaign over box art tiles, with a list view it remembers 
+    [phone] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back 
+  11 skipped
+  33 passed (6.1m)
+exit 1
+lock released

@@ -13,7 +13,10 @@ const GIVE = "RoomGiveOverlay";
 const REJOIN = "RejoinOverlay";
 const NOTICE = "OptionNoticeOverlay";
 
-const sheet = (page: Page, scene: string) => page.locator(`#mc-ui [data-scene="${scene}"] mc-sheet`);
+const sheet = (page: Page, scene: string) =>
+  scene === GIVE
+    ? page.locator(`#mc-ui [data-scene="${scene}"] mc-room-give-dialog`)
+    : page.locator(`#mc-ui [data-scene="${scene}"] mc-sheet`);
 
 const focusOf = (page: Page, scene: string) =>
   page.evaluate(
@@ -207,11 +210,11 @@ test("Give <hero> to... with a full room keeps Cancel on screen and scrolls the 
     const panel = sheet(page, GIVE);
     await expect(panel).toBeVisible();
     const viewport = page.viewportSize()!;
-    const cancel = panel.locator('mc-button[data-key="cancel"]');
+    const cancel = panel.locator('[data-stop="cancel"]');
     const box = (await cancel.boundingBox())!;
     expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
     // The recipients sit above Cancel, not over it.
-    const last = panel.locator('mc-button[data-key="give:p23"]');
+    const last = panel.locator('[data-stop="give:p23"]');
     await walkTo(page, GIVE, "give:p23", "ArrowDown", 30);
     const lastBox = (await last.boundingBox())!;
     expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(box.y + 1);

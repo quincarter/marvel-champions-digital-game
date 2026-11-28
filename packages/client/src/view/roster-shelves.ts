@@ -16,6 +16,8 @@
  * this module only decides the shelf *structure*: which shelf an item lands
  * in, whether a query keeps it there, and which shelves survive at all.
  */
+import { artLanguageNow } from "../art/art-source.js";
+import { localHeroName } from "./deck-names.js";
 import { queryScoreOf } from "./deck-search.js";
 import { matchesSearch, normalizeSearch } from "./roster-filter.js";
 
@@ -235,6 +237,16 @@ export function azShelvesOf<T>(
 ): readonly Shelf<T>[] {
   const yours: T[] = [];
   const byLetter = new Map<string, T[]>();
+  const lang = artLanguageNow();
+  const collator = new Intl.Collator(lang, { sensitivity: "base" });
+  // The name a hero is listed and sorted by in the card language: a roster of decks says which hero each holds
+  // (`deck.identityCardId`), so the English name the caller gives is put through the Spanish card names ("Capitana
+  // Marvel" under C, not "Captain Marvel" under C by luck, "Hulka" under H, not "She-Hulk" under S).
+  const shownName = (item: T): string => {
+    const name = nameOf(item);
+    const id = (item as { deck?: { identityCardId?: unknown } }).deck?.identityCardId;
+    return typeof id === "string" ? localHeroName(id, name, lang) : name;
+  };
   for (const candidate of candidates) {
     if (!candidate.passesChips) continue;
     if (!matchesSearch(candidate.searchHaystacks, query)) continue;
@@ -242,15 +254,15 @@ export function azShelvesOf<T>(
       yours.push(candidate.item);
       continue;
     }
-    const letter = firstLetterOf(nameOf(candidate.item));
+    const letter = firstLetterOf(shownName(candidate.item));
     const bucket = byLetter.get(letter);
     if (bucket) bucket.push(candidate.item);
     else byLetter.set(letter, [candidate.item]);
   }
 
   const cmp = (a: T, b: T): number => {
-    const byName = normalizeSearch(nameOf(a)).localeCompare(normalizeSearch(nameOf(b)));
-    return byName !== 0 ? byName : normalizeSearch(tieBreakOf(a)).localeCompare(normalizeSearch(tieBreakOf(b)));
+    const byName = collator.compare(shownName(a), shownName(b));
+    return byName !== 0 ? byName : collator.compare(tieBreakOf(a), tieBreakOf(b));
   };
 
   const shelves: Shelf<T>[] = [];

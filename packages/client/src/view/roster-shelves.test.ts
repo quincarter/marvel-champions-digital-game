@@ -380,3 +380,40 @@ describe("azShelvesOf", () => {
     expect(shelves[0]!.items.map((h) => h.id)).toEqual(["a", "c"]);
   });
 });
+
+describe("azShelvesOf in Spanish", () => {
+  test("groups and sorts a deck's hero by its Spanish card name", async () => {
+    const { CARD_TEXT_ES } = await import("../content/card-text-es.js");
+    const { loadCardText, resetCardTextForTest } = await import("./card-text.js");
+    const { useEnglish, useSpanish } = await import("../i18n/test-language.js");
+    await loadCardText("es", () => Promise.resolve(CARD_TEXT_ES));
+    useSpanish();
+    try {
+      interface Held {
+        readonly name: string;
+        readonly deck: { readonly identityCardId: string };
+      }
+      const held = (name: string, id: string): ShelfCandidate<Held> => ({
+        item: { name, deck: { identityCardId: id } },
+        packCode: "core",
+        searchHaystacks: [name],
+        passesChips: true,
+      });
+      const shelves = azShelvesOf(
+        [
+          held("She-Hulk", "01019a"),
+          held("Captain Marvel", "01010a"),
+          held("Iron Man", "01029a"),
+          held("Hawkeye", "04001a"),
+        ],
+        "",
+        (h) => h.name,
+      );
+      expect(shelves.map((s) => s.title)).toEqual(["C", "H", "I", "O"]);
+      expect(shelves[1]!.items.map((h) => h.name)).toEqual(["She-Hulk"]);
+    } finally {
+      useEnglish();
+      resetCardTextForTest();
+    }
+  });
+});

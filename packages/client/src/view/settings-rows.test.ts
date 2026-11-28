@@ -17,6 +17,8 @@ import {
   cardHoverRowInfoOf,
   playAreaOrderRowInfoOf,
   schemeFanBackgroundRowInfoOf,
+  threatMeterStyleRowInfoOf,
+  nextSettingsAfterThreatMeterStyle,
   nextSettingsAfterSchemeFanBackground,
   deckListOnOpenRowInfoOf,
   extraModularSetsRowInfoOf,
@@ -95,6 +97,7 @@ const BASE: Settings = {
   largeSchemes: false,
   schemeStack: false,
   schemeFanBackground: "0",
+  threatMeterStyle: "box",
   playAreaOrder: "played",
   hoverHeroCard: true,
   hoverVillainCard: true,
@@ -164,6 +167,7 @@ describe("settingsRowInfoOf", () => {
       largeSchemes: false,
       schemeStack: false,
       schemeFanBackground: "0",
+      threatMeterStyle: "box",
       playAreaOrder: "played",
       hoverHeroCard: true,
       hoverVillainCard: true,
@@ -230,6 +234,14 @@ describe("settingsRowInfoOf", () => {
     expect(info.options.map((option) => option.label)).toEqual(["None", "25%", "50%", "75%", "Solid"]);
     expect(nextSettingsAfterSchemeFanBackground(BASE, "75").schemeFanBackground).toBe("75");
     expect(nextSettingsAfterSchemeFanBackground(BASE, "33" as never)).toBe(BASE);
+  });
+
+  test("the Threat bar starts at Box and takes only its four styles", () => {
+    const info = threatMeterStyleRowInfoOf(BASE);
+    expect(info.selected).toBe("box");
+    expect(info.options.map((option) => option.label)).toEqual(["Box", "Taller bar", "Beside", "Outlined"]);
+    expect(nextSettingsAfterThreatMeterStyle(BASE, "beside").threatMeterStyle).toBe("beside");
+    expect(nextSettingsAfterThreatMeterStyle(BASE, "huge" as never)).toBe(BASE);
   });
 
   test("Stack schemes is off by default and toggles on its own", () => {

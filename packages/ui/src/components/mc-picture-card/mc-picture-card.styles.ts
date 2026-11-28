@@ -54,6 +54,64 @@ export const McPictureCardStyles = css`
     outline: 1px solid var(--mc-line-paper);
     outline-offset: -1px;
   }
+  .tag {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    max-width: calc(100% - 16px);
+    padding: 3px 6px;
+    font-weight: 800;
+    font-size: var(--mc-small-9);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--mc-text-paper);
+    background: var(--mc-fill-ink);
+    outline: 1px solid var(--mc-line-paper);
+    outline-offset: -1px;
+  }
+  .plate {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    max-width: calc(100% - 12px);
+    padding: 2px 5px;
+    font-weight: 800;
+    font-size: var(--mc-small-9);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--mc-text-paper);
+    background: var(--mc-fill-ink);
+    outline: 1.5px solid var(--mc-line-red);
+    outline-offset: -1.5px;
+  }
+  .stamps {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    pointer-events: none;
+  }
+  .stamp {
+    padding: 2px 5px;
+    font-weight: 800;
+    font-size: var(--mc-small-9);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    line-height: 1.2;
+    white-space: nowrap;
+    box-shadow: inset 0 0 0 1px var(--mc-line-ink);
+  }
   .caption {
     position: absolute;
     left: 0;
@@ -71,6 +129,13 @@ export const McPictureCardStyles = css`
     text-overflow: ellipsis;
     color: var(--mc-text-ink);
   }
+  .title.display {
+    font-family: var(--mc-font-display);
+    font-weight: 400;
+    font-size: 24px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
   .detail {
     margin-top: 7px;
     font-size: var(--mc-small-10);
@@ -81,9 +146,22 @@ export const McPictureCardStyles = css`
     color: var(--mc-text-ink);
     opacity: 0.75;
   }
+  /* A two-line detail wraps and clips at two lines instead of one cut line. */
+  .detail.two {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+  }
   .detail.alert {
     color: var(--mc-text-red);
     opacity: 1;
+  }
+  .detail.caution {
+    color: var(--mc-text-ink);
+    opacity: 1;
+    font-weight: 800;
   }
   .stripe {
     position: absolute;
@@ -108,16 +186,27 @@ export const McPictureCardStyles = css`
   .frame {
     position: absolute;
     inset: 0;
-    box-shadow: inset 0 0 0 var(--mc-card-border, 2px) var(--mc-line-ink);
+    box-shadow: inset 0 0 0 var(--mc-card-border, 2px) var(--mc-card-frame, var(--mc-line-ink));
     pointer-events: none;
   }
   .tap {
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
     cursor: pointer;
     pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     user-select: none;
+  }
+  .tap:focus-visible {
+    outline: 3px solid var(--mc-line-red);
+    outline-offset: -6px;
   }
 `;

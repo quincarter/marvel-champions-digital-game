@@ -1,7 +1,7 @@
 /**
  * "How to play" (guided mode G6c part 1, `docs/guided-mode.md` §4): the learning hub Title's menu, Settings' "Play
  * the tutorial", the round debrief's "Replay a lesson", and the aspect chips' own "Aspects ▸" all open.
- * `view/how-to-play-model.ts`'s own header has the content/layout split this scene draws.
+ * `view/how-to-play-model.ts`'s own header has the content split this scene shows.
  *
  * **THE BASICS**: the tutorial's real five lessons, each showing ✓ done or a yellow "NEXT" stamp on the first one
  * not done. Lesson 1 ("How to win") opens `scenes/how-to-win.ts` with `backTo: "howToPlay"` — that screen already
@@ -29,40 +29,39 @@
  * Back/×/Escape (§3.10 "every tutorial screen has Back") always return to Title — this hub itself never carries a
  * `backTo`, since it is always where a "How to play"-style flow starts from.
  *
- * **One Lit panel over the canvas** (`mc-sheet`, `dom/sheet-builder.ts`, as `scenes/pause.ts` and `scenes/rules.ts`
- * are): the ink header (× and title, with its Cancel glyph, `dom/sheet-glyphs.ts`) and the scrolling body, laid out at
- * the rects `view/how-to-play-model.ts` gives, scrolled natively. The scene keeps the focus route (its ring drawn in
- * the DOM, `dom/dom-ring.ts`), navigation and the guide-prefs subscription.
+ * The whole screen is one page element, `mc-how-to-play-page` (`views/how-to-play/`), made of section elements
+ * (`components/learn/`). This scene only mounts it, sets its properties from the modules above, and handles its one
+ * `mc-learn` event. It keeps the focus route (the page's `data-stop` parts, read by `dom/element-stops.ts`, its ring
+ * drawn in the DOM, `dom/dom-ring.ts`), navigation and the guide-prefs subscription.
  */
-import { hitRectAround } from "../view/hit-rect.js";
 import Phaser from "phaser";
 import "@mc/ui";
-import type { McSheet } from "@mc/ui";
-import { dotGrid, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
+import "../views/how-to-play/mc-how-to-play-page/mc-how-to-play-page.js";
+import { surface } from "../tokens.js";
 import { cssOf } from "../ui/theme.js";
-import { isDesktopType } from "../ui/desktop-type.js";
-import type { Rect } from "../view/layout.js";
 import {
   continueLearningLesson,
-  howToPlayContentLayout,
-  howToPlayHeaderLayout,
+  howToPlayFocusOrder,
   howToPlayModules,
   type AspectRowInfo,
   type BoxRowInfo,
   type HowToPlayModules,
   type LessonRowInfo,
 } from "../view/how-to-play-model.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import { guidePrefs, onGuidePrefsChange } from "../guide/guide-store.js";
 import { startTutorialGame } from "../guide/start-tutorial.js";
 import type { TutorialLessonId } from "../guide/tutorial-checkpoints.js";
-import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { mountElement, type MountedElement } from "../dom/element-region.js";
+import { bindStopFocus, focusStopsOf } from "../dom/element-stops.js";
+import { settleElements } from "../dom/element-settle.js";
+import { ControlGlyphs } from "../dom/control-glyphs.js";
 import { domFocusRing } from "../dom/dom-ring.js";
-import { SheetBuilder } from "../dom/sheet-builder.js";
-import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { t } from "../i18n/translate.js";
 import { onLanguageChange } from "../language-change.js";
+import type { LearnEventDetail } from "../components/learn/shared/learn-events.types.js";
+import type { HowToPlayPageModel } from "../views/how-to-play/mc-how-to-play-page/mc-how-to-play-page.types.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { HowToWinSceneData } from "./how-to-win.js";
@@ -70,29 +69,30 @@ import type { AspectLessonSceneData } from "./aspect-lesson.js";
 import type { RulesSceneData } from "./rules.js";
 import { openBoxPages, type NewInBoxSceneData } from "./new-in-box.js";
 
-const TITLE_TYPE: TypeSpec = typeRole.barTitle;
-const SECTION_LABEL_TYPE: TypeSpec = typeRole.label;
-const ROW_TITLE_TYPE: TypeSpec = typeRole.rowTitle;
-const ROW_DETAIL_TYPE: TypeSpec = typeRole.body;
-const STAMP_TYPE: TypeSpec = { ...typeRole.label, size: 10 };
-const INDEX_TYPE: TypeSpec = { ...typeRole.barTitle, size: 18 };
-/** The scrolling body's key in the panel. */
-const LIST = "list";
+type Page = MountedElement<HTMLElementTagNameMap["mc-how-to-play-page"]>;
+
+/** The ink band behind the bar, for the fade (the bar itself is as tall as its rows). */
+const BAR_HEIGHT = 64;
+/** The height the close's Cancel glyph is drawn for. */
+const CLOSE_HINT_HEIGHT = 30;
 
 export class HowToPlayScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #starting = false;
-  #glyphs!: SheetGlyphs;
+  #alive = false;
   #unsubscribePrefs: (() => void) | null = null;
-  /** The screen, one Lit panel over the canvas; made on the first draw and kept, so the body's scroll stays. */
-  #region: DomRegion<McSheet> | null = null;
-  #b!: SheetBuilder;
-  /** What each key in the panel does when tapped, this draw. */
-  #actions = new Map<string, () => void>();
+  #page: Page | null = null;
+  #unbind: (() => void) | null = null;
+  #glyphs!: ControlGlyphs;
+  /** The ink under the bar: the dark mode tab's hole in the panel shows it. */
+  #band: Phaser.GameObjects.Rectangle | null = null;
+  /** The modules the page shows now, for what a press on a row opens. */
+  #modules: HowToPlayModules | null = null;
   /** Where the body was scrolled to, kept across a restart of the screen (coming back from a lesson page). */
   #scrollTop = 0;
-  /** The viewport the body scrolls in, for the dev hook and the stops' `view`. */
-  #viewport: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  /** The page's focus stops as last read (the dev hook's rects). */
+  #stops = new Map<string, FocusStop>();
+  #syncing = false;
 
   constructor() {
     super(SCENES.howToPlay);
@@ -101,21 +101,27 @@ export class HowToPlayScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#starting = false;
-    this.#region = null;
-    this.scale.on("resize", this.#rebuild, this);
-    this.#unsubscribePrefs = onGuidePrefsChange(() => this.#rebuild());
-    const offLanguage = onLanguageChange(() => this.#rebuild());
-    this.#glyphs = new SheetGlyphs(this, () => this.#rebuild());
+    this.#alive = true;
+    this.#page = null;
+    this.#band = this.add.rectangle(0, 0, this.scale.gameSize.width, BAR_HEIGHT, surface.ink.hex).setOrigin(0, 0);
+    this.#glyphs = new ControlGlyphs(this, () => this.#compose());
+    this.scale.on("resize", this.#compose, this);
+    this.#unsubscribePrefs = onGuidePrefsChange(() => this.#compose());
+    const offLanguage = onLanguageChange(() => this.#compose());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.scale.off("resize", this.#rebuild, this);
+      this.#alive = false;
+      this.scale.off("resize", this.#compose, this);
       this.#unsubscribePrefs?.();
       this.#unsubscribePrefs = null;
       offLanguage();
       this.#scrollTop = this.#scroller()?.scrollTop ?? this.#scrollTop;
+      this.#unbind?.();
+      this.#unbind = null;
       this.#glyphs.dispose();
-      // The panel goes with the scene (`DomRegion`); the next open makes a new one.
-      this.#region = null;
+      this.#page = null;
+      this.#band = null;
     });
+    this.#mount();
     this.#route = new FocusRoute(this, {
       ring: domFocusRing,
       // The Rules reference opens over this hub and owns Escape and the pad until it has closed (it leaves on a motion).
@@ -126,340 +132,185 @@ export class HowToPlayScene extends Phaser.Scene {
       onScroll: (_dx, dy) => this.#scroller()?.scrollBy({ top: dy }),
       onPage: (direction) => this.#scroller()?.scrollBy({ top: direction * this.scale.gameSize.height * 0.7 }),
     });
-    this.#rebuild();
+    this.#compose();
+    // A new panel (the screen opened again) reads from where it was left.
+    void this.#settled().then(() => {
+      const scroller = this.#scroller();
+      if (scroller) scroller.scrollTop = this.#scrollTop;
+    });
     fadeScreenIn(this);
   }
 
   #scroller(): HTMLElement | null {
-    return this.#region?.element.elementOf(LIST) ?? null;
+    return this.#page?.element.scroller ?? null;
   }
 
-  /** A press on a row or the button: what the key does. */
-  #press(key: string, action: () => void): void {
-    this.#actions.set(key, action);
-  }
-
-  #rebuild(): void {
-    destroyChildren(this);
-    this.#actions = new Map();
-    this.#glyphs.reset();
-
+  /** Mounts the page and wires what it says. */
+  #mount(): void {
     const { width, height } = this.scale.gameSize;
-    const modules = howToPlayModules(guidePrefs(), openBoxPages());
-    const header = howToPlayHeaderLayout(width, height);
-    const content = howToPlayContentLayout(width, height, modules);
-    const b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
-    this.#b = b;
+    const mounted = mountElement(this, "mc-how-to-play-page", { x: 0, y: 0, width, height });
+    this.#page = mounted;
+    mounted.element.addEventListener("mc-learn", (event) => this.#heard(event.detail));
+    this.#unbind = bindStopFocus(mounted.element, (key) => this.#route?.focusKey(key));
+  }
 
-    const full: Rect = { x: 0, y: 0, width, height };
-    b.box(full, { fill: surface.paper.hex });
-    const bodyTop = header.header.height;
-    b.dots(
-      { x: 0, y: bodyTop, width, height: height - bodyTop },
-      "paper",
-      dotGrid.onPaper.spacing,
-      dotGrid.onPaper.radius,
-      dotGrid.onPaper.alpha,
-    );
-
-    // The header band under the panel too: the chrome buttons' holes in the panel (the dark mode toggle) show the canvas.
-    this.add.rectangle(0, 0, width, bodyTop, surface.ink.hex).setOrigin(0, 0);
-    const stops = new Map<string, FocusStop>();
-    this.#drawHeader(header);
-    stops.set("close", { rect: header.close, activate: () => this.#leave() });
-
-    const viewport: Rect = { x: 0, y: bodyTop, width, height: height - bodyTop };
-    this.#viewport = viewport;
-    b.scroll(LIST, viewport, content.totalHeight, (inner) => {
-      this.#b = inner;
-      inner.text(content.basicsLabel.x, content.basicsLabel.y, t("howToPlay.basics"), SECTION_LABEL_TYPE, {
-        color: surface.ink.hex,
-        alpha: ink.secondary,
-      });
-      modules.lessons.forEach((lesson, i) => {
-        const rowRect = content.lessonRows[i]!;
-        this.#drawLessonRow(rowRect, lesson);
-        this.#row(`lesson:${lesson.id}`, rowRect, () => void this.#openLesson(lesson), stops);
-      });
-
-      inner.text(content.aspectsLabel.x, content.aspectsLabel.y, t("howToPlay.aspects"), SECTION_LABEL_TYPE, {
-        color: surface.ink.hex,
-        alpha: ink.secondary,
-      });
-      modules.aspects.forEach((aspectRow, i) => {
-        const rowRect = content.aspectRows[i]!;
-        this.#drawAspectRow(rowRect, aspectRow);
-        this.#row(`aspect:${aspectRow.aspect}`, rowRect, () => this.#openAspectLesson(aspectRow), stops);
-      });
-
-      inner.text(content.referenceLabel.x, content.referenceLabel.y, t("howToPlay.reference"), SECTION_LABEL_TYPE, {
-        color: surface.ink.hex,
-        alpha: ink.secondary,
-      });
-      this.#drawReferenceRow(content.referenceRow);
-      this.#row("reference", content.referenceRow, () => this.#openReference(), stops);
-
-      if (content.boxesLabel) {
-        inner.text(content.boxesLabel.x, content.boxesLabel.y, t("howToPlay.newInBox"), SECTION_LABEL_TYPE, {
-          color: surface.ink.hex,
-          alpha: ink.secondary,
-        });
+  /** The page said something (a tap, or the focus route's click on a stop). */
+  #heard(detail: LearnEventDetail): void {
+    const modules = this.#modules;
+    switch (detail.type) {
+      case "close":
+        return this.#leave();
+      case "lesson": {
+        const lesson = modules?.lessons.find((l) => l.id === detail.id);
+        if (lesson) void this.#openLesson(lesson);
+        return;
       }
-      modules.boxes.forEach((boxRow, i) => {
-        const rowRect = content.boxRows[i]!;
-        this.#drawBoxRow(rowRect, boxRow);
-        this.#row(`box:${boxRow.id}`, rowRect, () => this.#openBoxPage(boxRow), stops);
-      });
-
-      inner.button({
-        key: "continue-learning",
-        rect: content.continueLearning,
-        label: this.#starting ? t("howToPlay.suitingUp") : this.#continueLabel(modules),
-        look: "primary",
-        type: typeRole.barTitle,
-        ...(this.#starting ? { disabled: true as const } : {}),
-      });
-      this.#press("continue-learning", () => void this.#continueLearning(modules));
-      stops.set(
-        "continue-learning",
-        this.#bodyStop("continue-learning", () => void this.#continueLearning(modules)),
-      );
-    });
-    this.#b = b;
-    this.#mount(width, height, b);
-
-    // Dev e2e hook: each row's rect on screen right now (scroll applied), so a script can check the columns line up
-    // and click a row that is in view.
-    if (import.meta.env.DEV) {
-      const onScreen = (rect: Rect): Rect => ({
-        ...rect,
-        y: viewport.y + rect.y - (this.#scroller()?.scrollTop ?? 0),
-      });
-      (window as unknown as { __mcHowToPlayDebug?: unknown }).__mcHowToPlayDebug = {
-        viewport: () => viewport,
-        lessons: () => modules.lessons.map((l, i) => ({ id: l.id, ...onScreen(content.lessonRows[i]!) })),
-        aspects: () => modules.aspects.map((a, i) => ({ id: a.aspect, ...onScreen(content.aspectRows[i]!) })),
-        reference: () => onScreen(content.referenceRow),
-        boxes: () => modules.boxes.map((bx, i) => ({ id: bx.id, title: bx.title, ...onScreen(content.boxRows[i]!) })),
-      };
-    }
-
-    this.#route?.set(
-      [
-        "close",
-        ...modules.lessons.map((l) => `lesson:${l.id}`),
-        ...modules.aspects.map((a) => `aspect:${a.aspect}`),
-        "reference",
-        ...modules.boxes.map((bx) => `box:${bx.id}`),
-        "continue-learning",
-      ],
-      stops,
-    );
-  }
-
-  /** Hands the built parts to the panel (made once, so the body's scroll survives a redraw) and renders them now. */
-  #mount(width: number, height: number, builder: SheetBuilder): void {
-    if (!this.#region) {
-      const element = document.createElement("mc-sheet") as McSheet;
-      element.addEventListener("mc-activate", (event) => {
-        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
-      });
-      this.#region = new DomRegion(this, element, { x: 0, y: 0, width, height });
-    }
-    const region = this.#region;
-    region.setRect({ x: 0, y: 0, width, height });
-    const fresh = !region.element.isConnected || region.element.nodes.length === 0;
-    region.element.nodes = builder.nodes;
-    renderNow(region.element);
-    // A new panel (the screen opened again) reads from where it was left.
-    if (fresh) {
-      const scroller = this.#scroller();
-      if (scroller) scroller.scrollTop = this.#scrollTop;
+      case "aspect": {
+        const aspect = modules?.aspects.find((a) => a.aspect === detail.aspect);
+        if (aspect) this.#openAspectLesson(aspect);
+        return;
+      }
+      case "reference":
+        return this.#openReference();
+      case "box": {
+        const box = modules?.boxes.find((b) => b.id === detail.id);
+        if (box) this.#openBoxPage(box);
+        return;
+      }
+      case "continue":
+        if (modules) void this.#continueLearning(modules);
+        return;
+      default:
+        return;
     }
   }
 
-  /** A row: its tap area over `rect` (content space), its action, and its focus stop. */
-  #row(key: string, rect: Rect, activate: () => void, stops: Map<string, FocusStop>): void {
-    this.#b.tap(key, rect);
-    this.#press(key, activate);
-    stops.set(key, this.#bodyStop(key, activate));
-  }
-
-  /** A stop inside the scrolling body: its box is read off the panel, so it follows the scroll, and taking focus scrolls it into view. */
-  #bodyStop(key: string, activate: () => void): FocusStop {
-    const region = (): DomRegion<McSheet> | null => this.#region;
-    const viewport = this.#viewport;
+  #model(modules: HowToPlayModules): HowToPlayPageModel {
+    const title = t("title.howToPlay");
+    const done = t("howToPlay.done");
     return {
-      rect: () => {
-        const found = region()?.element.elementOf(key);
-        return found ? region()!.rectOf(found) : viewport;
+      header: {
+        heading: title,
+        closeLabel: t("scenario.back"),
+        // The close is a drawn ×, not a button: its Cancel glyph follows the title.
+        glyph: this.#glyphs.glyph("close", ["cancel"], "ink", CLOSE_HINT_HEIGHT),
       },
-      view: () => {
-        const found = region()?.element.elementOf(LIST);
-        return found ? region()!.rectOf(found) : viewport;
+      lessons: {
+        heading: t("howToPlay.basics"),
+        rows: modules.lessons.map((lesson) => ({
+          id: lesson.id,
+          index: lesson.index,
+          title: lesson.title,
+          done: lesson.done,
+          recommended: lesson.recommended,
+          doneLabel: done,
+          nextLabel: t("howToPlay.next"),
+        })),
       },
-      activate,
-      ensureVisible: () => region()?.element.elementOf(key)?.scrollIntoView({ block: "nearest" }),
+      aspects: {
+        heading: t("howToPlay.aspects"),
+        rows: modules.aspects.map((aspect) => ({
+          aspect: aspect.aspect,
+          name: aspect.name,
+          tagline: aspect.tagline,
+          done: aspect.done,
+          doneLabel: done,
+        })),
+      },
+      reference: {
+        heading: t("howToPlay.reference"),
+        rows: [
+          {
+            stop: "reference",
+            heading: modules.reference.title,
+            detail: modules.reference.detail,
+            action: { type: "reference" },
+          },
+        ],
+      },
+      boxes: {
+        heading: t("howToPlay.newInBox"),
+        rows: modules.boxes.map((box) => ({
+          stop: `box:${box.id}`,
+          heading: box.title,
+          detail: box.summary,
+          action: { type: "box", id: box.id },
+        })),
+      },
+      continue: {
+        label: this.#starting
+          ? t("howToPlay.suitingUp")
+          : modules.recommendedLessonIndex === null
+            ? t("howToPlay.playAgain")
+            : t("howToPlay.continue"),
+        starting: this.#starting,
+      },
     };
   }
 
-  #continueLabel(modules: HowToPlayModules): string {
-    return modules.recommendedLessonIndex === null ? t("howToPlay.playAgain") : t("howToPlay.continue");
+  /** Sets the page from the modules and the screen's shape. */
+  #compose(): void {
+    if (!this.#alive || !this.#page) return;
+    this.#glyphs.reset();
+    const { width, height } = this.scale.gameSize;
+    const form = formFactorFor(width, height);
+    const wide = form === "desktop" || form === "tabletLandscape";
+    const modules = howToPlayModules(guidePrefs(), openBoxPages());
+    this.#modules = modules;
+    this.#band?.setSize(width, BAR_HEIGHT);
+    const { region, element } = this.#page;
+    region.setRect({ x: 0, y: 0, width, height });
+    element.mode = wide ? "wide" : "narrow";
+    element.model = this.#model(modules);
+    this.#glyphs.settled();
+    this.#queueStops();
+    this.#publishDebug(modules);
   }
 
-  #drawHeader(header: ReturnType<typeof howToPlayHeaderLayout>): void {
-    const b = this.#b;
-    b.box(header.header, { fill: surface.ink.hex });
-    b.text(header.close.x + header.close.width / 2, header.close.y + header.close.height / 2, "×", typeRole.barTitle, {
-      size: 26,
-      color: surface.paper.hex,
-      origin: [0.5, 0.5],
-    });
-    b.tap("close", hitRectAround(header.close, hit.target, header.header));
-    this.#press("close", () => this.#leave());
+  /** Resolves once the page and its parts have drawn. */
+  async #settled(): Promise<void> {
+    if (this.#page) await settleElements(this.#page.element);
+  }
 
-    const title = b.text(header.title.x, header.header.height / 2, t("title.howToPlay"), TITLE_TYPE, {
-      size: 22,
-      color: surface.paper.hex,
-      origin: [0, 0.5],
-    });
-    // The close is a drawn ×, not a button: its Cancel glyph follows the title.
-    this.#glyphs.hint(b, {
-      key: "close",
-      x: header.title.x + title.width + 14,
-      y: header.header.y + header.header.height / 2,
-      ids: ["cancel"],
-      height: 18,
-      ground: "ink",
+  /** Reads the page's stops once it has drawn, its parts included (every row is a level down). */
+  #queueStops(): void {
+    if (this.#syncing) return;
+    this.#syncing = true;
+    void this.#settled().then(() => {
+      this.#syncing = false;
+      if (this.#alive) this.#syncStops();
     });
   }
 
-  /** A card-fill row with a 1.5px (or `weight`) outline inside its edge, as the rows have always been drawn. */
-  #rowCard(rect: Rect, weight: number, line: number): void {
-    const b = this.#b;
-    b.box(rect, { fill: surface.card.hex });
-    b.box(
-      { x: rect.x + 1, y: rect.y + 1, width: rect.width - 2, height: rect.height - 2 },
-      { stroke: line, strokeWidth: weight },
-    );
+  #syncStops(): void {
+    if (!this.#page || !this.#route || !this.#modules) return;
+    const { element, region } = this.#page;
+    this.#stops = new Map<string, FocusStop>(focusStopsOf(element, (target) => region.rectOf(target)));
+    this.#route.set(howToPlayFocusOrder(this.#modules), this.#stops);
   }
 
-  /** A lesson row: index badge, title, and a done ✓ / yellow "NEXT" stamp / quiet "▸" — every lesson is always tappable, whatever its own done state (`docs/guided-mode.md` §4 G6c: "a recommended order the player can ignore"). */
-  #drawLessonRow(rect: Rect, lesson: LessonRowInfo): void {
-    const b = this.#b;
-    this.#rowCard(rect, lesson.recommended ? 2.5 : 1.5, lesson.recommended ? signal.caution.hex : surface.ink.hex);
-
-    const badgeSize = 32;
-    const badgeX = rect.x + 16;
-    const badgeY = rect.y + rect.height / 2;
-    b.box(
-      { x: badgeX, y: badgeY - badgeSize / 2, width: badgeSize, height: badgeSize },
-      {
-        fill: lesson.done ? surface.ink.hex : surface.parchment.hex,
-        stroke: surface.ink.hex,
-        strokeWidth: 1.5,
-        round: true,
+  /** Dev e2e hook (never referenced by product code): each row's rect on screen right now (scroll applied), so a script can click a row that is in view. */
+  #publishDebug(modules: HowToPlayModules): void {
+    if (!import.meta.env.DEV) return;
+    const rectOf = (key: string): Rect => {
+      const rect = this.#stops.get(key)?.rect;
+      return (typeof rect === "function" ? rect() : rect) ?? { x: 0, y: 0, width: 0, height: 0 };
+    };
+    const { width, height } = this.scale.gameSize;
+    (window as unknown as { __mcHowToPlayDebug?: unknown }).__mcHowToPlayDebug = {
+      viewport: () => {
+        const scroller = this.#scroller();
+        return scroller && this.#page ? this.#page.region.rectOf(scroller) : { x: 0, y: 0, width, height };
       },
-    );
-    b.text(badgeX + badgeSize / 2, badgeY, lesson.done ? "✓" : String(lesson.index), INDEX_TYPE, {
-      size: 16,
-      color: lesson.done ? surface.paper.hex : surface.ink.hex,
-      origin: [0.5, 0.5],
-    });
-
-    const textLeft = badgeX + badgeSize + 14;
-    const statusWidth = 90;
-    b.text(textLeft, rect.y + rect.height / 2, lesson.title, ROW_TITLE_TYPE, {
-      color: surface.ink.hex,
-      origin: [0, 0.5],
-      wrapWidth: rect.width - (textLeft - rect.x) - statusWidth - 16,
-    });
-
-    if (lesson.done) {
-      b.text(rect.x + rect.width - 12, rect.y + rect.height / 2, t("howToPlay.done"), ROW_DETAIL_TYPE, {
-        color: surface.ink.hex,
-        alpha: ink.secondary,
-        origin: [1, 0.5],
-      });
-    } else if (lesson.recommended) {
-      const stampLabel = t("howToPlay.next");
-      const stampWidth = b.measure(stampLabel, STAMP_TYPE).width + 16;
-      const stampHeight = 20;
-      const sx = rect.x + rect.width - stampWidth - 12;
-      const sy = rect.y + rect.height / 2 - stampHeight / 2;
-      b.box({ x: sx, y: sy, width: stampWidth, height: stampHeight }, { fill: signal.caution.hex });
-      b.text(sx + stampWidth / 2, sy + stampHeight / 2, stampLabel, STAMP_TYPE, {
-        color: surface.inkOnHue.hex,
-        origin: [0.5, 0.5],
-      });
-    } else {
-      this.#chevron(rect);
-    }
-  }
-
-  /** The quiet "▸" at a row's right edge. */
-  #chevron(rect: Rect): void {
-    this.#b.text(rect.x + rect.width - 12, rect.y + rect.height / 2, "▸", typeRole.barTitle, {
-      size: 18,
-      color: surface.ink.hex,
-      origin: [1, 0.5],
-    });
-  }
-
-  /** An aspect row: name, tagline, and a done ✓ / quiet "▸" — every aspect's lesson page is live (G10c), the same
-   * always-tappable shape `#drawLessonRow` uses. */
-  #drawAspectRow(rect: Rect, aspect: AspectRowInfo): void {
-    const b = this.#b;
-    this.#rowCard(rect, 1.5, surface.ink.hex);
-
-    const pad = 16;
-    // The aspect's own chip stands where the plain name was: its frame color with the name on it, as Seats and Decks show it.
-    b.chip(rect.x + pad, rect.y + 12, aspect.aspect, aspect.name, { height: 22, size: 12 });
-    b.text(rect.x + pad, rect.y + 38, aspect.tagline, ROW_DETAIL_TYPE, {
-      color: surface.ink.hex,
-      alpha: ink.secondary,
-      wrapWidth: rect.width - pad * 2 - 90,
-    });
-
-    if (aspect.done) {
-      b.text(rect.x + rect.width - 12, rect.y + rect.height / 2, t("howToPlay.done"), ROW_DETAIL_TYPE, {
-        color: surface.ink.hex,
-        alpha: ink.secondary,
-        origin: [1, 0.5],
-      });
-    } else {
-      this.#chevron(rect);
-    }
-  }
-
-  #drawReferenceRow(rect: Rect): void {
-    const b = this.#b;
-    this.#rowCard(rect, 1.5, surface.ink.hex);
-    const pad = 16;
-    b.text(rect.x + pad, rect.y + 12, t("howToPlay.referenceTitle"), ROW_TITLE_TYPE, { color: surface.ink.hex });
-    b.text(rect.x + pad, rect.y + 38, t("howToPlay.referenceDetail"), ROW_DETAIL_TYPE, {
-      color: surface.ink.hex,
-      alpha: ink.secondary,
-      wrapWidth: rect.width - pad * 2 - 40,
-    });
-    this.#chevron(rect);
-  }
-
-  /** A "New in this box" row: the page's title, its entry/Try-it count, and a quiet "▸". */
-  #drawBoxRow(rect: Rect, box: BoxRowInfo): void {
-    const b = this.#b;
-    this.#rowCard(rect, 1.5, surface.ink.hex);
-    const pad = 16;
-    b.text(rect.x + pad, rect.y + 12, box.title, ROW_TITLE_TYPE, {
-      color: surface.ink.hex,
-      wrapWidth: rect.width - pad * 2 - 40,
-    });
-    b.text(rect.x + pad, rect.y + 38, box.summary, ROW_DETAIL_TYPE, { color: surface.ink.hex, alpha: ink.secondary });
-    this.#chevron(rect);
+      lessons: () => modules.lessons.map((l) => ({ id: l.id, ...rectOf(`lesson:${l.id}`) })),
+      aspects: () => modules.aspects.map((a) => ({ id: a.aspect, ...rectOf(`aspect:${a.aspect}`) })),
+      reference: () => rectOf("reference"),
+      boxes: () => modules.boxes.map((bx) => ({ id: bx.id, title: bx.title, ...rectOf(`box:${bx.id}`) })),
+    };
   }
 
   #openBoxPage(box: BoxRowInfo): void {
-    this.scale.off("resize", this.#rebuild, this);
+    this.scale.off("resize", this.#compose, this);
     goToScreen(this, SCENES.newInBox, { boxId: box.id } satisfies NewInBoxSceneData);
   }
 
@@ -473,21 +324,21 @@ export class HowToPlayScene extends Phaser.Scene {
   async #openLesson(lesson: LessonRowInfo): Promise<void> {
     if (this.#starting) return;
     if (lesson.id === "how-to-win") {
-      this.scale.off("resize", this.#rebuild, this);
+      this.scale.off("resize", this.#compose, this);
       goToScreen(this, SCENES.howToWin, { backTo: "howToPlay" } satisfies HowToWinSceneData);
       return;
     }
     this.#starting = true;
-    this.#rebuild();
+    this.#compose();
     await startTutorialGame({ startAtLesson: lesson.id as TutorialLessonId });
     if (!this.sys.isActive()) return;
-    this.scale.off("resize", this.#rebuild, this);
+    this.scale.off("resize", this.#compose, this);
     goToScreen(this, SCENES.board);
   }
 
   /** Opens `aspect.aspect`'s lesson page (G10c), returning here on Back/×/Escape. */
   #openAspectLesson(aspect: AspectRowInfo): void {
-    this.scale.off("resize", this.#rebuild, this);
+    this.scale.off("resize", this.#compose, this);
     goToScreen(this, SCENES.aspectLesson, {
       aspect: aspect.aspect,
       backTo: "howToPlay",
@@ -499,7 +350,7 @@ export class HowToPlayScene extends Phaser.Scene {
   }
 
   #leave(): void {
-    this.scale.off("resize", this.#rebuild, this);
+    this.scale.off("resize", this.#compose, this);
     goToScreen(this, SCENES.title);
   }
 }

@@ -36,10 +36,10 @@ test("Extras is a Lit panel: tabs, tiles, the keyboard walks the stops and a tab
   await openApp(page, "screen=extras&unlock=all", { landing: "Extras" });
   await waitForText(page, "EXTRAS", { sceneKey: "Extras" });
   expect(await findText(page, "OPEN", "Extras"), "the summary is in the top bar").not.toHaveLength(0);
-  await expect(page.locator(`${panel("Extras")} [data-key^="tab:"]`)).toHaveCount(8);
-  await expect(page.locator(`${panel("Extras")} [data-key="shelf"]`)).toHaveCount(1);
-  await expect(page.locator(`${panel("Extras")} [data-key^="tile:"]`).first()).toHaveCount(1);
-  await expect(page.locator(`${panel("Extras")} [data-key="tab:stories"]`)).toHaveAttribute("selected", "");
+  await expect(page.locator(`${panel("Extras")} [data-stop^="tab:"]`)).toHaveCount(8);
+  await expect(page.locator(`${panel("Extras")} mc-extras-shelf`)).toHaveCount(1);
+  await expect(page.locator(`${panel("Extras")} [data-stop^="tile:"]`).first()).toHaveCount(1);
+  await expect(page.locator(`${panel("Extras")} [data-stop="tab:stories"]`)).toHaveAttribute("selected", "");
 
   // The keyboard walks Back, the two doors, then the tabs.
   await pressKey(page, "Tab");
@@ -52,10 +52,10 @@ test("Extras is a Lit panel: tabs, tiles, the keyboard walks the stops and a tab
   }
   expect((await focusOf(page, "Extras")).focus).toBe("tab:heroes");
   await pressKey(page, "Enter");
-  await expect(page.locator(`${panel("Extras")} [data-key="tab:heroes"]`)).toHaveAttribute("selected", "");
+  await expect(page.locator(`${panel("Extras")} [data-stop="tab:heroes"]`)).toHaveAttribute("selected", "");
   // A hero's tile is a stop, with its picture in the panel.
-  await expect(page.locator(`${panel("Extras")} [data-key^="tile:"] >> nth=0`)).toHaveCount(1);
-  await expect(page.locator(`${panel("Extras")} [data-key^="thumb:"] img`).first()).toHaveCount(1);
+  await expect(page.locator(`${panel("Extras")} [data-stop^="tile:"] >> nth=0`)).toHaveCount(1);
+  await expect(page.locator(`${panel("Extras")} mc-picture-card img`).first()).toHaveCount(1);
 
   // Escape leaves for Title; the panel and its ring go with the screen.
   await pressKey(page, "Escape");
@@ -71,10 +71,10 @@ test("a locked tile says LOCKED over a gray ghost of its picture and opens nothi
   test.setTimeout(120_000);
   await openApp(page, "screen=extras&tab=heroes", { landing: "Extras" });
   await waitForText(page, "LOCKED", { sceneKey: "Extras" });
-  const ghost = page.locator(`${panel("Extras")} [data-key^="thumb:"] img`).first();
+  const ghost = page.locator(`${panel("Extras")} mc-picture-card img`).first();
   await expect(ghost).toHaveCount(1);
   expect(await ghost.evaluate((img) => getComputedStyle(img).filter)).toContain("grayscale");
-  const tile = page.locator(`${panel("Extras")} [data-key^="tile:"]`).first();
+  const tile = page.locator(`${panel("Extras")} [data-stop^="tile:"]`).first();
   await tile.click();
   await page.waitForTimeout(600);
   expect(await activeScenes(page)).not.toContain("ExtrasViewerOverlay");
@@ -82,7 +82,7 @@ test("a locked tile says LOCKED over a gray ghost of its picture and opens nothi
   await openApp(page, "screen=extras&tab=heroes&unlock=all", { landing: "Extras" });
   await waitForText(page, "VIEW", { sceneKey: "Extras" });
   await page
-    .locator(`${panel("Extras")} [data-key^="tile:"]`)
+    .locator(`${panel("Extras")} [data-stop^="tile:"]`)
     .first()
     .click();
   await waitFor(
@@ -91,8 +91,8 @@ test("a locked tile says LOCKED over a gray ghost of its picture and opens nothi
     10_000,
   );
   const viewer = panel("ExtrasViewerOverlay");
-  await expect(page.locator(`${viewer} [data-key="slide"] img`)).toHaveCount(1);
-  await expect(page.locator(`${viewer} [data-key="close"]`)).toHaveCount(1);
+  await expect(page.locator(`${viewer} mc-viewer-slide img`)).toHaveCount(1);
+  await expect(page.locator(`${viewer} [data-stop="close"]`)).toHaveCount(1);
   // Escape closes the viewer and the shelf is still up.
   await pressKey(page, "Escape");
   await waitFor(
@@ -108,7 +108,7 @@ test("the Music tab's player is the Phaser widget seen through its hole: Shuffle
 }) => {
   test.setTimeout(120_000);
   await openApp(page, "screen=extras&tab=music&unlock=all", { landing: "Extras" });
-  await expect(page.locator(`${panel("Extras")} [data-key="tab:music"]`)).toHaveAttribute("selected", "");
+  await expect(page.locator(`${panel("Extras")} [data-stop="tab:music"]`)).toHaveAttribute("selected", "");
   const stops = await waitFor(
     async () => {
       const found = (await routeStops(page, "Extras"))?.stops ?? [];
@@ -129,7 +129,7 @@ test("the Music tab's player is the Phaser widget seen through its hole: Shuffle
   );
   // A song row in the panel plays it: its row turns to the playing look ("Now playing").
   await page
-    .locator(`${panel("Extras")} [data-key^="tile:"]`)
+    .locator(`${panel("Extras")} [data-stop^="tile:"]`)
     .nth(1)
     .click();
   await waitForText(page, "Now playing", { sceneKey: "Extras" });
@@ -158,7 +158,7 @@ test("on a phone, the lift that ends a swipe over the shelf presses no tile", as
   await openApp(page, "screen=extras&unlock=all", { landing: "Extras" });
   await waitForText(page, "EXTRAS", { sceneKey: "Extras" });
   await settle(page);
-  const tiles = page.locator(`${panel("Extras")} [data-key^="tile:"]`);
+  const tiles = page.locator(`${panel("Extras")} [data-stop^="tile:"]`);
   const first = (await tiles.nth(2).boundingBox())!;
   const view = page.viewportSize()!;
   // From a tile up the shelf, lifted over another: a scroll, and nothing opens.

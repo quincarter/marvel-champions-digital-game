@@ -771,11 +771,12 @@ describe("Decks tab: the deck of every seat at the table (#756)", () => {
   });
 
   test("the Decks tab appears once a deck has games, with a card strip per deck", async () => {
-    const { statsTabsOf, dashboardRowsOf } = await import("./player-stats-layout.js");
+    const { statsTabsOf } = await import("./player-stats-tabs.js");
+    const { dashboardBlocksOf } = await import("./player-stats-blocks.js");
     const stats = playerStatsOf([table("won", { tac: 4 })], names);
     expect(statsTabsOf(stats).some((tab) => tab.id === "decks")).toBe(true);
     expect(statsTabsOf(playerStatsOf([], names)).some((tab) => tab.id === "decks")).toBe(false);
-    const rows = dashboardRowsOf(stats, "decks", 0, 900, false);
+    const rows = dashboardBlocksOf(stats, "decks", 0);
     expect(rows.filter((r) => r.kind === "stat").map((r) => r.id)).toHaveLength(2);
     expect(rows.some((r) => r.kind === "cards")).toBe(true);
   });

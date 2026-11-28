@@ -249,6 +249,11 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"inspectCard":true}')).toEqual({});
   });
 
+  test("threatMeterStyle: only the four known styles are read", () => {
+    expect(parseSettingsOverrides('{"threatMeterStyle":"beside"}')).toEqual({ threatMeterStyle: "beside" });
+    expect(parseSettingsOverrides('{"threatMeterStyle":"huge"}')).toEqual({});
+  });
+
   test("schemeFanBackground: only the five known values are read", () => {
     expect(parseSettingsOverrides('{"schemeFanBackground":"50"}')).toEqual({ schemeFanBackground: "50" });
     expect(parseSettingsOverrides('{"schemeFanBackground":"40"}')).toEqual({});

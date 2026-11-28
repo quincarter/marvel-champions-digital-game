@@ -442,29 +442,6 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
   ];
 }
 
-/**
- * Rules Reference (full-screen redesign, owner feedback 2026-09-18): Back, the scope
- * toggle ("All rules" / "On your table" — only a stop with a live game to scope against,
- * `showScopeToggle`), the three tabs, then the glossary's search field (glossary tab
- * only), then whatever rows the active tab is showing — the glossary's own entry (and
- * card-thumbnail) stops, the villain phase's step stops, or the card list's per-card
- * stops, whichever tab `rowIds` was built for.
- */
-export function rulesFocusOrder(input: {
-  readonly tabIds: readonly string[];
-  readonly showScopeToggle: boolean;
-  readonly showSearch: boolean;
-  readonly rowIds: readonly string[];
-}): readonly string[] {
-  return [
-    "back",
-    ...(input.showScopeToggle ? ["scope:table", "scope:all"] : []),
-    ...input.tabIds.map((id) => `tab:${id}`),
-    ...(input.showSearch ? ["search"] : []),
-    ...input.rowIds.map((id) => `row:${id}`),
-  ];
-}
-
 /** Settings: Back, then one stop per toggle row, in the order they're drawn. */
 export function settingsFocusOrder(rowIds: readonly string[]): readonly string[] {
   return ["back", ...rowIds.map((id) => `row:${id}`)];
@@ -531,53 +508,6 @@ export function titleMenuFocusOrder(input: {
 export function gamesListFocusOrder(gameIds: readonly string[], removeConfirm: boolean): readonly string[] {
   if (removeConfirm) return ["remove-keep", "remove-confirm"];
   return gameIds.flatMap((id) => [`game:${id}`, `game-watch:${id}`, `game-remove:${id}`]);
-}
-
-export interface ScenarioSelectFocusInput {
-  /**
-   * Every scenario card, in the pack-shelf roster's own reading order (shelf by shelf, left to right within a
-   * shelf — `view/roster-shelves.ts`'s `flattenShelves`); already filtered by the search field and product chips
-   * (S8). Empty means the search matched nothing. `view/shelf-nav.ts`'s own doc comment explains why this stays a
-   * flat route rather than a real 2-axis one this pass.
-   */
-  readonly scenarioIds: readonly string[];
-  readonly scenarioChipIds?: readonly string[];
-  /** True on a narrow layout, where the stages panel is a disclosure with a bar to toggle. */
-  readonly stagesToggle?: boolean;
-  /** True on a narrow layout, where the search field is behind a toggle at the head of the chip rail. */
-  readonly searchToggle?: boolean;
-  /** The "Customize this scenario" button is drawn (a ready-made Civil War scenario is selected). */
-  readonly customize?: boolean;
-  /** The pad-mode Filters button beside the search field is drawn (`view/pad-filters.ts`). */
-  readonly filtersToggle?: boolean;
-  /** The list's own focus keys in reading order (a header stop per shelf, then the cards of the shelves left open); replaces the keys `scenarioIds` would give (#753). */
-  readonly shelfStopKeys?: readonly string[];
-  /** The Random buttons drawn above the list (#762), in draw order: they come right before the list. */
-  readonly randomStops?: readonly string[];
-}
-
-/** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
-export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): readonly string[] {
-  return [
-    "back",
-    // Narrow layouts only (`view/scenario-select-layout.ts`): the toggle at the head of the chip rail that shows
-    // the search field. The route drops an id with no stop, so wide layouts (field always drawn) skip it.
-    ...(input.searchToggle ? ["scenario-search-toggle"] : []),
-    "scenario-search",
-    ...(input.filtersToggle ? ["filters-toggle"] : []),
-    ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
-    ...(input.randomStops ?? []),
-    ...(input.shelfStopKeys
-      ? input.shelfStopKeys
-      : input.scenarioIds.length > 0
-        ? input.scenarioIds.map((id) => `scenario:${id}`)
-        : ["scenario-clear"]),
-    // The phone's collapsible stages panel (absent on a wide layout, where the panel is always open).
-    ...(input.stagesToggle ? ["stages-toggle"] : []),
-    // Civil War's "Customize this scenario" (docs/phase7-wave10-client.md 2.1), only while one is on the panel.
-    ...(input.customize ? ["customize"] : []),
-    "next",
-  ];
 }
 
 export interface SeatsFocusInput {

@@ -4,14 +4,14 @@ import { installWave6Helpers, routeStops } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * The deck builder's two pop-up sheets are Lit panels over the canvas (`scenes/search-help-sheet.ts`,
+ * The deck builder's two pop-up sheets are elements (`mc-search-help`, `mc-pool-pick`) over the canvas (`scenes/search-help-sheet.ts`,
  * `scenes/pool-pick-sheet.ts`): the "?" search cheat sheet (Use puts an example in the search, Copy copies it) and the
  * pack and wave picker. Their lists scroll natively, their buttons are taps, and the keyboard walks the same stops with
  * the DOM focus ring (Escape closes). The builder screen itself is a Lit panel too (`scenes/deck-builder.ts`): one
- * `mc-sheet` with real search inputs, native scrolling and a windowed pool list.
+ * page element, `mc-deck-builder-page`, with real search inputs, native scrolling and a windowed pool list.
  */
 
-const sheetOf = (page: Page, scene: string) => page.locator(`#mc-ui [data-scene="${scene}"] mc-sheet`);
+const sheetOf = (page: Page, scene: string) => page.locator(`#mc-ui [data-scene="${scene}"]`);
 
 const focusOf = (page: Page, scene: string) =>
   page.evaluate(
@@ -46,10 +46,10 @@ test("the ? cheat sheet is a panel over the builder: rows scroll, Use fills the 
   await pressBuilderStop(page, "filter-help");
   const help = sheetOf(page, "SearchHelpSheet");
   await expect(help).toBeVisible();
-  await expect(help.locator('[data-key="list-help"], [data-key="help-list"]').first()).toBeVisible();
+  await expect(help.locator("mc-search-help mc-dialog").first()).toBeVisible();
   // The rows have Use and Copy buttons in the list; the first example is the cost term.
-  await expect(help.locator('[data-key="use:6"]')).toBeVisible();
-  await expect(help.locator('[data-key="copy:6"]')).toBeVisible();
+  await expect(help.locator('[data-stop="use:6"]')).toBeVisible();
+  await expect(help.locator('[data-stop="copy:6"]')).toBeVisible();
   // The keyboard walks the stops with the DOM ring (the first one is the first Use).
   await pressKey(page, "Tab");
   expect((await focusOf(page, "SearchHelpSheet")).focus).toBe("use:6");
@@ -63,8 +63,8 @@ test("the ? cheat sheet is a panel over the builder: rows scroll, Use fills the 
   await expect(help).toHaveCount(0);
   // Use puts the example in the search and closes the sheet.
   await pressBuilderStop(page, "filter-help");
-  await expect(help.locator('[data-key="use:6"]')).toBeVisible();
-  await help.locator('[data-key="use:6"]').click();
+  await expect(help.locator('[data-stop="use:6"]')).toBeVisible();
+  await help.locator('[data-stop="use:6"]').click();
   await waitFor(
     async () => (!(await activeScenes(page)).includes("SearchHelpSheet") ? true : null),
     "the sheet closes",
@@ -84,21 +84,21 @@ test("the pack picker is a panel: rows toggle, All clears, Done closes", async (
   await pressBuilderStop(page, "pack:name");
   const picker = sheetOf(page, "PoolPickSheet");
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-key="pick:all"]')).toHaveAttribute("selected", "");
-  const first = picker.locator('mc-button[data-key^="pick:"]:not([data-key="pick:all"])').first();
+  await expect(picker.locator('[data-stop="pick:all"]')).toHaveAttribute("selected", "");
+  const first = picker.locator('mc-button[data-stop^="pick:"]:not([data-stop="pick:all"])').first();
   await first.click();
   await expect(first).toHaveAttribute("selected", "");
-  await expect(picker.locator('[data-key="pick:all"]')).not.toHaveAttribute("selected", "");
-  await picker.locator('[data-key="pick:all"]').click();
-  await expect(picker.locator('[data-key="pick:all"]')).toHaveAttribute("selected", "");
-  await picker.locator('[data-key="done"]').click();
+  await expect(picker.locator('[data-stop="pick:all"]')).not.toHaveAttribute("selected", "");
+  await picker.locator('[data-stop="pick:all"]').click();
+  await expect(picker.locator('[data-stop="pick:all"]')).toHaveAttribute("selected", "");
+  await picker.locator('[data-stop="done"]').click();
   await waitFor(async () => (!(await activeScenes(page)).includes("PoolPickSheet") ? true : null), "the picker closes");
   expect(errors).toEqual([]);
 });
 
 // ---- The builder screen itself ----------------------------------------------------------------------------------
 
-const builderSheet = (page: Page) => page.locator('#mc-ui [data-scene="DeckBuilder"] mc-sheet');
+const builderSheet = (page: Page) => page.locator('#mc-ui [data-scene="DeckBuilder"]');
 interface Box {
   x: number;
   y: number;
@@ -117,11 +117,11 @@ test("the builder is one Lit panel: the search is a real input and the pool filt
   await openBuilder(page);
   await expect(builderSheet(page)).toBeVisible();
   // The pool is a list the panel scrolls itself.
-  await expect(builderSheet(page).locator('[data-key="list:pool"]')).toBeVisible();
+  await expect(builderSheet(page).locator("mc-pool-list mc-windowed-list")).toBeVisible();
   const all = (await cardStops(page)).length;
   expect(all).toBeGreaterThan(50);
   // The search is a real <input>.
-  const input = builderSheet(page).locator('mc-search-field[data-key="filter-text"] input');
+  const input = builderSheet(page).locator('mc-search-field[data-stop="filter-text"] input');
   await expect(input).toBeVisible();
   await input.click();
   await page.keyboard.type("t:event rp:1");
@@ -134,7 +134,7 @@ test("the builder is one Lit panel: the search is a real input and the pool filt
     15_000,
   );
   // Clear (the field's own button) brings every card back.
-  await builderSheet(page).locator('mc-search-field[data-key="filter-text"] .clear').click();
+  await builderSheet(page).locator('mc-search-field[data-stop="filter-text"] .clear').click();
   await waitFor(async () => ((await cardStops(page)).length === all ? true : null), "the pool is whole again", 15_000);
   expect(errors).toEqual([]);
 });
@@ -144,7 +144,7 @@ test("the pool list is windowed: only the rows near the viewport are parts, and 
 }) => {
   test.setTimeout(120_000);
   await openBuilder(page);
-  const list = builderSheet(page).locator('[data-key="list:pool"]');
+  const list = builderSheet(page).locator("mc-pool-list mc-windowed-list");
   await expect(list).toBeVisible();
   const cards = await cardStops(page);
   const built = () => builderSheet(page).locator('[data-key^="open:"]').count();
@@ -154,7 +154,7 @@ test("the pool list is windowed: only the rows near the viewport are parts, and 
   const last = cards[cards.length - 1]!;
   await expect(builderSheet(page).locator(`[data-key="open:${last}"]`)).toHaveCount(0);
   // Pictures are lazy images: none outside the window is even a part.
-  expect(await builderSheet(page).locator('[data-key="list:pool"] img[loading="lazy"]').count()).toBeLessThan(
+  expect(await builderSheet(page).locator('mc-pool-list mc-windowed-list img[loading="lazy"]').count()).toBeLessThan(
     cards.length / 2,
   );
   await list.evaluate((el) => (el.scrollTop = el.scrollHeight));

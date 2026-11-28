@@ -3,10 +3,10 @@ import { activeScenes, findText, pressKey, trackPageErrors, waitFor } from "./he
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * Your stats draws its dashboard list as a Lit panel over the canvas (`mc-sheet`, `scenes/player-stats.ts`): the
- * Overview's tiles, the stat rows, the Aspects donut and the Matchups shelves are in the panel and scroll natively, each
- * tab keeps its own place, the keyboard walks the same stops with the ring drawn in the DOM, and on a phone the lift that
- * ends a swipe over a row presses nothing. Its chrome (tabs, chips, the Matchups grid) stays on the canvas.
+ * Your stats is one page of custom elements (`views/player-stats/mc-player-stats-page`, its sections in
+ * `components/player-stats/`): the Overview's tiles, the stat rows, the Aspects donut and the Matchups shelves are in the
+ * page and scroll natively, each tab keeps its own place, the keyboard walks the same stops with the ring drawn in the DOM,
+ * and on a phone the lift that ends a swipe over a row presses nothing.
  */
 
 type FocusStates = Record<string, () => { focus: string | null; ringShown: boolean }>;
@@ -46,14 +46,14 @@ const press = async (page: Page, key: string): Promise<void> => {
   else await page.mouse.click(x, y);
 };
 
-test("Your stats is a Lit panel: the tiles are in it, the keyboard walks them, the Aspects tab draws its donut", async ({
+test("Your stats is a page of elements: the tiles are in it, the keyboard walks them, the Aspects tab draws its donut", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "desktop", "the keyboard walk is the desktop's case");
   test.setTimeout(120_000);
   const errors = trackPageErrors(page);
   await openStats(page);
-  expect(await findText(page, "WINS–LOSSES", "PlayerStats"), "the record tile is in the panel").not.toHaveLength(0);
+  expect(await findText(page, "Wins–losses", "PlayerStats"), "the record tile is in the panel").not.toHaveLength(0);
   expect((await stopsOf(page)).some((s) => s.key.startsWith("tile:"))).toBe(true);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/stats-lit-desktop-overview.png` });
 
@@ -103,9 +103,9 @@ test.describe("in Spanish", () => {
     test.skip(info.project.name !== "desktop", "one size is enough for the words");
     test.setTimeout(120_000);
     await openStats(page);
-    expect(await findText(page, "TUS ESTADÍSTICAS", "PlayerStats"), "the title").not.toHaveLength(0);
+    expect(await findText(page, "Tus estadísticas", "PlayerStats"), "the title").not.toHaveLength(0);
     expect(await findText(page, "Resumen", "PlayerStats"), "the Overview tab").not.toHaveLength(0);
-    expect(await findText(page, "VICTORIAS–DERROTAS", "PlayerStats"), "the record tile").not.toHaveLength(0);
+    expect(await findText(page, "Victorias–derrotas", "PlayerStats"), "the record tile").not.toHaveLength(0);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/stats-lit-desktop-es.png` });
   });
 });
@@ -116,7 +116,7 @@ test("on a phone the lift that ends a swipe over a record presses nothing", asyn
   await page.setViewportSize({ width: 375, height: 667 });
   const errors = trackPageErrors(page);
   await openStats(page, "records");
-  const row = page.locator(`${panel} [data-key^="row:rec:"]`).first();
+  const row = page.locator(`${panel} [data-stop^="row:rec:"]`).first();
   await expect(row).toBeAttached();
   const box = (await row.boundingBox())!;
   const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };

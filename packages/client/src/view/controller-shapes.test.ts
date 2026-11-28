@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { CONTROLLER_SHAPES } from "./controller-shapes.js";
 import { flattenPath } from "./svg-path.js";
 import { PAD_FAMILY_VALUES, padGlyphOf } from "./pad-family.js";
-import { CONTROLLER_ASPECT } from "./controls-layout.js";
 
 const REFS = ["$lt", "$rt", "$lb", "$rb"];
 /** The Joy-Con grip draws its minus and plus as marks on the buttons, not lettered ones. */
@@ -24,10 +23,6 @@ describe("controller drawings", () => {
       // The Xbox picture's LT and RT are hold layers; the other drawings still caption them Undo and End turn.
       const lt = ["hold: actions", "hold: abilities"];
       for (const text of ["L3", "R3", ...lt, "Prev zone", "Next zone"]) expect(texts, text).toContain(text);
-    });
-
-    it(`${kind} keeps its aspect in step with the layout`, () => {
-      expect(CONTROLLER_ASPECT[kind]).toBeCloseTo(shape.width / shape.height, 2);
     });
 
     it(`${kind} picture drawings name an image that exists`, () => {

@@ -1,0 +1,3 @@
+kind: Changed
+body: Take your seats is now built from custom elements (the seats and their Team-Up pairs, the filters, the hero roster, the hero detail panel and the Pick a deck sheet), so its layout follows the screen size with native scrolling, and Pick a deck opens over the page instead of as its own screen
+time: 2026-11-28T02:10:00.000000-05:00

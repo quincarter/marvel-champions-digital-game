@@ -195,9 +195,16 @@ test("B takes the pad out of the seed field instead of holding every button", as
   });
   expect(seed).not.toBeNull();
   await page.mouse.click(seed!.x + 20, seed!.y + seed!.height / 2);
-  expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("INPUT");
-  await press(page, B, async () => (await page.evaluate(() => document.activeElement?.tagName)) !== "INPUT");
-  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("INPUT");
+  // The seed field is a panel's own input, in shadow roots: follow the focus down to it.
+  const focusedTag = (): Promise<string | undefined> =>
+    page.evaluate(() => {
+      let el = document.activeElement as HTMLElement | null;
+      while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement as HTMLElement;
+      return el?.tagName;
+    });
+  expect(await focusedTag()).toBe("INPUT");
+  await press(page, B, async () => (await focusedTag()) !== "INPUT");
+  expect(await focusedTag()).not.toBe("INPUT");
   // Still on Set the Table: the B that left the field did not also go back.
   expect(await activeScenes(page)).toContain("Setup");
 });

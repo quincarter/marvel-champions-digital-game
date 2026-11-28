@@ -94,6 +94,7 @@ import { McButton, McTextInput } from "../ui/widgets.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { playPlatformMarkOf } from "../view/play-platform-mark.js";
+import { localHeroName } from "../view/deck-names.js";
 import type { ScenarioIntroData } from "./scenario-intro.js";
 import { scenarioIntroFor } from "../campaign/scenario-intros.js";
 import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
@@ -847,7 +848,9 @@ export class RoomLobbyScene extends Phaser.Scene {
     const labels = this.#state.mySeats.map((id) => {
       const index = this.#state.seats.findIndex((seat) => seat.id === id);
       const seat = this.#state.seats[index];
-      return seat?.deck?.heroName ?? (seat ? seatNameOf(seat, index) : id);
+      return (
+        (seat?.deck ? localHeroName(seat.deck.hero, seat.deck.heroName) : null) ?? (seat ? seatNameOf(seat, index) : id)
+      );
     });
     setSeatNote(
       labels.length === 0

@@ -1,0 +1,96 @@
+
+Running 52 tests using 8 workers
+
+  -   2 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:120:1 › a phone starts on the volume rows and can switch to box art tiles
+  -   1 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:97:3 › a tablet held sideways › folds the filters behind a chip that opens them in the pool's place
+  -   3 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:20:1 › campaign deck edit has From your games and Review, and Review keeps unsaved edits
+  -   6 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:225:3 › the pool at tablet size › draws in batches, not an object at a time
+  -   4 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:141:3 › an upright tablet › stacks the selected campaign over box art tiles, with a list view it remembers
+  -   8 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:200:3 › the narrowest wide layout › keeps the search field usable with a query in it
+  -   5 [desktop] › e2e\campaign-deck-edit-parity.spec.ts:51:1 › Review on a narrow screen counts a campaign deck as the campaign does, leaving its pinned cards out
+  ok 10 [desktop] › e2e\controller-decks-extras.spec.ts:108:3 › Extras: RB and LB switch the tabs, B goes back (1280x800) (18.8s)
+  ok 12 [desktop] › e2e\controller-decks-extras.spec.ts:108:3 › Extras: RB and LB switch the tabs, B goes back (390x844) (19.8s)
+  ok 13 [desktop] › e2e\controller-decks-extras.spec.ts:161:1 › Decks on a phone: RB and LB step Decks, Cards and Stats (20.9s)
+  ok 14 [desktop] › e2e\controller-decks-extras.spec.ts:180:1 › Decks: A on the search field puts the caret in, B takes it out, and the D-pad moves again (21.3s)
+  ok 11 [desktop] › e2e\controller-decks-extras.spec.ts:130:1 › Decks: the D-pad reaches a deck and A selects it (22.2s)
+  ok 15 [desktop] › e2e\controller-decks-extras.spec.ts:206:1 › Deck builder: B with unsaved changes asks to Leave, and a second B leaves (25.8s)
+e2e: press repeated, the first changed nothing: click at 1300,826
+  ok  9 [desktop] › e2e\community-decks.spec.ts:271:3 › Decks & Collection: community decks › with everything unlocked, decks from three waves are offered by their authors, and building from scratch is still there (30.9s)
+  ok  7 [desktop] › e2e\community-decks.spec.ts:140:3 › Decks & Collection: community decks › a new player previews a Core community deck, adds it, and plays the copy; a locked hero's deck cannot be added (42.1s)
+  ok 16 [desktop] › e2e\controller-decks-extras.spec.ts:236:1 › Decks: Y on a pool card opens the inspect view (25.8s)
+  ok 17 [desktop] › e2e\controller-setup-screens.spec.ts:93:1 › Start on Set the Table deals, and Back and Start never leave the screen deaf (25.2s)
+  ok 20 [desktop] › e2e\controller-setup-screens.spec.ts:182:1 › B takes the pad out of the seed field instead of holding every button (24.6s)
+  ok 18 [desktop] › e2e\controller-setup-screens.spec.ts:112:1 › B on Set the Table goes back to Take your seats, which then answers the pad, the keyboard and the mouse (26.5s)
+  ok 21 [desktop] › e2e\controller-setup-screens.spec.ts:212:1 › Start on Take your seats plays, and on Scenario select it chooses heroes (22.6s)
+  -  28 [desktop] › e2e\deck-builder-review.spec.ts:103:1 › a swipe of Deck check's cards that lifts over Sort presses nothing
+  ok 22 [desktop] › e2e\controller-setup-screens.spec.ts:222:1 › X clears a seat, and an aspect's (i) opens only on a press (18.8s)
+  ok 19 [desktop] › e2e\controller-setup-screens.spec.ts:139:3 › inside the fade › Back and then Start inside the fade lands on Take your seats and deals nothing (27.9s)
+  ok 23 [desktop] › e2e\controller-setup-screens.spec.ts:273:1 › View on the Title opens the Trophy Room (12.7s)
+  -  32 [desktop] › e2e\deck-check-lit-panel.spec.ts:74:1 › a phone's tabs switch between Curve, Cards and Aspect
+  ok 24 [desktop] › e2e\controller-setup-screens.spec.ts:322:3 › Take your seats: B from the list goes to the filters, Y goes back to the row, B there backs out (12.8s)
+  ok 25 [desktop] › e2e\controller-setup-screens.spec.ts:322:3 › Scenario select: B from the list goes to the filters, Y goes back to the row, B there backs out (12.7s)
+  ok 29 [desktop] › e2e\deck-check-lit-panel.spec.ts:32:1 › the screen is Lit panels: the legality badge, the cards and Edit deck are found under it (15.1s)
+  ok 30 [desktop] › e2e\deck-check-lit-panel.spec.ts:43:1 › a tap on a card opens Inspect (15.2s)
+  ok 31 [desktop] › e2e\deck-check-lit-panel.spec.ts:55:1 › the type filter narrows the cards to that type (wide) (15.2s)
+  ok 33 [desktop] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back (13.0s)
+  ok 26 [desktop] › e2e\controller-setup-screens.spec.ts:361:1 › Take your seats: the pad's B and Y make the same jump (21.2s)
+  ok 34 [desktop] › e2e\deck-check-lit-panel.spec.ts:107:1 › the screen reads in Spanish (13.9s)
+  ok 27 [desktop] › e2e\deck-builder-review.spec.ts:64:1 › the deck list's sort is kept, and Review goes to Deck check and back (26.8s)
+  ok 40 [phone] › e2e\campaign-deck-edit-parity.spec.ts:120:1 › a phone starts on the volume rows and can switch to box art tiles (12.9s)
+  ok 38 [phone] › e2e\campaign-deck-edit-parity.spec.ts:51:1 › Review on a narrow screen counts a campaign deck as the campaign does, leaving its pinned cards out (16.2s)
+  x  35 [desktop] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath (24.4s)
+  ok 39 [phone] › e2e\campaign-deck-edit-parity.spec.ts:97:3 › a tablet held sideways › folds the filters behind a chip that opens them in the pool's place (14.7s)
+  ok 37 [phone] › e2e\campaign-deck-edit-parity.spec.ts:20:1 › campaign deck edit has From your games and Review, and Review keeps unsaved edits (19.5s)
+e2e: press repeated, the first changed nothing: click at 391,223
+  ok 42 [phone] › e2e\campaign-deck-edit-parity.spec.ts:200:3 › the narrowest wide layout › keeps the search field usable with a query in it (14.6s)
+  -  48 [phone] › e2e\deck-check-lit-panel.spec.ts:55:1 › the type filter narrows the cards to that type (wide)
+  ok 36 [desktop] › e2e\tested-decks-seats.spec.ts:59:3 › Take your seats: tested community decks › TESTED lists the community decks, BUILT includes them, and a picked one is played (27.3s)
+  ok 43 [phone] › e2e\campaign-deck-edit-parity.spec.ts:225:3 › the pool at tablet size › draws in batches, not an object at a time (12.7s)
+  ok 45 [phone] › e2e\deck-check-lit-panel.spec.ts:32:1 › the screen is Lit panels: the legality badge, the cards and Edit deck are found under it (13.8s)
+  -  52 [phone] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath
+  ok 46 [phone] › e2e\deck-builder-review.spec.ts:103:1 › a swipe of Deck check's cards that lifts over Sort presses nothing (15.6s)
+  ok 47 [phone] › e2e\deck-check-lit-panel.spec.ts:43:1 › a tap on a card opens Inspect (14.2s)
+  ok 41 [phone] › e2e\campaign-deck-edit-parity.spec.ts:141:3 › an upright tablet › stacks the selected campaign over box art tiles, with a list view it remembers (27.3s)
+  ok 49 [phone] › e2e\deck-check-lit-panel.spec.ts:74:1 › a phone's tabs switch between Curve, Cards and Aspect (12.1s)
+  ok 51 [phone] › e2e\deck-check-lit-panel.spec.ts:107:1 › the screen reads in Spanish (9.6s)
+  ok 50 [phone] › e2e\deck-check-lit-panel.spec.ts:90:1 › the keyboard walks the stops with the ring in the DOM, and Escape goes back (11.5s)
+  ok 44 [phone] › e2e\deck-builder-review.spec.ts:64:1 › the deck list's sort is kept, and Review goes to Deck check and back (34.6s)
+
+
+  1) [desktop] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath 
+
+    TimeoutError: locator.waitFor: Timeout 10000ms exceeded.
+    Call log:
+      - waiting for locator('#mc-ui [data-scene="DeckCheck"] mc-tip-plate').first() to be detached
+        23 × locator resolved to visible <mc-tip-plate data-key="aspect-tip-plate" link-stop="aspect-tip-link"></mc-tip-plate>
+
+
+      134 |   const chip = (await page.locator(`${panel} [data-stop="filter:upgrade"]`).first().boundingBox())!;
+      135 |   await page.mouse.click(chip.x + chip.width / 2, chip.y + chip.height / 2);
+    > 136 |   await page.locator(`${panel} mc-tip-plate`).first().waitFor({ state: "detached", timeout: 10_000 });
+          |                                                       ^
+      137 |   expect(await page.locator(`${panel} mc-card-sections [data-key^="card:"]`).count()).toBe(before);
+      138 | });
+      139 |
+        at C:\Users\quinc\AppData\Local\Temp\claude\03e7553cb37b48b7\ca0abeb8-ca19-4990-9f34-06cfc38e1cc1\scratchpad\dc-elements\packages\client\e2e\deck-check-lit-panel.spec.ts:136:55
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\deck-check-lit-panel-an-op-38eb4--it-presses-nothing-beneath-desktop\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\deck-check-lit-panel-an-op-38eb4--it-presses-nothing-beneath-desktop\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\deck-check-lit-panel-an-op-38eb4--it-presses-nothing-beneath-desktop\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\deck-check-lit-panel-an-op-38eb4--it-presses-nothing-beneath-desktop\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [desktop] › e2e\deck-check-lit-panel.spec.ts:113:1 › an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath 
+  11 skipped
+  40 passed (2.0m)
+exit 1
+lock released

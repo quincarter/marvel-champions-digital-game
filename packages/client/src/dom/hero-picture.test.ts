@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyCard } from "@mc/content";
 import { HERO_ART } from "../art/hero-art.js";
 import { PackLeases } from "../art/pack-art.js";
-import { heroPictureOf } from "./hero-picture.js";
+import { heroPictureOf, heroTilePictureOf } from "./hero-picture.js";
 
 const card = (id: string): AnyCard => ({ id, type: "hero_identity", name: id }) as unknown as AnyCard;
 
@@ -38,5 +38,27 @@ describe("heroPictureOf sizes", () => {
     const original = pictures[0]!;
     expect(heroPictureOf(card(id), leases, "large").src).toBe(original.url);
     expect(heroPictureOf(card(id), leases).src).toBe(original.tileUrl ?? original.url);
+  });
+});
+
+describe("heroTilePictureOf", () => {
+  const leases = new PackLeases();
+
+  it("takes the chosen picture's tile copy, cropped at the tile's own height when it has no focus", () => {
+    const picture = { key: "scene-art:heroes/a/hero.jpg", url: "/full.jpg", tileUrl: "/tile.webp" };
+    const shown = heroTilePictureOf(picture, card("01001a"), leases);
+    expect(shown.src).toBe("/tile.webp");
+    expect(shown.cover).toEqual({ x: 0.5, y: 0.34, centered: false });
+  });
+
+  it("falls back to the full picture where it has no copy, and centers on a focus point", () => {
+    const picture = { key: "scene-art:heroes/b/hero.jpg", url: "/full.jpg", focus: { x: 0.4, y: 0.3 } };
+    const shown = heroTilePictureOf(picture, card("01001b"), leases);
+    expect(shown.src).toBe("/full.jpg");
+    expect(shown.cover).toEqual({ x: 0.4, y: 0.3, centered: true });
+  });
+
+  it("has nothing to show for no picture and no identity", () => {
+    expect(heroTilePictureOf(null, undefined, leases).src).toBeNull();
   });
 });

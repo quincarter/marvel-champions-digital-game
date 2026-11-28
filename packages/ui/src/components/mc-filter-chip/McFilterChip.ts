@@ -16,6 +16,8 @@ import "../mc-button/mc-button.js";
  * @attr disabled - Unavailable; `reason` says why, as a tooltip.
  * @attr mark - Puts "✓ " before a chosen chip name (on by default; off for a chip with its own mark, like "by X ✕").
  * @attr size - The label size in px (11).
+ * @prop tint - Rest colors (`fill`, `ink`: CSS colors), an aspect chip in its printed frame color.
+ * @attr hug - The chip is as wide as its word (a row of chips that wrap), with room each side; the word is never shrunk.
  * @attr value - What `mc-activate` reports as `detail.key`.
  * @fires mc-activate - A tap on an available chip: `detail.key` is `value`.
  */
@@ -32,6 +34,8 @@ export class McFilterChip extends LitElement {
     mark: { type: Boolean },
     size: { type: Number },
     value: { type: String },
+    hug: { type: Boolean },
+    tint: { attribute: false },
   };
 
   declare label: string;
@@ -43,6 +47,9 @@ export class McFilterChip extends LitElement {
   declare mark: boolean;
   declare size: number;
   declare value: string;
+  declare hug: boolean;
+  /** Rest colors (CSS): the fill and the word's ink; chosen and hover look as any chip. */
+  declare tint: { readonly fill: string; readonly ink: string } | undefined;
 
   constructor() {
     super();
@@ -55,6 +62,8 @@ export class McFilterChip extends LitElement {
     this.mark = true;
     this.size = 11;
     this.value = "";
+    this.hug = false;
+    this.tint = undefined;
   }
 
   /** The words on the chip. */
@@ -64,13 +73,19 @@ export class McFilterChip extends LitElement {
     return `${check}${this.label}${count}`;
   }
 
+  /** A focus stop's `click()` presses the chip: the inner button takes the tap, and a pointer-less click has none. */
+  override click(): void {
+    this.renderRoot.querySelector<HTMLElement>("mc-button")?.click();
+  }
+
   override render() {
     return html`<mc-button
       kind="secondary"
-      style=${`--mc-button-size:${this.size}px;display:block;width:100%;height:100%`}
+      style=${`--mc-button-size:${this.size}px;display:block;width:100%;height:100%${this.tint ? `;--mc-tint-fill:${this.tint.fill};--mc-tint-ink:${this.tint.ink}` : ""}`}
       .label=${this.text}
       .reason=${this.reason}
       ?selected=${this.selected}
+      ?hug=${this.hug}
       ?disabled=${this.disabled}
       aria-pressed=${this.selected ? "true" : "false"}
       @mc-press=${(event: Event) => {

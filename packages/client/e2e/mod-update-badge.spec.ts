@@ -1,44 +1,26 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  activeScenes,
-  clickText,
-  findText,
-  installPageHelpers,
-  isSceneUp,
-  settle,
-  trackPageErrors,
-  waitFor,
-} from "./helpers.js";
-import { communityHeroPackIds, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
+import { activeScenes, clickText, findText, installPageHelpers, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { communityHeroPackIds, serveCatalog, stageCatalog, answerModNotice } from "./pack-catalog-helpers.js";
 import { waitForScene } from "./wave6-helpers-a.js";
 import { quietGuide } from "./wave6-helpers-b.js";
 
 /**
- * The text of each count badge drawn now in the Title, by control: the storefront icon's is a Phaser object
- * (`count-badge:<control>`), the Mod Store row's is in the Title panel (`mc-menu-button`'s `.badge`).
+ * The text of each count badge drawn now in the Title, by control: the storefront icon's is on its `mc-icon-button`
+ * in the top row, the Mod Store row's on its `mc-title-menu-button` in the menu (each a `.badge`).
  */
 const titleBadges = (page: Page): Promise<Record<string, string>> =>
   page.evaluate(() => {
-    interface Obj {
-      name?: string;
-      text?: string;
-      visible?: boolean;
-    }
-    const game = (
-      window as unknown as { __mcGame: { scene: { getScene(key: string): { children: { list: Obj[] } } | null } } }
-    ).__mcGame;
     const badges: Record<string, string> = {};
-    for (const child of game.scene.getScene("Title")?.children.list ?? []) {
-      if (child.visible !== false && child.name?.startsWith("count-badge:")) {
-        badges[child.name.slice("count-badge:".length)] = child.text ?? "";
-      }
-    }
-    const row = document
-      .querySelector('#mc-ui [data-scene="Title"] mc-title-panel')
-      ?.shadowRoot?.querySelector("mc-menu-grid")
-      ?.shadowRoot?.querySelector('mc-menu-button[data-key="mod-store"]')
+    const view = (selector: string): ParentNode | null =>
+      document.querySelector('#mc-ui [data-scene="Title"] mc-title-page')?.shadowRoot?.querySelector(selector) ?? null;
+    const row = (view("mc-title-menu") as Element | null)?.shadowRoot
+      ?.querySelector('mc-title-menu-button[data-key="mod-store"]')
       ?.shadowRoot?.querySelector(".badge");
     if (row?.textContent) badges["mod-store"] = row.textContent.trim();
+    const icon = (view("mc-title-icon-row") as Element | null)?.shadowRoot
+      ?.querySelector('mc-icon-button[data-stop="chrome:mod-store"]')
+      ?.shadowRoot?.querySelector(".badge");
+    if (icon?.textContent) badges["store-icon"] = icon.textContent.trim();
     return badges;
   });
 
@@ -59,9 +41,7 @@ test("the Title counts installed mod packs with an update", async ({ page, baseU
   // Install the pack from its store page.
   await page.goto(`/?screen=mod-store&pack=${packId}`);
   await waitForScene(page, "ModStore");
-  await waitForScene(page, "ModNoticeOverlay");
-  await clickText(page, "Got it", { sceneKey: "ModNoticeOverlay" });
-  await waitFor(async () => (!(await isSceneUp(page, "ModNoticeOverlay")) ? true : null), "the notice closes");
+  await answerModNotice(page);
   await settle(page);
   await clickText(page, "INSTALL (", { sceneKey: "ModStore", timeoutMs: 30_000 });
   await waitFor(

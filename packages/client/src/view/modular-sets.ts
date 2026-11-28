@@ -31,7 +31,7 @@ import type { AnyCard, Campaign, EncounterSet, Scenario } from "@mc/content";
 import { POOL_ENCOUNTER_SETS, currentEncounterSets, isPackEncounterSet, isPackScenario } from "../content/pool.js";
 import { modularSetCountRangeOf, setAsideModularSetCountFor } from "@mc/content";
 import { modularPickCountProblem } from "@mc/cards";
-import { CUSTOM_BADGE } from "./custom-content.js";
+import { customBadge } from "./custom-content.js";
 import {
   ALL_OPEN,
   EXTRAS_GROUP_ID,
@@ -293,7 +293,7 @@ export function modularSetOptionsFor(
     cardCount: cardCountForSet(c.id, cardsById),
     // A pack's set says so in words before its dominant card type.
     descriptor: isPackEncounterSet(c.id)
-      ? [CUSTOM_BADGE, descriptorForSet(c.id, cardsById)].filter((part) => part !== null).join(" · ")
+      ? [customBadge(), descriptorForSet(c.id, cardsById)].filter((part) => part !== null).join(" · ")
       : descriptorForSet(c.id, cardsById),
     groupId: c.groupId,
     // Only the group's first tile carries its label.

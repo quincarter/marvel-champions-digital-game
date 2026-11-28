@@ -11,6 +11,7 @@ import { surface } from "../tokens.js";
 import { reportSlots, setShownReportButton } from "../ui/report-slot.js";
 import { reportButtonSlot } from "../view/report-button.js";
 import type { Rect } from "../view/layout.js";
+import { chromeDrawnByDom } from "../ui/dom-chrome.js";
 import { SCENES } from "./keys.js";
 
 export class ReportButtonScene extends Phaser.Scene {
@@ -18,6 +19,8 @@ export class ReportButtonScene extends Phaser.Scene {
   #zone: Phaser.GameObjects.Zone | null = null;
   #rect: Rect | null = null;
   #hovered = false;
+  /** The screen under draws this button itself in the DOM (`ui/dom-chrome.ts`): placed, but not painted. */
+  #dom = false;
   #pressed = false;
 
   constructor() {
@@ -61,6 +64,13 @@ export class ReportButtonScene extends Phaser.Scene {
       .map((scene) => ({ key: scene.scene.key, visible: scene.sys.settings.visible }));
     const slot = reportButtonSlot(running, reportSlots());
     this.#place(slot?.rect ?? null);
+    this.#drawnByDom(chromeDrawnByDom(slot?.key));
+  }
+
+  #drawnByDom(on: boolean): void {
+    if (on === this.#dom) return;
+    this.#dom = on;
+    this.#draw();
   }
 
   /** Read by the debug snapshot (`ui/debug-dump.ts`). */
@@ -95,7 +105,7 @@ export class ReportButtonScene extends Phaser.Scene {
     if (!graphics || !zone) return;
     graphics.clear();
     const rect = this.#rect;
-    if (!rect) {
+    if (!rect || this.#dom) {
       zone.disableInteractive();
       return;
     }

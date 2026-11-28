@@ -11,8 +11,10 @@
  * flips the same switch.
  */
 import Phaser from "phaser";
+import { setThemeTab } from "@mc/ui";
 import { appSession } from "../session.js";
 import { hit, surface } from "../tokens.js";
+import { chromeDrawnByDom } from "../ui/dom-chrome.js";
 import { onTap } from "../ui/tap.js";
 import { musicSlots } from "../ui/music-slot.js";
 import { setShownThemeButton, themeSlots } from "../ui/theme-slot.js";
@@ -20,7 +22,7 @@ import { colorScheme, onColorSchemeChange, type ColorScheme } from "../view/colo
 import { languageSlotBeside } from "../view/language-button.js";
 import type { Rect } from "../view/layout.js";
 import { reportButtonSlot } from "../view/report-button.js";
-import { floatingThemeSlot, floatsOver, themeIconOf, themeSlotBeside } from "../view/theme-button.js";
+import { floatingThemeSlot, floatsOver, themeHitRect, themeIconOf, themeSlotBeside } from "../view/theme-button.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 
 /** The scenes that sort themselves above the screens (the chrome, its popups and the music scene). */
@@ -37,6 +39,8 @@ export class ThemeButtonScene extends Phaser.Scene {
   #zone: Phaser.GameObjects.Zone | null = null;
   #rect: Rect | null = null;
   #hovered = false;
+  /** The screen under draws this button itself in the DOM (`ui/dom-chrome.ts`): placed, but not painted. */
+  #dom = false;
   #drawnScheme: ColorScheme | null = null;
 
   constructor() {
@@ -53,6 +57,7 @@ export class ThemeButtonScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       off();
       setShownThemeButton(null);
+      setThemeTab(null);
     });
     this.#place(null);
     // Dev-only hook: where the button is and which scheme is up, for headless screenshots and click-throughs.
@@ -83,6 +88,11 @@ export class ThemeButtonScene extends Phaser.Scene {
       .getScenes(true)
       .map((scene) => ({ key: scene.scene.key, visible: scene.sys.settings.visible }));
     const slot = reportButtonSlot(running, musicSlots());
+    const dom = chromeDrawnByDom(slot?.key);
+    if (dom !== this.#dom) {
+      this.#dom = dom;
+      this.#draw();
+    }
     if (slot) this.#place(themeSlotBeside(languageSlotBeside(slot.rect)));
     else this.#place(floatsOver(top) ? floatingThemeSlot(this.scale.gameSize) : null);
   }
@@ -110,6 +120,9 @@ export class ThemeButtonScene extends Phaser.Scene {
     if (same) return;
     this.#rect = rect;
     setShownThemeButton(rect);
+    // The one place the tab's box is published: every top bar (`mc-top-bar`) keeps its title clear of the press area.
+    const press = rect ? themeHitRect(rect) : null;
+    setThemeTab(press ? { left: press.x, right: press.x + press.width, bottom: press.y + press.height } : null);
     this.#draw();
   }
 
@@ -126,7 +139,7 @@ export class ThemeButtonScene extends Phaser.Scene {
     graphics.clear();
     this.#drawnScheme = colorScheme();
     const rect = this.#rect;
-    if (!rect) {
+    if (!rect || this.#dom) {
       zone.disableInteractive();
       return;
     }

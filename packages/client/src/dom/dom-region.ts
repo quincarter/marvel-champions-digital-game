@@ -82,6 +82,11 @@ const overlayHoles = new Map<string, readonly Rect[] | (() => readonly Rect[])>(
 /** Every live region, so one overlay's holes reach the panels under it at once. */
 const liveRegions = new Set<{ readonly resync: () => void }>();
 
+/** Re-reads every live region's cut-outs now: a card hover popover that has just gone must stop cutting its hole at once. */
+export function resyncLiveRegions(): void {
+  for (const region of liveRegions) region.resync();
+}
+
 /** The holes of overlay scenes drawn above `key` (later in the draw order), in game coordinates. */
 export function holesAbove(scenes: readonly { readonly key: string }[], key: string): Rect[] {
   const at = scenes.findIndex((scene) => scene.key === key);
@@ -229,10 +234,17 @@ export function clipWithHoles(box: Rect, holes: readonly Rect[]): string | null 
   return `path(evenodd, "${outer}${inner}")`;
 }
 
-/** The boxes a chrome scene draws (a toast, a corner button) while it is up, in game coordinates. */
-function chromeBoxes(game: Phaser.Game, region: Rect): Rect[] {
+/**
+ * The boxes a chrome scene draws (a toast, a corner button) while it is up, in game coordinates, for the scenes drawn
+ * above `key` only: a chrome scene below a pop-up (the Report dialog is brought to the top, over the corner buttons)
+ * is covered by it, as Phaser covered it, so it must not be cut out of the pop-up's panel and show through its scrim.
+ */
+function chromeBoxes(game: Phaser.Game, region: Rect, key: string): Rect[] {
   const boxes: Rect[] = [];
-  for (const scene of game.scene.scenes) {
+  const order = game.scene.scenes;
+  const at = order.findIndex((scene) => scene.sys.settings.key === key);
+  for (const [index, scene] of order.entries()) {
+    if (at >= 0 && index < at) continue;
     const drawn = scene.sys.isActive() || scene.sys.isPaused();
     if (!CHROME_SCENES.has(scene.sys.settings.key) || !drawn || !scene.sys.settings.visible) continue;
     const camera = scene.cameras?.main;
@@ -281,16 +293,47 @@ export function forwardMouseMoves(
  */
 export const GUARDED_EVENTS = [
   "mc-activate",
+  "mc-music",
   "mc-inspect",
   "mc-slide",
   "mc-step",
   "mc-search",
   "mc-submit",
+  "mc-info",
   "mc-sort",
   "mc-filter-sheet",
   "mc-input",
   "mc-field-focus",
   "mc-search-focus",
+  "mc-tile-focus",
+  "mc-seats",
+  // A rebuilt page's own events (`mc-<feature>`: one name per feature, listed here) and its card pictures' Inspect.
+  "mc-setup",
+  "mc-deck-check",
+  "mc-card-inspect",
+  "mc-scenario-select",
+  "mc-reader",
+  "mc-side-story",
+  "mc-viewer",
+  "mc-extras",
+  "mc-rules",
+  "mc-mod-store",
+  "mc-deck-builder",
+  "mc-past-games",
+  "mc-trophy-room",
+  "mc-player-stats",
+  "mc-pause",
+  "mc-title",
+  "mc-decks",
+  "mc-learn",
+  "mc-room-dialog",
+  "mc-room-chat",
+  "mc-credits",
+  "mc-unlocks",
+  "mc-save-data",
+  "mc-controls",
+  "mc-civil-war",
+  "mc-settings",
 ] as const;
 
 /** The guarded events that say the caret went into or left a field: its leaving (`focused: false`) always gets through, so the scene never keeps a stale "typing" flag. */
@@ -424,6 +467,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   #destroyed = false;
   readonly #overlay: boolean;
   readonly #shownUnder: ReadonlySet<string>;
+  readonly #passive: boolean;
 
   /**
    * `overlay`: the scene draws its own scrim and panel in the DOM, over the scene under it (a pop-up). Panels under it
@@ -431,16 +475,20 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
    *
    * `shownUnder`: keys of scenes that draw over only part of the screen (and not over this panel), so the panel stays
    * shown while they are up instead of hiding.
+   *
+   * `passive`: the panel only shows something over a screen (a token resting on a seat) and takes no press, so the
+   * controls under it stay pressable.
    */
   constructor(
     scene: Phaser.Scene,
     element: E,
     rect: Rect,
-    options: { readonly overlay?: boolean; readonly shownUnder?: readonly string[] } = {},
+    options: { readonly overlay?: boolean; readonly shownUnder?: readonly string[]; readonly passive?: boolean } = {},
   ) {
     this.#scene = scene;
     this.#shownUnder = new Set(options.shownUnder ?? []);
     this.#overlay = options.overlay ?? false;
+    this.#passive = options.passive ?? false;
     if (this.#overlay) overlayScenes.add(scene.sys.settings.key);
     liveRegions.add(this);
     this.element = element;
@@ -448,7 +496,11 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     this.#layer = uiLayer(scene.game);
     this.#wrap = document.createElement("div");
     this.#wrap.dataset.scene = scene.sys.settings.key;
-    Object.assign(this.#wrap.style, { position: "absolute", pointerEvents: "auto", opacity: "0" });
+    Object.assign(this.#wrap.style, {
+      position: "absolute",
+      pointerEvents: this.#passive ? "none" : "auto",
+      opacity: "0",
+    });
     this.#wrap.append(element);
     // Every panel's `mc-activate`, `mc-inspect`, `mc-slide`, `mc-step` (a card hold's timer fires it) and its fields'
     // `mc-input` are stopped here, before its scene hears them, while the scene isn't taking presses (stopped, paused,
@@ -498,9 +550,20 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
    * the canvas only, which the panel covers. For a scene that shows a card hover popover over its panel
    * (`ui/card-hover-preview.ts`, which follows Phaser's pointer); a finger or pen is left alone.
    */
-  forwardMouseMoves(): void {
+  forwardMouseMoves(onPress?: () => void): void {
     const off = forwardMouseMoves(this.#wrap, this.#scene.game.canvas);
     this.#scene.events.once("shutdown", off);
+    // A tap on the panel never reaches Phaser's own pointer-down, so the card hover popover is told here that a press
+    // began (it takes itself down and stays down for the card pressed).
+    if (onPress) {
+      this.#wrap.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (event.pointerType === "mouse") onPress();
+        },
+        true,
+      );
+    }
   }
 
   /** Hides the region whatever its scene does (the scene shows something else in its place for now). */
@@ -526,6 +589,19 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   /** An element inside the panel, in game coordinates. */
   rectOf(target: Element): Rect {
     return gameRectOf(target, this.#layer);
+  }
+
+  /**
+   * The part of an element that shows in the region's box: a tile scrolled half out of its list is aimed at where it can
+   * be pressed, not at a centre that lies under the bar below the list. The whole box when none of it shows.
+   */
+  visibleRectOf(target: Element): Rect {
+    const whole = gameRectOf(target, this.#layer);
+    const x = Math.max(whole.x, this.#rect.x);
+    const y = Math.max(whole.y, this.#rect.y);
+    const right = Math.min(whole.x + whole.width, this.#rect.x + this.#rect.width);
+    const bottom = Math.min(whole.y + whole.height, this.#rect.y + this.#rect.height);
+    return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : whole;
   }
 
   /** Whether the scene and the panel's cover state let an event through right now (read live, not at the last frame). */
@@ -582,12 +658,12 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     const live = this.#scene.input?.enabled !== false;
     if (live !== this.#live) {
       this.#live = live;
-      this.#wrap.style.pointerEvents = live ? "auto" : "none";
+      this.#wrap.style.pointerEvents = live && !this.#passive ? "auto" : "none";
     }
     this.#applyInert();
     const clip = shown
       ? clipWithHoles(this.#rect, [
-          ...chromeBoxes(this.#scene.game, this.#rect),
+          ...chromeBoxes(this.#scene.game, this.#rect, this.#scene.sys.settings.key),
           ...(typeof this.#holes === "function" ? this.#holes() : this.#holes),
           ...holesAbove(scenes, this.#scene.sys.settings.key),
         ])
