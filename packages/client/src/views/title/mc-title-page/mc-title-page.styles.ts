@@ -15,8 +15,9 @@ export const TitlePageStyles = [
     /* The page: the notice strip, then the body. Under it, Phaser draws the ink ground and the picture; the art column
        and the phone page are transparent so they show through. */
     .page {
+      position: relative;
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
       width: 100%;
       height: 100%;
       --title-text: var(--mc-text-ink);
@@ -158,14 +159,11 @@ export const TitlePageStyles = [
     .cols > .status {
       grid-column: 1;
     }
+    /* The replay problem has its own row under the notice bar for the few seconds it is said, so it covers nothing. */
     .problem {
-      position: absolute;
-      left: 50%;
-      top: 8px;
-      transform: translateX(-50%);
+      justify-self: center;
       max-width: calc(100% - 16px);
-      pointer-events: none;
-      z-index: 10;
+      margin: 4px 8px;
     }
   `,
   TitleResponsiveStyles,

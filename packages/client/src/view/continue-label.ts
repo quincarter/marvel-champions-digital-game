@@ -4,6 +4,7 @@
  * sets"), so a built or rolled game does not read like the ready-made one.
  */
 import type { SessionConfig } from "../engine/host.js";
+import { t } from "../i18n/translate.js";
 import { describeCivilWar } from "./civil-war-label.js";
 
 export interface ContinueLabelNames {
@@ -30,7 +31,7 @@ export function continueLabelOf(
   save: { readonly config: SessionConfig; readonly round: number },
   names: ContinueLabelNames,
 ): string {
-  return `Continue — ${gameLabelOf(save.config, names)} · round ${save.round}`;
+  return t("title.continue", { game: gameLabelOf(save.config, names), n: save.round });
 }
 
 /** "Rhino · Spider-Man": what a game is, without its round — the name a sync conflict prompt shows. */
