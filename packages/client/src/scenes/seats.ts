@@ -454,6 +454,7 @@ export class SeatsScene extends Phaser.Scene {
       roster: () => this.#section("mc-seats-roster"),
       insights: () => built.insights,
       hover: (id) => this.#setHoverDeck(id),
+      decksOpen: () => st.decksKey !== null,
     });
   }
 

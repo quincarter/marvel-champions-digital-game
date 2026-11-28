@@ -7,6 +7,7 @@ import "../../../components/seats/mc-seats-filters/mc-seats-filters.js";
 import "../../../components/seats/mc-seats-footer/mc-seats-footer.js";
 import "../../../components/seats/mc-seats-header/mc-seats-header.js";
 import "../../../components/seats/mc-seats-notice/mc-seats-notice.js";
+import "../../../components/seats/mc-seats-roster/mc-seats-roster.js";
 import "../../../components/seats/mc-seats-table/mc-seats-table.js";
 import { McSeatsPageStyles } from "./mc-seats-page.styles.js";
 

@@ -18,6 +18,7 @@ export interface SeatsDebugSource {
   readonly roster: () => HTMLElement | null;
   readonly insights: () => SeatInsights;
   readonly hover: (deckId: string | null) => void;
+  readonly decksOpen: () => boolean;
 }
 
 /** Every `<img>` a hero tile's picture drew, through the open shadow roots under the roster. */
@@ -44,6 +45,7 @@ export function installSeatsDebug(_scene: Phaser.Scene, source: SeatsDebugSource
         .filter((o) => !o.seatable)
         .map((o) => o.deck.id as string),
     activeSeat: () => source.draft().activeSeatIndex,
+    decksOpen: () => source.decksOpen(),
     drilledPack: () => source.drill().packId,
     listRect: () => {
       const rect = source.roster()?.getBoundingClientRect();
