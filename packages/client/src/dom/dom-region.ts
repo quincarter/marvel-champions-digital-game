@@ -326,6 +326,8 @@ export const GUARDED_EVENTS = [
   "mc-title",
   "mc-decks",
   "mc-learn",
+  "mc-room-dialog",
+  "mc-room-chat",
   "mc-credits",
   "mc-unlocks",
   "mc-save-data",
