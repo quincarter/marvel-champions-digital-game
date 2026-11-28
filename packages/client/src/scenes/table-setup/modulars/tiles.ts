@@ -4,7 +4,7 @@
  * the tile toggles the set.
  */
 import type { Rect } from "../../../view/layout.js";
-import { ink, surface } from "../../../tokens.js";
+import { ink, surface, typeRole } from "../../../tokens.js";
 import { artFor } from "../../../art/art-source.js";
 import { currentCardsById } from "../../../content/pool.js";
 import { cardsBySet, setFacesOf, type FaceRef } from "../../../view/civil-war-builder-art.js";
@@ -128,13 +128,18 @@ export function modularTile(f: Frame, on: ModularsEvents, rect: Rect, option: Mo
   };
   const textX = hasPicture ? picture.x + picture.width + 8 : rect.x + 10;
   const name = nameText(f.b, textX, rect.y + 8, rect.x + rect.width - 10 - textX, option.name, 15, dim);
+  // The label gets the tile's whole width when it fits on one line (the tab sits lower), else the room beside the tab.
+  const label = lt(modularCardLabel(option)).toUpperCase();
+  const full = rect.x + rect.width - 10 - textX;
+  const beside = (hasPicture ? rect.x + rect.width - TAB_WIDTH : rect.x + rect.width - 10) - textX;
+  const oneLine = hasPicture && f.b.measure(label, typeRole.label).width <= full;
   cardLabel(
     f,
     rect,
     textX,
-    (hasPicture ? rect.x + rect.width - TAB_WIDTH : rect.x + rect.width - 10) - textX,
+    oneLine ? full : beside,
     rect.y + 8 + name.height + 4,
-    lt(modularCardLabel(option)).toUpperCase(),
+    label,
     surface.ink.hex,
     dim === 1 ? ink.label : ink.disabled,
   );
