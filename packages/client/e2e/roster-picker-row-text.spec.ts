@@ -28,9 +28,11 @@ const rows = async (page: Page): Promise<RowBox[]> =>
 
 /** Every drawn row's hero name is on screen, in the roster's panel. */
 const expectRowsReadable = async (page: Page, when: string): Promise<void> => {
+  const panel = (await hook<Rect>(page, "__mcRosterPickerDebug", "panel"))!;
   const shown = (await visibleTexts(page)).filter((t) => t.scene === "CampaignRoster").map((t) => t.text.toUpperCase());
   for (const row of await rows(page)) {
-    if (row.rect.y < 0) continue;
+    // A row scrolled out of the list's view is not on screen, so its words are not either.
+    if (row.rect.y < panel.y || row.rect.y + row.rect.height > panel.y + panel.height) continue;
     expect(
       shown.some((text) => text.includes(row.name.toUpperCase())),
       `${row.name}'s name is drawn ${when}`,

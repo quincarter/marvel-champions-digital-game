@@ -20,11 +20,10 @@ import type { RosterCtx } from "./context.js";
 import { rosterPairCatalog } from "./pairs.js";
 import { drawPairStrip, drawSeat, phoneSeatRects, wideSeatRects } from "./seats.js";
 
-/** The page's title: "Sign the roster", with the run's modes after it. */
-function titleOf(ctx: RosterCtx): string {
+/** The modes of this run, said after the title ("Expert · Balanced"): on the bar's right, where they keep their full words. */
+function modesOf(ctx: RosterCtx): string {
   const { state } = ctx;
   return [
-    t("roster.title"),
     ...(state.expertCampaign ? [t("roster.mode.expert")] : []),
     ...(state.balanced ? [t("campaign.balancedTag")] : []),
   ].join(" · ");
@@ -40,7 +39,8 @@ export function drawPage(ctx: RosterCtx, b: SheetBuilder, frame: ReturnType<type
     scene: ctx.scene,
     frame,
     backLabel: frame.phone ? "◂" : t("roster.back"),
-    title: titleOf(ctx),
+    title: t("roster.title"),
+    right: modesOf(ctx),
   });
   if (top.backRect) {
     ctx.actions.set("back", () => ctx.onCancel());

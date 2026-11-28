@@ -99,7 +99,10 @@ test("issue #978: a Mod Store hero signs a campaign roster and plays issue #1", 
     30_000,
   );
   if (SHOT) await page.screenshot({ path: `${SHOT}/campaign-custom-hero-picker-${info.project.name}.png` });
-  const at = { x: row.rect.x + row.rect.width / 2, y: row.rect.y + row.rect.height / 2 };
+  // The search's answer redraws the list: aim at where the row is once it has settled.
+  await settle(page);
+  const placed = (await pickerRows(page)).find((r) => r.name.toUpperCase().includes(heroName.toUpperCase())) ?? row;
+  const at = { x: placed.rect.x + placed.rect.width / 2, y: placed.rect.y + placed.rect.height / 2 };
   if (info.project.name === "phone") await page.touchscreen.tap(at.x, at.y);
   else await page.mouse.click(at.x, at.y);
   await settle(page);
