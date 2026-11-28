@@ -72,6 +72,10 @@ export { McCheckRow } from "./components/controls/mc-check-row/mc-check-row.js";
 export { McPressCard } from "./components/controls/mc-press-card/mc-press-card.js";
 export { McHitArea } from "./components/controls/mc-hit-area/mc-hit-area.js";
 export { McOptionCard } from "./components/controls/mc-option-card/mc-option-card.js";
+export { McSwitchRow } from "./components/controls/mc-switch-row/mc-switch-row.js";
+export { McSegmentCell } from "./components/controls/mc-segment-cell/mc-segment-cell.js";
+export { McSegments } from "./components/controls/mc-segments/mc-segments.js";
+export type { McSegmentOption } from "./components/controls/mc-segments/mc-segments.types.js";
 export type {
   McOptionChip,
   McOptionControl,
