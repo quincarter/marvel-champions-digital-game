@@ -17,7 +17,8 @@ export const McDeckCheckHeaderStyles = css`
     height: 44px;
   }
   .title {
-    flex: 1;
+    flex: 0 1 auto;
+    margin-right: auto;
     min-width: 0;
     font-family: var(--mc-font-display);
     font-size: 28px;
