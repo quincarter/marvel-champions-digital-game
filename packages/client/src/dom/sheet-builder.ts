@@ -10,6 +10,7 @@
  * - Coordinates are the screen's; the builder subtracts the sheet's own origin.
  */
 import type {
+  McMediaRowModel,
   GlyphSpec as UiGlyphSpec,
   FilterChip,
   FilterSort,
@@ -116,6 +117,11 @@ export class SheetBuilder {
     this.#game = game;
     this.#origin = origin;
     this.#desktop = desktop;
+  }
+
+  /** A text size as the sheet draws it: a small one grows on desktop, as the client desktop type does. */
+  typeSize(size: number): number {
+    return this.#desktop() && size <= 12 ? Math.min(13, size + 2) : size;
   }
 
   #rect(rect: Rect): SheetRect {
@@ -623,24 +629,28 @@ export class SheetBuilder {
   }
 
   /** A framed row (`mc-media-row`): a picture, a title, meta lines and a state badge; a tap raises `mc-activate`. */
-  mediaRow(
-    key: string,
+  mediaRow(key: string, rect: Rect, row: McMediaRowModel): void {
+    this.nodes.push({ kind: "mediaRow", key, rect: this.#rect(rect), ...row });
+  }
+
+  /** A text field (`mc-text-field`) filling `rect`; listen for `mc-input` and `mc-field-focus`. */
+  textField(
     rect: Rect,
-    row: {
-      readonly heading: string;
-      readonly meta: string;
-      readonly summary: string;
-      readonly foot: string;
-      readonly badge: string;
-      readonly solid?: boolean;
-      readonly src: string | null;
-      readonly letter: string;
-      readonly retry?: string;
-      readonly focusY?: number;
-      readonly fit?: PictureFit;
+    options: {
+      readonly key: string;
+      readonly value: string;
+      readonly placeholder: string;
+      readonly multiline?: boolean;
     },
   ): void {
-    this.nodes.push({ kind: "mediaRow", key, rect: this.#rect(rect), ...row });
+    this.nodes.push({
+      kind: "textField",
+      key: options.key,
+      rect: this.#rect(rect),
+      value: options.value,
+      placeholder: options.placeholder,
+      ...(options.multiline ? { multiline: true } : {}),
+    });
   }
 
   /** A QR code (`uqr`'s rows of dark modules) filling `rect`, a light ground under the modules. */

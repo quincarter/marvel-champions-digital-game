@@ -83,8 +83,12 @@ test.describe("deck builder tabs on a phone", () => {
     // Start the deck small so the count is visibly short of the minimum, then add from the pool.
     await tapStop(page, "tab:deck");
     // Clear sits at the end of the scrolling deck region: swipe to it.
-    await swipe(page, { x: viewport.width / 2, y: viewport.height - 200 }, { x: viewport.width / 2, y: 150 });
-    await swipe(page, { x: viewport.width / 2, y: viewport.height - 200 }, { x: viewport.width / 2, y: 150 });
+    // The panel scrolls natively by the finger's own distance (no fling): swipe until Clear is on screen above Save.
+    for (let i = 0; i < 10; i++) {
+      const at = await stop(page, "clear");
+      if (at && at.rect.y + at.rect.height < viewport.height - 80) break;
+      await swipe(page, { x: viewport.width / 2, y: viewport.height - 200 }, { x: viewport.width / 2, y: 150 });
+    }
     await tapStop(page, "clear");
     await waitFor(
       async () => (/deck \d+\/40/i.test(await deckTabText(page)) ? true : null),
@@ -114,11 +118,11 @@ test.describe("deck builder tabs on a phone", () => {
     expect(save.rect.y).toBeGreaterThan(viewport.height * 0.7);
     expect(save.rect.y + save.rect.height).toBeLessThanOrEqual(viewport.height);
 
-    // The name field is a DOM input over the canvas: on Deck it is there to type in, off Deck it is gone.
+    // The name field is a real input in the panel: on Deck it is there to type in, off Deck it is gone.
     // Each tab keeps its own scroll, and this one was swiped down to Clear: back up to the name.
     await swipe(page, { x: viewport.width / 2, y: 200 }, { x: viewport.width / 2, y: viewport.height - 180 });
     await swipe(page, { x: viewport.width / 2, y: 200 }, { x: viewport.width / 2, y: viewport.height - 180 });
-    const nameField = page.locator('input[placeholder=""]');
+    const nameField = page.locator('mc-search-field[data-key="name"] input');
     await expect(nameField).toBeVisible();
     await nameField.fill("Tabs deck");
     expect(await findText(page, "Tabs deck", "DeckBuilder")).toBeDefined();

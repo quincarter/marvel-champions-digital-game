@@ -14,6 +14,7 @@
 import Phaser from "phaser";
 import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { appSession } from "../session.js";
+import { t } from "../i18n/translate.js";
 import { clockOf, nowPlayingTitleOf, steppedVolume, volumeAtTrack, type PlayerSong } from "../view/music-player.js";
 import { clampMusicVolume } from "../settings.js";
 import { hasDesktopWindow } from "../platform/desktop-window.js";
@@ -95,7 +96,7 @@ export function drawNowPlayingPanel(
   scene.add.text(
     textX,
     y + (expanded ? 16 : 10),
-    playing ? (music?.paused() ? "PAUSED" : "NOW PLAYING") : "NOTHING PLAYING",
+    playing ? (music?.paused() ? t("music.paused") : t("music.nowPlaying")) : t("music.nothingPlaying"),
     textStyle(typeRole.label, signal.caution.hex),
   );
   const song = playing ? songs.find((one) => one.track.key === playing.key) : undefined;
@@ -110,7 +111,7 @@ export function drawNowPlayingPanel(
       )
       .setFontSize(titleSize);
     fitText(title, textWidth, titleSize);
-    const mode = shuffle ? "Shuffling earned songs" : song ? "Repeating this song" : "This screen's own music";
+    const mode = shuffle ? t("music.shuffling") : song ? t("music.repeating") : t("music.screenOwn");
     const detail = scene.add
       .text(
         textX,
@@ -178,21 +179,21 @@ export function drawNowPlayingPanel(
   const buttons = [
     new McButton(scene, {
       kind,
-      label: shuffle ? "Shuffle: on" : "Shuffle: off",
+      label: shuffle ? t("music.shuffleOn") : t("music.shuffleOff"),
       type: BUTTON_TYPE,
       rect: shuffleRect,
       selected: shuffle,
       enabled,
-      reason: "Earn a song first",
+      reason: t("music.earnFirst"),
       onClick: toggleShuffle,
     }),
     new McButton(scene, {
       kind,
-      label: "Next ▸▸",
+      label: t("music.next"),
       type: BUTTON_TYPE,
       rect: nextRect,
       enabled,
-      reason: "Earn a song first",
+      reason: t("music.earnFirst"),
       onClick: skip,
     }),
   ];
@@ -239,7 +240,7 @@ function drawVolumeRow(
   const pauseButton = (rect: Rect): McButton =>
     new McButton(scene, {
       kind: "secondary",
-      label: paused ? "▶ Play" : "❚❚ Pause",
+      label: paused ? t("music.play") : t("music.pause"),
       type: BUTTON_TYPE,
       rect,
       selected: paused,

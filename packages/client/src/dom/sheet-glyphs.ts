@@ -11,12 +11,13 @@
  */
 import type Phaser from "phaser";
 import type { McGlyphGround } from "@mc/ui";
-import { layoutGlyph, measureGlyphText } from "@mc/ui";
+import { layoutGlyph, measureGlyphText } from "@mc/ui/glyph";
 import { font, typeRole, type TypeSpec } from "../tokens.js";
 import { bindInputHints, type InputHints, type InputHintsSnapshot } from "../ui/input-hints.js";
 import {
   glyphBesideLabel,
   glyphHeightFor,
+  glyphHangingBelow,
   glyphOutsideButton,
   glyphRect,
   hangIsClear,
@@ -52,6 +53,8 @@ export interface SheetGlyphButton {
   readonly ground?: McGlyphGround;
   /** Which shortcuts the glyph shows right now (null: none), when that changes with the screen's state. */
   readonly idsNow?: (set: GlyphSet) => readonly ShortcutId[] | null;
+  /** Glyphs that are no shortcut of their own (a trigger): read on every apply, like `idsNow`. */
+  readonly specs?: (set: GlyphSet, snapshot: InputHintsSnapshot) => readonly GlyphSpec[] | null;
 }
 
 interface Registered {
@@ -133,6 +136,7 @@ export class SheetGlyphs {
   #specsOf(entry: SheetGlyphButton, snapshot: InputHintsSnapshot): readonly GlyphSpec[] | null {
     const set = glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource);
     if (set === null) return null;
+    if (entry.specs) return entry.specs(set, snapshot);
     const ids = entry.idsNow ? entry.idsNow(set) : entry.ids;
     return ids ? specsFor(ids, snapshot) : null;
   }
@@ -166,6 +170,10 @@ export class SheetGlyphs {
       readonly ids: readonly ShortcutId[];
       readonly height: number;
       readonly ground?: McGlyphGround;
+      /** `x` is the glyph's right edge, not its left (a hint at the end of a strip). */
+      readonly alignRight?: boolean;
+      /** Which shortcuts the glyph shows for an input set (null: none), when that differs between keyboard and pad. */
+      readonly idsNow?: SheetGlyphButton["idsNow"];
     },
   ): void {
     const registered: Registered = {
@@ -175,6 +183,7 @@ export class SheetGlyphs {
         label: "",
         look: "onInk",
         ids: entry.ids,
+        ...(entry.idsNow ? { idsNow: entry.idsNow } : {}),
       },
       drawn: null,
     };
@@ -186,12 +195,62 @@ export class SheetGlyphs {
     registered.drawn = specs ? specsSignature(specs) : null;
     if (!specs) return;
     this.#hadGlyph = true;
+    const height = scaledGlyphHeight(entry.height, snapshot.settings.glyphSize);
+    const x = entry.alignRight ? entry.x - layoutGlyph(specs.map(uiSpecOf), height, BODY_MEASURE).fullWidth : entry.x;
     builder.glyph({
-      x: entry.x,
+      x,
       y: entry.y,
       specs: specs.map(uiSpecOf),
-      height: scaledGlyphHeight(entry.height, snapshot.settings.glyphSize),
+      height,
       ground: entry.ground ?? "ink",
+      openness: glyphsExpanded(snapshot.state) ? 1 : 0,
+      still: snapshot.settings.reducedMotion,
+      key: `glyph:${entry.key}`,
+    });
+  }
+
+  /**
+   * A glyph hung just below `anchor`, its right edge on the anchor's (a corner button's press glyph), if that spot is
+   * clear of the obstacles. Drawn only while a keyboard or pad is in use. The DOM twin of `GlyphHints.hang`.
+   */
+  hang(
+    builder: SheetBuilder,
+    entry: {
+      readonly key: string;
+      readonly anchor: Rect;
+      readonly ids: readonly ShortcutId[];
+      readonly height: number;
+      readonly ground?: McGlyphGround;
+    },
+  ): void {
+    const registered: Registered = {
+      entry: {
+        key: entry.key,
+        rect: entry.anchor,
+        label: "",
+        look: "onInk",
+        ids: entry.ids,
+      },
+      drawn: null,
+    };
+    this.#entries.push(registered);
+    const snapshot = this.#snapshot;
+    if (!snapshot) return;
+    const specs = this.#specsOf(registered.entry, snapshot);
+    this.#drawnFlags = this.#flagsOf(snapshot);
+    registered.drawn = specs ? specsSignature(specs) : null;
+    if (!specs) return;
+    this.#hadGlyph = true;
+    const height = scaledGlyphHeight(entry.height, snapshot.settings.glyphSize);
+    const { fullWidth } = layoutGlyph(specs.map(uiSpecOf), height, BODY_MEASURE);
+    const point = glyphHangingBelow(entry.anchor, fullWidth, height);
+    if (!hangIsClear(glyphRect(point, fullWidth, height), this.#obstacles())) return;
+    builder.glyph({
+      x: point.x,
+      y: point.y,
+      specs: specs.map(uiSpecOf),
+      height,
+      ground: entry.ground ?? "paper",
       openness: glyphsExpanded(snapshot.state) ? 1 : 0,
       still: snapshot.settings.reducedMotion,
       key: `glyph:${entry.key}`,

@@ -20,6 +20,7 @@ import {
 } from "./deck-stats.js";
 import { isCommunityDeckId } from "./community-deck-id.js";
 import type { PickerRow } from "./room-deck-picker-model.js";
+import { oneDecimal } from "./number-format.js";
 
 export interface DeckDetails {
   readonly id: string;
@@ -53,7 +54,7 @@ export interface DeckDetails {
 
 /** "Average cost 1.8" with the language's own decimal mark ("Coste medio 1,8"). */
 export function averageCostText(average: number, lang: CardLanguage): string {
-  const avg = new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(average);
+  const avg = oneDecimal(average, lang);
   return t("deckPicker.averageCost", { avg }, lang);
 }
 

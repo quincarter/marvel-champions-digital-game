@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { CATALOGS, t } from "../i18n/translate.js";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import { rectsOverlap } from "./layout.js";
+import { floatingThemeSlot, themeHitRect } from "./theme-button.js";
 import {
   GUIDE_CHOOSER_OPTIONS,
   guideChooserFocusOrder,
@@ -15,6 +17,16 @@ describe("guideChooserLessonChips", () => {
     expect(chips).toHaveLength(5);
     expect(chips[0]).toBe("1 · HOW TO WIN");
     expect(chips.every((c, i) => c.startsWith(`${i + 1} · `))).toBe(true);
+  });
+
+  it("reads the lesson titles in the app language", () => {
+    useSpanish();
+    try {
+      expect(guideChooserLessonChips()[0]).toBe("1 · CÓMO GANAR");
+      expect(guideChooserLessonChips()[4]).toBe("5 · AMENAZA E INTERVENCIÓN");
+    } finally {
+      useEnglish();
+    }
   });
 });
 
@@ -77,5 +89,20 @@ describe("guideChooserFocusOrder", () => {
   it("walks the three options, then Back (wide) or not (narrow), then Suit up", () => {
     expect(guideChooserFocusOrder(false)).toEqual(["option:full", "option:hints", "option:off", "suit-up"]);
     expect(guideChooserFocusOrder(true)).toEqual(["option:full", "option:hints", "option:off", "back", "suit-up"]);
+  });
+});
+
+describe("guideChooserLayout and the dark mode toggle", () => {
+  it.each([
+    [1024, 768],
+    [1280, 800],
+    [1440, 980],
+    [1920, 1080],
+  ])("keeps the wide column's words off the toggle's press area (%i x %i)", (width, height) => {
+    const layout = guideChooserLayout(width, height);
+    expect(layout.wide).toBe(true);
+    const press = themeHitRect(floatingThemeSlot({ width }));
+    const words = [layout.subtitle, ...layout.options];
+    for (const rect of words) expect(rectsOverlap(rect, press), JSON.stringify(rect)).toBe(false);
   });
 });
