@@ -38,6 +38,15 @@ export function collectStops(root: ParentNode): ElementStop[] {
   return found;
 }
 
+/** Whether the browser would draw a focus ring on `element` (a keyboard or assistive focus, not a pointer's). */
+function focusVisible(element: HTMLElement): boolean {
+  try {
+    return element.matches(":focus-visible");
+  } catch {
+    return true;
+  }
+}
+
 /** The scroll container `element` sits in (vertical or sideways), through shadow roots, or null. */
 export function scrollerOf(element: Element): HTMLElement | null {
   let node: Node | null = element.parentNode ?? (element.getRootNode() as ShadowRoot | undefined)?.host ?? null;
@@ -88,13 +97,22 @@ export function focusStopsOf(root: ParentNode, toGame: (target: Element) => Rect
 /**
  * Tells `onFocus` the key of a `[data-stop]` part that took focus (a screen reader, a click on a native button): the
  * route follows, so Enter, Space and Inspect then act on that part and no other. Returns the function that undoes it.
+ *
+ * `visibleOnly`: only a focus the browser would draw a ring for (`:focus-visible`: a key, a screen reader) counts, so a
+ * tap or a click on a control moves the route no more than it did before the screen was built from elements.
  */
-export function bindStopFocus(root: HTMLElement, onFocus: (key: string) => void): () => void {
+export function bindStopFocus(
+  root: HTMLElement,
+  onFocus: (key: string) => void,
+  options: { readonly visibleOnly?: boolean } = {},
+): () => void {
   const handler = (event: FocusEvent): void => {
     const hit = event
       .composedPath()
       .find((node): node is HTMLElement => node instanceof HTMLElement && keyOf(node).length > 0);
-    if (hit) onFocus(keyOf(hit));
+    if (!hit) return;
+    if (options.visibleOnly && !focusVisible(hit)) return;
+    onFocus(keyOf(hit));
   };
   root.addEventListener("focusin", handler);
   return () => root.removeEventListener("focusin", handler);

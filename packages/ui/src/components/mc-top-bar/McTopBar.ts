@@ -23,6 +23,7 @@ import { McTopBarStyles } from "./mc-top-bar.styles.js";
  * @attr title-drop - How far the title drops (px) to sit under the dark mode tab.
  * @attr title-max-right - Where the title must end (px from the bar's left edge); 0 for no limit.
  * @prop backGlyph - The Back button's glyph (`HintGlyph`), or null.
+ * @slot end - A control at the bar's right end (a button such as "Your stats"): it keeps its own width.
  * @fires mc-press - A tap on Back.
  */
 export class McTopBar extends LitElement {
@@ -109,6 +110,7 @@ export class McTopBar extends LitElement {
       }
       <span class="title">${this.heading}</span>
       ${this.right ? html`<span class="right">${this.right}</span>` : nothing}
+      <span class="end"><slot name="end"></slot></span>
     </div>`;
   }
 }

@@ -78,6 +78,20 @@ describe("bindStopFocus", () => {
     );
     expect(keys).toEqual(["difficulty:expert"]);
   });
+
+  it("with visibleOnly, follows a focus the browser would ring and not a pointer's", () => {
+    const host = page();
+    const keys: string[] = [];
+    bindStopFocus(host, (key) => keys.push(key), { visibleOnly: true });
+    const stop = collectStops(host)[1]!.element as HTMLElement;
+    const matches = vi.spyOn(stop, "matches");
+    matches.mockReturnValue(false);
+    stop.dispatchEvent(new FocusEvent("focusin", { bubbles: true, composed: true }));
+    expect(keys).toEqual([]);
+    matches.mockReturnValue(true);
+    stop.dispatchEvent(new FocusEvent("focusin", { bubbles: true, composed: true }));
+    expect(keys).toEqual(["difficulty:expert"]);
+  });
 });
 
 describe("CardEvents", () => {
@@ -93,6 +107,23 @@ describe("CardEvents", () => {
     expect(found).toMatchObject({ cardId: "01094", x: 1, y: 2, through: true });
     host.dispatchEvent(new CustomEvent("mc-card-hover-end", { detail: { cardId: "01094" }, bubbles: true }));
     expect(events.hovered().size).toBe(0);
+  });
+
+  it("hands the popover a card's own record when the scene has one for a picture whose pack is gone", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const events = new CardEvents({ element: host, rectOf: () => ({ x: 1, y: 2, width: 30, height: 40 }) });
+    const card = { id: "custom-hero" } as never;
+    events.recordOf = (id) => (id === "custom-hero" ? card : undefined);
+    host.dispatchEvent(
+      new CustomEvent("mc-card-hover", { detail: { cardId: "custom-hero", rect: new DOMRect() }, bubbles: true }),
+    );
+    expect([...events.hovered().values()][0]).toMatchObject({ cardId: "custom-hero", card });
+    host.dispatchEvent(new CustomEvent("mc-card-hover-end", { detail: { cardId: "custom-hero" }, bubbles: true }));
+    host.dispatchEvent(
+      new CustomEvent("mc-card-hover", { detail: { cardId: "01094", rect: new DOMRect() }, bubbles: true }),
+    );
+    expect([...events.hovered().values()][0]).not.toHaveProperty("card");
   });
 
   it("passes a hold's Inspect on", () => {

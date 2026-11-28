@@ -3,8 +3,8 @@ import { pressKey, trackPageErrors, waitFor } from "./helpers.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * Past games draws its list and its game details as a Lit panel over the canvas (`mc-sheet`, `scenes/past-games.ts`):
- * the rows, their pictures and the details are in the panel, the keyboard walks the same focus stops with the ring drawn
+ * Past games is one custom element, `mc-past-games-page`, over the canvas (`scenes/past-games.ts`):
+ * the rows, their pictures and the details are in the page, the keyboard walks the same focus stops with the ring drawn
  * in the DOM, Enter opens a game, Escape leaves; on a phone a tap opens the details popup, a swipe that lifts over a row
  * opens nothing, and Escape closes the popup first.
  */
@@ -40,12 +40,12 @@ test("Past games is a Lit panel: rows and details in the DOM, the keyboard walks
   const errors = trackPageErrors(page);
   await openApp(page, "screen=past-games&fixture=demo&unlock=all", { landing: "PastGames" });
   await expect(page.locator(`${panel} [data-key="list"]`)).toHaveCount(1);
-  await expect(page.locator(`${panel} [data-key^="game:"]`)).toHaveCount(5);
+  await expect(page.locator(`${panel} [data-stop^="game:"]`)).toHaveCount(5);
   // The side panel shows the newest game with its four actions.
   for (const action of ["watch", "share", "export", "log"])
-    await expect(page.locator(`${panel} [data-key="action:${action}"]`)).toHaveCount(1);
+    await expect(page.locator(`${panel} [data-stop="action:${action}"]`)).toHaveCount(1);
   // Every picture opens the card hover popover: the villain's and each hero's, on every row and in the details.
-  expect(await page.locator(`${panel} [data-hover]`).count()).toBeGreaterThanOrEqual(10);
+  expect(await page.locator(`${panel} [data-card]`).count()).toBeGreaterThanOrEqual(10);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/past-games-lit-desktop.png` });
 
   // The first arrow press takes the first stop; the ring is drawn in the DOM.
@@ -80,22 +80,22 @@ test("on a phone a tap opens the details popup in the panel, a swipe over a row 
   await page.setViewportSize({ width: 375, height: 667 });
   const errors = trackPageErrors(page);
   await openApp(page, "screen=past-games&fixture=demo&unlock=all", { landing: "PastGames" });
-  const rows = page.locator(`${panel} [data-key^="game:"]`);
+  const rows = page.locator(`${panel} [data-stop^="game:"]`);
   await expect(rows.first()).toBeAttached();
-  await expect(page.locator(`${panel} [data-key="close"]`)).toHaveCount(0);
+  await expect(page.locator(`${panel} [data-stop="close"]`)).toHaveCount(0);
   const box = (await rows.first().boundingBox())!;
   const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 
   // Up from below the row, lifting on it: a scroll, not a press.
   await swipe(page, { x: at.x, y: at.y + 160 }, at);
   await page.waitForTimeout(400);
-  await expect(page.locator(`${panel} [data-key="close"]`)).toHaveCount(0);
+  await expect(page.locator(`${panel} [data-stop="close"]`)).toHaveCount(0);
 
   await page.touchscreen.tap(at.x, at.y);
-  await expect(page.locator(`${panel} [data-key="close"]`)).toHaveCount(1);
-  await expect(page.locator(`${panel} [data-key="action:watch"]`)).toHaveCount(1);
+  await expect(page.locator(`${panel} [data-stop="close"]`)).toHaveCount(1);
+  await expect(page.locator(`${panel} [data-stop="action:watch"]`)).toHaveCount(1);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/past-games-lit-phone-popup.png` });
   await pressKey(page, "Escape");
-  await expect(page.locator(`${panel} [data-key="close"]`)).toHaveCount(0);
+  await expect(page.locator(`${panel} [data-stop="close"]`)).toHaveCount(0);
   expect(errors).toEqual([]);
 });

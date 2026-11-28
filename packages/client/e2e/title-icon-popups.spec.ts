@@ -12,7 +12,7 @@ import { openApp } from "./wave6-helpers-b.js";
 test.use({ locale: "es-ES" });
 
 const wrap = (page: Page, scene: string) => page.locator(`#mc-ui [data-scene="${scene}"]`);
-const titleMenu = (page: Page) => wrap(page, "Title").locator("mc-title-panel");
+const titleMenu = (page: Page) => wrap(page, "Title").locator("mc-title-page");
 
 interface Rect {
   x: number;

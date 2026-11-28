@@ -22,6 +22,7 @@ import { reportButtonSlot } from "../view/report-button.js";
 import type { Rect } from "../view/layout.js";
 import { languageCodeOf, languagePopupMode, languageSlotBeside } from "../view/language-button.js";
 import { isNativeShell } from "../platform/platform.js";
+import { chromeDrawnByDom } from "../ui/dom-chrome.js";
 import { SCENES } from "./keys.js";
 
 /** The scenes that sort themselves above the screens (the same set the music button keeps clear of). */
@@ -51,6 +52,8 @@ export class LanguageButtonScene extends Phaser.Scene {
   #zone: Phaser.GameObjects.Zone | null = null;
   #rect: Rect | null = null;
   #hovered = false;
+  /** The screen under draws this button itself in the DOM (`ui/dom-chrome.ts`): placed, but not painted. */
+  #dom = false;
   #popupUp = false;
   #drawnCode = "";
   #unsubscribe: (() => void) | null = null;
@@ -99,6 +102,11 @@ export class LanguageButtonScene extends Phaser.Scene {
       .map((scene) => ({ key: scene.scene.key, visible: scene.sys.settings.visible }));
     const slot = reportButtonSlot(running, musicSlots());
     this.#place(slot ? languageSlotBeside(slot.rect) : null);
+    const dom = chromeDrawnByDom(slot?.key);
+    if (dom !== this.#dom) {
+      this.#dom = dom;
+      this.#draw();
+    }
     // Lit while its popup is open: redraw when that changes.
     if (popupUp !== this.#popupUp) {
       this.#popupUp = popupUp;
@@ -157,7 +165,7 @@ export class LanguageButtonScene extends Phaser.Scene {
     const rect = this.#rect;
     this.#drawnCode = languageCodeOf(artLanguageNow());
     code.setText(this.#drawnCode);
-    if (!rect) {
+    if (!rect || this.#dom) {
       code.setVisible(false);
       zone.disableInteractive();
       return;

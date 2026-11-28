@@ -249,7 +249,7 @@ test("Matchups: four views behind the toggle, and a shelf opens that villain's F
 
   await press(page, phone, (await stopsOf(page)).find((s) => s.key === "row:shelf:1")!.rect);
   await waitFor(has("tile:0"), "the shelf opens Focus", 10_000);
-  expect((await findText(page, "Tried".toUpperCase(), "PlayerStats")).length, "Klaw's loss").toBeGreaterThan(0);
+  expect((await findText(page, "Tried", "PlayerStats")).length, "Klaw's loss").toBeGreaterThan(0);
 });
 
 test("Matchups: every view's pictures open the card hover", async ({ page }, info) => {
@@ -319,7 +319,7 @@ test("Matchups: a swipe of the Focus tiles lifted over the stepper does not step
   const x = next.x + next.width / 2;
   await swipe(page, { x, y: page.viewportSize()!.height - 40 }, { x, y: next.y + next.height / 2 });
   await page.waitForTimeout(400);
-  expect((await findText(page, "RHINO", "PlayerStats")).length, "still on Rhino").toBeGreaterThan(0);
+  expect((await findText(page, "Rhino", "PlayerStats")).length, "still on Rhino").toBeGreaterThan(0);
 });
 
 test("from the Trophy Room: the record, then a tab with a tap and the next with RB", async ({ page }, info) => {
@@ -452,7 +452,7 @@ test("the filter chips narrow every tab: Rhino only is 4–1", async ({ page }, 
     "Rhino's games only",
     15_000,
   );
-  expect((await findText(page, "RHINO", "PlayerStats")).length, "the chip names it").toBeGreaterThan(0);
+  expect((await findText(page, "Rhino", "PlayerStats")).length, "the chip names it").toBeGreaterThan(0);
   const clear = await waitFor(
     async () => (await stopsOf(page)).find((s) => s.key === "filter:clear") ?? null,
     "Clear",
@@ -521,7 +521,7 @@ test("two filter chips pressed back to back both hold, whichever fold answers la
     15_000,
   );
   await settle(page);
-  expect((await findText(page, "SPIDER-MAN", "PlayerStats")).length, "the hero chip kept").toBeGreaterThan(0);
+  expect((await findText(page, "Spider-Man", "PlayerStats")).length, "the hero chip kept").toBeGreaterThan(0);
   expect((await findText(page, "4–1", "PlayerStats")).length, "still both").toBeGreaterThan(0);
 });
 

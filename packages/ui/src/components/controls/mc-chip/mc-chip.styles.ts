@@ -14,7 +14,7 @@ export const McChipStyles = [
       display: grid;
       place-items: center;
       /* An inside glyph slides the word over: half the shift each side. */
-      padding: 0 4px 0 calc(4px + 2 * var(--mc-label-shift, 0px));
+      padding: 0 var(--chip-pad, 4px) 0 calc(var(--chip-pad, 4px) + 2 * var(--mc-label-shift, 0px));
       background: var(--chip-fill, var(--mc-fill-card));
       color: var(--chip-color, inherit);
       border: 2px var(--chip-border, solid) var(--chip-line, var(--mc-line-ink));

@@ -1,0 +1,3 @@
+kind: Changed
+body: Your stats is rebuilt as composed custom elements (header, tabs, controls, list, overview tiles, Matchups grid, shelves and tiles) under one page, replacing the mc-sheet node list and the Phaser Matchups grid
+time: 2026-11-28T06:59:00.080173-05:00

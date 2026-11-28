@@ -2942,4 +2942,10 @@ export const en = {
   "tableSetup.td.on": "Chosen · place {n} damage per hero on Avengers Tower",
   "tableSetup.td.off": "Off · Avengers Tower starts undamaged ({n} per hero suggested)",
   "tableSetup.watch": "Let people watch this game",
+  "title.icon.theme": "Dark mode",
+  "title.icon.language": "Card language",
+  "title.icon.music": "Music",
+  "title.icon.report": "Report an issue",
+  "title.icon.store": "Mod Store",
+  "title.icon.discord": "Discord",
 } as const;
