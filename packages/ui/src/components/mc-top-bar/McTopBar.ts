@@ -2,7 +2,6 @@ import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { fitOneLine } from "../../shared/fit.js";
 import type { HintGlyph } from "../mc-hint-button/mc-hint-button.types.js";
-import "../mc-hint-button/mc-hint-button.js";
 import { McTopBarStyles } from "./mc-top-bar.styles.js";
 
 /**
