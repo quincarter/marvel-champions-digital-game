@@ -1,28 +1,26 @@
 /**
- * The side-story reader: an earned side story (`content/side-stories.ts`) read beat by beat in the guided comic
- * reader (`ui/comic-reader.ts`), the way a one-off scenario's intro reads its page (`scenes/scenario-intro.ts`).
- * Every page is Marvel's own lettered page, so the camera frames one panel at a time, panning from one to the next
- * across a page, and each page ends on the whole page before the next one cuts in.
+ * The side-story reader: an earned side story (`content/side-stories.ts`) read beat by beat in the guided comic reader
+ * (`ui/comic-reader.ts`), the way a one-off scenario's intro reads its page (`scenes/scenario-intro.ts`). Every page is
+ * Marvel's own lettered page, so the camera frames one panel at a time, panning from one to the next across a page, and
+ * each page ends on the whole page before the next one cuts in.
  *
- * Reached from Extras ▸ Side Stories; leaving (the last beat's "DONE ▸", CLOSE, or Escape) goes back to that tab.
+ * Reached from Extras > Side Stories; leaving (the last beat's "DONE", CLOSE, or Escape) goes back to that tab.
  *
- * **A Lit panel over the canvas** (`mc-sheet`, `dom/sheet-builder.ts`) for the chrome: the header (SIDE STORY, the title
- * and credit, CLOSE with its Start glyph), the "PAGE 2 · PANEL 3" line and the action bar (◂ BACK, NEXT ▸ / DONE ▸ with
- * its glyph). The comic picture itself stays Phaser (its animated camera pan, panel spotlight and masks) and shows through
- * a hole in the panel, redrawn on its own while the pan tweens so the panel is not rebuilt every frame.
+ * **The chrome is one page element**, `mc-side-story-page` (`views/side-story/`): the header (SIDE STORY, the title and
+ * credit, CLOSE with its Start glyph), the "PAGE 2 · PANEL 3" line and the action bar (BACK, NEXT / DONE with its glyph).
+ * The comic picture itself stays Phaser (its animated camera pan, panel spotlight and masks) and shows through a hole at
+ * the page's reading area, redrawn on its own while the pan tweens so the page is not rebuilt every frame.
  */
 import Phaser from "phaser";
 import "@mc/ui";
-import type { McSheet } from "@mc/ui";
+import "../views/side-story/mc-side-story-page/mc-side-story-page.js";
 import { SIDE_STORY_ART, sideStoryPageArt } from "../art/side-stories-art.js";
 import type { ComicBeat } from "../campaign/story.js";
 import { sideStoryFor, type SideStory } from "../content/side-stories.js";
 import { appSession } from "../session.js";
-import { ink, surface, typeRole } from "../tokens.js";
+import { surface } from "../tokens.js";
 import { campaignFrame } from "../ui/campaign-chrome.js";
 import { drawComicReaderPicture, type ComicReaderTween } from "../ui/comic-reader.js";
-import { destroyChildren } from "../ui/destroy-children.js";
-import { isDesktopType } from "../ui/desktop-type.js";
 import { onTap } from "../ui/tap.js";
 import { cssOf } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
@@ -31,19 +29,21 @@ import {
   nextComicBeat,
   prevComicBeat,
   resolveComicBeats,
-  type ComicReaderStepView,
   type ResolvedComicBeat,
 } from "../view/comic-reader-model.js";
 import type { Rect } from "../view/layout.js";
-import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { ControlGlyphs } from "../dom/control-glyphs.js";
 import { domFocusRing } from "../dom/dom-ring.js";
-import { SheetBuilder } from "../dom/sheet-builder.js";
-import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { mountElement, type MountedElement } from "../dom/element-region.js";
+import { settleElements } from "../dom/element-settle.js";
+import { bindStopFocus, focusStopsOf } from "../dom/element-stops.js";
+import { hintGlyphOf } from "../dom/hint-glyph.js";
+import type { SideStoryEventDetail } from "../components/side-story/shared/side-story-events.types.js";
 import { t } from "../i18n/translate.js";
 import { onLanguageChange } from "../language-change.js";
 import type { ExtrasSceneData } from "./extras.js";
 import { bindExtraInput } from "./extra-input.js";
-import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
 export interface SideStoryReaderData {
@@ -52,6 +52,10 @@ export interface SideStoryReaderData {
 
 /** As a one-off intro's camera: each move reads as one. */
 const PAN_MS = 600;
+/** The heights the glyphs hung on CLOSE and NEXT are drawn for. */
+const CLOSE_HEIGHT = 30;
+
+type Page = MountedElement<HTMLElementTagNameMap["mc-side-story-page"]>;
 
 export class SideStoryReaderScene extends Phaser.Scene {
   #story: SideStory | null = null;
@@ -61,14 +65,16 @@ export class SideStoryReaderScene extends Phaser.Scene {
   #panProgress = 1;
   #panTween: Phaser.Tweens.Tween | null = null;
   #route: FocusRoute | null = null;
-  #glyphs!: SheetGlyphs;
-  /** The chrome, one Lit panel over the canvas; made on the first draw and kept. */
-  #region: DomRegion<McSheet> | null = null;
-  #actions = new Map<string, () => void>();
+  #glyphs!: ControlGlyphs;
+  #page: Page | null = null;
+  #unbind: (() => void) | null = null;
   /** The comic picture's Phaser objects, drawn again on their own while the camera pans. */
   #pictureObjects: Phaser.GameObjects.GameObject[] = [];
+  #tapZone: Phaser.GameObjects.Zone | null = null;
   #readingRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
-  #view: { readonly step: ComicReaderStepView } | null = null;
+  #view: ReturnType<typeof comicReaderViewOf> | null = null;
+  #drawn = 0;
+  #leaving = false;
 
   constructor() {
     super(SCENES.sideStoryReader);
@@ -86,20 +92,22 @@ export class SideStoryReaderScene extends Phaser.Scene {
     this.#panProgress = 1;
     this.#panTween = null;
     this.#route = null;
-    this.#region = null;
+    this.#page = null;
+    this.#tapZone = null;
+    this.#pictureObjects = [];
+    this.#leaving = false;
   }
 
   create(): void {
-    // A new route each visit: the scene instance is reused, and its key and pad bindings die with every shutdown.
     this.#route = null;
     if (!this.#story || this.#steps.length === 0) {
       this.#leave();
       return;
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
-    this.scale.on("resize", this.#draw, this);
-    const offLanguage = onLanguageChange(() => this.#draw());
-    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
+    this.scale.on("resize", this.#compose, this);
+    const offLanguage = onLanguageChange(() => this.#compose());
+    this.#glyphs = new ControlGlyphs(this, () => this.#compose());
     const onArrow = (event: KeyboardEvent): void => {
       if (event.key === "ArrowRight") {
         event.preventDefault();
@@ -122,24 +130,55 @@ export class SideStoryReaderScene extends Phaser.Scene {
       },
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.scale.off("resize", this.#draw, this);
+      this.scale.off("resize", this.#compose, this);
       offLanguage();
       this.input.keyboard?.off("keydown", onArrow);
       this.#panTween?.stop();
+      this.#unbind?.();
+      this.#unbind = null;
       this.#glyphs.dispose();
-      // The panel goes with the scene (`DomRegion`); the next open makes a new one.
-      this.#region = null;
+      this.#page = null;
+      this.#tapZone = null;
     });
-    this.events.once(Phaser.Scenes.Events.CREATE, () => this.#draw());
+    this.#mount();
+    // B, Start and View close the story (as CLOSE does); A with nothing focused turns the page.
+    this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
+      onCancel: () => this.#leave(),
+      onPause: () => this.#leave(),
+      onView: () => this.#leave(),
+      primary: () => "next",
+    });
+    this.#compose();
     fadeScreenIn(this);
   }
 
+  #mount(): void {
+    const { width, height } = this.scale.gameSize;
+    const mounted = mountElement(this, "mc-side-story-page", { x: 0, y: 0, width, height });
+    this.#page = mounted;
+    mounted.element.addEventListener("mc-side-story", (event) => this.#heard(event.detail));
+    this.#unbind = bindStopFocus(mounted.element, (key) => this.#route?.focusKey(key));
+    // The comic picture is drawn in the canvas: the reading area is left out of the page to be seen through it.
+    mounted.region.setHoles(() => [this.#readingRect]);
+  }
+
+  #heard(detail: SideStoryEventDetail): void {
+    if (this.#leaving) return;
+    if (detail.type === "close") this.#leave();
+    else if (detail.type === "next") this.#advance();
+    else this.#back();
+  }
+
   #leave(): void {
-    this.scale.off("resize", this.#draw, this);
+    if (this.#leaving) return;
+    this.#leaving = true;
+    this.scale.off("resize", this.#compose, this);
     goToScreen(this, SCENES.extras, { tab: "side" } satisfies ExtrasSceneData);
   }
 
   #advance(): void {
+    if (this.#leaving) return;
     if (this.#current >= this.#steps.length - 1) {
       this.#leave();
       return;
@@ -161,7 +200,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
     if (appSession().settings.reducedMotion || from.page.file !== this.#steps[next]!.page.file) {
       this.#panFrom = null;
       this.#panProgress = 1;
-      this.#draw();
+      this.#compose();
       return;
     }
     this.#panFrom = from.beat.panel;
@@ -172,7 +211,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
       t: 1,
       duration: PAN_MS,
       ease: "Sine.easeInOut",
-      // Only the picture moves: the panel around it is not rebuilt every frame.
+      // Only the picture moves: the page around it is not rebuilt every frame.
       onUpdate: () => {
         this.#panProgress = state.t;
         this.#drawPicture();
@@ -183,14 +222,14 @@ export class SideStoryReaderScene extends Phaser.Scene {
         this.#drawPicture();
       },
     });
-    this.#draw();
+    this.#compose();
   }
 
-  /** The comic picture in the reading area (Phaser, shown through the panel's hole), over the ink ground. */
+  /** The comic picture in the reading area (Phaser, shown through the page's hole), over the ink ground. */
   #drawPicture(): void {
     const story = this.#story;
     const view = this.#view;
-    if (!story || !view || !this.sys.isActive()) return;
+    if (!story || !view || !this.sys.isActive() || this.#readingRect.width === 0) return;
     for (const object of this.#pictureObjects) object.destroy();
     const before = new Set(this.children.list);
     const panning = this.#panFrom !== null && this.#panProgress < 1;
@@ -205,22 +244,17 @@ export class SideStoryReaderScene extends Phaser.Scene {
       () => this.#drawPicture(),
       tween,
     );
-    this.#pictureObjects = this.children.list.filter((object) => !before.has(object));
+    this.#pictureObjects = this.children.list.filter((object) => !before.has(object) && object !== this.#tapZone);
   }
 
-  #draw(): void {
-    if (!this.sys.isActive()) return;
+  /** Sets the page from the beat, then, once it has rendered, places the picture and hands the route its stops. */
+  #compose(): void {
+    const mounted = this.#page;
     const story = this.#story;
-    if (!story) return;
-    destroyChildren(this);
-    this.#pictureObjects = [];
-    this.#actions = new Map();
-    this.#glyphs.reset();
-
+    if (!this.sys.isActive() || this.#leaving || !mounted || !story) return;
     const { width, height, phone } = campaignFrame(this);
     const view = comicReaderViewOf(this.#steps, this.#current, []);
     this.#view = view;
-    const stops = new Map<string, FocusStop>();
     // Dev e2e hook (never referenced by product code): which beat of how many, and on which page.
     if (import.meta.env.DEV) {
       (window as unknown as { __mcSideStoryDebug?: unknown }).__mcSideStoryDebug = {
@@ -229,55 +263,6 @@ export class SideStoryReaderScene extends Phaser.Scene {
         page: () => view.step.page.file,
       };
     }
-    const b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
-
-    // The ink ground under the panel too: the chrome buttons' holes and the picture's hole show the canvas.
-    this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
-    b.box({ x: 0, y: 0, width, height }, { fill: surface.ink.hex });
-
-    // Header: the story's title and its credit, with CLOSE.
-    const headerPad = phone ? 16 : 24;
-    const closeRect: Rect = { x: width - headerPad - (phone ? 78 : 96), y: 14, width: phone ? 78 : 96, height: 30 };
-    this.#glyphs.button(b, {
-      key: "close",
-      rect: closeRect,
-      label: t("sideStory.close"),
-      look: "onInk",
-      type: typeRole.label,
-      ids: ["pause"],
-      ground: "ink",
-    });
-    this.#actions.set("close", () => this.#leave());
-    stops.set("close", { rect: closeRect, activate: () => this.#leave() });
-    b.text(headerPad, 14, t("sideStory.label"), typeRole.label, {
-      color: surface.paper.hex,
-      alpha: ink.label,
-    });
-    const titleSize = phone ? 22 : 30;
-    const title = b.text(headerPad, 26, story.title.toUpperCase(), typeRole.barTitle, {
-      size: titleSize,
-      color: surface.paper.hex,
-      fitWidth: closeRect.x - headerPad - 12,
-    });
-    const creditSize = phone ? 10 : 12;
-    b.text(headerPad, 26 + title.height + 4, story.credit, typeRole.body, {
-      size: creditSize,
-      color: surface.paper.hex,
-      alpha: ink.label,
-      fitWidth: width - headerPad * 2,
-    });
-    const headerBottom =
-      26 + title.height + 4 + b.measure(story.credit, typeRole.body, { size: creditSize }).height + 10;
-
-    const actionBarHeight = phone ? 68 : 88;
-    const dotsHeight = 22;
-    this.#readingRect = {
-      x: 0,
-      y: headerBottom,
-      width,
-      height: Math.max(0, height - actionBarHeight - dotsHeight - headerBottom),
-    };
-
     // "PAGE 2 · PANEL 3", or "PAGE 2 · FULL PAGE" on the beat that pulls back to the whole page.
     const { page, panel } = view.step;
     const wholePage = panel.x === 0 && panel.y === 0 && panel.w === page.width && panel.h === page.height;
@@ -285,79 +270,55 @@ export class SideStoryReaderScene extends Phaser.Scene {
     const where = label
       ? t(wholePage ? "sideStory.fullPage" : "sideStory.panel", { page: label[1]!, panel: label[2]! })
       : view.step.pageLabel;
-    b.text(width / 2, height - actionBarHeight - dotsHeight / 2, where, typeRole.label, {
-      color: surface.paper.hex,
-      alpha: ink.label,
-      origin: [0.5, 0.5],
-    });
-
-    const barY = height - actionBarHeight;
-    b.box({ x: 0, y: barY, width, height: actionBarHeight }, { fill: surface.ink.hex });
-    const ctaPad = phone ? 12 : 16;
-    const ctaHeight = phone ? 52 : 62;
-    const ctaY = barY + (actionBarHeight - ctaHeight) / 2;
-    const hasBack = !view.isFirst;
-    const backWidth = hasBack ? (phone ? 64 : 110) : 0;
-    const backGap = hasBack ? 10 : 0;
-    const ctaWidth = phone
-      ? width - ctaPad * 2 - backWidth - backGap
-      : Math.min(425, width - ctaPad * 2 - backWidth - backGap);
-    const ctaRect: Rect = { x: width - ctaPad - ctaWidth, y: ctaY, width: ctaWidth, height: ctaHeight };
-    this.#glyphs.button(b, {
-      key: "next",
-      rect: ctaRect,
-      label: view.isLast ? t("sideStory.done") : t("sideStory.next"),
-      look: "primary",
-      type: typeRole.barTitle,
-      ids: ["activate"],
-      ground: "ink",
-    });
-    this.#actions.set("next", () => this.#advance());
-    stops.set("next", { rect: ctaRect, activate: () => this.#advance() });
-    if (hasBack) {
-      const backRect: Rect = { x: ctaPad, y: ctaY, width: backWidth, height: ctaHeight };
-      b.button({ key: "back", rect: backRect, label: t("sideStory.back"), look: "onInk", type: typeRole.label });
-      this.#actions.set("back", () => this.#back());
-      stops.set("back", { rect: backRect, activate: () => this.#back() });
-    }
-
-    this.#mount(width, height, b);
-
-    // The picture, then a tap on it advances too (the panel leaves a hole there, so the press reaches this zone).
-    this.#drawPicture();
-    const tapZone = this.add
-      .zone(0, this.#readingRect.y, width, this.#readingRect.height)
-      .setOrigin(0, 0)
-      .setInteractive();
-    onTap(tapZone, () => this.#advance(), "side-story:picture");
-
-    // B, Start and View close the story (as CLOSE does); A with nothing focused turns the page.
-    this.#route =
-      this.#route ??
-      new FocusRoute(this, {
-        ring: domFocusRing,
-        onCancel: () => this.#leave(),
-        onPause: () => this.#leave(),
-        onView: () => this.#leave(),
-        primary: () => "next",
-      });
-    this.#route.set(hasBack ? ["back", "next", "close"] : ["next", "close"], stops);
+    this.#glyphs.reset();
+    const closeGlyph = hintGlyphOf(this.#glyphs.glyph("close", ["pause"], "ink", CLOSE_HEIGHT));
+    const nextGlyph = hintGlyphOf(this.#glyphs.glyph("next", ["activate"], "ink", phone ? 52 : 62));
+    this.#glyphs.settled();
+    mounted.region.setRect({ x: 0, y: 0, width, height });
+    mounted.element.model = {
+      compact: phone,
+      header: {
+        label: t("sideStory.label"),
+        title: story.title.toUpperCase(),
+        credit: story.credit,
+        closeLabel: t("sideStory.close"),
+        closeGlyph,
+      },
+      where,
+      actions: {
+        hasBack: !view.isFirst,
+        backLabel: t("sideStory.back"),
+        nextLabel: view.isLast ? t("sideStory.done") : t("sideStory.next"),
+        nextGlyph,
+      },
+    };
+    const draw = ++this.#drawn;
+    void settleElements(mounted.element).then(() => draw === this.#drawn && this.#wire(mounted));
   }
 
-  /** Hands the built parts to the panel (made once) and renders them now. */
-  #mount(width: number, height: number, builder: SheetBuilder): void {
-    if (!this.#region) {
-      const element = document.createElement("mc-sheet") as McSheet;
-      element.addEventListener("mc-activate", (event) => {
-        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
-      });
-      this.#region = new DomRegion(this, element, { x: 0, y: 0, width, height });
+  #wire({ element, region }: Page): void {
+    if (!this.sys.isActive() || this.#leaving) return;
+    const reading = element.readingArea;
+    if (reading) {
+      this.#readingRect = region.rectOf(reading);
+      this.#placeTapZone();
     }
-    const region = this.#region;
-    region.setRect({ x: 0, y: 0, width, height });
-    // The comic picture is drawn in the canvas: left out of the panel to be seen through it.
-    region.setHoles(() => [this.#readingRect]);
-    region.element.nodes = builder.nodes;
-    renderNow(region.element);
+    this.#drawPicture();
+    const stops = focusStopsOf(element, (target) => region.rectOf(target));
+    this.#route?.set(
+      this.#view?.isFirst ? ["next", "close"] : ["back", "next", "close"],
+      stops,
+    );
+  }
+
+  /** A tap on the picture advances too (the page leaves a hole there, so the press reaches this zone). */
+  #placeTapZone(): void {
+    const { x, y, width, height } = this.#readingRect;
+    if (!this.#tapZone) {
+      this.#tapZone = this.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive();
+      onTap(this.#tapZone, () => this.#advance(), "side-story:picture");
+      return;
+    }
+    this.#tapZone.setPosition(x, y).setSize(width, height);
   }
 }
