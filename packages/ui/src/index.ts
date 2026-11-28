@@ -246,3 +246,5 @@ export { McDonutChart } from "./components/mc-donut-chart/mc-donut-chart.js";
 export { McStepper } from "./components/controls/mc-stepper/mc-stepper.js";
 export type { SegmentBarPart } from "./components/mc-segment-bar/mc-segment-bar.types.js";
 export type { DonutSlice } from "./components/mc-donut-chart/mc-donut-chart.types.js";
+export { McDialog } from "./components/mc-dialog/mc-dialog.js";
+export type { McDialogProps } from "./components/mc-dialog/mc-dialog.types.js";

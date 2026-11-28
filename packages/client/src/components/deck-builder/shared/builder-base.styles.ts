@@ -6,7 +6,7 @@ export const BuilderBaseStyles = css`
     display: block;
     box-sizing: border-box;
     font-family: var(--mc-font-body);
-    color: var(--mc-text-ink);
+    color: inherit;
     -webkit-font-smoothing: antialiased;
   }
   *,

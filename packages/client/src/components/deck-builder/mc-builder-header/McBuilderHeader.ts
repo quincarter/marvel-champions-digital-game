@@ -50,14 +50,17 @@ export class McBuilderHeader extends BuilderElement {
     return this.renderRoot.querySelector<HTMLElement>(".ghost");
   }
 
+  /** The drop and the limit are on the host: its own padding and its title's width read them. */
+  protected override willUpdate(): void {
+    this.style.setProperty("--title-drop", `${this.drop}px`);
+    if (this.maxWidth > 0) this.style.setProperty("--title-max", `${this.maxWidth}px`);
+    else this.style.removeProperty("--title-max");
+  }
+
   override render() {
     const model = this.model;
     if (!model) return html``;
-    const vars = {
-      "--title-drop": `${this.drop}px`,
-      ...(this.maxWidth > 0 ? { "--title-max": `${this.maxWidth}px` } : {}),
-      "--mc-label-shift": `${glyphLabelShift(model.backGlyph)}px`,
-    };
+    const vars = { "--mc-label-shift": `${glyphLabelShift(model.backGlyph)}px` };
     return html`<h1 class="title" style=${styleMap(vars)}>${model.title}</h1>
       <span class="title ghost" aria-hidden="true">${model.title}</span>
       <div class="ctl" style=${styleMap(vars)}>

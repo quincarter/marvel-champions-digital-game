@@ -24,9 +24,8 @@ describe("mc-builder-header", () => {
 
   it("drops the row and limits the title when the scene says the toggle is in the way", async () => {
     const el = await mount<McBuilderHeader>("mc-builder-header", { model, drop: 30, maxWidth: 200 });
-    const style = inner<HTMLElement>(el, "h1.title")!.getAttribute("style")!;
-    expect(style).toContain("--title-drop:30px");
-    expect(style).toContain("--title-max:200px");
+    expect(el.style.getPropertyValue("--title-drop")).toBe("30px");
+    expect(el.style.getPropertyValue("--title-max")).toBe("200px");
   });
 
   it("keeps a one-line copy of the title at its natural size for the scene to measure", async () => {
