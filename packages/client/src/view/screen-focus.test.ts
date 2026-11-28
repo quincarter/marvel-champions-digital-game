@@ -5,7 +5,6 @@ import {
   deckCheckFocusOrder,
   decksFocusOrder,
   pauseFocusOrder,
-  rulesFocusOrder,
   seatsFocusOrder,
   setupWalkthroughFocusOrder,
   settingsFocusOrder,
@@ -603,31 +602,6 @@ describe("screen focus routes", () => {
     expect(order).toContain("resume");
     expect(order.slice(8, 10)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
     expect(order[order.length - 1]).toBe("keyword:guard");
-  });
-
-  test("Rules Reference reads Back, the scope toggle (only with a game), tabs, search (glossary only), then rows", () => {
-    expect(
-      rulesFocusOrder({
-        tabIds: ["glossary", "villainPhase", "cardList"],
-        showScopeToggle: true,
-        showSearch: true,
-        rowIds: ["guard", "peril"],
-      }),
-    ).toEqual([
-      "back",
-      "scope:table",
-      "scope:all",
-      "tab:glossary",
-      "tab:villainPhase",
-      "tab:cardList",
-      "search",
-      "row:guard",
-      "row:peril",
-    ]);
-    expect(rulesFocusOrder({ tabIds: ["glossary"], showScopeToggle: false, showSearch: false, rowIds: [] })).toEqual([
-      "back",
-      "tab:glossary",
-    ]);
   });
 
   test("Settings reads Back then one stop per row", () => {

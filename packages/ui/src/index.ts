@@ -239,6 +239,13 @@ export type {
   SlideDetail,
   StepDetail,
 } from "./shared/popup.types.js";
+export { McReader } from "./components/reader/mc-reader/mc-reader.js";
+export type { McReaderPane } from "./components/reader/mc-reader/mc-reader.types.js";
+export { McToc } from "./components/reader/mc-toc/mc-toc.js";
+export type { McTocRow } from "./components/reader/mc-toc/mc-toc.types.js";
+export { McSearchHits } from "./components/reader/mc-search-hits/mc-search-hits.js";
+export { tapped } from "./shared/tapped.js";
+export { watchedCard } from "./shared/watched-card.js";
 export { McProgressBar } from "./components/mc-progress-bar/mc-progress-bar.js";
 export { McToast } from "./components/mc-toast/mc-toast.js";
 export { McSegmentBar } from "./components/mc-segment-bar/mc-segment-bar.js";
