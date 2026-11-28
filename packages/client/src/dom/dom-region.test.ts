@@ -57,6 +57,12 @@ describe("regionTakesEvents", () => {
       "mc-title",
       "mc-decks",
       "mc-learn",
+      "mc-credits",
+      "mc-unlocks",
+      "mc-save-data",
+      "mc-controls",
+      "mc-civil-war",
+      "mc-settings",
     ]);
   });
 });
