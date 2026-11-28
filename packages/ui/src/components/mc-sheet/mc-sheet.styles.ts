@@ -79,17 +79,41 @@ export const McSheetStyles = css`
     top: 0;
     z-index: 3;
   }
-  /* Fades out over the first --mc-fade px of the scroller's scroll, where the browser links animations to scroll. */
+  /*
+   * A group that collapses as its scroller scrolls (--mc-fade px): it fades and shrinks a little on an ease-out, and trails
+   * at half the scroll speed on a straight line (so it reads as folding away, not sliding off), where the browser links
+   * animations to scroll. Where it does not, McSheet sets the same from the scroll position. Reduced motion keeps only the
+   * fade. The move is the translate property and the shrink the scale property, so each has its own timing.
+   */
+  .group.fades {
+    transform-origin: 50% 0;
+    will-change: opacity, translate, scale;
+  }
   @supports (animation-timeline: scroll()) {
     .group.fades {
-      animation: mc-fade linear both;
+      animation:
+        mc-collapse-fade ease-out both,
+        mc-collapse-move linear both;
       animation-timeline: scroll(nearest block);
       animation-range: 0 var(--mc-fade);
     }
+    @media (prefers-reduced-motion: reduce) {
+      .group.fades {
+        animation: mc-collapse-fade ease-out both;
+        animation-timeline: scroll(nearest block);
+        animation-range: 0 var(--mc-fade);
+      }
+    }
   }
-  @keyframes mc-fade {
+  @keyframes mc-collapse-fade {
     to {
       opacity: 0;
+      scale: 0.96;
+    }
+  }
+  @keyframes mc-collapse-move {
+    to {
+      translate: 0 calc(var(--mc-fade) * 0.5);
     }
   }
   /* A stepped slider: the track takes sideways drags itself and leaves the page's vertical scroll to the browser. */

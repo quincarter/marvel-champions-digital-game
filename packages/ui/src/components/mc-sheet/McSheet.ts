@@ -150,7 +150,60 @@ export class McSheet extends LitElement {
     void document.fonts?.ready.then(() => this.requestUpdate());
   }
 
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    cancelAnimationFrame(this.#fadeFrame);
+    this.#fadeFrame = 0;
+  }
+
+  /** The scrollers whose scroll already drives their fading groups (where the browser has no scroll timelines). */
+  readonly #fadeScrollers = new WeakSet<HTMLElement>();
+  #fadeFrame = 0;
+
+  /**
+   * A group that fades as its scroller scrolls (`SheetGroup.fade`) is animated by CSS where the browser links animations
+   * to scroll. Where it does not (Safari, WebKitGTK), the same motion is set from the scroll position: one passive listener
+   * per scroller, one frame at a time, writing only opacity and transform (no layout). The listener lives on the scroller,
+   * so it goes with the panel.
+   */
+  #bindFades(): void {
+    if (typeof CSS !== "undefined" && CSS.supports?.("animation-timeline", "scroll()")) return;
+    for (const group of this.renderRoot.querySelectorAll<HTMLElement>(".group.fades")) {
+      const scroller = group.closest<HTMLElement>(".scroller");
+      if (!scroller) continue;
+      if (!this.#fadeScrollers.has(scroller)) {
+        this.#fadeScrollers.add(scroller);
+        scroller.addEventListener(
+          "scroll",
+          () => {
+            if (this.#fadeFrame) return;
+            this.#fadeFrame = requestAnimationFrame(() => {
+              this.#fadeFrame = 0;
+              this.#applyFade(scroller);
+            });
+          },
+          { passive: true },
+        );
+      }
+      this.#applyFade(scroller);
+    }
+  }
+
+  /** Opacity and transform for a scroller's fading groups at its scroll: eased out, trailing at half the scroll speed. */
+  #applyFade(scroller: HTMLElement): void {
+    const reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    for (const group of scroller.querySelectorAll<HTMLElement>(".group.fades")) {
+      const range = Number.parseFloat(group.style.getPropertyValue("--mc-fade")) || 1;
+      const done = Math.max(0, Math.min(1, scroller.scrollTop / range));
+      const eased = 1 - (1 - done) * (1 - done);
+      group.style.opacity = String(1 - eased);
+      group.style.scale = reduced ? "" : String(1 - 0.04 * eased);
+      group.style.translate = reduced ? "" : `0 ${Math.min(scroller.scrollTop, range) * 0.5}px`;
+    }
+  }
+
   override updated(): void {
+    this.#bindFades();
     // One-line texts shrink to fit their width, as Phaser's `fitText` does: smaller down to the floor, then without a
     // closing parenthetical ("Spider-Man (Peter Parker)"), then cut with an ellipsis.
     for (const text of this.renderRoot.querySelectorAll<HTMLElement>("[data-fit]")) {

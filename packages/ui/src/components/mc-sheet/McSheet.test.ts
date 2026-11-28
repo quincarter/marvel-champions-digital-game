@@ -908,4 +908,35 @@ describe("mc-sheet kit parts", () => {
     expect(keys).toEqual(["inside"]);
     sheet.remove();
   });
+  it("fades a collapsing group from the scroll position where the browser has no scroll timelines", async () => {
+    vi.stubGlobal("CSS", { ...CSS, escape: CSS.escape.bind(CSS), supports: () => false });
+    const sheet = document.createElement("mc-sheet");
+    sheet.nodes = [
+      {
+        kind: "scroll",
+        key: "page",
+        rect: rect(0, 0, 300, 200),
+        height: 800,
+        nodes: [{ kind: "group", key: "art", rect: rect(0, 0, 200, 100), fade: 100, nodes: [] }],
+      },
+    ];
+    document.body.append(sheet);
+    await sheet.updateComplete;
+    const art = sheet.elementOf("art")!;
+    expect(art.style.opacity).toBe("1");
+    const scroller = sheet.elementOf("page")!;
+    scroller.scrollTop = 50;
+    scroller.dispatchEvent(new Event("scroll"));
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    // Eased out: half way through the range it is already past half faded, and trails at half the scroll's speed.
+    expect(Number(art.style.opacity)).toBeCloseTo(0.25, 2);
+    expect(art.style.translate).toBe("0 25px");
+    scroller.scrollTop = 400;
+    scroller.dispatchEvent(new Event("scroll"));
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    expect(art.style.opacity).toBe("0");
+    expect(art.style.translate).toBe("0 50px");
+    vi.unstubAllGlobals();
+    sheet.remove();
+  });
 });
