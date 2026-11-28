@@ -13,14 +13,14 @@
 import Phaser from "phaser";
 import { cardLanguage } from "../art/card-language.js";
 import { artLanguageNow } from "../art/art-source.js";
-import { hit, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
-import { caseOf, textStyle } from "../ui/theme.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
-import { McButton } from "../ui/widgets.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { PopupSheet } from "../dom/popup-sheet.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { t } from "../i18n/translate.js";
 import { copyText, downloadText } from "../ui/report-export.js";
 import { debugSnapshot } from "../ui/debug-dump.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { formFactorFor, type Rect } from "../view/layout.js";
+import { formFactorFor } from "../view/layout.js";
 import { appVersionText, buildCommit } from "../view/app-version.js";
 import { reportReplayLink, withinTime } from "../replay/report-replay.js";
 import { knownSteamInstall } from "../platform/steam-install.js";
@@ -41,12 +41,12 @@ import { CLIENT_VERSION } from "../version.js";
 import { detectPlatform, openExternal } from "../platform/platform.js";
 import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { REPORT_ORDER, drawReportPanel, reportSteps, type ReportStopId } from "./report-issue-panel.js";
 import { SCENES } from "./keys.js";
 import { displayLineOf } from "../platform/screen-settings.js";
 import { roomState } from "../platform/room.js";
 import { ReplayTransportOverlay } from "./replay-transport.js";
 
-const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 12 };
 /** How long "Hide for a screenshot" keeps the panel away. A tap anywhere brings it back sooner. */
 const HIDE_MS = 5_000;
 
@@ -59,10 +59,12 @@ type Disabled = { readonly scene: Phaser.Scene; readonly pointer: boolean; reado
  */
 let pendingRestore: { readonly cancel: () => void; readonly entries: readonly Disabled[] } | null = null;
 
-type StopId = "close" | "hide" | "copy" | "download" | "github" | "feature" | "deck" | "discord";
-
+/** A Lit panel over the canvas (`dom/popup-sheet.ts`, an overlay region): the screen under it stays shown beneath its scrim. */
 export class ReportIssueOverlay extends Phaser.Scene {
-  #buttons: McButton[] = [];
+  #panel!: PopupSheet;
+  #glyphs!: SheetGlyphs;
+  /** What each control does this draw, by key. */
+  #actions = new Map<string, () => void>();
   #route: FocusRoute | null = null;
   /**
    * The input this panel turned off, to turn back on when it closes: each scene's pointer input, and its keyboard
@@ -79,9 +81,6 @@ export class ReportIssueOverlay extends Phaser.Scene {
   #hideTimer: Phaser.Time.TimerEvent | null = null;
   /** Brings the panel back while it is hidden for a screenshot (a tap does it; so does any pad button or key). */
   #restore: (() => void) | null = null;
-  #hints!: GlyphHints;
-  /** The buttons' rects, which a hanging glyph must not cover. */
-  #obstacles: Rect[] = [];
 
   constructor() {
     super(SCENES.reportIssue);
@@ -111,20 +110,23 @@ export class ReportIssueOverlay extends Phaser.Scene {
     this.scene.get(SCENES.reportButton)?.sys.setVisible(false);
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#hints = new GlyphHints(this, () => this.#obstacles);
+    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.(), undefined, {
+      onDismiss: () => this.#close(),
+    });
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
+      blocked: () => this.#panel.leaving,
       // B, Start and A bring a hidden panel back first; otherwise B closes it and Start files the bug report.
-      onCancel: () => (this.#restore ? this.#restore() : this.scene.stop()),
+      onCancel: () => (this.#restore ? this.#restore() : this.#close()),
       onPause: () => (this.#restore ? this.#restore() : this.#openIssue()),
       primary: () => (this.#restore ? "restore" : null),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
-      this.#hints.dispose();
+      this.#glyphs.dispose();
       this.#hideTimer?.remove();
       this.#hideTimer = null;
-      for (const button of this.#buttons) button.destroy();
-      this.#buttons = [];
       // Given back only once no pad button is held. A scene's pad plugin does not poll while its input is off, so
       // the press that closed this panel (B) would look like a fresh press to the screen under it the moment its input
       // came back, and close that too (B on the Trophy Room under the panel left both).
@@ -223,7 +225,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
       .then((report) => copyText(issueReportText(report)))
       .then((copied) => {
         if (!this.sys.isActive()) return;
-        this.#say(copied ? "Log copied. Paste it into the issue." : "This device would not copy. Use Download log.");
+        this.#say(copied ? t("report.copied") : t("report.copyFailed"));
       });
   }
 
@@ -236,10 +238,10 @@ export class ReportIssueOverlay extends Phaser.Scene {
       .then((report) => downloadText(issueReportText(report), fileName))
       .then(
         (saved) => {
-          if (saved && this.sys.isActive()) this.#say(`Saved ${fileName}. Attach it to the issue.`);
+          if (saved && this.sys.isActive()) this.#say(t("report.saved", { file: fileName }));
         },
         () => {
-          if (this.sys.isActive()) this.#say("This device would not save the file. Use Copy log.");
+          if (this.sys.isActive()) this.#say(t("report.saveFailed"));
         },
       )
       .finally(() => {
@@ -269,8 +271,6 @@ export class ReportIssueOverlay extends Phaser.Scene {
     this.#restore = back;
     // The press that hid the panel is still going up: listen from the next frame on.
     this.time.delayedCall(0, () => this.input.once("pointerup", back));
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
     // No stop is on the route (no ring over the screenshot); A reaches this one through the primary.
     this.#route?.set([], new Map([["restore", { rect: { x: 0, y: 0, width: 1, height: 1 }, activate: back }]]));
   }
@@ -280,185 +280,36 @@ export class ReportIssueOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  #close(): void {
+    this.#panel.close();
+  }
+
   #draw(): void {
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-    this.#hints.reset();
-    this.#obstacles = [];
     destroyChildren(this);
-
+    this.#glyphs.reset();
     const { width, height } = this.scale.gameSize;
-    const formFactor = formFactorFor(width, height);
-    const phone = formFactor === "phone" || formFactor === "phoneLandscape";
+    // Under the panel Phaser still hits a press: this shield keeps it from reaching the screen under.
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    this.add.graphics().fillStyle(surface.void.hex, 0.72).fillRect(0, 0, width, height);
-
-    // Two columns when the screen is wide but short (a phone on its side): one column would run off the bottom.
-    const columns = width >= 700 && height < 600 ? 2 : 1;
-    const pad = phone ? 16 : 24;
-    const boxWidth = Math.min(columns === 2 ? 860 : 560, width - (phone ? 16 : 48));
-    const columnGap = 24;
-    const columnWidth = (boxWidth - pad * 2 - (columns - 1) * columnGap) / columns;
-    const bodySize = phone ? 14 : 15;
-    const buttonHeight = hit.target;
-
-    const ground = this.add.graphics();
-    const placed: { readonly id: StopId; readonly rect: Rect; readonly activate: () => void }[] = [];
-    type Button = {
-      readonly id: StopId;
-      readonly label: string;
-      readonly kind: "primary" | "secondary";
-      readonly run: () => void;
-    };
-    const buttons: { readonly button: Button; readonly rect: Rect }[] = [];
-
-    const text = (value: string, spec: TypeSpec, alpha = 1, size?: number): Phaser.GameObjects.Text => {
-      const object = this.add.text(0, 0, value, textStyle(spec, surface.ink.hex, alpha)).setWordWrapWidth(columnWidth);
-      if (size !== undefined) object.setFontSize(size).setLineSpacing(3);
-      return object;
-    };
-
-    /** Lays one column's steps top-down from `top`, at `x`; returns where it ended. */
-    const layColumn = (
-      x: number,
-      top: number,
-      steps: readonly { title: string; body: string; rows: readonly (readonly Button[])[] }[],
-    ): number => {
-      let y = top;
-      steps.forEach((step, index) => {
-        if (index > 0) y += 18;
-        const heading = text(caseOf(typeRole.label, step.title), typeRole.label, 1, phone ? 11 : 12);
-        heading.setPosition(x, y);
-        y += heading.height + 6;
-        const body = text(step.body, typeRole.body, 0.9, bodySize);
-        body.setPosition(x, y);
-        y += body.height + 10;
-        const gap = 10;
-        step.rows.forEach((row, rowIndex) => {
-          if (rowIndex > 0) y += gap;
-          const each = (columnWidth - gap * (row.length - 1)) / row.length;
-          row.forEach((button, at) => {
-            buttons.push({ button, rect: { x: x + at * (each + gap), y, width: each, height: buttonHeight } });
-          });
-          y += buttonHeight;
-        });
-      });
-      return y;
-    };
-
-    const tip = screenshotTipOf(screenshotDeviceOf(navigator.userAgent));
-    const steps = [
-      {
-        title: "1 · Snap a screenshot",
-        body: `${tip} Hide this panel first so the picture shows the problem.`,
-        rows: [
-          [{ id: "hide", label: "Hide for a screenshot", kind: "secondary", run: () => this.#hideForScreenshot() }],
-        ],
-      },
-      {
-        title: "2 · Save the log",
-        body: "The log has this game's moves, your device details and a link to watch the game back, so we can see what you saw.",
-        rows: [
-          [
-            { id: "copy", label: "Copy log", kind: "secondary", run: () => this.#copy() },
-            { id: "download", label: "Download log", kind: "secondary", run: () => this.#download() },
-          ],
-        ],
-      },
-      {
-        title: "3 · Tell us about it",
-        body: "Report a bug opens GitHub's bug form with your device details and the game's replay link filled in: add your screenshot and the log there. Bugs and ideas go to GitHub; Discord is for chat and questions.",
-        rows: [
-          [{ id: "github", label: "Report a bug ↗", kind: "primary", run: () => this.#openIssue() }],
-          [
-            {
-              id: "feature",
-              label: "Suggest a feature ↗",
-              kind: "secondary",
-              run: () => openExternal(FEATURE_REQUEST_URL),
-            },
-            { id: "deck", label: "Request a deck ↗", kind: "secondary", run: () => openExternal(DECK_REQUEST_URL) },
-          ],
-          [
-            {
-              id: "discord",
-              label: "Chat on Discord ↗",
-              kind: "secondary",
-              run: () => openExternal(DISCORD_INVITE_URL),
-            },
-          ],
-        ],
-      },
-    ] satisfies { title: string; body: string; rows: Button[][] }[];
-
-    // Measured in place at a provisional origin, then the whole box is centred and everything moved with it.
-    const title = this.add.text(0, 0, "Report an issue", textStyle(typeRole.barTitle, surface.ink.hex));
-    const closeSize = hit.target;
-    title.setPosition(pad, pad + (closeSize - title.height) / 2);
-    const top = pad + closeSize + 8;
-    const left = pad;
-    const ends =
-      columns === 2
-        ? [layColumn(left, top, steps.slice(0, 2)), layColumn(left + columnWidth + columnGap, top, steps.slice(2))]
-        : [layColumn(left, top, steps)];
-    let bottom = Math.max(...ends);
-    if (this.#feedback !== "") {
-      const feedback = this.add
-        .text(left, bottom + 12, this.#feedback, textStyle(typeRole.emphasis, surface.ink.hex))
-        .setFontSize(bodySize)
-        .setWordWrapWidth(boxWidth - pad * 2);
-      bottom = feedback.y + feedback.height;
-    }
-    const boxHeight = bottom + pad;
-    const box: Rect = {
-      x: Math.round((width - boxWidth) / 2),
-      y: Math.round(Math.max(8, (height - boxHeight) / 2)),
-      width: boxWidth,
-      height: boxHeight,
-    };
-    for (const object of this.children.list) {
-      if (object instanceof Phaser.GameObjects.Text) object.setPosition(object.x + box.x, object.y + box.y);
-    }
-    ground.fillStyle(surface.paper.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    ground.lineStyle(4, surface.ink.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
-    ground
-      .lineStyle(2, surface.ink.hex, ink.meta)
-      .lineBetween(box.x + pad, box.y + top - 4, box.x + box.width - pad, box.y + top - 4);
-
-    const close: Rect = {
-      x: box.x + box.width - pad - closeSize + 8,
-      y: box.y + pad - 8,
-      width: closeSize,
-      height: closeSize,
-    };
-    const closeButton = new McButton(this, {
-      kind: "quiet",
-      label: "✕",
-      type: BUTTON_TYPE,
-      rect: close,
-      onClick: () => this.scene.stop(),
+    const b = this.#panel.begin(width, height);
+    const run = new Map<ReportStopId, () => void>([
+      ["close", () => this.#close()],
+      ["hide", () => this.#hideForScreenshot()],
+      ["copy", () => this.#copy()],
+      ["download", () => this.#download()],
+      ["github", () => this.#openIssue()],
+      ["feature", () => openExternal(FEATURE_REQUEST_URL)],
+      ["deck", () => openExternal(DECK_REQUEST_URL)],
+      ["discord", () => openExternal(DISCORD_INVITE_URL)],
+    ]);
+    const laid = drawReportPanel(b, this.#glyphs, {
+      screen: { width, height },
+      steps: reportSteps(screenshotTipOf(screenshotDeviceOf(navigator.userAgent))),
+      feedback: this.#feedback,
     });
-    this.#buttons.push(closeButton);
-    this.#hints.button(closeButton, ["cancel"], "paper");
-    placed.push({ id: "close", rect: close, activate: () => this.scene.stop() });
-    for (const { button, rect } of buttons) {
-      const moved = { ...rect, x: rect.x + box.x, y: rect.y + box.y };
-      this.#obstacles.push(moved);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: button.kind,
-          label: button.label,
-          type: BUTTON_TYPE,
-          rect: moved,
-          onClick: button.run,
-        }),
-      );
-      placed.push({ id: button.id, rect: moved, activate: button.run });
-    }
-    const order: StopId[] = ["hide", "copy", "download", "github", "feature", "deck", "discord", "close"];
-    const stops = new Map<string, FocusStop>(
-      placed.map((stop) => [stop.id, { rect: stop.rect, activate: stop.activate }]),
-    );
-    this.#route?.set(order, stops);
+    this.#actions = new Map(run);
+    const stops = new Map<string, FocusStop>();
+    for (const [id, stop] of laid) stops.set(id, { rect: stop.rect, activate: run.get(id)! });
+    this.#panel.mount(b, width, height);
+    this.#route?.set(REPORT_ORDER, stops);
   }
 }

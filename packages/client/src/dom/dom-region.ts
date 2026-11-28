@@ -234,10 +234,17 @@ export function clipWithHoles(box: Rect, holes: readonly Rect[]): string | null 
   return `path(evenodd, "${outer}${inner}")`;
 }
 
-/** The boxes a chrome scene draws (a toast, a corner button) while it is up, in game coordinates. */
-function chromeBoxes(game: Phaser.Game, region: Rect): Rect[] {
+/**
+ * The boxes a chrome scene draws (a toast, a corner button) while it is up, in game coordinates, for the scenes drawn
+ * above `key` only: a chrome scene below a pop-up (the Report dialog is brought to the top, over the corner buttons)
+ * is covered by it, as Phaser covered it, so it must not be cut out of the pop-up's panel and show through its scrim.
+ */
+function chromeBoxes(game: Phaser.Game, region: Rect, key: string): Rect[] {
   const boxes: Rect[] = [];
-  for (const scene of game.scene.scenes) {
+  const order = game.scene.scenes;
+  const at = order.findIndex((scene) => scene.sys.settings.key === key);
+  for (const [index, scene] of order.entries()) {
+    if (at >= 0 && index < at) continue;
     const drawn = scene.sys.isActive() || scene.sys.isPaused();
     if (!CHROME_SCENES.has(scene.sys.settings.key) || !drawn || !scene.sys.settings.visible) continue;
     const camera = scene.cameras?.main;
@@ -605,7 +612,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     this.#applyInert();
     const clip = shown
       ? clipWithHoles(this.#rect, [
-          ...chromeBoxes(this.#scene.game, this.#rect),
+          ...chromeBoxes(this.#scene.game, this.#rect, this.#scene.sys.settings.key),
           ...(typeof this.#holes === "function" ? this.#holes() : this.#holes),
           ...holesAbove(scenes, this.#scene.sys.settings.key),
         ])
