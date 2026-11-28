@@ -12,7 +12,7 @@ import { layoutGlyph, measureGlyphText } from "@mc/ui/glyph";
 import { font } from "../tokens.js";
 import { bindInputHints, type InputHints, type InputHintsSnapshot } from "../ui/input-hints.js";
 import { glyphHeightFor, scaledGlyphHeight, specsSignature } from "../view/glyph-placement.js";
-import { glyphsForShortcut, type GlyphSpec } from "../view/input-glyph-model.js";
+import { glyphsForShortcut, layerTriggerGlyph, type GlyphSpec } from "../view/input-glyph-model.js";
 import { glyphSetOf, glyphsExpanded } from "../view/input-mode.js";
 import { uiSpecOf } from "../view/glyph-ui-spec.js";
 import type { ShortcutId } from "../view/input-shortcuts.js";
@@ -78,6 +78,31 @@ export class ControlGlyphs {
     if (!snapshot || !specs) return undefined;
     const height = scaledGlyphHeight(glyphHeightFor(controlHeight), snapshot.settings.glyphSize);
     const uiSpecs = specs.map(uiSpecOf);
+    return {
+      specs: uiSpecs,
+      width: layoutGlyph(uiSpecs, height, BODY_MEASURE).fullWidth,
+      height,
+      ground,
+      openness: glyphsExpanded(snapshot.state) ? 1 : 0,
+      still: snapshot.settings.reducedMotion,
+      place,
+    };
+  }
+
+  /** The glyph of a trigger (LT / RT) for the control `key`, on a pad only; undefined while none shows. */
+  triggerGlyph(
+    key: string,
+    layer: "lt" | "rt",
+    ground: McGlyphGround,
+    controlHeight: number,
+    place: "inside" | "left" = "inside",
+  ): ControlGlyph | undefined {
+    this.#asked.set(key, { ids: [], height: controlHeight });
+    const snapshot = this.#snapshot;
+    const spec = snapshot ? layerTriggerGlyph(layer, snapshot.state, snapshot.settings) : null;
+    if (!snapshot || !spec) return undefined;
+    const height = scaledGlyphHeight(glyphHeightFor(controlHeight), snapshot.settings.glyphSize);
+    const uiSpecs = [uiSpecOf(spec)];
     return {
       specs: uiSpecs,
       width: layoutGlyph(uiSpecs, height, BODY_MEASURE).fullWidth,
