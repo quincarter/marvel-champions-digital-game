@@ -9,6 +9,8 @@ export { McAspectChip } from "./components/mc-aspect-chip/mc-aspect-chip.js";
 export { McButton } from "./components/mc-button/mc-button.js";
 export { McSettingsBody } from "./components/mc-settings-body/mc-settings-body.js";
 export { cancelPressesWithin, onHold, onTap, HOLD_MS, HOLD_SLOP_PX, TAP_SLOP_PX } from "./shared/tap.js";
+export { watchCard } from "./shared/card-events.js";
+export type { CardHoverDetail, CardHoverEndDetail, CardRef } from "./shared/card-events.js";
 export { McSheet } from "./components/mc-sheet/mc-sheet.js";
 export {
   McGlyph,
@@ -32,6 +34,14 @@ export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
 export { McPictureCard } from "./components/mc-picture-card/mc-picture-card.js";
 export { McListRow } from "./components/mc-list-row/mc-list-row.js";
 export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
+export { McFirstPlayerToken } from "./components/mc-first-player-token/mc-first-player-token.js";
+export type {
+  TokenFlight,
+  TokenFrame,
+  TokenPoint,
+  TokenRect,
+} from "./components/mc-first-player-token/mc-first-player-token.types.js";
+export { flipOffset } from "./components/mc-first-player-token/token-motion.js";
 export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
 export { McArticle } from "./components/mc-article/mc-article.js";
 export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";

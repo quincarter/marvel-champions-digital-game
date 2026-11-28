@@ -305,6 +305,9 @@ export const GUARDED_EVENTS = [
   "mc-field-focus",
   "mc-search-focus",
   "mc-tile-focus",
+  // A rebuilt page's own events (`mc-<feature>`: one name per feature, listed here) and its card pictures' Inspect.
+  "mc-setup",
+  "mc-card-inspect",
 ] as const;
 
 /** The guarded events that say the caret went into or left a field: its leaving (`focused: false`) always gets through, so the scene never keeps a stale "typing" flag. */
@@ -438,6 +441,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   #destroyed = false;
   readonly #overlay: boolean;
   readonly #shownUnder: ReadonlySet<string>;
+  readonly #passive: boolean;
 
   /**
    * `overlay`: the scene draws its own scrim and panel in the DOM, over the scene under it (a pop-up). Panels under it
@@ -445,16 +449,20 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
    *
    * `shownUnder`: keys of scenes that draw over only part of the screen (and not over this panel), so the panel stays
    * shown while they are up instead of hiding.
+   *
+   * `passive`: the panel only shows something over a screen (a token resting on a seat) and takes no press, so the
+   * controls under it stay pressable.
    */
   constructor(
     scene: Phaser.Scene,
     element: E,
     rect: Rect,
-    options: { readonly overlay?: boolean; readonly shownUnder?: readonly string[] } = {},
+    options: { readonly overlay?: boolean; readonly shownUnder?: readonly string[]; readonly passive?: boolean } = {},
   ) {
     this.#scene = scene;
     this.#shownUnder = new Set(options.shownUnder ?? []);
     this.#overlay = options.overlay ?? false;
+    this.#passive = options.passive ?? false;
     if (this.#overlay) overlayScenes.add(scene.sys.settings.key);
     liveRegions.add(this);
     this.element = element;
@@ -462,7 +470,11 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     this.#layer = uiLayer(scene.game);
     this.#wrap = document.createElement("div");
     this.#wrap.dataset.scene = scene.sys.settings.key;
-    Object.assign(this.#wrap.style, { position: "absolute", pointerEvents: "auto", opacity: "0" });
+    Object.assign(this.#wrap.style, {
+      position: "absolute",
+      pointerEvents: this.#passive ? "none" : "auto",
+      opacity: "0",
+    });
     this.#wrap.append(element);
     // Every panel's `mc-activate`, `mc-inspect`, `mc-slide`, `mc-step` (a card hold's timer fires it) and its fields'
     // `mc-input` are stopped here, before its scene hears them, while the scene isn't taking presses (stopped, paused,
@@ -607,7 +619,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     const live = this.#scene.input?.enabled !== false;
     if (live !== this.#live) {
       this.#live = live;
-      this.#wrap.style.pointerEvents = live ? "auto" : "none";
+      this.#wrap.style.pointerEvents = live && !this.#passive ? "auto" : "none";
     }
     this.#applyInert();
     const clip = shown
