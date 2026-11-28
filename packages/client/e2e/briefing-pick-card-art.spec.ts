@@ -13,7 +13,7 @@ import {
 /**
  * The Briefing's "Your call" shows the cards a pick is about as pictures, and each picture opens the card in Inspect
  * (`view/campaign-briefing-model.ts`'s `sideSchemePickCards` / `cardPickOptionsOf`, drawn by
- * `scenes/campaign/briefing-pick-cards.ts`). Two boxes: NeXt Evolution's side-scheme pick at issue #1 (six rows, three
+ * `scenes/campaign/briefing/calls/pick-art.ts`). Two boxes: NeXt Evolution's side-scheme pick at issue #1 (six rows, three
  * cards each: the scheme, the environment it earns, the encounter card it brings) and Age of Apocalypse's Desperate
  * Measures offer (a plain pick whose one option is a card). Reading a card never answers the question, the list keeps
  * its scroll position across Inspect, and PICK still records the choice. Runs come from `campaign/dev-fixtures.ts`.
