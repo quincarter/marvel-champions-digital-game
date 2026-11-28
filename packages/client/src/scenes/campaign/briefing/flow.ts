@@ -24,7 +24,7 @@ import { applyIssueMode } from "../../../view/campaign-modes-model.js";
 import { SCENES } from "../../keys.js";
 import { routeUnfoldedGame } from "../unfolded-game-route.js";
 import type { CampaignOpenerData } from "../routes.js";
-import { resetCallState, type BriefingState } from "./context.js";
+import type { BriefingState } from "./context.js";
 
 export class BriefingFlow {
   readonly #scene: Phaser.Scene;
@@ -112,7 +112,6 @@ export class BriefingFlow {
         return;
       }
       state.pending = result.choice;
-      resetCallState(state);
     } else {
       state.record = result.record;
       this.#syncIssue(result.record);
@@ -151,7 +150,6 @@ export class BriefingFlow {
       { instructionId: pending.instructionId, slot: pending.slot, seatNumber: pending.seatNumber, picked },
     ];
     state.pending = null;
-    resetCallState(state);
     void this.compose();
   }
 
