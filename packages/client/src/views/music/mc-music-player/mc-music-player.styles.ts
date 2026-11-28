@@ -67,6 +67,8 @@ export const McMusicPlayerStyles = css`
     width: 36px;
     height: 36px;
     order: 3;
+    /* Room for a glyph hung to its left, so the earned count never runs under it. */
+    margin-left: var(--close-room, 0);
   }
   :host([phone]) .close {
     width: 92px;

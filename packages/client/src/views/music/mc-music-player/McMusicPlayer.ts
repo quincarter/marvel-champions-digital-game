@@ -108,7 +108,13 @@ export class McMusicPlayer extends MusicElement {
       }
       <div class="panel">
         <div class="head">
-          <div class="close" style=${styleMap({ "--mc-label-shift": `${glyphLabelShift(glyph)}px` })}>
+          <div
+            class="close"
+            style=${styleMap({
+              "--mc-label-shift": `${glyphLabelShift(glyph)}px`,
+              "--close-room": `${glyph?.place === "left" ? (glyph.width ?? 40) + 6 : 0}px`,
+            })}
+          >
             <mc-button
               data-stop="close"
               kind="quiet"
