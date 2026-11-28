@@ -44,6 +44,7 @@ describe("regionTakesEvents", () => {
       "mc-card-inspect",
       "mc-scenario-select",
       "mc-pause",
+      "mc-title",
       "mc-decks",
     ]);
   });
