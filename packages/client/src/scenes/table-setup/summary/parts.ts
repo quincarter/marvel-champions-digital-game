@@ -98,6 +98,8 @@ export function dealButton(
   look: { readonly statusColor: number; readonly statusX: number; readonly outline: boolean },
 ): void {
   const label = input.starting ? t("tableSetup.dealing") : input.room ? t("room.setupDone") : t("tableSetup.deal");
+  // The paper outline is drawn first, round the button: a part drawn over the button would take its press.
+  if (look.outline) f.b.box(inset(rect, -1.5), { stroke: surface.paper.hex, strokeWidth: 3 });
   glyphs.button(f.b, {
     key: "deal-it-out",
     rect,
@@ -110,7 +112,6 @@ export function dealButton(
     ground: "ink",
   });
   press(f, "deal-it-out", rect, on.deal, { noTap: true });
-  if (look.outline) f.b.box(inset(rect, 1.5), { stroke: surface.paper.hex, strokeWidth: 3 });
   if (input.status.length > 0)
     f.b.text(look.statusX, rect.y - 20, input.status, typeRole.body, {
       color: look.statusColor,
