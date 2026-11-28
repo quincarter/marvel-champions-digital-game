@@ -18,6 +18,7 @@ import {
   CARD_HOVER_SCALE_VALUES,
   PLAY_AREA_ORDER_VALUES,
   SCHEME_FAN_BACKGROUND_VALUES,
+  THREAT_METER_STYLE_VALUES,
   INSPECT_CARD_VALUES,
   CARD_SIZE_VALUES,
   DISPLAY_MODE_VALUES,
@@ -118,6 +119,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (hoverScaleValue !== undefined) out.cardHoverScale = hoverScaleValue;
   const fanBackground = SCHEME_FAN_BACKGROUND_VALUES.find((value) => value === source["schemeFanBackground"]);
   if (fanBackground !== undefined) out.schemeFanBackground = fanBackground;
+  const meterStyle = THREAT_METER_STYLE_VALUES.find((value) => value === source["threatMeterStyle"]);
+  if (meterStyle !== undefined) out.threatMeterStyle = meterStyle;
   const playAreaOrderValue = PLAY_AREA_ORDER_VALUES.find((value) => value === source["playAreaOrder"]);
   if (playAreaOrderValue !== undefined) out.playAreaOrder = playAreaOrderValue;
   const cardSizeValue = CARD_SIZE_VALUES.find((value) => value === source["cardSize"]);

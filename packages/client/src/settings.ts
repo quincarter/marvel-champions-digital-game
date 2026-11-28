@@ -204,6 +204,13 @@ export interface Settings {
    * the dimmed table with nothing behind them, 100 is a solid sheet (Quin, 2026-11-18). Defaults to 0.
    */
   readonly schemeFanBackground: SchemeFanBackground;
+  /**
+   * How a scheme's threat meter shows its count (`ui/widgets.ts` `paintThreatMeter`): "box" is a parchment box across
+   * the bar, "tall" the same box on a taller bar so the fill shows above and below it, "beside" the count in its own box
+   * to the right of the bar, and "outline" an outlined count straight on the bar with no box. A Discord request
+   * (2026-11-27): the box hid where the fill stopped. Defaults to "box".
+   */
+  readonly threatMeterStyle: ThreatMeterStyle;
   /** The order the cards in each play area are drawn in (`view/play-area-order.ts`); the game's own order never changes. Defaults to as played. */
   readonly playAreaOrder: PlayAreaOrder;
   /**
@@ -391,6 +398,10 @@ export function schemeFanBackgroundAlpha(value: SchemeFanBackground): number {
   return Number(value) / 100;
 }
 
+/** How a threat meter shows its count; see `Settings.threatMeterStyle`. */
+export type ThreatMeterStyle = "box" | "tall" | "beside" | "outline";
+export const THREAT_METER_STYLE_VALUES: readonly ThreatMeterStyle[] = ["box", "tall", "beside", "outline"];
+
 /** How your play area is drawn on the table (a view preference only; the engine keeps the order cards entered play). */
 export type PlayAreaOrder = "played" | "type" | "cost" | "name";
 export const PLAY_AREA_ORDER_VALUES: readonly PlayAreaOrder[] = ["played", "type", "cost", "name"];
@@ -566,6 +577,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     largeSchemes: false,
     schemeStack: false,
     schemeFanBackground: "0",
+    threatMeterStyle: "box",
     playAreaOrder: "played",
     inspectCard: "large",
     hoverHeroCard: true,

@@ -2109,6 +2109,13 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Qué hay detrás de los planes cuando Apilar planes los despliega. Ninguno deja las cartas sobre la mesa oscurecida; los demás ponen una hoja de papel detrás, hasta opaca.",
   "settings.fanBackground.none": "Ninguno",
   "settings.fanBackground.solid": "Opaco",
+  "settings.threatMeterStyle.title": "Barra de amenaza",
+  "settings.threatMeterStyle.detail":
+    "Cómo muestra su cifra la barra de amenaza de un plan. Recuadro pone el número en un recuadro sobre la barra; Barra alta hace la barra más alta para que el rojo se vea por encima y por debajo del recuadro; Al lado lleva el número junto a la barra para que se vea entera; Contorneado lo escribe directamente sobre la barra, sin recuadro.",
+  "settings.threatMeterStyle.box": "Recuadro",
+  "settings.threatMeterStyle.tall": "Barra alta",
+  "settings.threatMeterStyle.beside": "Al lado",
+  "settings.threatMeterStyle.outline": "Contorneado",
   "settings.deckListOnOpen.title": "Lista de mazos al abrir",
   "settings.deckListOnOpen.detail":
     "Con qué lista se abre la pantalla Mazos: las tres juntas (como siempre), solo los mazos preconstruidos (Precons), solo los tuyos (Tuyos, el filtro Tus mazos), solo los de la comunidad (Com., el filtro Comunidad), o la que tuvieras abierta la última vez. Los filtros de la lista la cambian cuando quieras.",

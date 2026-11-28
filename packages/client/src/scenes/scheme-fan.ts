@@ -241,7 +241,17 @@ export class SchemeFanOverlay extends Phaser.Scene {
         })
         .setOrigin(0.5)
         .setFontSize(13);
-      paintThreatMeter(mg, meterText, meterRect, scheme, scheme.threat);
+      paintThreatMeter(
+        mg,
+        meterText,
+        meterRect,
+        scheme,
+        scheme.threat,
+        1,
+        null,
+        undefined,
+        appSession().settings.threatMeterStyle,
+      );
       const note = label(
         this,
         slot.caption.x,

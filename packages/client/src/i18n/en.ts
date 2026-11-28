@@ -2080,6 +2080,13 @@ export const en = {
     "What's behind the schemes when Stack schemes fans them out. None leaves the cards over the dimmed table; the others lay a paper sheet behind them, up to solid.",
   "settings.fanBackground.none": "None",
   "settings.fanBackground.solid": "Solid",
+  "settings.threatMeterStyle.title": "Threat bar",
+  "settings.threatMeterStyle.detail":
+    "How a scheme's threat bar shows its count. Box puts the number on a box across the bar; Taller bar makes the bar taller so the red shows above and below the box; Beside moves the number next to the bar so the whole bar shows; Outlined writes it straight on the bar with no box.",
+  "settings.threatMeterStyle.box": "Box",
+  "settings.threatMeterStyle.tall": "Taller bar",
+  "settings.threatMeterStyle.beside": "Beside",
+  "settings.threatMeterStyle.outline": "Outlined",
   "settings.deckListOnOpen.title": "Deck list on open",
   "settings.deckListOnOpen.detail":
     "Which list the Decks screen opens on: all three together (as it always has), only the preconstructed decks (Precons), only your own (Yours, the Your decks chip), only the community decks (Comm., the Community chip), or whichever you had open last. The list chips switch it any time.",

@@ -3220,8 +3220,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       bar.current,
       1,
       bar.after,
+      undefined,
+      appSession().settings.threatMeterStyle,
     );
-    text.setY(rect.y + Math.min(rect.height, 18) / 2 - 1);
   }
 
   /**

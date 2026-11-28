@@ -42,6 +42,7 @@ describe("villain phase settings", () => {
     expect(settings.largeSchemes).toBe(false);
     expect(settings.schemeStack).toBe(false);
     expect(settings.schemeFanBackground).toBe("0");
+    expect(settings.threatMeterStyle).toBe("box");
     expect(settings.playAreaOrder).toBe("played");
     expect(settings.allowExtraModularSets).toBe(false);
     expect(settings.deckListOnOpen).toBe("all");

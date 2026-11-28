@@ -13,6 +13,7 @@ export type SettingsItemId =
   | "card-size"
   | "play-area-order"
   | "scheme-fan-background"
+  | "threat-meter-style"
   | "card-hover"
   | "card-language"
   | "inspect-card"
@@ -145,6 +146,7 @@ export function settingsSectionsOf(input: {
         "large-schemes",
         "scheme-stack",
         "scheme-fan-background",
+        "threat-meter-style",
         "play-area-order",
         "hero-art",
         ...(input.cardLanguage ? (["card-language"] as const) : []),
