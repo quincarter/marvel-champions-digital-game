@@ -101,19 +101,40 @@ describe("a controller Android's Chromium has no table for", () => {
     expect(h.onIntent).toHaveBeenCalledWith("down");
   });
 
-  test("its right stick scrolls once it has been seen at rest", () => {
-    const pad = unmappedPad([0, 0, 0, 0]);
+  test("its left stick walks the focus", () => {
+    const pad = unmappedPad();
+    const h = bind(pad, ANDROID_WEBVIEW);
+    pad.axes[1] = { getValue: () => 1 };
+    h.step();
+    expect(h.onIntent).toHaveBeenCalledWith("down");
+  });
+
+  // Chromium may fill the right-stick slots of a pad without one with another axis (a throttle, a lone trigger).
+  test("whatever sits in its right-stick slots never scrolls: resting pushed, crossing zero, or after a reconnect", () => {
+    const pad = unmappedPad();
+    const h = bind(pad, ANDROID_WEBVIEW);
+    for (const value of [-1, -1, 0, 0.5, 1, 0, -1]) {
+      pad.axes[2] = { getValue: () => value };
+      pad.axes[3] = { getValue: () => value };
+      h.step();
+    }
+    pad.connected = false;
+    h.step();
+    pad.connected = true;
+    for (const value of [0, 1, -1]) {
+      pad.axes[2] = { getValue: () => value };
+      h.step();
+    }
+    expect(h.onScroll).not.toHaveBeenCalled();
+  });
+
+  test("a standard pad's right stick still scrolls (the harness sees a scroll when there is one)", () => {
+    const pad = unmappedPad();
+    pad.pad.mapping = "standard";
     const h = bind(pad, ANDROID_WEBVIEW);
     pad.axes[3] = { getValue: () => 1 };
     h.step();
     expect(h.onScroll).toHaveBeenCalled();
-  });
-
-  test("an axis Chromium put in the right-stick slots that rests pushed never scrolls", () => {
-    const pad = unmappedPad([0, 0, -1, 0]);
-    const h = bind(pad, ANDROID_WEBVIEW);
-    for (let i = 0; i < 5; i += 1) h.step();
-    expect(h.onScroll).not.toHaveBeenCalled();
   });
 
   test("the same pad is ignored on the desktop, where its buttons would come in raw order", () => {

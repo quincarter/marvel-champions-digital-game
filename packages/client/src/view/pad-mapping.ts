@@ -18,12 +18,10 @@
  * exception, and neither does Chrome on an Android tablet asking for the desktop site (it sends a Linux user agent).
  *
  * Chromium's buttons and left stick are fully laid out, but its right stick is not always a stick: on a pad without
- * one, a newer Chromium fills those two slots with whatever other axes the pad has (a lone trigger, a throttle). So an
- * unmapped pad's right stick only scrolls once it has been seen at rest (`rightStickTrusted`): an axis that rests
- * pushed, like a throttle at -1, never scrolls. Scrolling only moves the view, never plays anything.
+ * one, a newer Chromium fills those two slots with whatever other axes the pad has (a lone trigger, a throttle), and
+ * nothing the page can read tells the two apart. So an unmapped pad's right stick is never read (`rightStickReadable`):
+ * it loses right-stick scrolling, which the D-pad's focus already covers, and no stray axis can scroll the view.
  */
-
-import { SCROLL_DEADZONE } from "./pad-repeat.js";
 
 /** Whether `userAgent` is Chromium's on Android (the app's WebView, Chrome, and browsers built on Chromium). */
 export function isAndroidChromium(userAgent: string): boolean {
@@ -41,11 +39,7 @@ export function padLayoutUsableHere(mapping: unknown): boolean {
   return padLayoutUsable(mapping, globalThis.navigator?.userAgent ?? "");
 }
 
-/**
- * Whether a pad's right stick may scroll now, given whether it already could. A standard pad's always may; any other
- * pad's may from the first time both axes read at rest, and then for as long as the same pad holds that index.
- */
-export function rightStickTrusted(trusted: boolean, mapping: unknown, x: number, y: number): boolean {
-  if (trusted || typeof mapping !== "string" || mapping === "standard") return true;
-  return Math.hypot(x, y) < SCROLL_DEADZONE;
+/** Whether a pad's right stick is a real stick: only a standard pad's (or one with no mapping field) is sure to be. */
+export function rightStickReadable(mapping: unknown): boolean {
+  return typeof mapping !== "string" || mapping === "standard";
 }
