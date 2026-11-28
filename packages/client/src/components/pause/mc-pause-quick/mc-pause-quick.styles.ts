@@ -13,7 +13,7 @@ export const McPauseQuickStyles = [
       min-width: 0;
     }
     .toggle {
-      flex-grow: 1.7;
+      flex-grow: 1.35;
       min-height: 44px;
       --mc-button-size: 12px;
     }

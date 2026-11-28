@@ -46,13 +46,13 @@ export const McPauseLinkRowStyles = [
     :host([variant="compact"]) .box {
       justify-content: center;
       min-height: 44px;
-      padding: 4px 8px;
+      padding: 4px 3px;
       text-align: center;
     }
     :host([variant="compact"]) .title {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-size: var(--mc-small-11, 11px);
+      line-height: 1.15;
+      overflow-wrap: anywhere;
     }
     /* A search result: no box, a hairline under it. */
     :host([variant="result"]) .box {
