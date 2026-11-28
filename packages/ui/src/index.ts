@@ -204,6 +204,8 @@ export type { FooterBarLink, FooterBarModel } from "./components/mc-footer-bar/m
 export type { Placed, TitlePanelModel } from "./components/mc-title-panel/mc-title-panel.types.js";
 export { McStatTile } from "./components/mc-stat-tile/mc-stat-tile.js";
 export { McChartBar } from "./components/mc-chart-bar/mc-chart-bar.js";
+export { McPopupButton } from "./components/mc-popup-button/mc-popup-button.js";
+export { McLanguageOption } from "./components/mc-language-option/mc-language-option.js";
 export { McLanguageMenu } from "./components/mc-language-menu/mc-language-menu.js";
 export { McReportIssue } from "./components/mc-report-issue/mc-report-issue.js";
 export { McTrackRow } from "./components/mc-track-row/mc-track-row.js";

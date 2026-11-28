@@ -33,13 +33,13 @@ describe("mc-popup-button", () => {
 
   it("hangs the glyph and slides the word over for an inside one", async () => {
     const el = await mount(glyph);
-    expect(el.shadowRoot!.querySelectorAll(".hang")).toHaveLength(1);
+    expect(el.shadowRoot!.querySelectorAll("mc-glyph-hint")).toHaveLength(1);
     expect(el.style.getPropertyValue("--mc-label-shift")).toBe("19px");
   });
 
   it("puts a left glyph outside and leaves the word where it is", async () => {
     const el = await mount({ ...glyph, place: "left" });
-    expect(el.shadowRoot!.querySelector(".hang.left")).not.toBeNull();
+    expect(el.shadowRoot!.querySelector("mc-glyph-hint")).not.toBeNull();
     expect(el.style.getPropertyValue("--mc-label-shift")).toBe("0px");
   });
 

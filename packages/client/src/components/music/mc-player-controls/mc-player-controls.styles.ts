@@ -12,17 +12,10 @@ export const McPlayerControlsStyles = css`
   .row + .row {
     margin-top: 8px;
   }
-  .ctl {
-    position: relative;
-    min-width: 0;
-    height: 100%;
+  mc-popup-button {
     flex: 1;
   }
-  .ctl mc-button {
-    height: 100%;
-    --mc-button-size: 12px;
-  }
-  :host([slider]) .pause .ctl {
+  :host([slider]) .pause mc-popup-button {
     flex: 0 0 104px;
   }
   slot {

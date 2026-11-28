@@ -1,6 +1,5 @@
 import { html, nothing, type PropertyDeclarations } from "lit";
-import { styleMap } from "lit/directives/style-map.js";
-import { glyphLabelShift, onTap, ThemeStyles } from "@mc/ui";
+import { onTap, ThemeStyles } from "@mc/ui";
 import { MusicElement } from "../../../components/music/shared/MusicElement.js";
 import type { McTrackList } from "../../../components/music/mc-track-list/McTrackList.js";
 import type { McVolumeSlider, SlideDetail, StepDetail } from "@mc/ui";
@@ -108,15 +107,15 @@ export class McMusicPlayer extends MusicElement {
       }
       <div class="panel">
         <div class="head">
-          <div class="close" style=${styleMap({ "--mc-label-shift": `${glyphLabelShift(glyph)}px` })}>
-            <mc-button
-              data-stop="close"
-              kind="quiet"
-              .label=${m.closeLabel}
-              @mc-press=${() => this.press("close")}
-            ></mc-button>
-            ${glyph ? html`<mc-glyph-hint .glyph=${glyph}></mc-glyph-hint>` : nothing}
-          </div>
+          <mc-popup-button
+            class="close"
+            .button=${{ key: "close", kind: "quiet", label: m.closeLabel }}
+            .glyph=${glyph ?? null}
+            @mc-activate=${(event: Event) => {
+              event.stopPropagation();
+              this.press("close");
+            }}
+          ></mc-popup-button>
           <span class="title">${m.title}</span>
           <span class="earned">${m.earned}</span>
         </div>

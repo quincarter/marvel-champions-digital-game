@@ -1,6 +1,5 @@
-import { html, nothing, type PropertyDeclarations, type TemplateResult } from "lit";
-import { styleMap } from "lit/directives/style-map.js";
-import { glyphLabelShift, ThemeStyles, type ControlGlyphs } from "@mc/ui";
+import { html, type PropertyDeclarations, type TemplateResult } from "lit";
+import { ThemeStyles, type ControlGlyphs } from "@mc/ui";
 import { MusicElement } from "../shared/MusicElement.js";
 import { McPlayerControlsStyles } from "./mc-player-controls.styles.js";
 import type { McPlayerControlsProps } from "./mc-player-controls.types.js";
@@ -53,19 +52,14 @@ export class McPlayerControls extends MusicElement implements McPlayerControlsPr
   }
 
   #button(key: ControlKey, label: string, selected: boolean, reason: string): TemplateResult {
-    const glyph = this.glyphs[key];
-    return html`<div class="ctl" style=${styleMap({ "--mc-label-shift": `${glyphLabelShift(glyph)}px` })}>
-      <mc-button
-        data-stop=${key}
-        kind="secondary"
-        .label=${label}
-        ?selected=${selected}
-        ?disabled=${reason !== ""}
-        .reason=${reason}
-        @mc-press=${() => this.press(key)}
-      ></mc-button>
-      ${glyph ? html`<mc-glyph-hint .glyph=${glyph}></mc-glyph-hint>` : nothing}
-    </div>`;
+    return html`<mc-popup-button
+      .button=${{ key, kind: "secondary", label, selected, ...(reason === "" ? {} : { disabled: reason }) }}
+      .glyph=${this.glyphs[key] ?? null}
+      @mc-activate=${(event: Event) => {
+        event.stopPropagation();
+        this.press(key);
+      }}
+    ></mc-popup-button>`;
   }
 
   override render() {

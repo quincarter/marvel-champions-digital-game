@@ -1,6 +1,7 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import "../mc-button/mc-button.js";
-import "../mc-glyph/mc-glyph.js";
+import "../controls/mc-glyph-hint/mc-glyph-hint.js";
+import { glyphLabelShift } from "../controls/mc-glyph-hint/mc-glyph-hint.types.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { McPopupButtonStyles } from "./mc-popup-button.styles.js";
 import type { ControlGlyph, PopupButton } from "../../shared/popup.types.js";
@@ -30,15 +31,8 @@ export class McPopupButton extends LitElement {
     this.glyph = null;
   }
 
-  /** How far an inside glyph slides the word over to make room (open, beside the word). */
-  get #shift(): number {
-    const g = this.glyph;
-    if (!g || g.place === "left" || g.openness <= 0 || g.width === undefined) return 0;
-    return Math.round(g.width / 2 + 4);
-  }
-
   override willUpdate(): void {
-    this.style.setProperty("--mc-label-shift", `${this.#shift}px`);
+    this.style.setProperty("--mc-label-shift", `${glyphLabelShift(this.glyph ?? undefined)}px`);
   }
 
   #press = (): void => {
@@ -60,18 +54,7 @@ export class McPopupButton extends LitElement {
         ?disabled=${b.disabled !== undefined}
         .reason=${b.disabled ?? ""}
         @mc-press=${this.#press}
-      ></mc-button
-      >${
-        g
-          ? html`<mc-glyph
-              class=${g.place === "left" ? "hang left" : "hang"}
-              .specs=${g.specs}
-              .height=${g.height}
-              .ground=${g.ground}
-              .openness=${g.openness}
-              ?still=${g.still ?? false}
-            ></mc-glyph>`
-          : nothing
-      }`;
+      ></mc-button>
+      ${g ? html`<mc-glyph-hint .glyph=${g}></mc-glyph-hint>` : nothing}`;
   }
 }
