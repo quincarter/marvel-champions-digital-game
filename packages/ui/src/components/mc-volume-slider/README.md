@@ -12,11 +12,11 @@ Used by `mc-music-player`.
 
 ## Properties
 
-| Property     | Type               | Notes               |
-| ------------ | ------------------ | ------------------- |
-| `value`      | `number`           | 0 to 100            |
-| `label`      | `string`           | the percent as read |
-| `stepLabels` | `[string, string]` | for the buttons     |
+| Property     | Type               | Notes                                         |
+| ------------ | ------------------ | --------------------------------------------- |
+| `value`      | `number`           | 0 to 100                                      |
+| `label`      | `string`           | the percent as read                           |
+| `stepLabels` | `[string, string]` | for the buttons                               |
 | `down-stop`  | `string`           | the - button's focus stop key (`volume-down`) |
 | `up-stop`    | `string`           | the + button's focus stop key (`volume-up`)   |
 

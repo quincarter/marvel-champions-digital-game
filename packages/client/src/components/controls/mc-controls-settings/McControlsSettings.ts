@@ -82,8 +82,7 @@ export class McControlsSettings extends LitElement {
     >
       <span slot="preview" class="preview">
         ${row.preview.map(
-          (glyph) =>
-            html`<mc-glyph .specs=${[glyph.spec]} .height=${glyph.height} ground="ink" still></mc-glyph>`,
+          (glyph) => html`<mc-glyph .specs=${[glyph.spec]} .height=${glyph.height} ground="ink" still></mc-glyph>`,
         )}
       </span>
     </mc-volume-slider>`;

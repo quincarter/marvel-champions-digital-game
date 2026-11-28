@@ -168,8 +168,7 @@ export class ControlsOverlay extends Phaser.Scene {
           ? { track, down: downRect, up: upRect, percent, viewport }
           : null;
       },
-      revealHintSlider: () =>
-        mountedSlider(this.#mounted?.element)?.scrollIntoView({ block: "nearest" }),
+      revealHintSlider: () => mountedSlider(this.#mounted?.element)?.scrollIntoView({ block: "nearest" }),
     };
   }
 
@@ -267,7 +266,12 @@ export class ControlsOverlay extends Phaser.Scene {
           ...size,
           adjust: (direction) => this.#setHintSize(steppedGlyphSize(appSession().settings.glyphSize, direction)),
         } satisfies FocusStop);
-      const order = ["back", "tab:controller", "tab:keyboard", ...[...stops.keys()].filter((key) => key.startsWith("row:"))];
+      const order = [
+        "back",
+        "tab:controller",
+        "tab:keyboard",
+        ...[...stops.keys()].filter((key) => key.startsWith("row:")),
+      ];
       this.#route?.set(
         order.filter((key) => stops.has(key)),
         stops,
@@ -279,7 +283,8 @@ export class ControlsOverlay extends Phaser.Scene {
 /** The Hint size slider element, through the page's open shadow roots. */
 function mountedSlider(page: HTMLElement | undefined): HTMLElement | null {
   return (
-    page?.shadowRoot?.querySelector("mc-controls-settings")?.shadowRoot?.querySelector<HTMLElement>("mc-volume-slider") ??
-    null
+    page?.shadowRoot
+      ?.querySelector("mc-controls-settings")
+      ?.shadowRoot?.querySelector<HTMLElement>("mc-volume-slider") ?? null
   );
 }

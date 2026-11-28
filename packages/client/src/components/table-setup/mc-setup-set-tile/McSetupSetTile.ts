@@ -17,6 +17,7 @@ import { McSetupSetTileStyles } from "./mc-setup-set-tile.styles.js";
  * @element mc-setup-set-tile
  * @prop tile - What it shows (`SetTileInput`).
  * @attr mode - wide | phone.
+ * @attr stop-prefix - What the tile's focus stop key starts with (`modular:`; the Civil War builder says `civil:set:`).
  * @fires mc-setup - `modular-toggle` on a tap, `modular-cards` on the picture, the tab or a hold.
  */
 export class McSetupSetTile extends LitElement {
@@ -25,10 +26,12 @@ export class McSetupSetTile extends LitElement {
   static override properties: PropertyDeclarations = {
     tile: { attribute: false },
     mode: { type: String, reflect: true },
+    stopPrefix: { type: String, attribute: "stop-prefix" },
   };
 
   declare tile: SetTileInput | null;
   declare mode: SetupMode;
+  declare stopPrefix: string;
   #watched: HTMLElement | null = null;
   #unwatch: (() => void) | null = null;
 
@@ -36,6 +39,7 @@ export class McSetupSetTile extends LitElement {
     super();
     this.tile = null;
     this.mode = "wide";
+    this.stopPrefix = "modular:";
     new SetupRelay(this);
   }
 
@@ -78,7 +82,7 @@ export class McSetupSetTile extends LitElement {
       : nothing;
     if (phone) {
       return html`<mc-check-row
-          .stop=${`modular:${id}`}
+          .stop=${`${this.stopPrefix}${id}`}
           name=${tile.name}
           meta=${tile.label}
           ?checked=${tile.selected}
@@ -88,7 +92,7 @@ export class McSetupSetTile extends LitElement {
         >${picture}${hits}`;
     }
     return html`<mc-press-card
-        .stop=${`modular:${id}`}
+        .stop=${`${this.stopPrefix}${id}`}
         ?selected=${tile.selected}
         ?dim=${tile.dim}
         .action=${toggle}

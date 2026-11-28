@@ -27,20 +27,22 @@ export class McControlsList extends LitElement {
 
   override render() {
     return html`${this.sections.map(
-      (section) => html`<section data-section=${section.id}>
-        <mc-section-heading onink .label=${section.title}></mc-section-heading>
-        ${section.rows.map(
-          (row) => html`<div class="row" data-row=${row.id}>
-            <span class="glyphs">
-              ${row.glyphs.length > 0 ? html`<mc-glyph .specs=${row.glyphs} .height=${24} ground="ink" still></mc-glyph>` : nothing}
-            </span>
-            <span class="words">
-              <span class="action">${row.action}</span>
-              <span class="note">${row.note}</span>
-            </span>
-          </div>`,
-        )}
-      </section>`,
+      (section) =>
+        html`<section data-section=${section.id}>
+          <mc-section-heading onink .label=${section.title}></mc-section-heading>
+          ${section.rows.map(
+            (row) =>
+              html`<div class="row" data-row=${row.id}>
+                <span class="glyphs">
+                  ${row.glyphs.length > 0 ? html`<mc-glyph .specs=${row.glyphs} .height=${24} ground="ink" still></mc-glyph>` : nothing}
+                </span>
+                <span class="words">
+                  <span class="action">${row.action}</span>
+                  <span class="note">${row.note}</span>
+                </span>
+              </div>`,
+          )}
+        </section>`,
     )}`;
   }
 }

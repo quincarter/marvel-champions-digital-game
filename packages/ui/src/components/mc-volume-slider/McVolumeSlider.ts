@@ -179,6 +179,9 @@ export class McVolumeSlider extends LitElement {
         <span class="heading">${this.heading}</span>
         ${this.detail ? html`<span class="detail">${this.detail}</span>` : nothing}
       </div>
-      <div class="line"><slot name="preview"></slot><div class="control">${slider}</div></div>`;
+      <div class="line">
+        <slot name="preview"></slot>
+        <div class="control">${slider}</div>
+      </div>`;
   }
 }

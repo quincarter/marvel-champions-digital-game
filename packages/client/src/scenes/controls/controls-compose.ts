@@ -120,7 +120,12 @@ export function composeControls(input: ControlsInput): ControlsPageModel {
         choiceRow("source", glyphSourceRowInfoOf(settings)),
         slider,
       ]
-    : [choiceRow("hand", keyboardHandRowInfoOf(settings)), toggle(hints), choiceRow("source", glyphSourceRowInfoOf(settings)), slider];
+    : [
+        choiceRow("hand", keyboardHandRowInfoOf(settings)),
+        toggle(hints),
+        choiceRow("source", glyphSourceRowInfoOf(settings)),
+        slider,
+      ];
   const sections: ControlsListSection[] = controller
     ? [
         sectionOf("buttons", t("controls.section.buttons"), padRowsOf(state.family, state.swap)),

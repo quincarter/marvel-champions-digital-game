@@ -11,7 +11,10 @@ async function mount(): Promise<McControlsPage> {
   el.model = {
     phone: false,
     bar: { title: "Controls", backLabel: "Back", backGlyph: null },
-    tabs: [{ id: "controller", label: "Controller" }, { id: "keyboard", label: "Keyboard" }],
+    tabs: [
+      { id: "controller", label: "Controller" },
+      { id: "keyboard", label: "Keyboard" },
+    ],
     tab: "keyboard",
     status: { connected: false, text: "No controller connected" },
     diagram: null,
@@ -28,7 +31,8 @@ describe("mc-controls-page", () => {
   it("renders what it is given", async () => {
     const el = await mount();
     const root = el.shadowRoot!;
-    for (const tag of ["mc-top-bar", "mc-tab-rail", "mc-controls-status", "mc-controls-settings", "mc-controls-list"]) expect(root.querySelector(tag), tag).not.toBeNull();
+    for (const tag of ["mc-top-bar", "mc-tab-rail", "mc-controls-status", "mc-controls-settings", "mc-controls-list"])
+      expect(root.querySelector(tag), tag).not.toBeNull();
     expect(root.querySelector("mc-controls-diagram")).toBeNull();
     expect(root.querySelector("mc-button")!.hasAttribute("disabled")).toBe(true);
     expect(el.scroller).not.toBeNull();
@@ -38,8 +42,16 @@ describe("mc-controls-page", () => {
     const el = await mount();
     const heard = vi.fn();
     el.addEventListener("mc-controls", (event) => heard((event as CustomEvent).detail));
-    el.shadowRoot!.querySelector("mc-top-bar")!.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true }));
-    el.shadowRoot!.querySelector("mc-tab-rail")!.dispatchEvent(new CustomEvent("mc-activate", { detail: { key: "tab:controller", id: "controller" }, bubbles: true, composed: true }));
+    el.shadowRoot!.querySelector("mc-top-bar")!.dispatchEvent(
+      new CustomEvent("mc-press", { bubbles: true, composed: true }),
+    );
+    el.shadowRoot!.querySelector("mc-tab-rail")!.dispatchEvent(
+      new CustomEvent("mc-activate", {
+        detail: { key: "tab:controller", id: "controller" },
+        bubbles: true,
+        composed: true,
+      }),
+    );
     expect(heard.mock.calls).toEqual([[{ type: "back" }], [{ type: "tab", id: "controller" }]]);
   });
 });

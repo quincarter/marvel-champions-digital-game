@@ -13,13 +13,13 @@ html`<mc-segments
 
 ## Properties
 
-| Name      | Type                | Meaning               |
-| --------- | ------------------- | --------------------- |
-| `options` | `McSegmentOption[]` | The cells.            |
-| `look`    | `cell` / `tile`     | Passed to every cell. |
+| Name      | Type                | Meaning                                       |
+| --------- | ------------------- | --------------------------------------------- |
+| `options` | `McSegmentOption[]` | The cells.                                    |
+| `look`    | `cell` / `tile`     | Passed to every cell.                         |
 | `heading` | string              | A settings row's title; none: the bare strip. |
-| `detail`  | string              | The line under the title.                      |
-| `dimmed`  | boolean             | Faded but still adjustable.                    |
+| `detail`  | string              | The line under the title.                     |
+| `dimmed`  | boolean             | Faded but still adjustable.                   |
 
 ## Events
 

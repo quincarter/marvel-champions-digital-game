@@ -8,7 +8,11 @@ afterEach(() => document.body.replaceChildren());
 
 async function mount(): Promise<McControlsDiagram> {
   const el = document.createElement("mc-controls-diagram");
-  el.input = { diagram: { viewBox: [10, 10], ops: [], glyphs: [], missing: undefined }, caption: "Xbox layout", testLine: "Last input: A" };
+  el.input = {
+    diagram: { viewBox: [10, 10], ops: [], glyphs: [], missing: undefined },
+    caption: "Xbox layout",
+    testLine: "Last input: A",
+  };
   document.body.append(el);
   await el.updateComplete;
   return el;

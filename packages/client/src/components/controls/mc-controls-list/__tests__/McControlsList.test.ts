@@ -8,7 +8,16 @@ afterEach(() => document.body.replaceChildren());
 
 async function mount(): Promise<McControlsList> {
   const el = document.createElement("mc-controls-list");
-  el.sections = [{ id: "buttons", title: "Buttons", rows: [{ id: "a", glyphs: [{ kind: "key", label: "A" }], action: "Select", note: "Everywhere" }, { id: "b", glyphs: [], action: "Back", note: "Menus" }] }];
+  el.sections = [
+    {
+      id: "buttons",
+      title: "Buttons",
+      rows: [
+        { id: "a", glyphs: [{ kind: "key", label: "A" }], action: "Select", note: "Everywhere" },
+        { id: "b", glyphs: [], action: "Back", note: "Menus" },
+      ],
+    },
+  ];
   document.body.append(el);
   await el.updateComplete;
   return el;
