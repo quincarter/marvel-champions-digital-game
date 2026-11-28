@@ -8,7 +8,7 @@
  * `hero-random`, `hero-art`, `preconstructed`, `rec-toggle`, `drill-back`, `hero:<card id>`, `hero-rec:<card id>`,
  * `hero-shelf:<pack id>`, `hero-clear`, `deck-check`, `play`.
  */
-import type { FilterChip, PictureSource } from "@mc/ui";
+import type { FilterChip, GlyphSpec, PictureSource } from "@mc/ui";
 import type { AspectTipContent } from "../../view/aspect-tip-model.js";
 import type { SeatFrame } from "../../view/seats-panel-model.js";
 
@@ -180,6 +180,18 @@ export interface SeatsRosterModel {
   readonly nextLabel: string;
   /** LB/RB/LT/RT paging glyphs beside the active shelf's chevrons while a pad is used (stop keys `hero-shelf:<id>`). */
   readonly pagingHintShelf: string | null;
+  /** Addition: the glyphs `pagingHintShelf` draws (LT before the previous chevron, RT after the next); absent or null draws none. */
+  readonly pagingGlyphs?: PagingGlyphs | null;
+}
+
+/** Addition: the trigger glyphs that page a shelf's row on a pad. */
+export interface PagingGlyphs {
+  readonly previous: readonly GlyphSpec[] | null;
+  readonly next: readonly GlyphSpec[] | null;
+  /** The glyph height in px, already scaled by the hint size setting. */
+  readonly height: number;
+  /** No open / close transition (reduced motion). */
+  readonly still: boolean;
 }
 
 // ---- Pick a deck (stage 4): `mc-hero-decks-sheet` ----------------------------------------------------------------------
