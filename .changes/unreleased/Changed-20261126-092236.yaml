@@ -1,3 +1,0 @@
-kind: Changed
-body: The confirm, concede, ask-for-a-change and room chat pop-ups are drawn with Lit web components, so the Pause menu stays in view under them; their text reads in Spanish.
-time: 2026-11-26T09:22:36.5334044-05:00

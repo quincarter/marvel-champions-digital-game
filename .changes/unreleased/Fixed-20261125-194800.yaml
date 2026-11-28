@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Online rooms: a guest''s villain phase screen no longer stops on a step until Skip after its connection blips; it catches up, closes with the host''s, and words another player''s defend as theirs (#1017, reported by GarethMagis)'
-time: 2026-11-25T19:48:00.6587332-05:00

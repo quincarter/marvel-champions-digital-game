@@ -1,3 +1,0 @@
-kind: Added
-body: Controller and keyboard button glyphs on the Lit panels, as one shared component drawn as inline SVG, folding away while the mouse moves as before.
-time: 2026-11-26T09:40:19.4344485-05:00
