@@ -1,6 +1,6 @@
 import { html, LitElement, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { onActivate, onTap } from "../../shared/tap.js";
+import { onTap } from "../../shared/tap.js";
 import type { McButtonKind } from "../../shared/button.types.js";
 import { McButtonStyles } from "./mc-button.styles.js";
 
@@ -52,7 +52,6 @@ export class McButton extends LitElement {
   declare still: boolean;
   declare reason: string;
   #stopTap: (() => void) | null = null;
-  #stopActivate: (() => void) | null = null;
   #resize: ResizeObserver | null = null;
 
   constructor() {
@@ -70,15 +69,20 @@ export class McButton extends LitElement {
     this.reason = "";
   }
 
+  #onClick = (event: MouseEvent): void => {
+    if (event.detail !== 0 || (this.disabled && !this.pressable)) return;
+    this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true }));
+  };
+
   override connectedCallback(): void {
     super.connectedCallback();
-    const press = (): void => {
-      this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true }));
-    };
-    const enabled = (): boolean => !this.disabled || this.pressable;
-    this.#stopTap = onTap(this, press, { enabled });
-    // The focus route presses a stop with click(): a click with no pointer behind it is a press too.
-    this.#stopActivate = onActivate(this, press, { enabled });
+    this.#stopTap = onTap(
+      this,
+      () => this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true })),
+      { enabled: () => !this.disabled || this.pressable },
+    );
+    // `click()` from the focus route (Enter on a `data-stop`) has no pointer press behind it (`detail` 0): it presses.
+    this.addEventListener("click", this.#onClick);
     // The label is fitted to the button's own width, so a button sized after the fact (by its sheet) refits.
     if (typeof ResizeObserver !== "undefined") {
       this.#resize = new ResizeObserver(() => this.#fit());
@@ -94,8 +98,6 @@ export class McButton extends LitElement {
     super.disconnectedCallback();
     this.#stopTap?.();
     this.#stopTap = null;
-    this.#stopActivate?.();
-    this.#stopActivate = null;
     this.#resize?.disconnect();
     this.#resize = null;
   }

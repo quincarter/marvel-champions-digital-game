@@ -251,20 +251,3 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
     element.removeEventListener("contextmenu", menu);
   };
 }
-
-/**
- * Calls `handler` for a click that has no pointer behind it (`detail` 0): the focus route's `click()` on a `data-stop` part,
- * a screen reader's or a keyboard's activation. A pointer's own click has `detail` 1 or more and is `onTap`'s business, so a
- * control uses both and never fires twice. Returns the function that stops listening.
- */
-export function onActivate(
-  element: HTMLElement,
-  handler: (event: MouseEvent) => void,
-  options: TapOptions = {},
-): () => void {
-  const listener = (event: MouseEvent): void => {
-    if (event.detail === 0 && options.enabled?.() !== false) handler(event);
-  };
-  element.addEventListener("click", listener);
-  return () => element.removeEventListener("click", listener);
-}

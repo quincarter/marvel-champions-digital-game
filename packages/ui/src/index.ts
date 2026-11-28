@@ -8,7 +8,7 @@ export { McCreditsList } from "./components/mc-credits-list/mc-credits-list.js";
 export { McAspectChip } from "./components/mc-aspect-chip/mc-aspect-chip.js";
 export { McButton } from "./components/mc-button/mc-button.js";
 export { McSettingsBody } from "./components/mc-settings-body/mc-settings-body.js";
-export { cancelPressesWithin, onActivate, onHold, onTap, HOLD_MS, HOLD_SLOP_PX, TAP_SLOP_PX } from "./shared/tap.js";
+export { cancelPressesWithin, onHold, onTap, HOLD_MS, HOLD_SLOP_PX, TAP_SLOP_PX } from "./shared/tap.js";
 export { watchCard } from "./shared/card-events.js";
 export type { CardHoverDetail, CardHoverEndDetail, CardRef } from "./shared/card-events.js";
 export { McSheet } from "./components/mc-sheet/mc-sheet.js";
@@ -174,4 +174,24 @@ export type { FooterBarLink, FooterBarModel } from "./components/mc-footer-bar/m
 export type { Placed, TitlePanelModel } from "./components/mc-title-panel/mc-title-panel.types.js";
 export { McStatTile } from "./components/mc-stat-tile/mc-stat-tile.js";
 export { McChartBar } from "./components/mc-chart-bar/mc-chart-bar.js";
+export { McLanguageMenu } from "./components/mc-language-menu/mc-language-menu.js";
+export { McReportIssue } from "./components/mc-report-issue/mc-report-issue.js";
+export { McMusicPlayer } from "./components/mc-music-player/mc-music-player.js";
+export type { LanguageMenuModel, LanguageNote } from "./components/mc-language-menu/mc-language-menu.types.js";
+export type { ReportIssueModel } from "./components/mc-report-issue/mc-report-issue.types.js";
+export type { ReportStep } from "./components/mc-report-step/mc-report-step.types.js";
+export type { MusicPlayerModel } from "./components/mc-music-player/mc-music-player.types.js";
+export type { NowPlayingModel } from "./components/mc-now-playing/mc-now-playing.types.js";
+export type { PlayerControlsModel } from "./components/mc-player-controls/mc-player-controls.types.js";
+export type { TrackListModel } from "./components/mc-track-list/mc-track-list.types.js";
+export type { TrackRowModel } from "./components/mc-track-row/mc-track-row.types.js";
+export type { VolumeSliderProps } from "./components/mc-volume-slider/mc-volume-slider.types.js";
+export type {
+  ActivateDetail,
+  ControlGlyph,
+  ControlGlyphs,
+  PopupButton,
+  SlideDetail,
+  StepDetail,
+} from "./shared/popup.types.js";
 export { McTipPlate } from "./components/mc-tip-plate/mc-tip-plate.js";

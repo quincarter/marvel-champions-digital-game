@@ -566,6 +566,19 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     return gameRectOf(target, this.#layer);
   }
 
+  /**
+   * The part of an element that shows in the region's box: a tile scrolled half out of its list is aimed at where it can
+   * be pressed, not at a centre that lies under the bar below the list. The whole box when none of it shows.
+   */
+  visibleRectOf(target: Element): Rect {
+    const whole = gameRectOf(target, this.#layer);
+    const x = Math.max(whole.x, this.#rect.x);
+    const y = Math.max(whole.y, this.#rect.y);
+    const right = Math.min(whole.x + whole.width, this.#rect.x + this.#rect.width);
+    const bottom = Math.min(whole.y + whole.height, this.#rect.y + this.#rect.height);
+    return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : whole;
+  }
+
   /** Whether the scene and the panel's cover state let an event through right now (read live, not at the last frame). */
   #applyInert: () => void = () => undefined;
 
