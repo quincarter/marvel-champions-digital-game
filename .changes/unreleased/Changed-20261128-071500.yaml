@@ -1,0 +1,3 @@
+kind: Changed
+body: The Deck builder is rebuilt as composed Lit custom elements (a page of section elements, a windowed pool list, new stepper, windowed list and card art elements in the UI package), with the same layout, search, filters, tabs, focus stops and card hover
+time: 2026-11-28T07:15:00.000000-05:00
