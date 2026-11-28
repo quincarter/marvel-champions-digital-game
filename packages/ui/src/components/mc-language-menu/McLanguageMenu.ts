@@ -1,7 +1,8 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { activate, popupButton, tapOn } from "../../shared/popup-parts.js";
+import { activate, tapOn } from "../../shared/popup-parts.js";
 import "../mc-language-option/mc-language-option.js";
+import "../mc-popup-button/mc-popup-button.js";
 import { McLanguageMenuStyles } from "./mc-language-menu.styles.js";
 import type { LanguageMenuModel } from "./mc-language-menu.types.js";
 
@@ -74,10 +75,10 @@ export class McLanguageMenu extends LitElement {
     return html`<div class="note">
       <div class="head">
         <span class="title">${note.title}</span>
-        <div class="close">${popupButton(this, note.close)}</div>
+        <div class="close"><mc-popup-button .button=${note.close}></mc-popup-button></div>
       </div>
       ${note.paragraphs.map((text) => html`<p>${text}</p>`)}
-      <div class="links">${note.links.map((link) => popupButton(this, link))}</div>
+      <div class="links">${note.links.map((link) => html`<mc-popup-button .button=${link}></mc-popup-button>`)}</div>
     </div>`;
   }
 }

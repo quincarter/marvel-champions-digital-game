@@ -1,8 +1,6 @@
 import { css } from "lit";
-import { PopupPartStyles } from "../../shared/popup-parts.js";
 
 export const McLanguageMenuStyles = css`
-  ${PopupPartStyles}
   :host {
     display: block;
     position: absolute;
@@ -75,7 +73,7 @@ export const McLanguageMenuStyles = css`
     gap: 10px;
     margin-top: 14px;
   }
-  .links .ctl {
+  .links mc-popup-button {
     height: 44px;
   }
 `;

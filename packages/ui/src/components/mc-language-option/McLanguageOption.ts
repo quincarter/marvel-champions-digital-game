@@ -1,6 +1,6 @@
-import { LitElement, nothing, type PropertyDeclarations } from "lit";
+import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { popupButton } from "../../shared/popup-parts.js";
+import "../mc-popup-button/mc-popup-button.js";
 import { McLanguageOptionStyles } from "./mc-language-option.styles.js";
 import type { LanguageOption } from "./mc-language-option.types.js";
 
@@ -26,6 +26,6 @@ export class McLanguageOption extends LitElement {
   }
 
   override render() {
-    return this.option ? popupButton(this, this.option) : nothing;
+    return this.option ? html`<mc-popup-button .button=${this.option}></mc-popup-button>` : nothing;
   }
 }
