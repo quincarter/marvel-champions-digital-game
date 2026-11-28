@@ -1,0 +1,3 @@
+kind: Changed
+body: The online room lobby is being rebuilt as Lit custom elements; its contract (one event, the section models and the focus-stop names) and the shared lobby button are in place
+time: 2026-11-28T08:30:00.000000-05:00

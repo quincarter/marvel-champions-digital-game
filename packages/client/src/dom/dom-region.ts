@@ -307,6 +307,8 @@ export const GUARDED_EVENTS = [
   "mc-search-focus",
   "mc-tile-focus",
   "mc-seats",
+  // The online room lobby's one event (components/room-lobby/room-lobby.types.ts).
+  "mc-room-lobby",
   // A rebuilt page's own events (`mc-<feature>`: one name per feature, listed here) and its card pictures' Inspect.
   "mc-setup",
   "mc-deck-check",
