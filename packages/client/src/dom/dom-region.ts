@@ -326,6 +326,8 @@ export const GUARDED_EVENTS = [
   "mc-title",
   "mc-decks",
   "mc-learn",
+  "mc-room-dialog",
+  "mc-room-chat",
 ] as const;
 
 /** The guarded events that say the caret went into or left a field: its leaving (`focused: false`) always gets through, so the scene never keeps a stale "typing" flag. */
