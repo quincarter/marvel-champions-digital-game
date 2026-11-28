@@ -66,4 +66,13 @@ describe("mc-text-field", () => {
     inner(el).dispatchEvent(new Event("blur"));
     expect(states).toEqual([true, false]);
   });
+
+  it("restoreValue writes the text back into the input, though the template last drew the same text", async () => {
+    const el = await field({ value: "kept" });
+    inner(el).value = "typed";
+    inner(el).dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    el.restoreValue("kept");
+    await el.updateComplete;
+    expect(inner(el).value).toBe("kept");
+  });
 });

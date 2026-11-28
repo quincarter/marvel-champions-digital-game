@@ -138,4 +138,22 @@ describe("mc-search-field", () => {
     el.focus();
     expect(spy).toHaveBeenCalled();
   });
+
+  it("restoreValue puts the field back to a text, drops a waiting pause and raises nothing for what was typed since", async () => {
+    const el = await field({ value: "spi", debounce: 50 });
+    const seen: McSearchDetail[] = [];
+    el.addEventListener("mc-search", (event) => seen.push((event as CustomEvent<McSearchDetail>).detail));
+    type(el, "spider");
+    el.restoreValue("spi");
+    await el.updateComplete;
+    expect(el.text).toBe("spi");
+    expect(inputOf(el).value).toBe("spi");
+    vi.advanceTimersByTime(90);
+    expect(seen).toEqual([]);
+    // Typing the same text the field was restored to is not news either; a new text is.
+    type(el, "spi");
+    type(el, "spid");
+    vi.advanceTimersByTime(90);
+    expect(seen.map((s) => s.value)).toEqual(["spid"]);
+  });
 });

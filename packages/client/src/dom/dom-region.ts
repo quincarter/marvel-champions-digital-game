@@ -82,11 +82,6 @@ const overlayHoles = new Map<string, readonly Rect[] | (() => readonly Rect[])>(
 /** Every live region, so one overlay's holes reach the panels under it at once. */
 const liveRegions = new Set<{ readonly resync: () => void }>();
 
-/** Re-reads every live region's cut-outs now: a card hover popover that has just gone must stop cutting its hole at once. */
-export function resyncLiveRegions(): void {
-  for (const region of liveRegions) region.resync();
-}
-
 /** The holes of overlay scenes drawn above `key` (later in the draw order), in game coordinates. */
 export function holesAbove(scenes: readonly { readonly key: string }[], key: string): Rect[] {
   const at = scenes.findIndex((scene) => scene.key === key);
@@ -291,7 +286,6 @@ export const GUARDED_EVENTS = [
   "mc-step",
   "mc-search",
   "mc-submit",
-  "mc-info",
   "mc-sort",
   "mc-filter-sheet",
   "mc-input",
@@ -318,18 +312,61 @@ function deepActiveElement(): HTMLElement | null {
   return (active as HTMLElement | null) ?? null;
 }
 
+/** A panel field that can be put back to a text (`McSearchField`, `McTextField`). */
+interface RestorableField extends HTMLElement {
+  value: string;
+  restoreValue(text: string): void;
+}
+
+const isRestorable = (node: unknown): node is RestorableField =>
+  typeof (node as RestorableField | null)?.restoreValue === "function";
+
+/**
+ * The field an `mc-input` or `mc-search` came from: the field itself (`mc-input` is raised from it), or the one the
+ * panel names in `detail.key` (`mc-sheet` raises a field's `mc-search` again, keyed).
+ */
+function fieldOf(event: Event): RestorableField | null {
+  const first = event.composedPath()[0];
+  if (isRestorable(first)) return first;
+  const key = (event as CustomEvent<{ key?: string }>).detail?.key;
+  const sheet = event.target as { elementOf?: (key: string) => Element | null } | null;
+  const found = key !== undefined ? sheet?.elementOf?.(key) : null;
+  return isRestorable(found) ? found : null;
+}
+
 /**
  * Guards `wrap` (a region's box): every guarded event is stopped in the capture phase while `takes()` says no, and a
  * field of the box that holds the caret then lets go of it, so a field that kept the caret under a modal takes no
  * more keys or composition. (The box is not made inert: a press must still land on it, not fall through to the panel
- * of a screen below.) Returns the function that applies the blur; call it each time the answer may have changed.
+ * of a screen below.)
+ *
+ * A stopped edit never leaves the field showing text the screen did not take: the field is put back to the last text
+ * the screen accepted (what an event it let through carried, else the `value` the screen handed the field), and what
+ * was typed since is dropped. So the text on screen and the results the screen shows always agree.
+ *
+ * Returns the function that applies the blur; call it each time the answer may have changed.
  */
 export function guardRegion(wrap: HTMLElement, takes: () => boolean, destroyed: () => boolean): () => void {
+  /** The text a field last handed the screen, with the `value` the screen had given it then (a screen that resets the field moves on). */
+  const accepted = new WeakMap<RestorableField, { readonly text: string; readonly model: string }>();
   for (const name of GUARDED_EVENTS)
     wrap.addEventListener(
       name,
       (event) => {
-        if (destroyed() || guardStops(event, takes())) event.stopPropagation();
+        const stops = destroyed() || guardStops(event, takes());
+        if (name === "mc-input" || name === "mc-search") {
+          const field = fieldOf(event);
+          if (field) {
+            if (stops) {
+              const last = accepted.get(field);
+              field.restoreValue(last && last.model === field.value ? last.text : field.value);
+            } else {
+              const text = (event as CustomEvent<{ value: string }>).detail?.value;
+              if (typeof text === "string") accepted.set(field, { text, model: field.value });
+            }
+          }
+        }
+        if (stops) event.stopPropagation();
       },
       true,
     );
@@ -459,20 +496,9 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
    * the canvas only, which the panel covers. For a scene that shows a card hover popover over its panel
    * (`ui/card-hover-preview.ts`, which follows Phaser's pointer); a finger or pen is left alone.
    */
-  forwardMouseMoves(onPress?: () => void): void {
+  forwardMouseMoves(): void {
     const off = forwardMouseMoves(this.#wrap, this.#scene.game.canvas);
     this.#scene.events.once("shutdown", off);
-    // A tap on the panel never reaches Phaser's own pointer-down, so the card hover popover is told here that a press
-    // began (it takes itself down and stays down for the card pressed).
-    if (onPress) {
-      this.#wrap.addEventListener(
-        "pointerdown",
-        (event) => {
-          if (event.pointerType === "mouse") onPress();
-        },
-        true,
-      );
-    }
   }
 
   /** Hides the region whatever its scene does (the scene shows something else in its place for now). */

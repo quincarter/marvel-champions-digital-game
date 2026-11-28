@@ -99,6 +99,23 @@ export class McSearchField extends LitElement {
     return this.#text;
   }
 
+  /**
+   * Puts the field back to `text` and forgets what was typed since: a pending `mc-search` is dropped and `text` counts
+   * as already told to the screen. For a host that refused an edit (a modal covered the screen), so the field never
+   * shows text the screen did not take.
+   */
+  restoreValue(text: string): void {
+    clearTimeout(this.#timer);
+    this.#pending = false;
+    this.#composing = false;
+    this.#text = text;
+    this.#emitted = text;
+    // Written to the input itself too: the template only writes a text that differs from the last one it drew.
+    const input = this.#input();
+    if (input && input.value !== text) input.value = text;
+    this.requestUpdate();
+  }
+
   /** Same as `focusInput()`, so a screen that calls `element.focus()` lands in the field. */
   override focus(options?: FocusOptions): void {
     this.#input()?.focus(options);
