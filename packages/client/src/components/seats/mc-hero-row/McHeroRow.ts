@@ -102,7 +102,8 @@ export class McHeroRow extends SeatsElement {
     row.scrollLeft += direction * row.clientWidth * PAGE;
     const edge = row.getBoundingClientRect().left;
     for (const tile of row.querySelectorAll<McHeroTile>("mc-hero-tile")) {
-      if (tile.getBoundingClientRect().right > edge + 1) return tile.model?.key ?? null;
+      // The first card fully in view, at the row's left edge (one half under the edge is not the one to land on).
+      if (tile.getBoundingClientRect().left >= edge - 1) return tile.model?.key ?? null;
     }
     return null;
   }

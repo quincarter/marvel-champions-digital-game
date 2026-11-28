@@ -32,20 +32,20 @@ import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import { cssOf } from "../ui/theme.js";
 import { fadeScreenIn } from "../ui/transitions.js";
-import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
+import { areaOf } from "../view/focus-areas.js";
 import { pruneSeats, type SetupDraft } from "../view/setup-draft.js";
-import { PadFilters } from "./pad-filters.js";
 import { bindExtraInput } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { pagingGlyphsOf } from "./seats/seats-paging.js";
 import { installSeatsDebug } from "./seats/seats-debug.js";
 import { unresolvedConflictsOf } from "./seats/seats-flow.js";
-import { deckIdOfStop, focusOrderOf } from "./seats/seats-order.js";
+import { deckIdOfStop, focusOrderOf, withInspect } from "./seats/seats-order.js";
 import { type RosterKeys } from "./seats/seats-roster-model.js";
 import { SeatsSearch } from "./seats/seats-search.js";
 import { goBack, goToTableSetup } from "./seats/seats-flow.js";
-import { wirePage, type SearchFieldLike } from "./seats/seats-listeners.js";
+import { tipZoneOf, watchTipLeave, wirePage, type SearchFieldLike } from "./seats/seats-listeners.js";
+import { FilterAreas } from "./seats/seats-filter-areas.js";
 import { SeatsActions } from "./seats/seats-actions.js";
 import { buildSeatsPage } from "./seats/seats-page-model.js";
 import { SeatsState } from "./seats/seats-state.js";
@@ -71,17 +71,13 @@ export class SeatsScene extends Phaser.Scene {
   #mounted: MountedElement<HTMLElementTagNameMap["mc-seats-page"]> | null = null;
   #route: FocusRoute | null = null;
   #glyphs!: ControlGlyphs;
-  #padFilters!: PadFilters;
+  #fa!: FilterAreas;
   #hover: HoverPreview | null = null;
   #cards: CardEvents | null = null;
   readonly #leases = new PackLeases();
-  readonly #areaJump = new AreaJump();
-  #areas: FocusAreas = { filters: [], entry: null, list: [] };
   #stops = new Map<string, FocusStop>();
   #page: SeatsPageModel | null = null;
   #roster: { readonly keys: RosterKeys; readonly shelfOfKey: ReadonlyMap<string, string> } | null = null;
-  /** The chips are folded behind the Filters button as of the last build, so Y knows whether it opens or folds them. */
-  #chipsFolded = false;
   #leaving = false;
   #alive = false;
   #typing = false;
@@ -89,6 +85,8 @@ export class SeatsScene extends Phaser.Scene {
   #backTo: SeatsData["backTo"] | null = null;
   #seedDecks: readonly Deck[] = [];
   #firstTileKey: string | null = null;
+  /** The stop that had focus when the Pick a deck sheet took the route; it gets focus back when the sheet closes. */
+  #heldFocus: string | null = null;
   #built = 0;
 
   constructor() {
@@ -98,7 +96,12 @@ export class SeatsScene extends Phaser.Scene {
       back: () => this.#back(),
       goToTableSetup: () => this.#goToTableSetup(),
       leave: () => void this.#leave(),
-      toggleFilters: () => this.#toggleFilters(),
+      toggleFilters: () =>
+        this.#fa.toggle(
+          this.#route,
+          () => this.#rebuild(),
+          () => this.#renderPage(),
+        ),
       focusSearchField: () => void this.#focusSearchField(),
     });
   }
@@ -136,6 +139,13 @@ export class SeatsScene extends Phaser.Scene {
       typing: (focused) => (this.#typing = focused),
       hover: (id) => this.#setHoverDeck(id),
     });
+    const tipOff = watchTipLeave(
+      () => (this.#st.tipAspect ? tipZoneOf(element, this.#st.tipAspect) : null),
+      () => {
+        this.#st.tipAspect = null;
+        this.#rebuild();
+      },
+    );
     this.scale.on("resize", this.#rebuild, this);
     rebuildOnPackChange(this, () => this.#rebuild());
     const artOff = onArtChange(() => this.sys.isActive() && this.#rebuild());
@@ -145,6 +155,7 @@ export class SeatsScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
       artOff();
       languageOff();
+      tipOff();
       // Where the roster was scrolled, for the way back from Deck check; the page goes with the scene (`DomRegion`).
       rememberedScroll = this.#section<McSeatsRoster>("mc-seats-roster")?.readScroll() ?? null;
       this.#mounted = null;
@@ -168,8 +179,7 @@ export class SeatsScene extends Phaser.Scene {
       return popover ? [popover] : [];
     });
     this.#glyphs = new ControlGlyphs(this, () => this.#rebuild());
-    this.#padFilters = new PadFilters(this, () => this.#rebuild());
-    this.#padFilters.reset();
+    this.#fa = new FilterAreas(this, () => this.#rebuild());
     const covered = (): boolean =>
       this.scene.isActive(SCENES.inspect) ||
       this.scene.isActive(SCENES.unlockConfirm) ||
@@ -185,8 +195,12 @@ export class SeatsScene extends Phaser.Scene {
       // Y is the filters' fold on a pad (the keyboard keeps Inspect); LT / RT page the row; Start plays; LB / RB step the seat;
       // X clears it; the stick, PageUp / PageDown and Home / End scroll the list.
       onInspect: (source) => {
-        if (source === "key" || !this.#padFilters.padMode) return false;
-        this.#toggleFilters();
+        if (source === "key" || !this.#fa.pad.padMode) return false;
+        this.#fa.toggle(
+          this.#route,
+          () => this.#rebuild(),
+          () => this.#renderPage(),
+        );
         return true;
       },
       onTrigger: (trigger) => this.#pageRow(trigger === "lt" ? -1 : 1),
@@ -206,7 +220,7 @@ export class SeatsScene extends Phaser.Scene {
       intents: {
         view: () => {
           const key = this.#route?.focused ?? null;
-          if (this.#padFilters.padMode && key !== null && /^hero(-rec)?:/.test(key)) this.#route?.inspectFocused();
+          if (this.#fa.pad.padMode && key !== null && /^hero(-rec)?:/.test(key)) this.#route?.inspectFocused();
         },
       },
     });
@@ -251,33 +265,10 @@ export class SeatsScene extends Phaser.Scene {
     return this.#section<McSeatsRoster>("mc-seats-roster")?.scroller ?? null;
   }
 
-  // ---- What a press does ------------------------------------------------------------------------------------------
-
   async #focusSearchField(): Promise<void> {
     await this.#renderPage();
     this.#route?.focusKey("hero-search");
   }
-
-  /** Y (or the Filters button) while a controller is in use: shows the chips, or folds them away again. */
-  #toggleFilters(): void {
-    const focus = this.#route?.focused ?? null;
-    const opening = this.#chipsFolded;
-    const onChip = focus?.startsWith("hero-chip") ?? false;
-    this.#padFilters.toggle();
-    this.#rebuild();
-    // The ring follows a pad or keyboard user; a mouse press leaves focus alone (no ring appears for it).
-    if (focus === null && !this.#padFilters.padMode) return;
-    void this.#renderPage().then(() => {
-      const target = opening
-        ? this.#areaJump.toFilters(focus, this.#areas)
-        : onChip
-          ? this.#areaJump.toList(this.#areas)
-          : null;
-      if (target !== null) this.#route?.focusKey(target);
-    });
-  }
-
-  // ---- Navigation and the pad -------------------------------------------------------------------------------------
 
   #goToTableSetup(): void {
     if (this.#leave()) goToTableSetup(this, this.#st.draft);
@@ -307,23 +298,16 @@ export class SeatsScene extends Phaser.Scene {
       this.#rebuild();
       return;
     }
-    if (areaOf(this.#route?.focused ?? null, this.#areas) === "list") this.#jumpAreas(true);
+    if (areaOf(this.#route?.focused ?? null, this.#fa.areas) === "list")
+      this.#fa.jump(
+        this.#route,
+        true,
+        this.#scroller(),
+        () => this.#rebuild(),
+        () => this.#renderPage(),
+      );
     else if (this.#st.drill.packId !== null) this.#actions.drillOut();
     else this.#back();
-  }
-
-  /** Y toggles focus between the filters and the list; B from the list goes to the filters and scrolls the list to its start. */
-  #jumpAreas(fromBack: boolean): void {
-    // B from the list with the chips folded opens them first, so there is a row to land on.
-    if (this.#chipsFolded) {
-      this.#padFilters.open();
-      this.#rebuild();
-    }
-    const focus = this.#route?.focused ?? null;
-    const target = fromBack ? this.#areaJump.toFilters(focus, this.#areas) : this.#areaJump.toggle(focus, this.#areas);
-    if (target === null) return;
-    if (fromBack) this.#scroller()?.scrollTo({ top: 0 });
-    this.#route?.focusKey(target);
   }
 
   /** LT / RT: pages the shelf row focus is in, as its chevron would, and moves focus to the first card in view. */
@@ -384,8 +368,6 @@ export class SeatsScene extends Phaser.Scene {
       : { pagingHintShelf: null, pagingGlyphs: null };
   }
 
-  // ---- Building the page ------------------------------------------------------------------------------------------
-
   async #renderPage(): Promise<void> {
     const mounted = this.#mounted;
     if (mounted) await renderDeep(mounted.element);
@@ -407,9 +389,9 @@ export class SeatsScene extends Phaser.Scene {
     st.book.ranking = st.search.ranking;
     st.book.folded = st.folded;
     st.search.sync(options, st.draft.heroFilter.text);
-    const behindButton = this.#padFilters.behindButton(width);
-    const folded = this.#padFilters.folded(width);
-    this.#chipsFolded = folded;
+    const behindButton = this.#fa.pad.behindButton(width);
+    const folded = this.#fa.pad.folded(width);
+    this.#fa.folded = folded;
     const built = buildSeatsPage({
       scene: this,
       st,
@@ -468,16 +450,26 @@ export class SeatsScene extends Phaser.Scene {
     if (this.#st.decksKey !== null) {
       const sheet = this.#section("mc-hero-decks-sheet");
       if (sheet) {
+        this.#heldFocus ??= this.#route?.focused ?? null;
         const stops = focusStopsOf(sheet, rectOf);
         this.#stops = stops;
         this.#route?.set([...stops.keys()].filter((key) => key.startsWith("deck:")).concat("back"), stops);
         return;
       }
     }
-    const stops = focusStopsOf(element, rectOf);
     // Y on a stop with no Inspect of its own jumps between the filters and the list; a hero tile keeps its Inspect.
-    for (const [key, stop] of stops)
-      if (!stop.inspect) stops.set(key, { ...stop, inspect: () => this.#jumpAreas(false) });
+    const stops = withInspect(
+      focusStopsOf(element, rectOf),
+      (key) => this.#actions.onSeats({ type: "hero", key, via: "inspect" }),
+      () =>
+        this.#fa.jump(
+          this.#route,
+          false,
+          this.#scroller(),
+          () => this.#rebuild(),
+          () => this.#renderPage(),
+        ),
+    );
     this.#stops = stops;
     const chips = folded ? [] : page.filters.chips;
     const { order, areas } = focusOrderOf({
@@ -489,8 +481,12 @@ export class SeatsScene extends Phaser.Scene {
       hasNotice,
       tipAspect: page.filters.tipChipId?.slice("aspect:".length) ?? null,
     });
-    this.#areas = areas;
+    this.#fa.areas = areas;
     this.#route?.set(order, stops);
+    if (this.#heldFocus !== null) {
+      if (order.includes(this.#heldFocus)) this.#route?.focusKey(this.#heldFocus);
+      this.#heldFocus = null;
+    }
   }
 
   async #focusFirstTile(): Promise<void> {

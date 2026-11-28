@@ -2,6 +2,7 @@
  * The pad and keyboard route of Take your seats: the order its focus stops are walked in (the stop keys specs and the pad
  * route have always used), and the filters and the list as two areas of it (`view/focus-areas.ts`).
  */
+import type { FocusStop } from "../focus-route.js";
 import type { FocusAreas } from "../../view/focus-areas.js";
 import { seatsFocusOrder } from "../../view/screen-focus.js";
 import { MAX_SEATS } from "../../view/seats-layout.js";
@@ -65,4 +66,17 @@ export function focusOrderOf(input: OrderInput): { readonly order: readonly stri
       list: order.filter((key) => LIST_STOP.test(key)),
     },
   };
+}
+
+/** Every stop gets an Inspect: a hero tile inspects its hero, any other jumps between the filters and the list. */
+export function withInspect(
+  stops: Map<string, FocusStop>,
+  inspectTile: (key: string) => void,
+  jump: () => void,
+): Map<string, FocusStop> {
+  for (const [key, stop] of stops) {
+    if (stop.inspect) continue;
+    stops.set(key, { ...stop, inspect: /^hero(-rec)?:/.test(key) ? () => inspectTile(key) : jump });
+  }
+  return stops;
 }

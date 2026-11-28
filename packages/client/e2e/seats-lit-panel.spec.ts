@@ -144,12 +144,13 @@ test.describe("Take your seats panels", () => {
     const tile = await stopOf("hero:");
     await page.mouse.click(tile.x + tile.width / 2, tile.y + tile.height / 2);
     await waitFor(
-      async () => ((await seats(page)).length > 0 || (await hook<boolean>(page, "__mcSeatsDebug", "decksOpen")) ? true : null),
+      async () =>
+        (await seats(page)).length > 0 || (await hook<boolean>(page, "__mcSeatsDebug", "decksOpen")) ? true : null,
       "the first press on the tile did something",
       5000,
     );
     // Play: seat someone, then one real click on Play goes on to Table setup.
-    if ((await hook<boolean>(page, "__mcSeatsDebug", "decksOpen"))) await page.keyboard.press("Escape");
+    if (await hook<boolean>(page, "__mcSeatsDebug", "decksOpen")) await page.keyboard.press("Escape");
     if ((await seats(page)).length === 0) await pressHookStop(page, "__mcSeatsDebug", "hero-random");
     await waitFor(async () => ((await stopOf("play")) ? true : null), "Play", 10_000);
     await settle(page);
@@ -186,7 +187,7 @@ test.describe("Take your seats panels", () => {
           if (node.shadowRoot) visit(node.shadowRoot);
         }
       };
-      visit(document.querySelector('#mc-ui > [data-scene="Seats"] mc-seats-page')!);
+      visit(document.querySelector('#mc-ui > [data-scene="Seats"] mc-seats-page')!.shadowRoot!);
       const button = found[1]!;
       button.focus();
       return button.dataset.stop ?? "";
