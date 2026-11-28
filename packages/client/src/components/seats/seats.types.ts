@@ -6,7 +6,7 @@
  * Focus stops (`data-stop`) keep the names the specs and the pad route use: `back`, `seat:<n>`, `seat-clear:<deck id>`,
  * `clear-seat`, `hero-search-toggle`, `hero-search`, `filters-toggle`, `hero-chip:<id>`, `hero-chip-info:<aspect>`,
  * `hero-random`, `hero-art`, `preconstructed`, `rec-toggle`, `drill-back`, `hero:<card id>`, `hero-rec:<card id>`,
- * `hero-shelf:<pack id>`, `hero-clear`, `deck-check`, `play`.
+ * `hero-shelf:<pack id>`, `hero-clear`, `deck-check`, `play`, `conflict-notice`, `seat-details-toggle`, `aspect-tip-link`.
  */
 import type { ControlGlyph, FilterChip, PictureSource } from "@mc/ui";
 import type { AspectTipContent } from "../../view/aspect-tip-model.js";
@@ -97,6 +97,11 @@ export interface SeatSummaryModel {
   readonly clearLabel: string;
   /** Why Clear does nothing (the last hero stays), or null when it works. */
   readonly clearBlocked: string | null;
+  /**
+   * The strip is a disclosure (the narrow layouts: "this stuff should be collapsible", the owner, 2026-09-21): a one-line
+   * button, "Seat 2 · Justice · 14 HP ▸", that opens the hint or the lines and Clear seat under it. Null shows them always.
+   */
+  readonly toggle?: { readonly label: string; readonly open: boolean } | null;
 }
 
 // ---- Filters (stage 2): `mc-seats-filters` -----------------------------------------------------------------------------

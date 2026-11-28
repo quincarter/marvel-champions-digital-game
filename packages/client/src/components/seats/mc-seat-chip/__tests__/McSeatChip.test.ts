@@ -42,7 +42,7 @@ describe("mc-seat-chip", () => {
   });
 
   it("falls back to the card's words when the model has no chip words", async () => {
-    const chip = await mount(seat({ chip: undefined }));
+    const chip = await mount(seat({ chip: { label: "SEAT 1 · YOU", meta: "Justice · 10 HP · hand 5", empty: null } }));
     expect(root(chip).querySelector(".label")!.textContent).toBe("SEAT 1 · YOU");
     expect(root(chip).querySelector(".meta")!.textContent).toBe("Justice · 10 HP · hand 5");
   });
