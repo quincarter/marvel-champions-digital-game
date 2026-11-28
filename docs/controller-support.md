@@ -67,7 +67,14 @@ Status: building (owner answers 2026-10-24). Tracking issue #398. Branch `featur
 - **Keyboard-only listeners** on the Team-Up splash, the achievement toast (Esc), and the arrow paging in the scenario
   intro, side-story reader, extras viewer and campaign opener.
 - **Text fields** (save/sync codes, deck import, deck names, report issue) have no pad path.
-- **Pads without the "standard" mapping** are ignored, except an unmapped pad on Android, which Chromium has already laid out in the standard order (`view/pad-mapping.ts`).
+- **Pads without the "standard" mapping** are ignored, with one exception (`view/pad-mapping.ts`): an unmapped pad
+  (`mapping: ""`) in Chromium on Android, meaning the Android app's WebView, Chrome and Chromium-based browsers (a user
+  agent naming both Android and `Chrome/`). Chromium's `UnknownGamepadMappings` lays such a pad's buttons, D-pad, left
+  stick and triggers out in the standard order and still reports it as non-standard (a Retroid Pocket's built-in
+  controls, #1057). Its right stick is never read, because on a pad without one Chromium can put other axes in those
+  slots, so right-stick scrolling is off for these pads and the D-pad's focus covers it. Firefox on Android, the desktop
+  and iOS get no exception: on the desktop an unknown pad comes in raw HID order, and iOS reports every controller it
+  supports as "standard".
 - **Desktop app on Linux / Steam Deck is unverified.** Windows Tauri runs WebView2 (Chromium, Gamepad API works).
   Linux Tauri runs WebKitGTK, whose Gamepad API depends on how it was built (libmanette). Inferred, not yet checked
   on a Deck.
