@@ -21,6 +21,7 @@ import { onArtChange, onLanguageChange } from "../language-change.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import { sheetThemeFor, estimateBangersWidth } from "../ui/campaign-chrome.js";
 import { CardEvents } from "../dom/card-events.js";
+import { ControlGlyphs } from "../dom/control-glyphs.js";
 import { DomRegion } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { settleElements } from "../dom/element-settle.js";
@@ -81,6 +82,7 @@ export class TableSetupScene extends Phaser.Scene {
   #cards: CardEvents | null = null;
   #hover: HoverPreview | null = null;
   #route: FocusRoute | null = null;
+  #glyphs!: ControlGlyphs;
   #stops: ReadonlyMap<string, FocusStop> = new Map();
   /** Counts draws, so a draw that was overtaken while the page rendered does not wire stale stops. */
   #drawn = 0;
@@ -114,12 +116,14 @@ export class TableSetupScene extends Phaser.Scene {
     const artOff = onArtChange(() => this.#alive && this.#compose());
     const languageOff = onLanguageChange(() => this.#alive && this.#compose());
     resetHoverCards(this);
+    this.#glyphs = new ControlGlyphs(this, () => this.#compose());
     this.#mountPage();
     this.game.events.on(SET_CARDS_ACTION_EVENT, this.#onSetCardsAction, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       artOff();
       languageOff();
+      this.#glyphs.dispose();
       this.#cards?.destroy();
       this.#cards = null;
       this.#hover?.destroy();
@@ -282,6 +286,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#region?.setRect(this.#full());
     resetHoverCards(this);
     this.#leases.begin();
+    this.#glyphs.reset();
     page.mode = mode;
     page.input = pageInputOf(
       m,
@@ -294,7 +299,10 @@ export class TableSetupScene extends Phaser.Scene {
         title: this.#title(mode),
       },
       this.#leases,
+      this.#glyphs,
+      mode === "wide",
     );
+    this.#glyphs.settled();
     this.#leases.end();
     const draw = ++this.#drawn;
     void settleElements(page).then(() => draw === this.#drawn && this.#alive && this.#wire(m));

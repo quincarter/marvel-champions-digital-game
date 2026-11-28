@@ -1,3 +1,4 @@
+import { glyphLabelShift, type ControlGlyph } from "@mc/ui";
 import { html, LitElement, type PropertyDeclarations } from "lit";
 import { t } from "../../../i18n/translate.js";
 import type { SetupMode } from "../shared/setup-events.types.js";
@@ -23,30 +24,37 @@ export class McSetupTopBar extends LitElement {
     mode: { type: String, reflect: true },
     titleDrop: { type: Number, attribute: "title-drop" },
     titleMax: { type: Number, attribute: "title-max" },
+    backGlyph: { attribute: false },
   };
 
   declare mode: SetupMode;
   declare titleDrop: number;
   declare titleMax: number;
+  /** The Cancel glyph on Back while a keyboard or pad is in use (a phone has none). */
+  declare backGlyph: ControlGlyph | undefined;
 
   constructor() {
     super();
     this.mode = "wide";
     this.titleDrop = 0;
     this.titleMax = 0;
+    this.backGlyph = undefined;
     new SetupRelay(this);
   }
 
   override render() {
     const phone = this.mode === "phone";
     const title = `--drop:${this.titleDrop}px;${this.titleMax > 0 ? `--max:${this.titleMax}px` : ""}`;
-    return html`<mc-chip
-        class="back"
-        .stop=${"back"}
-        label=${phone ? "◂" : t("tableSetup.back")}
-        aria-label=${t("tableSetup.back")}
-        .action=${{ type: "back" } as const}
-      ></mc-chip>
+    return html`<div class="ctl" style=${`--mc-label-shift:${glyphLabelShift(this.backGlyph)}px`}>
+        <mc-chip
+          class="back"
+          .stop=${"back"}
+          label=${phone ? "◂" : t("tableSetup.back")}
+          aria-label=${t("tableSetup.back")}
+          .action=${{ type: "back" } as const}
+        ></mc-chip>
+        <mc-glyph-hint .glyph=${phone ? undefined : this.backGlyph}></mc-glyph-hint>
+      </div>
       <div class="title" style=${title}>${t("tableSetup.title")}</div>
       <div class="step label">${t(phone ? "tableSetup.stepShort" : "tableSetup.step")}</div>`;
   }

@@ -19,6 +19,9 @@ export const McSetupDealBarStyles = [
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .ctl {
+      position: relative;
+    }
     .deal {
       --chip-height: 56px;
       --chip-size: 28px;

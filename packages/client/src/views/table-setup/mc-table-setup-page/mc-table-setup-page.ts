@@ -84,6 +84,7 @@ export class McTableSetupPage extends LitElement {
       .mode=${mode}
       .titleDrop=${input.titleDrop}
       .titleMax=${input.titleMax}
+      .backGlyph=${input.backGlyph}
     ></mc-setup-top-bar>`;
     if (mode === "phone")
       return html`${bar}

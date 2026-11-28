@@ -61,6 +61,8 @@ export { McCardSections } from "./components/mc-card-sections/mc-card-sections.j
 export { McShelfRoster } from "./components/mc-shelf-roster/mc-shelf-roster.js";
 export { McDeckDetails } from "./components/mc-deck-details/mc-deck-details.js";
 export { McPress } from "./shared/press/McPress.js";
+export { McGlyphHint } from "./components/controls/mc-glyph-hint/mc-glyph-hint.js";
+export { glyphLabelShift } from "./components/controls/mc-glyph-hint/mc-glyph-hint.types.js";
 export { McChip } from "./components/controls/mc-chip/mc-chip.js";
 export { McCheckRow } from "./components/controls/mc-check-row/mc-check-row.js";
 export { McPressCard } from "./components/controls/mc-press-card/mc-press-card.js";

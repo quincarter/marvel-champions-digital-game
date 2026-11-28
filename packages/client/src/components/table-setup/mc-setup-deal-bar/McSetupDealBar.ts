@@ -1,3 +1,4 @@
+import { glyphLabelShift } from "@mc/ui";
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { t } from "../../../i18n/translate.js";
 import type { SetupMode } from "../shared/setup-events.types.js";
@@ -41,13 +42,16 @@ export class McSetupDealBar extends LitElement {
     const waiting = input.starting || input.blocked !== null;
     return html`${this.mode === "phone" ? html`<div class="label line">${input.footerLine}</div>` : nothing}
       ${input.status.length > 0 ? html`<div class="status">${input.status}</div>` : nothing}
-      <mc-chip
-        class="deal"
-        .stop=${"deal-it-out"}
-        label=${label}
-        ?disabled=${waiting}
-        title=${input.blocked ?? ""}
-        .action=${{ type: "deal" } as const}
-      ></mc-chip>`;
+      <div class="ctl" style=${`--mc-label-shift:${glyphLabelShift(input.glyph)}px`}>
+        <mc-chip
+          class="deal"
+          .stop=${"deal-it-out"}
+          label=${label}
+          ?disabled=${waiting}
+          title=${input.blocked ?? ""}
+          .action=${{ type: "deal" } as const}
+        ></mc-chip>
+        <mc-glyph-hint .glyph=${input.glyph}></mc-glyph-hint>
+      </div>`;
   }
 }

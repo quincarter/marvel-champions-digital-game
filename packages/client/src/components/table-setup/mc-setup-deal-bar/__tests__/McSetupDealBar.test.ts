@@ -61,4 +61,14 @@ describe("mc-setup-deal-bar", () => {
     expect(room.deal!.getAttribute("label")).not.toBe("Deal it out");
     expect((await make(null)).el.shadowRoot!.children.length).toBe(0);
   });
+
+  it("hangs the pad's glyph on Deal and slides its word over, and shows none without one", async () => {
+    const glyph = { specs: [], height: 22, ground: "ink", openness: 1, width: 40 } as never;
+    const { el } = await make(input({ glyph }));
+    expect(el.shadowRoot!.querySelector("mc-glyph-hint")!.glyph).toBe(glyph);
+    expect(el.shadowRoot!.querySelector(".ctl")!.getAttribute("style")).toContain("--mc-label-shift:24px");
+    const none = await make(input());
+    expect(none.el.shadowRoot!.querySelector("mc-glyph-hint")!.glyph).toBeUndefined();
+    expect(none.el.shadowRoot!.querySelector(".ctl")!.getAttribute("style")).toContain("--mc-label-shift:0px");
+  });
 });

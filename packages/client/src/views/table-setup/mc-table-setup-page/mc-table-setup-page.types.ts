@@ -1,3 +1,4 @@
+import type { ControlGlyph } from "@mc/ui";
 import type { DealBarInput } from "../../../components/table-setup/mc-setup-deal-bar/mc-setup-deal-bar.types.js";
 import type { DifficultyInput } from "../../../components/table-setup/mc-setup-difficulty/mc-setup-difficulty.types.js";
 import type { EncounterInput } from "../../../components/table-setup/mc-setup-encounter/mc-setup-encounter.types.js";
@@ -17,4 +18,6 @@ export interface TableSetupPageInput {
   readonly titleDrop: number;
   /** The width the title may take, or 0 for no limit. */
   readonly titleMax: number;
+  /** The Cancel glyph on Back (wide only), while a keyboard or pad is in use. */
+  readonly backGlyph?: ControlGlyph | undefined;
 }

@@ -44,4 +44,16 @@ describe("mc-setup-top-bar", () => {
     const free = await make("wide");
     expect(free.el.shadowRoot!.querySelector(".title")!.getAttribute("style")).not.toContain("--max");
   });
+
+  it("hangs the Cancel glyph on Back when wide, and none on a phone", async () => {
+    const glyph = { specs: [], height: 20, ground: "ink", openness: 1, width: 30 } as never;
+    const wide = await make("wide");
+    wide.el.backGlyph = glyph;
+    await wide.el.updateComplete;
+    expect(wide.el.shadowRoot!.querySelector("mc-glyph-hint")!.glyph).toBe(glyph);
+    const phone = await make("phone");
+    phone.el.backGlyph = glyph;
+    await phone.el.updateComplete;
+    expect(phone.el.shadowRoot!.querySelector("mc-glyph-hint")!.glyph).toBeUndefined();
+  });
 });

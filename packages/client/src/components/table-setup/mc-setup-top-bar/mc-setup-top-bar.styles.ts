@@ -17,6 +17,10 @@ export const McSetupTopBarStyles = [
       gap: 12px;
       padding: 0 12px;
     }
+    .ctl {
+      position: relative;
+      flex: none;
+    }
     .back {
       flex: none;
       min-width: 64px;

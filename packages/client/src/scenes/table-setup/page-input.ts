@@ -1,5 +1,6 @@
 /** Slices the view model into what each section of the page shows, and gathers the pictures they draw. */
 import type { PackLeases } from "../../art/pack-art.js";
+import type { ControlGlyphs } from "../../dom/control-glyphs.js";
 import { difficultyLabelOf } from "../../view/difficulty-label.js";
 import { roomSetupActive } from "../../view/room-table-setup.js";
 import { towerDefenseSetupDamagePerHero } from "../../view/setup-draft.js";
@@ -8,6 +9,7 @@ import type { TableSetupPageInput } from "../../views/table-setup/mc-table-setup
 import type { TableModel } from "./model.js";
 import { footerLineOf } from "./footer-line.js";
 import { setPicturesOf, seatPicturesOf, villainOf } from "./pictures.js";
+import { padGlyphsShown } from "../seats/seats-paging.js";
 import { lt } from "./text/lt.js";
 
 /** What the screen itself holds beyond the draft: the seed field's text, the watch choice, which phone groups are open. */
@@ -21,7 +23,17 @@ export interface PageState {
   readonly title: { readonly drop: number; readonly max: number };
 }
 
-export function pageInputOf(m: TableModel, s: PageState, leases: PackLeases): TableSetupPageInput {
+/** The Back and Deal buttons' control heights, for the glyphs hung on them. */
+const BACK_HEIGHT = 44;
+const DEAL_HEIGHT = 56;
+
+export function pageInputOf(
+  m: TableModel,
+  s: PageState,
+  leases: PackLeases,
+  glyphs: ControlGlyphs,
+  wide: boolean,
+): TableSetupPageInput {
   const { draft } = m;
   const modes = draftModes(draft);
   const difficulty = difficultyLabelOf({ difficulty: draft.difficulty, ...(modes ? { modes } : {}) });
@@ -68,6 +80,8 @@ export function pageInputOf(m: TableModel, s: PageState, leases: PackLeases): Ta
       room,
       blocked: m.dealBlocked,
       status: s.status || (m.dealBlocked ?? ""),
+      // Start deals, so the pad shows its glyph on Deal; the keyboard has no key for it.
+      glyph: padGlyphsShown(glyphs.snapshot) ? glyphs.glyph("deal", ["pause"], "ink", DEAL_HEIGHT) : undefined,
       footerLine: footerLineOf({
         villainName: m.villainName,
         stage: m.preview?.villainStageLabel ?? null,
@@ -77,6 +91,8 @@ export function pageInputOf(m: TableModel, s: PageState, leases: PackLeases): Ta
         blocked: m.dealBlocked,
       }),
     },
+    // A phone's Back is a plain arrow with no room for a glyph, as it always was.
+    backGlyph: wide ? glyphs.glyph("back", ["cancel"], "ink", BACK_HEIGHT) : undefined,
     titleDrop: s.title.drop,
     titleMax: s.title.max,
   };
