@@ -17,6 +17,9 @@ html`<mc-segments
 | --------- | ------------------- | --------------------- |
 | `options` | `McSegmentOption[]` | The cells.            |
 | `look`    | `cell` / `tile`     | Passed to every cell. |
+| `heading` | string              | A settings row's title; none: the bare strip. |
+| `detail`  | string              | The line under the title.                      |
+| `dimmed`  | boolean             | Faded but still adjustable.                    |
 
 ## Events
 
@@ -25,3 +28,5 @@ html`<mc-segments
 ## Slots
 
 None.
+
+With a `heading` the strip sits beside the words (`--segments-width`, 300px) and drops under them where the row is narrow.

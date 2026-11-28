@@ -53,4 +53,27 @@ describe("mc-volume-slider", () => {
     track.dispatchEvent(at("pointerup", 40, 20));
     expect(slides).toEqual([]);
   });
+
+  it("keeps the volume stop keys unless a screen names its own (the Controls hint size)", async () => {
+    const { el } = await mount();
+    const stops = (): (string | null)[] =>
+      [...el.shadowRoot!.querySelectorAll("mc-button")].map((b) => b.getAttribute("data-stop"));
+    expect(stops()).toEqual(["volume-down", "volume-up"]);
+    el.downStop = "hint-size:down";
+    el.upStop = "hint-size:up";
+    await el.updateComplete;
+    expect(stops()).toEqual(["hint-size:down", "hint-size:up"]);
+  });
+
+  it("is a settings row with a heading, detail and a preview slot, and the bare slider without", async () => {
+    const { el } = await mount();
+    expect(el.shadowRoot!.querySelector(".words")).toBeNull();
+    el.heading = "Hint size";
+    el.detail = "How big the hints are.";
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector(".heading")!.textContent).toBe("Hint size");
+    expect(el.shadowRoot!.querySelector("slot[name='preview']")).not.toBeNull();
+    expect(el.track).not.toBeNull();
+    expect(el.hasAttribute("heading")).toBe(true);
+  });
 });

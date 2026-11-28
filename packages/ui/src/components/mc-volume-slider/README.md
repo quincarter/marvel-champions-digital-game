@@ -17,6 +17,10 @@ Used by `mc-music-player`.
 | `value`      | `number`           | 0 to 100            |
 | `label`      | `string`           | the percent as read |
 | `stepLabels` | `[string, string]` | for the buttons     |
+| `down-stop`  | `string`           | the - button's focus stop key (`volume-down`) |
+| `up-stop`    | `string`           | the + button's focus stop key (`volume-up`)   |
+
+A `heading` makes it a settings row: the title and `detail`, then a line with the `preview` slot beside the slider (`dimmed` fades it, still adjustable).
 
 ## Events
 

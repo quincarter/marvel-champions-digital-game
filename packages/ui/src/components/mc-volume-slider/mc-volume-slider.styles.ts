@@ -58,4 +58,47 @@ export const McVolumeSliderStyles = css`
     letter-spacing: 1.2px;
     text-transform: uppercase;
   }
+  /* A settings row (with a heading): the words over a line of preview and slider. */
+  :host([heading]) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    height: auto;
+    color: var(--mc-text-paper);
+  }
+  :host([dimmed]) {
+    opacity: 0.5;
+  }
+  .words {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .heading {
+    font-size: var(--mc-small-12, 12px);
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+  .detail {
+    font-size: var(--mc-small-10, 10px);
+    line-height: 1.3;
+    opacity: 0.8;
+  }
+  .line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+  }
+  .control {
+    display: flex;
+    flex: 1 1 220px;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    min-width: 0;
+  }
 `;

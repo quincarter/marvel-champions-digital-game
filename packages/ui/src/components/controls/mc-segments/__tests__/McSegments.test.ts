@@ -31,4 +31,21 @@ describe("mc-segments", () => {
     el.shadowRoot!.querySelectorAll("mc-segment-cell")[0]!.click();
     expect(seen).toEqual([{ action: "small", hold: false }]);
   });
+
+  it("is the bare strip without a heading, and a settings row with one", async () => {
+    const el = document.createElement("mc-segments");
+    el.options = options;
+    document.body.append(el);
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector(".row")).toBeNull();
+    expect(el.shadowRoot!.querySelector(".strip")).not.toBeNull();
+    el.heading = "Card size";
+    el.detail = "How big the cards are.";
+    el.dimmed = true;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector(".heading")!.textContent).toBe("Card size");
+    expect(el.shadowRoot!.querySelector(".detail")!.textContent).toBe("How big the cards are.");
+    expect(el.shadowRoot!.querySelectorAll("mc-segment-cell").length).toBe(2);
+    expect(el.hasAttribute("dimmed")).toBe(true);
+  });
 });

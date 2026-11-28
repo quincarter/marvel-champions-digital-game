@@ -24,6 +24,7 @@ import "../mc-line-list/mc-line-list.js";
 import { GLYPH_COLLAPSE_MS, GLYPH_EXPAND_MS } from "../mc-glyph/McGlyph.js";
 import type { PictureErrorDetail } from "../mc-picture-tile/mc-picture-tile.types.js";
 import { objectPositionFor } from "../../shared/crop.js";
+import { svgOpTemplate } from "../../shared/svg-op.js";
 import type { SheetImage, SheetNode, SheetRect, SheetScroll, SheetSlider, SvgOp } from "../../shared/sheet.types.js";
 import { McSheetStyles } from "./mc-sheet.styles.js";
 
@@ -216,32 +217,10 @@ export class McSheet extends LitElement {
   }
 
   #svgOp(op: SvgOp): unknown {
-    if (op.k === "text") {
-      return svg`<text x=${op.x} y=${op.y} text-anchor=${op.anchor} fill=${op.fill} fill-opacity=${op.alpha ?? 1}
-        font-size=${op.size} font-weight=${op.weight} letter-spacing=${op.spacing ?? 0}
-        font-family=${`var(--mc-font-${op.font})`}>${op.text}</text>`;
-    }
-    if (op.k === "image") {
-      return svg`<image href=${op.href} x=${op.x} y=${op.y} width=${op.w} height=${op.h} @error=${() => {
-        this.#failed.add(op.href);
-        this.requestUpdate();
-      }}></image>`;
-    }
-    const fill = op.fill ?? "none";
-    const stroke = op.stroke ?? "none";
-    const width = op.sw ?? 1;
-    const opacity = op.alpha ?? 1;
-    const dash = op.dash ? `${op.dash[0]} ${op.dash[1]}` : "none";
-    switch (op.k) {
-      case "rect":
-        return svg`<rect x=${op.x} y=${op.y} width=${op.w} height=${op.h} rx=${op.rx ?? 0} fill=${fill} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></rect>`;
-      case "circle":
-        return svg`<circle cx=${op.cx} cy=${op.cy} r=${op.r} fill=${fill} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></circle>`;
-      case "line":
-        return svg`<line x1=${op.x1} y1=${op.y1} x2=${op.x2} y2=${op.y2} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></line>`;
-      case "path":
-        return svg`<path d=${op.d} fill=${fill} stroke=${stroke} stroke-width=${width} stroke-dasharray=${dash} opacity=${opacity}></path>`;
-    }
+    return svgOpTemplate(op, (href) => {
+      this.#failed.add(href);
+      this.requestUpdate();
+    });
   }
 
   /** The press that is on a slider's track now: where it began, and whether it turned into a drag or the page's scroll. */
