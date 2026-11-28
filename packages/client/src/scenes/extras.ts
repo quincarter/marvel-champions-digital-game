@@ -359,7 +359,8 @@ export class ExtrasScene extends Phaser.Scene {
     const collected = focusStopsOf(element, (target) => region.rectOf(target));
     // The volume slider's steps are the player's: `player:volume-down`, `player:volume-up`.
     const stops = new Map<string, FocusStop>();
-    for (const [key, stop] of collected) stops.set(key.startsWith("volume-") ? `player:${key}` : key, stop);
+    for (const [key, stop] of collected)
+      stops.set(/^(volume-|shuffle$|next$|pause$)/.test(key) ? `player:${key}` : key, stop);
     const keys = [...stops.keys()];
     this.#route?.set(
       [

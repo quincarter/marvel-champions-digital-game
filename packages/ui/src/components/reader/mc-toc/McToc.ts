@@ -1,7 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../../shared/theme.styles.js";
-import { activate } from "../../../shared/popup-parts.js";
 import { tapped } from "../../../shared/tapped.js";
 import "../../mc-empty-state/mc-empty-state.js";
 import { McTocStyles } from "./mc-toc.styles.js";
@@ -18,6 +17,11 @@ import type { McTocRow } from "./mc-toc.types.js";
  * @attr empty - What to say when there are no rows.
  * @fires mc-activate - `{ key }`: a row was pressed.
  */
+/** Raises `mc-activate` for the row `key`. */
+const activate = (host: HTMLElement, key: string): void => {
+  host.dispatchEvent(new CustomEvent("mc-activate", { detail: { key }, bubbles: true, composed: true }));
+};
+
 export class McToc extends LitElement {
   static override styles = [ThemeStyles, McTocStyles];
 

@@ -1,6 +1,6 @@
 # mc-extras-player
 
-The Music tab's player: an ink block (the note, the status in caution yellow, the song in Bangers, what is playing it and a progress bar with its clock) over `mc-player-controls` (Shuffle, Next, Pause) and, on a desktop form factor, an `mc-volume-slider`; both are the generic controls the music popover uses. The bar follows the song on its own quarter-second timer reading `progress`, so the page is never redrawn for it.
+The Music tab's player: an ink block (the note, the status in caution yellow, the song in Bangers, what is playing it and a progress bar with its clock) over the music popover's `mc-player-controls` (Shuffle, Next, Pause) and, on a desktop form factor, an `mc-volume-slider`; both are the generic controls the music popover uses. The bar follows the song on its own quarter-second timer reading `progress`, so the page is never redrawn for it.
 
 ## Properties
 

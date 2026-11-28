@@ -75,6 +75,8 @@ export class SideStoryReaderScene extends Phaser.Scene {
   #view: ReturnType<typeof comicReaderViewOf> | null = null;
   #drawn = 0;
   #leaving = false;
+  /** Between `create` and shutdown (not `sys.isActive()`, which is still false while `create` itself draws). */
+  #alive = false;
 
   constructor() {
     super(SCENES.sideStoryReader);
@@ -100,6 +102,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
 
   create(): void {
     this.#route = null;
+    this.#alive = true;
     if (!this.#story || this.#steps.length === 0) {
       this.#leave();
       return;
@@ -130,6 +133,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
       },
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#alive = false;
       this.scale.off("resize", this.#compose, this);
       offLanguage();
       this.input.keyboard?.off("keydown", onArrow);
@@ -229,7 +233,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
   #drawPicture(): void {
     const story = this.#story;
     const view = this.#view;
-    if (!story || !view || !this.sys.isActive() || this.#readingRect.width === 0) return;
+    if (!story || !view || !this.#alive || this.#readingRect.width === 0) return;
     for (const object of this.#pictureObjects) object.destroy();
     const before = new Set(this.children.list);
     const panning = this.#panFrom !== null && this.#panProgress < 1;
@@ -251,7 +255,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
   #compose(): void {
     const mounted = this.#page;
     const story = this.#story;
-    if (!this.sys.isActive() || this.#leaving || !mounted || !story) return;
+    if (!this.#alive || this.#leaving || !mounted || !story) return;
     const { width, height, phone } = campaignFrame(this);
     const view = comicReaderViewOf(this.#steps, this.#current, []);
     this.#view = view;
@@ -297,7 +301,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
   }
 
   #wire({ element, region }: Page): void {
-    if (!this.sys.isActive() || this.#leaving) return;
+    if (!this.#alive || this.#leaving) return;
     const reading = element.readingArea;
     if (reading) {
       this.#readingRect = region.rectOf(reading);

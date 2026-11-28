@@ -10,9 +10,12 @@ const model = (over: Partial<ExtrasPlayerModel> = {}): ExtrasPlayerModel => ({
   status: "NOW PLAYING",
   title: "BATTLE THEME",
   detail: "Repeating this song",
-  shuffle: { key: "player:shuffle", label: "Shuffle", kind: "secondary" },
-  next: { key: "player:next", label: "Next", kind: "secondary" },
-  pause: { key: "player:pause", label: "Pause", kind: "secondary" },
+  shuffleLabel: "Shuffle",
+  nextLabel: "Next",
+  pauseLabel: "Pause",
+  shuffleOn: false,
+  paused: false,
+  reason: "",
   volume: null,
   ...over,
 });
@@ -49,7 +52,7 @@ describe("mc-extras-player", () => {
     el.addEventListener("mc-extras", (event) => heard(event.detail));
     const controls = el.shadowRoot!.querySelector("mc-player-controls")!;
     controls.dispatchEvent(
-      new CustomEvent("mc-activate", { detail: { key: "player:shuffle" }, bubbles: true, composed: true }),
+      new CustomEvent("mc-music", { detail: { type: "press", key: "shuffle" }, bubbles: true, composed: true }),
     );
     const slider = el.shadowRoot!.querySelector("mc-volume-slider")!;
     slider.dispatchEvent(

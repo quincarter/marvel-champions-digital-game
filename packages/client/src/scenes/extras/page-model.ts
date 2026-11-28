@@ -87,25 +87,12 @@ function playerOf(input: ExtrasModelInput): ExtrasPlayerModel {
     status: playing ? (paused ? t("music.paused") : t("music.nowPlaying")) : t("music.nothingPlaying"),
     title: playing ? nowPlayingTitleOf(playing).toUpperCase() : null,
     detail: playing ? (song ? `${mode} · ${song.where}` : mode) : null,
-    shuffle: {
-      key: "player:shuffle",
-      label: shuffle ? t("music.shuffleOn") : t("music.shuffleOff"),
-      kind: "secondary",
-      selected: shuffle,
-      ...(earnFirst ? { disabled: earnFirst } : {}),
-    },
-    next: {
-      key: "player:next",
-      label: t("music.next"),
-      kind: "secondary",
-      ...(earnFirst ? { disabled: earnFirst } : {}),
-    },
-    pause: {
-      key: "player:pause",
-      label: paused ? t("music.play") : t("music.pause"),
-      kind: "secondary",
-      selected: paused,
-    },
+    shuffleLabel: shuffle ? t("music.shuffleOn") : t("music.shuffleOff"),
+    nextLabel: t("music.next"),
+    pauseLabel: paused ? t("music.play") : t("music.pause"),
+    shuffleOn: shuffle,
+    paused,
+    reason: earnFirst ?? "",
     volume: input.withSlider ? { value: input.volume, label: `${input.volume}%`, stepLabels: ["−", "+"] } : null,
   };
 }

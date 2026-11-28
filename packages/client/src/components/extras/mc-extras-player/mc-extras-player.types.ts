@@ -1,4 +1,4 @@
-import type { PopupButton, VolumeSliderProps } from "@mc/ui";
+import type { VolumeSliderProps } from "@mc/ui";
 
 /** How far into the song it is, in seconds. */
 export interface PlayerProgress {
@@ -14,9 +14,13 @@ export interface ExtrasPlayerModel {
   readonly title: string | null;
   /** What is playing it ("Shuffling earned songs - Battle - Rhino"), or null. */
   readonly detail: string | null;
-  readonly shuffle: PopupButton;
-  readonly next: PopupButton;
-  readonly pause: PopupButton;
+  readonly shuffleLabel: string;
+  readonly nextLabel: string;
+  readonly pauseLabel: string;
+  readonly shuffleOn: boolean;
+  readonly paused: boolean;
+  /** Why Shuffle and Next are unavailable (no song earned yet); empty when they are. */
+  readonly reason: string;
   /** The volume slider (a desktop form factor only); null for none. */
   readonly volume: VolumeSliderProps | null;
 }

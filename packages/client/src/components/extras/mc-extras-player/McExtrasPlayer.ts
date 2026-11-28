@@ -1,5 +1,6 @@
 import { html, nothing, type PropertyDeclarations } from "lit";
-import { ThemeStyles, type PlayerControlsModel } from "@mc/ui";
+import { ThemeStyles } from "@mc/ui";
+import "../../music/mc-player-controls/mc-player-controls.js";
 import { clockOf } from "../../../view/music-player.js";
 import { ExtrasElement } from "../shared/ExtrasElement.js";
 import type { ExtrasPlayerAction } from "../shared/extras-events.types.js";
@@ -13,7 +14,7 @@ const TICK_MS = 250;
  * # Extras player
  * The Music tab's player: an ink block (the note, the status in caution yellow, the song in Bangers, what is playing it
  * and a progress bar with its clock) over Shuffle, Next, Pause and, on a desktop form factor, the volume slider. The
- * buttons and slider are the generic `mc-player-controls` and `mc-volume-slider` the music popover uses. The bar follows
+ * buttons and slider are the generic `mc-player-controls` (the music popover's) and `mc-volume-slider`. The bar follows
  * the song on a timer of its own (`progress` is read every quarter second), so the page is not redrawn for it.
  *
  * @element mc-extras-player
@@ -66,12 +67,6 @@ export class McExtrasPlayer extends ExtrasElement implements McExtrasPlayerProps
   override render() {
     const m = this.model;
     if (!m) return nothing;
-    const controls: PlayerControlsModel = {
-      shuffle: m.shuffle,
-      next: m.next,
-      pause: m.pause,
-      withSlider: m.volume !== null,
-    };
     return html`<div class="block" ?data-idle=${m.title === null}>
         <span class="note" aria-hidden="true">♪</span>
         <div class="words">
@@ -91,10 +86,17 @@ export class McExtrasPlayer extends ExtrasElement implements McExtrasPlayerProps
         </div>
       </div>
       <mc-player-controls
-        .model=${controls}
-        @mc-activate=${(event: CustomEvent<{ key: ExtrasPlayerAction }>) => {
+        .shuffleLabel=${m.shuffleLabel}
+        .nextLabel=${m.nextLabel}
+        .pauseLabel=${m.pauseLabel}
+        .shuffleOn=${m.shuffleOn}
+        .paused=${m.paused}
+        .reason=${m.reason}
+        .withSlider=${m.volume !== null}
+        @mc-music=${(event: CustomEvent<{ type: string; key?: string }>) => {
+          if (event.detail.type !== "press") return;
           event.stopPropagation();
-          this.emit({ type: "player", action: event.detail.key.slice("player:".length) as ExtrasPlayerAction });
+          this.emit({ type: "player", action: event.detail.key as ExtrasPlayerAction });
         }}
       >
         ${
