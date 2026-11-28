@@ -2,6 +2,7 @@ import { difficultyLabelOf } from "../../../view/difficulty-label.js";
 import { draftModes } from "../../../view/setup-options.js";
 import { towerDefenseSetupDamagePerHero } from "../../../view/setup-draft.js";
 import { roomSetupActive } from "../../../view/room-table-setup.js";
+import { lt } from "../text/lt.js";
 import { footerLineOf } from "../summary/footer-line.js";
 import type { TableModel } from "../model.js";
 import type { SectionInputs } from "./sections.js";
@@ -63,7 +64,7 @@ export function sectionInputsOf(m: TableModel, s: PageState): SectionInputs {
       footerLine: footerLineOf({
         villainName: m.villainName,
         stage: m.preview?.villainStageLabel ?? null,
-        difficulty: difficulty ?? "",
+        difficulty: lt(difficulty ?? ""),
         heroes: m.players.length,
         modulars: m.pickedCount,
         blocked: m.dealBlocked,

@@ -43,7 +43,7 @@ export function watchToggle(f: Frame, input: SummaryInput, on: SummaryEvents, re
       ],
       { stroke: surface.paper.hex, strokeWidth: 3 },
     );
-  f.b.text(bx + size + 10, rect.y + rect.height / 2, t("live.setup.title"), typeRole.label, {
+  f.b.text(bx + size + 10, rect.y + rect.height / 2, t("tableSetup.watch"), typeRole.label, {
     color: surface.paper.hex,
     origin: [0, 0.5],
     fitWidth: rect.width - size - 30,

@@ -2990,4 +2990,5 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "tableSetup.td.name": "Ataque inicial de la Orden Negra",
   "tableSetup.td.on": "Elegido · coloca {n} de daño por héroe en la Torre de los Vengadores",
   "tableSetup.td.off": "Desactivado · la Torre de los Vengadores empieza sin daño ({n} por héroe sugerido)",
+  "tableSetup.watch": "Permitir ver esta partida",
 };

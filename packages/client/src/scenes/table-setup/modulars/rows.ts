@@ -15,6 +15,7 @@ import type { HoodModularSetOption } from "../../../view/hood-modular-sets.js";
 import { EDIT_SCENARIO_ID, type CivilWarTableSummary } from "../../../view/civil-war-table-summary.js";
 import { t, tPlural } from "../../../i18n/translate.js";
 import { checkbox, inset, labelText, nameText, press, type Frame } from "../shared/frame.js";
+import { lt } from "../text/lt.js";
 import { toggleRow } from "../shared/toggle-row.js";
 import { cardsTaps, hoodMeta, setPicture } from "./tiles.js";
 import type { ModularsEvents } from "./modulars.types.js";
@@ -48,7 +49,7 @@ export function modularRow(f: Frame, on: ModularsEvents, rect: Rect, option: Mod
       key,
       selected: option.selected,
       name: option.name,
-      meta: modularCardLabel(option),
+      meta: lt(modularCardLabel(option)),
       run: () => !barred && on.toggle(option.id),
     },
     hasPicture ? picture.x - 8 : rect.x + rect.width - 10,

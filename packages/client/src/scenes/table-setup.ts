@@ -43,6 +43,7 @@ import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { FocusRoute } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { SCENES } from "./keys.js";
+import { loadSetupNames } from "./table-setup/text/lt.js";
 import type { Rect } from "../view/layout.js";
 import type { InstanceId } from "@mc/engine";
 import { Registry, type Frame } from "./table-setup/shared/frame.js";
@@ -158,6 +159,8 @@ export class TableSetupScene extends Phaser.Scene {
       primary: () => (this.#reg.stops.has("deal-it-out") && !this.#starting && !this.#leaving ? "deal-it-out" : null),
     });
     this.#compose();
+    // The Spanish set and product names are a data module: the screen draws again once they are in.
+    void loadSetupNames().then((ok) => ok && this.#alive && this.#compose());
     fadeScreenIn(this);
     void deckStorage()
       .list()

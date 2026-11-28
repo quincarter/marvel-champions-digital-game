@@ -17,6 +17,7 @@ import {
 import type { HoodModularSetOption } from "../../../view/hood-modular-sets.js";
 import { EDIT_SCENARIO_ID, type CivilWarTableSummary } from "../../../view/civil-war-table-summary.js";
 import { t, tPlural } from "../../../i18n/translate.js";
+import { lt } from "../text/lt.js";
 import { cardFrame, inset, labelText, nameText, press, type Frame } from "../shared/frame.js";
 import type { ModularsEvents } from "./modulars.types.js";
 
@@ -104,7 +105,7 @@ export function requiredTile(f: Frame, rect: Rect, required: RequiredEncounterSe
     rect.x + 10,
     rect.width - 20,
     rect.y + 8 + name.height + 4,
-    requiredCardLabel(villainName, required.cardCount).toUpperCase(),
+    lt(requiredCardLabel(villainName, required.cardCount)).toUpperCase(),
     surface.paper.hex,
     ink.label,
   );
@@ -133,7 +134,7 @@ export function modularTile(f: Frame, on: ModularsEvents, rect: Rect, option: Mo
     textX,
     (hasPicture ? rect.x + rect.width - TAB_WIDTH : rect.x + rect.width - 10) - textX,
     rect.y + 8 + name.height + 4,
-    modularCardLabel(option).toUpperCase(),
+    lt(modularCardLabel(option)).toUpperCase(),
     surface.ink.hex,
     dim === 1 ? ink.label : ink.disabled,
   );
@@ -176,7 +177,7 @@ export function summaryTile(f: Frame, on: ModularsEvents, cell: Rect, cw: CivilW
 export function hoodMeta(option: HoodModularSetOption): string {
   return option.included
     ? t("tableSetup.hoodIn", {
-        label: modularCardLabel({ selected: true, cardCount: option.cardCount, descriptor: option.descriptor }),
+        label: lt(modularCardLabel({ selected: true, cardCount: option.cardCount, descriptor: option.descriptor })),
       })
     : t("tableSetup.hoodAside", { cards: tPlural("tableSetup.cardsN", option.cardCount) });
 }

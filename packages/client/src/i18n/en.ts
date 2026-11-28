@@ -2936,4 +2936,5 @@ export const en = {
   "tableSetup.td.name": "Black Order's initial attack",
   "tableSetup.td.on": "Chosen · place {n} damage per hero on Avengers Tower",
   "tableSetup.td.off": "Off · Avengers Tower starts undamaged ({n} per hero suggested)",
+  "tableSetup.watch": "Let people watch this game",
 } as const;

@@ -58,6 +58,7 @@ import {
   type TableSetupPreview,
 } from "../../view/table-setup-preview.js";
 import { t } from "../../i18n/translate.js";
+import { localizeModel } from "./text/localize-model.js";
 import type { SeatCell } from "./seating/seating.types.js";
 
 /** Every encounter set's printed name, for the Standard and Expert chips. */
@@ -118,7 +119,7 @@ function seatCellsOf(draft: SetupDraft, options: readonly DeckOption[]): readonl
   });
 }
 
-export function tableModelOf(draft: SetupDraft, saved: readonly Deck[]): TableModel {
+function buildModel(draft: SetupDraft, saved: readonly Deck[]): TableModel {
   const settings = appSession().settings;
   const scenario = scenarioOf(draft);
   const deckOptions = deckOptionsOf(saved);
@@ -239,3 +240,7 @@ export function tableModelOf(draft: SetupDraft, saved: readonly Deck[]): TableMo
     seats: seatCellsOf(draft, deckOptions),
   };
 }
+
+/** The view model for the draft, with its words in the app language. */
+export const tableModelOf = (draft: SetupDraft, saved: readonly Deck[]): TableModel =>
+  localizeModel(buildModel(draft, saved));

@@ -15,6 +15,7 @@ import {
 } from "../../../view/table-setup-layout.js";
 import type { DifficultyEvents } from "./difficulty.types.js";
 import type { OptionChip, SetupOptionRow } from "../../../view/setup-options.js";
+import { lt } from "../text/lt.js";
 import { t } from "../../../i18n/translate.js";
 import { cardFrame, labelText, nameText, press, segment, type Frame } from "../shared/frame.js";
 
@@ -206,7 +207,7 @@ export function setsCard(
   if (last && rows.length === 1) {
     const top = last.chips.y + last.chips.height + 3;
     if (card.y + card.height - top >= 14)
-      labelText(c.b, card.x + 10, top, difficultySetLine(rows[0]!), surface.ink.hex, { fitWidth: card.width - 20 });
+      labelText(c.b, card.x + 10, top, lt(difficultySetLine(rows[0]!)), surface.ink.hex, { fitWidth: card.width - 20 });
   }
 }
 

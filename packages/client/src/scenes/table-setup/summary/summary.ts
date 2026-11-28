@@ -14,7 +14,7 @@ import {
 import { hit } from "../../../tokens.js";
 import { t } from "../../../i18n/translate.js";
 import type { SheetGlyphs } from "../../../dom/sheet-glyphs.js";
-import { heading, inset, labelText, type Frame } from "../shared/frame.js";
+import { heading, inset, labelText, nameText, type Frame } from "../shared/frame.js";
 import { toggleRow } from "../shared/toggle-row.js";
 import { dealButton, seedField, villainPicture, watchToggle } from "./parts.js";
 import type { SummaryEvents, SummaryInput } from "./summary.types.js";
@@ -47,7 +47,7 @@ export function drawSummary(
     const y = rows.y + index * PANEL_ROW_HEIGHT;
     if (y + PANEL_ROW_HEIGHT > rows.y + rows.height + 0.01) return;
     const name = labelText(f.b, rows.x, y + 2, row.label, paper);
-    // Whatever the label leaves, never less than 60%: a long value keeps its size instead of shrinking.
+    // Whatever the label leaves, never less than 45%: a long value keeps its size instead of shrinking.
     f.b.text(
       rows.x + rows.width,
       y,
@@ -56,7 +56,7 @@ export function drawSummary(
       {
         color: paper,
         origin: [1, 0],
-        fitWidth: Math.max(rows.width * 0.6, rows.width - name.width - 10),
+        fitWidth: Math.max(rows.width * 0.45, rows.width - name.width - 10),
       },
     );
   });
@@ -95,7 +95,7 @@ export function drawCompactSummary(f: Frame, input: SummaryInput, on: SummaryEve
     const h = COMPACT_SEED_ROW_HEIGHT;
     f.b.box({ ...rect, height: h }, { fill: surface.parchment.hex });
     f.b.box(inset({ ...rect, height: h }, 1.25), { stroke: surface.ink.hex, strokeWidth: 2.5 });
-    f.b.text(rect.x + 12, rect.y + 10, t("tableSetup.seed"), typeRole.rowTitle, { color: surface.ink.hex });
+    nameText(f.b, rect.x + 12, rect.y + 8, rect.width - 24, t("tableSetup.seed"), 15);
     f.b.text(rect.x + 12, rect.y + 26, t("tableSetup.seedCaption"), typeRole.label, {
       color: surface.ink.hex,
       alpha: ink.label,
@@ -111,7 +111,7 @@ export function drawCompactSummary(f: Frame, input: SummaryInput, on: SummaryEve
     toggleRow(f, rect, {
       key: "watch",
       selected: input.watchable,
-      name: t("live.setup.title"),
+      name: t("tableSetup.watch"),
       meta: t(input.watchable ? "live.setup.on" : "live.setup.off"),
       run: on.toggleWatch,
     });
