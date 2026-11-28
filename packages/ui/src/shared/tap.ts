@@ -119,13 +119,7 @@ export function onTap(
     )
       end();
   };
-  // A click with no pointer behind it (`detail` 0: the focus route's `click()`, a screen reader's or a keyboard's
-  // activation) is a press too. A pointer's own click has `detail` 1 or more and is already handled by `up`.
-  const activate = (event: MouseEvent): void => {
-    if (event.detail === 0 && options.enabled?.() !== false) handler(event as PointerEvent);
-  };
   tapCancels.set(element, end);
-  element.addEventListener("click", activate);
   element.addEventListener("pointerdown", down);
   element.addEventListener("pointerup", up);
   element.addEventListener("pointermove", move);
@@ -135,7 +129,6 @@ export function onTap(
   return () => {
     end();
     tapCancels.delete(element);
-    element.removeEventListener("click", activate);
     element.removeEventListener("pointerdown", down);
     element.removeEventListener("pointerup", up);
     element.removeEventListener("pointermove", move);
@@ -257,4 +250,21 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
     element.removeEventListener("pointerleave", leave);
     element.removeEventListener("contextmenu", menu);
   };
+}
+
+/**
+ * Calls `handler` for a click that has no pointer behind it (`detail` 0): the focus route's `click()` on a `data-stop` part,
+ * a screen reader's or a keyboard's activation. A pointer's own click has `detail` 1 or more and is `onTap`'s business, so a
+ * control uses both and never fires twice. Returns the function that stops listening.
+ */
+export function onActivate(
+  element: HTMLElement,
+  handler: (event: MouseEvent) => void,
+  options: TapOptions = {},
+): () => void {
+  const listener = (event: MouseEvent): void => {
+    if (event.detail === 0 && options.enabled?.() !== false) handler(event);
+  };
+  element.addEventListener("click", listener);
+  return () => element.removeEventListener("click", listener);
 }

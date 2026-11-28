@@ -73,4 +73,22 @@ describe("mc-card-sections", () => {
     press(el.elementOf("card:01001")!);
     expect(keys).toEqual(["face:0.0", "card:01001"]);
   });
+
+  it("marks every face and cell as a focus stop, and presses one on a click with no pointer (the focus route)", async () => {
+    const el = await mount();
+    expect(el.elementOf("card:01001")!.dataset.stop).toBe("card:01001");
+    const keys: string[] = [];
+    el.addEventListener("mc-activate", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
+    el.elementOf("card:01001")!.click();
+    expect(keys).toEqual(["card:01001"]);
+  });
+
+  it("raises the card hover and Inspect events from a picture, with the face a face tile names", async () => {
+    const el = await mount();
+    const heard: string[] = [];
+    el.addEventListener("mc-card-hover", (event) => heard.push(event.detail.cardId));
+    const picture = el.elementOf("card:01001")!.querySelector("mc-picture-tile")!;
+    picture.dispatchEvent(new PointerEvent("pointerenter", { pointerType: "mouse" }));
+    expect(heard).toEqual(["01001"]);
+  });
 });

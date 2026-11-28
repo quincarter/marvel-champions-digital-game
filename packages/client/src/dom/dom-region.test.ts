@@ -38,6 +38,7 @@ describe("regionTakesEvents", () => {
       "mc-search-focus",
       "mc-tile-focus",
       "mc-setup",
+      "mc-deck-check",
       "mc-card-inspect",
     ]);
   });

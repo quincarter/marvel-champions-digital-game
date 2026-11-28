@@ -148,7 +148,7 @@ const styles = css`
  * # Card sections
  * A deck's own cards as a scrolling list of sections: a titled row of face tiles (an identity's faces, a multi-faced
  * card's), a titled grid of card cells (cost pip, name and type, the scan, a short strip of rules, a "x2" copies badge)
- * and plain notes. A tap on a face raises `mc-activate` with `face:<id>`, on a cell with `card:<id>`; there is no other
+ * and plain notes. A tap on a face (or the focus route's click) raises `mc-activate` with `face:<id>`, on a cell with `card:<id>`; there is no other
  * press (the list's one action is "look at this"). `elementOf` finds each by key and `hoverFaces()` gives the pictures a
  * card hover popover wants.
  *
@@ -238,6 +238,7 @@ export class McCardSections extends LitElement {
       data-card=${tile.cardId}
       style=${`width:${width}px;margin:0 ${gap}px ${gap}px 0`}
       ${tapped(() => this.#press(`face:${tile.id}`))}
+      @click=${(event: MouseEvent) => event.detail === 0 && this.#press(`face:${tile.id}`)}
     >
       <mc-picture-tile .picture=${tile.picture} style=${`height:${height}px`}></mc-picture-tile>
       <div class="label">${tile.label}</div>
@@ -253,6 +254,7 @@ export class McCardSections extends LitElement {
       data-card=${cell.cardId}
       style=${`width:${width}px;height:${height}px`}
       ${tapped(() => this.#press(`card:${cell.id}`))}
+      @click=${(event: MouseEvent) => event.detail === 0 && this.#press(`card:${cell.id}`)}
     >
       <div class="top">
         <div class="pip" style=${cell.cost !== null ? `background:${cell.costColor}` : nothing}>${cell.cost ?? ""}</div>

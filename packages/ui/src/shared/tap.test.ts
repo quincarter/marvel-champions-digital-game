@@ -59,14 +59,6 @@ describe("cancelPressesWithin", () => {
 });
 
 describe("onTap", () => {
-  it("taps on a click with no pointer behind it (the focus route's click()), not on a pointer's own click", () => {
-    const { button, handler } = setup();
-    button.click();
-    expect(handler).toHaveBeenCalledTimes(1);
-    button.dispatchEvent(new MouseEvent("click", { detail: 1, bubbles: true }));
-    expect(handler).toHaveBeenCalledTimes(1);
-  });
-
   it("taps when the release is on the element", () => {
     const { button, handler } = setup();
     fire(button, "pointerdown", 50, 20);
@@ -298,5 +290,22 @@ describe("onHold", () => {
     stop();
     element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
     expect(held).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("onActivate", () => {
+  it("presses on a click with no pointer behind it (the focus route's click()), not on a pointer's own click", async () => {
+    const { onActivate } = await import("./tap.js");
+    const button = document.createElement("div");
+    document.body.append(button);
+    const handler = vi.fn();
+    const stop = onActivate(button, handler);
+    button.click();
+    expect(handler).toHaveBeenCalledTimes(1);
+    button.dispatchEvent(new MouseEvent("click", { detail: 1, bubbles: true }));
+    expect(handler).toHaveBeenCalledTimes(1);
+    stop();
+    button.click();
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 });

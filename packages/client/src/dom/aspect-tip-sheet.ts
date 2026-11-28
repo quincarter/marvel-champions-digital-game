@@ -17,7 +17,6 @@ const PAD = 10;
 /** The key of the tip's lesson link (a tap on it opens the aspect's lesson). */
 export const TIP_LINK_KEY = "aspect-tip-link";
 
-
 /** The words of a tip, measured and laid out: how tall the plate is and where each part sits inside it. */
 export function tipLayoutOf(
   b: SheetBuilder,

@@ -8,7 +8,7 @@ export { McCreditsList } from "./components/mc-credits-list/mc-credits-list.js";
 export { McAspectChip } from "./components/mc-aspect-chip/mc-aspect-chip.js";
 export { McButton } from "./components/mc-button/mc-button.js";
 export { McSettingsBody } from "./components/mc-settings-body/mc-settings-body.js";
-export { cancelPressesWithin, onHold, onTap, HOLD_MS, HOLD_SLOP_PX, TAP_SLOP_PX } from "./shared/tap.js";
+export { cancelPressesWithin, onActivate, onHold, onTap, HOLD_MS, HOLD_SLOP_PX, TAP_SLOP_PX } from "./shared/tap.js";
 export { watchCard } from "./shared/card-events.js";
 export type { CardHoverDetail, CardHoverEndDetail, CardRef } from "./shared/card-events.js";
 export { McSheet } from "./components/mc-sheet/mc-sheet.js";

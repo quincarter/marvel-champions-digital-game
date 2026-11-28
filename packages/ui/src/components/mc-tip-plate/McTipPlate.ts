@@ -1,6 +1,6 @@
 import { html, LitElement, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { onTap } from "../../shared/tap.js";
+import { onActivate, onTap } from "../../shared/tap.js";
 import { tipPlacement, tipWidthFor, type TipRect } from "../../shared/tip-placement.js";
 import { McTipPlateStyles } from "./mc-tip-plate.styles.js";
 import type { McTipPlateProps } from "./mc-tip-plate.types.js";
@@ -33,6 +33,7 @@ export class McTipPlate extends LitElement implements McTipPlateProps {
   declare anchor: TipRect | null;
   declare viewport: TipRect;
   #stopTap: (() => void) | null = null;
+  #stopActivate: (() => void) | null = null;
 
   constructor() {
     super();
@@ -43,15 +44,19 @@ export class McTipPlate extends LitElement implements McTipPlateProps {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.#stopTap = onTap(this, () =>
-      this.dispatchEvent(new CustomEvent("mc-tip-dismiss", { detail: {}, bubbles: true, composed: true })),
-    );
+    const dismiss = (): void => {
+      this.dispatchEvent(new CustomEvent("mc-tip-dismiss", { detail: {}, bubbles: true, composed: true }));
+    };
+    this.#stopTap = onTap(this, dismiss);
+    this.#stopActivate = onActivate(this, dismiss);
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#stopTap?.();
     this.#stopTap = null;
+    this.#stopActivate?.();
+    this.#stopActivate = null;
   }
 
   override render() {
