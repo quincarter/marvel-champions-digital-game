@@ -47,6 +47,10 @@ describe("lt", () => {
       expect(es("Recommended")).toBe("Recomendado");
     });
 
+    it("writes counts with Spanish digit grouping", () => {
+      expect(es("12000 cards")).toBe("12.000 cartas");
+    });
+
     it("words the composition and what is inside", () => {
       expect(es("Obligations (shuffled in)")).toBe("Obligaciones (barajadas)");
       for (const [en, sp] of [

@@ -71,7 +71,10 @@ export const EXACT_ES: Readonly<Record<string, string>> = {
 
 type Rule = readonly [pattern: RegExp, make: (...groups: string[]) => string];
 
-const plural = (n: string, one: string, other: string): string => `${n} ${n === "1" ? one : other}`;
+const numbers = new Intl.NumberFormat("es");
+/** A count in Spanish digits (a thousands separator from 10 000 up) with its noun. */
+const plural = (n: string, one: string, other: string): string =>
+  `${numbers.format(Number(n))} ${n === "1" ? one : other}`;
 
 /** Patterns, tried in order on one phrase. */
 export const RULES_ES: readonly Rule[] = [
