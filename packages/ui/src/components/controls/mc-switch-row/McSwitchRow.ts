@@ -14,6 +14,8 @@ import { McSwitchRowStyles } from "./mc-switch-row.styles.js";
  * @attr state - The switch's word.
  * @attr on - The switch is on.
  * @attr unavailable - The row cannot be used now: dimmed, a tap does nothing.
+ * @attr readonly - A state to read, not to press (a guest's view of a host's setting): full strength, a tap does nothing.
+ * @attr onpaper - For a paper ground: ink words and an ink frame in place of paper ones.
  * @prop action - What a tap raises.
  * @fires mc-pressed - `PressDetail`.
  */
@@ -27,6 +29,8 @@ export class McSwitchRow extends McPress {
     state: { type: String },
     on: { type: Boolean, reflect: true },
     unavailable: { type: Boolean, reflect: true },
+    readonly: { type: Boolean, reflect: true },
+    onpaper: { type: Boolean, reflect: true },
   };
 
   declare titleText: string;
@@ -34,6 +38,8 @@ export class McSwitchRow extends McPress {
   declare state: string;
   declare on: boolean;
   declare unavailable: boolean;
+  declare readonly: boolean;
+  declare onpaper: boolean;
 
   constructor() {
     super();
@@ -42,10 +48,12 @@ export class McSwitchRow extends McPress {
     this.state = "";
     this.on = false;
     this.unavailable = false;
+    this.readonly = false;
+    this.onpaper = false;
   }
 
   protected override tapAction(): unknown {
-    return this.unavailable ? null : this.action;
+    return this.unavailable || this.readonly ? null : this.action;
   }
 
   override render() {

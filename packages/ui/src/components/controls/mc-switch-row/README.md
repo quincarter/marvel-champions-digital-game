@@ -17,15 +17,17 @@ html`<mc-switch-row
 
 ## Properties
 
-| Name          | Type    | Meaning                                 |
-| ------------- | ------- | --------------------------------------- |
-| `title-text`  | string  | The title, already translated.          |
-| `detail`      | string  | The line under it.                      |
-| `state`       | string  | The switch's word (ON, OFF, Open, "—"). |
-| `on`          | boolean | The switch is on.                       |
-| `unavailable` | boolean | Dimmed, in place; a tap does nothing.   |
-| `data-stop`   | string  | Its focus stop's key.                   |
-| `action`      | unknown | What a tap raises.                      |
+| Name          | Type    | Meaning                                  |
+| ------------- | ------- | ---------------------------------------- |
+| `title-text`  | string  | The title, already translated.           |
+| `detail`      | string  | The line under it.                       |
+| `state`       | string  | The switch's word (ON, OFF, Open, "—").  |
+| `on`          | boolean | The switch is on.                        |
+| `unavailable` | boolean | Dimmed, in place; a tap does nothing.    |
+| `readonly`    | boolean | A state to read: full strength, no tap.  |
+| `onpaper`     | boolean | For a paper ground: ink words and frame. |
+| `data-stop`   | string  | Its focus stop's key.                    |
+| `action`      | unknown | What a tap raises.                       |
 
 ## Events
 

@@ -46,4 +46,19 @@ describe("mc-switch-row", () => {
     el.press();
     expect(seen.length).toBe(1);
   });
+
+  it("raises nothing when readonly, and shows the state at full strength", async () => {
+    const el = await row((r) => {
+      r.action = { type: "table", id: "sound" };
+      r.readonly = true;
+      r.onpaper = true;
+      r.state = "ON";
+    });
+    const seen = heard(el);
+    el.press();
+    expect(seen).toEqual([]);
+    expect(el.hasAttribute("readonly")).toBe(true);
+    expect(el.hasAttribute("unavailable")).toBe(false);
+    expect(el.hasAttribute("onpaper")).toBe(true);
+  });
 });
