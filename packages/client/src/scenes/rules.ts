@@ -42,6 +42,8 @@ import { type RulesTab } from "../view/rules-layout.js";
 import type { RulesCardRef } from "../view/rules-reference.js";
 import { appSession } from "../session.js";
 import { hintGlyphOf } from "../dom/hint-glyph.js";
+import { barClearance } from "../dom/bar-clearance.js";
+import { t } from "../i18n/translate.js";
 import { rulesPageModelOf, RULES_TABS, type RulesModelResult } from "./rules/page-model.js";
 import { mountElement, type MountedElement } from "../dom/element-region.js";
 import { settleElements } from "../dom/element-settle.js";
@@ -296,6 +298,7 @@ export class RulesOverlay extends Phaser.Scene {
       tab: this.#activeTab,
       query: this.#query,
       backGlyph,
+      clearance: this.#clearance(),
       cardScale: cardSizeFactor(appSession().settings.cardSize),
       caption: isDesktopType() ? 58 : 46,
       image: (source) => this.#leases.image(source),
@@ -306,6 +309,18 @@ export class RulesOverlay extends Phaser.Scene {
     this.#leases.end();
     const draw = ++this.#drawn;
     void settleElements(mounted.element).then(() => draw === this.#drawn && this.#alive && this.#wire(mounted));
+  }
+
+  /** Where the dark mode tab leaves the title room: it drops under the tab or stops before it. */
+  #clearance(): { readonly drop: number; readonly maxRight: number } {
+    const { width } = this.scale.gameSize;
+    return barClearance(this, {
+      width,
+      phone: width < 600,
+      back: t("rules.back"),
+      title: t("rules.title").toUpperCase(),
+      right: "",
+    });
   }
 
   /** After a render: the list's scroll, the route's stops and the dev hook. */

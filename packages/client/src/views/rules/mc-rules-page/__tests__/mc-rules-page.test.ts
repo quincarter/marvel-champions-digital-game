@@ -7,7 +7,15 @@ import type { RulesPageModel } from "../mc-rules-page.types.js";
 afterEach(() => document.body.replaceChildren());
 
 const model = (over: Partial<RulesPageModel> = {}): RulesPageModel => ({
-  header: { backLabel: "Back", heading: "Rules reference", backGlyph: null, caption: "All", toggle: null },
+  header: {
+    backLabel: "Back",
+    heading: "Rules reference",
+    backGlyph: null,
+    titleDrop: 0,
+    titleMax: 0,
+    caption: "All",
+    toggle: null,
+  },
   tabs: [{ id: "glossary", label: "Glossary" }],
   tab: "glossary",
   search: { query: "", placeholder: "Search rules" },

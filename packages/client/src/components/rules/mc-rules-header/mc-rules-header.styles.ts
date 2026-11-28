@@ -28,5 +28,6 @@ export const McRulesHeaderStyles = css`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transform: translateY(var(--drop, 0px));
   }
 `;

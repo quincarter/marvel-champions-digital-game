@@ -56,6 +56,8 @@ export class McRulesPage extends LitElement {
         .backLabel=${m.header.backLabel}
         .heading=${m.header.heading}
         .backGlyph=${m.header.backGlyph}
+        .titleDrop=${m.header.titleDrop}
+        .titleMax=${m.header.titleMax}
         .caption=${m.header.caption}
         .toggle=${m.header.toggle}
       ></mc-rules-header>

@@ -23,6 +23,7 @@ export const McReaderStyles = css`
   }
   .side {
     flex: none;
+    min-width: 0;
     width: var(--reader-side, 300px);
     min-height: 0;
     display: flex;
@@ -53,6 +54,7 @@ export const McReaderStyles = css`
   }
   :host(:not([wide])) .side {
     width: auto;
+    min-width: 0;
     flex: 1 1 0;
     border-right: 0;
   }

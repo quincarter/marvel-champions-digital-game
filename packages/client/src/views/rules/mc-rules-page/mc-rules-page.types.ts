@@ -12,6 +12,8 @@ export interface RulesPageModel {
     readonly backLabel: string;
     readonly heading: string;
     readonly backGlyph: HintGlyph | null;
+    readonly titleDrop: number;
+    readonly titleMax: number;
     /** The scope row's words, and its toggle (only with a game running). */
     readonly caption: string;
     readonly toggle: McRulesScopeProps["toggle"];
