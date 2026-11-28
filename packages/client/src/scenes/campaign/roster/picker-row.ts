@@ -5,6 +5,7 @@
  * `pickerRowHeight` is asked first, with the same measures the row is drawn with.
  */
 import { currentCardsById } from "../../../content/pool.js";
+import { CHIP_GAP, CHIP_HEIGHT, chipWidthOf } from "../../../dom/aspect-chips.js";
 import { heroPictureOf, type HeroPicture } from "../../../dom/hero-picture.js";
 import type { SheetBuilder } from "../../../dom/sheet-builder.js";
 import { cardDisplayName } from "../../../view/hero-names.js";
@@ -18,18 +19,8 @@ import type { PickerEntry, RosterDeckOption } from "../../../view/campaign-roste
 import type { Rect } from "../../../view/layout.js";
 import { PICKER_DECK_NAME_STEP, PICKER_HEADING_HEIGHT, type RosterCtx } from "./context.js";
 
-const CHIP_HEIGHT = 18;
-const CHIP_GAP = 6;
 const CHIP_LINE_STEP = CHIP_HEIGHT + 4;
 const REASON_SIZE = 11;
-
-/**
- * A chip's width: its label in the chip type, with the plate's padding. The chip draws its type at 10px on every screen,
- * so the measure is asked for the size that comes out as 10px after the desktop bump (`SheetBuilder.typeSize`).
- */
-const chipWidthOf = (b: SheetBuilder, label: string): number =>
-  b.measure(caseOf(typeRole.label, label.toLocaleUpperCase()), typeRole.label, { size: 10 - (b.typeSize(10) - 10) })
-    .width + 14;
 
 /** What the row's text may take: the width right of the thumbnail. */
 export function pickerRowGeometry(rowWidth: number, rowHeight: number): { thumbSide: number; chipRoom: number } {

@@ -28,7 +28,11 @@ export const WATCH_STRIP_HEIGHT = 40;
 export const PAGE_SCROLL = "briefing-page";
 export const LEFT_SCROLL = "briefing-left";
 export const RIGHT_SCROLL = "briefing-right";
-export const SCROLLERS: readonly string[] = [PAGE_SCROLL, LEFT_SCROLL, RIGHT_SCROLL];
+/** Role-building's own scrollers (`calls/role-build.ts`): the card list, and the confirm step on a screen too short for it. */
+export const ROLE_SCROLL = "briefing-rb-list";
+export const ROLE_CONFIRM_SCROLL = "briefing-rb-confirm";
+/** In the order the stick and the page keys try them: the call's own list ahead of the right pane. */
+export const SCROLLERS: readonly string[] = [PAGE_SCROLL, LEFT_SCROLL, ROLE_SCROLL, ROLE_CONFIRM_SCROLL, RIGHT_SCROLL];
 
 /** The stops Start (and A with nothing focused) takes, best first: a confirm, or the issue's Open button. */
 export const FORWARD_STOPS: readonly string[] = ["rb-confirm", "role-confirm", "call-confirm", "open"];
