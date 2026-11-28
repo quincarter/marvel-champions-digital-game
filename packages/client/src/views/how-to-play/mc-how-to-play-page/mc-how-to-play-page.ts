@@ -9,7 +9,7 @@
  * container, for the pad's stick and the scroll position kept across a visit to a lesson.
  */
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
-import "../../../components/learn/mc-learn-header/mc-learn-header.js";
+import { learnEvent } from "../../../components/learn/shared/learn-events.types.js";
 import "../../../components/learn/mc-lesson-list/mc-lesson-list.js";
 import "../../../components/learn/mc-aspect-list/mc-aspect-list.js";
 import "../../../components/learn/mc-link-list/mc-link-list.js";
@@ -44,16 +44,17 @@ export class McHowToPlayPage extends LitElement {
     if (!model) return nothing;
     const { header } = model;
     const wide = this.mode === "wide";
-    return html`<mc-learn-header
-        heading=${header.heading}
-        close-label=${header.closeLabel}
-        bar-height="64"
-        pad=${wide ? 28 : 16}
-        title-size="22"
-        drop=${header.drop}
-        max=${header.max}
-        .glyph=${header.glyph}
-      ></mc-learn-header>
+    return html`<mc-top-bar
+        class="bar"
+        variant="close"
+        .heading=${header.heading}
+        .backLabel=${header.closeLabel}
+        .backGlyph=${header.glyph ?? null}
+        @mc-press=${(event: Event) => {
+          event.stopPropagation();
+          this.dispatchEvent(learnEvent({ type: "close" }));
+        }}
+      ></mc-top-bar>
       <div class="main">
         <div class="column">
           <div class="top">

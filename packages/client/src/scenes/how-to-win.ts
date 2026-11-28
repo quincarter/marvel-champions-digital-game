@@ -31,7 +31,6 @@ import "../views/how-to-win/mc-how-to-win-page/mc-how-to-win-page.js";
 import type { PictureSource } from "@mc/ui";
 import { surface } from "../tokens.js";
 import { cssOf } from "../ui/theme.js";
-import { estimateBangersWidth, sheetThemeFor } from "../ui/campaign-chrome.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
 import { EVERY_ROUND_STEP_KEYS, howToWinContent } from "../view/how-to-win-model.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
@@ -68,11 +67,8 @@ export interface HowToWinSceneData {
 
 type Page = MountedElement<HTMLElementTagNameMap["mc-how-to-win-page"]>;
 
-/** The ink bar's height, its title's size and the room the progress ticks and the close take. */
+/** The ink band behind the bar, for the fade (the bar itself is as tall as its rows). */
 const BAR_HEIGHT = 56;
-const TITLE_SIZE = 18;
-const CLOSE_SIZE = 44;
-const TICKS_WIDTH = 140;
 /** The height the close's Cancel glyph is drawn for. */
 const CLOSE_HINT_HEIGHT = 30;
 
@@ -248,21 +244,9 @@ export class HowToWinScene extends Phaser.Scene {
     };
   }
 
-  #model(width: number, wide: boolean): HowToWinPageModel {
+  #model(): HowToWinPageModel {
     const content = howToWinContent();
-    const pad = wide ? 24 : 16;
     const title = t("howToWin.lesson");
-    // Set under the dark mode tab, or stopped before it, when a long (Spanish) title would run under it.
-    const left = pad + CLOSE_SIZE + 12;
-    const room = width - pad - TICKS_WIDTH - 12 - left;
-    const { drop, maxRight } = sheetThemeFor(this, {
-      width,
-      textLeft: left,
-      textRight: left + Math.min(room, estimateBangersWidth(title, TITLE_SIZE)),
-      textTop: BAR_HEIGHT / 2 - 12,
-      textHeight: 24,
-      barHeight: BAR_HEIGHT,
-    });
     const scheme = termTextRunsOf(
       t("howToWin.scheme.body", {
         scheme: this.#nameOf(content.mainSchemeCardId, content.mainSchemeName),
@@ -277,8 +261,6 @@ export class HowToWinScene extends Phaser.Scene {
         // The close is a drawn ×, not a button: its Cancel glyph follows the title.
         glyph: this.#glyphs.glyph("close", ["cancel"], "ink", CLOSE_HINT_HEIGHT),
         ticks: { count: 5, filled: 1, label: title },
-        drop,
-        max: maxRight === null ? 0 : Math.max(40, Math.min(room, maxRight - left)),
       },
       title: { first: t("howToWin.title1"), second: t("howToWin.title2") },
       cards: {
@@ -330,7 +312,7 @@ export class HowToWinScene extends Phaser.Scene {
     const { region, element } = this.#page;
     region.setRect({ x: 0, y: 0, width, height });
     element.mode = wide ? "wide" : "narrow";
-    element.model = this.#model(width, wide);
+    element.model = this.#model();
     this.#glyphs.settled();
     this.#leases.end();
     this.#hover?.onDraw();

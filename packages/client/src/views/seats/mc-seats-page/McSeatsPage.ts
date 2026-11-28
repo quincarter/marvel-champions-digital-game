@@ -1,12 +1,12 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "@mc/ui";
-import type { SeatsPageModel } from "../../../components/seats/seats.types.js";
+import { SEATS_EVENT, type SeatsEvent, type SeatsPageModel } from "../../../components/seats/seats.types.js";
+import { hintGlyphOf } from "../../../dom/hint-glyph.js";
 import "../../../components/seats/mc-hero-decks-sheet/mc-hero-decks-sheet.js";
 import "../../../components/seats/mc-seats-detail/mc-seats-detail.js";
 import "../../../components/seats/mc-seats-filters/mc-seats-filters.js";
 import "../../../components/seats/mc-seats-hints/mc-seats-hints.js";
 import "../../../components/seats/mc-seats-footer/mc-seats-footer.js";
-import "../../../components/seats/mc-seats-header/mc-seats-header.js";
 import "../../../components/seats/mc-seats-notice/mc-seats-notice.js";
 import "../../../components/seats/mc-seats-roster/mc-seats-roster.js";
 import "../../../components/seats/mc-seats-table/mc-seats-table.js";
@@ -50,12 +50,28 @@ export class McSeatsPage extends LitElement {
     return this.renderRoot.querySelector<T>(tag);
   }
 
+  #say(detail: SeatsEvent): void {
+    this.dispatchEvent(new CustomEvent<SeatsEvent>(SEATS_EVENT, { detail, bubbles: true, composed: true }));
+  }
+
   override render() {
     const page = this.model;
     if (!page) return nothing;
     const wide = page.wide ?? false;
     return html`
-      <mc-seats-header class="header" .model=${page.header}></mc-seats-header>
+      <mc-top-bar
+        class="header"
+        italic
+        .heading=${page.header.title}
+        .right=${page.header.step}
+        .backLabel=${page.header.backLabel}
+        .backGlyph=${hintGlyphOf(page.header.backGlyph)}
+        ?compact=${!wide}
+        @mc-press=${(event: Event) => {
+          event.stopPropagation();
+          this.#say({ type: "action", action: "back" });
+        }}
+      ></mc-top-bar>
       <main class="main">
         <mc-seats-table
           class="table"

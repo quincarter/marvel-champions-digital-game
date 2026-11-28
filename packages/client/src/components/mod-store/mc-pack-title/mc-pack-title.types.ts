@@ -1,4 +1,4 @@
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 /** A pack page's title block, already translated. */
 export interface PackTitleModel {

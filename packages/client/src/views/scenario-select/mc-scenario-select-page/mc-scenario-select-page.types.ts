@@ -12,9 +12,6 @@ export interface ScenarioTopBarModel {
   /** "STEP 1 OF 3". */
   readonly right: string;
   readonly backGlyph: HintGlyph | null;
-  /** How far the title drops, and where it must end, to clear the dark mode tab (`sheetThemeFor`). */
-  readonly titleDrop: number;
-  readonly titleMaxRight: number;
 }
 
 /** Everything Choose a scenario shows; the scene builds it from the draft and the pool and sets it on the page. */

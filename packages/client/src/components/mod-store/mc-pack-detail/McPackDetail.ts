@@ -9,7 +9,7 @@ import "../mc-pack-status/mc-pack-status.js";
 import "../mc-pack-actions/mc-pack-actions.js";
 import { McPackDetailStyles } from "./mc-pack-detail.styles.js";
 import type { McPackDetailProps, PackDetailModel } from "./mc-pack-detail.types.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 import type { McPackText } from "../mc-pack-text/McPackText.js";
 import type { McPackGallery } from "../mc-pack-gallery/McPackGallery.js";
 

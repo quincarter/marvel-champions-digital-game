@@ -34,7 +34,6 @@ import { extras, refreshUnlocks } from "../progression/progression.js";
 import { formFactorFor } from "../view/layout.js";
 import type { ExtrasTileView } from "../view/extras-model.js";
 import { appSession } from "../session.js";
-import { barClearance } from "../dom/bar-clearance.js";
 import { CardEvents } from "../dom/card-events.js";
 import { ControlGlyphs } from "../dom/control-glyphs.js";
 import { domFocusRing } from "../dom/dom-ring.js";
@@ -54,7 +53,6 @@ import type { SideStoryReaderData } from "./side-story-reader.js";
 import type { ExtrasEventDetail } from "../components/extras/shared/extras-events.types.js";
 import { MusicVolume } from "./extras/music-volume.js";
 import { extrasPageModelOf } from "./extras/page-model.js";
-import { t } from "../i18n/translate.js";
 import { onLanguageChange } from "../language-change.js";
 
 export interface ExtrasSceneData {
@@ -324,7 +322,6 @@ export class ExtrasScene extends Phaser.Scene {
     if (!this.#alive || this.#leaving || !mounted) return;
     const frame = campaignFrame(this);
     const { width, height, phone } = frame;
-    const back = phone ? "◂" : t("extras.back");
     this.#glyphs.reset();
     const backGlyph = hintGlyphOf(this.#glyphs.glyph("back", ["cancel"], "ink", BACK_HEIGHT));
     // LB / RB, pad only, under the strip's right end.
@@ -341,7 +338,6 @@ export class ExtrasScene extends Phaser.Scene {
       volume: this.#volume.value,
       backGlyph,
       tabsHint,
-      clearance: barClearance(this, { width, phone, back, title: t("title.extras").toUpperCase(), right: "" }),
       onViews: (views) => (this.#views = new Map(views.map((view) => [view.id, view]))),
     });
     const draw = ++this.#drawn;

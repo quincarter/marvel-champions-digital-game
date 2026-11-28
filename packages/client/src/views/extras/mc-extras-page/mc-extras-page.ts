@@ -65,8 +65,6 @@ export class McExtrasPage extends LitElement {
         .right=${m.bar.right}
         .backLabel=${m.bar.backLabel}
         .backGlyph=${m.bar.backGlyph}
-        .titleDrop=${m.bar.titleDrop}
-        .titleMaxRight=${m.bar.titleMaxRight}
         ?compact=${m.phone}
         @mc-press=${(event: Event) => {
           event.stopPropagation();

@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles, type McSearchField } from "@mc/ui";
-import "../../../components/rules/mc-rules-header/mc-rules-header.js";
+import "../../../components/rules/mc-rules-scope/mc-rules-scope.js";
 import "../../../components/rules/mc-rules-tabs/mc-rules-tabs.js";
 import "../../../components/rules/mc-rules-glossary/mc-rules-glossary.js";
 import "../../../components/rules/mc-rules-villain-phase/mc-rules-villain-phase.js";
@@ -51,16 +51,19 @@ export class McRulesPage extends LitElement {
     const m = this.model;
     if (!m) return nothing;
     return html`<mc-reader no-side pane="main">
-      <mc-rules-header
-        slot="bar"
-        .backLabel=${m.header.backLabel}
-        .heading=${m.header.heading}
-        .backGlyph=${m.header.backGlyph}
-        .titleDrop=${m.header.titleDrop}
-        .titleMax=${m.header.titleMax}
-        .caption=${m.header.caption}
-        .toggle=${m.header.toggle}
-      ></mc-rules-header>
+      <div slot="bar" class="head">
+        <mc-top-bar
+          compact
+          .heading=${m.header.heading}
+          .backLabel=${m.header.backLabel}
+          .backGlyph=${m.header.backGlyph}
+          @mc-press=${(event: Event) => {
+            event.stopPropagation();
+            this.dispatchEvent(rulesEvent({ type: "back" }));
+          }}
+        ></mc-top-bar>
+        <mc-rules-scope .caption=${m.header.caption} .toggle=${m.header.toggle}></mc-rules-scope>
+      </div>
       <div slot="toolbar" class="toolbar">
         <mc-rules-tabs .tabs=${m.tabs} .selected=${m.tab}></mc-rules-tabs>
         ${

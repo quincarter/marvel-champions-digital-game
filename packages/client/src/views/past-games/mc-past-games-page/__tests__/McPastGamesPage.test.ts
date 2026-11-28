@@ -21,7 +21,7 @@ const details: PastGameDetailsModel = {
 const model = (over: Partial<PastGamesPageModel> = {}): PastGamesPageModel => ({
   side: true,
   phone: false,
-  bar: { backLabel: "Back", backGlyph: undefined, title: "Past games", titleDrop: 0, titleMaxRight: 0 },
+  bar: { backLabel: "Back", backGlyph: undefined, title: "Past games" },
   file: { label: "Open a replay file", disabled: false },
   filters: { tabs: [{ id: "all", label: "All (1)" }], selected: "all", glyph: undefined },
   search: {

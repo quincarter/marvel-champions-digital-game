@@ -6,7 +6,11 @@ export const McRulesPageStyles = css`
     display: block;
     width: 100%;
     height: 100%;
-    --reader-bar: auto;
+  }
+  /* The ink head: the shared top bar, then the scope row (the caption and the table / all toggle). */
+  .head {
+    background: var(--mc-fill-ink);
+    color: var(--mc-text-paper);
   }
   mc-reader {
     background-color: var(--mc-fill-paper);

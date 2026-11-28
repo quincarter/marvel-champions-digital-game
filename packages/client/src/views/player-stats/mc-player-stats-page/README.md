@@ -1,6 +1,6 @@
 # mc-player-stats-page
 
-Your stats as one page element. It only composes: the header (`mc-stats-header`), the tab row (`mc-stats-tabs`), the controls under it (`mc-stats-controls`), then a tab's list (`mc-stats-list`, with `mc-stats-matchup-side` beside it on the Focus view), the Matchups grid (`mc-stats-matchup-grid`) or a word while the saves are read. Sections live in `components/player-stats/`; the scene (`scenes/player-stats.ts`) mounts the page with `mountElement`, sets `model` from `view/player-stats-page-model.ts` and listens for `mc-player-stats`.
+Your stats as one page element. It only composes: the shared top bar (`mc-top-bar`: Back, title, the count and the You / Everyone switch), the tab row (`mc-stats-tabs`), the controls under it (`mc-stats-controls`), then a tab's list (`mc-stats-list`, with `mc-stats-matchup-side` beside it on the Focus view), the Matchups grid (`mc-stats-matchup-grid`) or a word while the saves are read. Sections live in `components/player-stats/`; the scene (`scenes/player-stats.ts`) mounts the page with `mountElement`, sets `model` from `view/player-stats-page-model.ts` and listens for `mc-player-stats`.
 
 ## Properties
 

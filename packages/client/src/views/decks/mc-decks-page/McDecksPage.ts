@@ -1,5 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "@mc/ui";
+import { hintGlyphOf } from "../../../dom/hint-glyph.js";
 import {
   DECKS_EVENT,
   type DecksEvent,
@@ -7,7 +8,6 @@ import {
   type DecksTab,
 } from "../../../components/decks/decks.types.js";
 import "../../../components/decks/mc-decks-cards/mc-decks-cards.js";
-import "../../../components/decks/mc-decks-header/mc-decks-header.js";
 import "../../../components/decks/mc-decks-list/mc-decks-list.js";
 import "../../../components/decks/mc-decks-stats/mc-decks-stats.js";
 import { McDecksPageStyles } from "./mc-decks-page.styles.js";
@@ -62,7 +62,35 @@ export class McDecksPage extends LitElement {
   override render() {
     const page = this.model;
     if (!page) return nothing;
-    return html`<mc-decks-header class="header" .model=${page.header}></mc-decks-header> ${
+    const head = page.header;
+    const say = (action: "back" | "player-stats") => (event: Event) => {
+      event.stopPropagation();
+      this.dispatchEvent(
+        new CustomEvent<DecksEvent>(DECKS_EVENT, { detail: { type: "action", action }, bubbles: true, composed: true }),
+      );
+    };
+    return html`<mc-top-bar
+        class="header"
+        italic
+        ?compact=${!page.wide}
+        .heading=${head.title}
+        .right=${head.poolMeta ?? ""}
+        .backLabel=${head.backLabel}
+        .backGlyph=${hintGlyphOf(head.backGlyph)}
+        @mc-press=${say("back")}
+      >
+        <mc-hint-button
+          slot="end"
+          class="stats-button"
+          data-stop="player-stats"
+          kind="onInk"
+          display
+          .label=${head.statsLabel}
+          .glyph=${hintGlyphOf(head.statsGlyph)}
+          @mc-press=${say("player-stats")}
+        ></mc-hint-button>
+      </mc-top-bar>
+      ${
         page.wide
           ? html`<main class="panes">
               ${this.#pane(page, "decks")} ${this.#pane(page, "cards")} ${this.#pane(page, "stats")}

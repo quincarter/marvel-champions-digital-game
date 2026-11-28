@@ -7,7 +7,7 @@ import "../mc-pack-tile/mc-pack-tile.js";
 import { McPackGridStyles } from "./mc-pack-grid.styles.js";
 import type { McPackGridProps } from "./mc-pack-grid.types.js";
 import type { PackTileModel } from "../mc-pack-tile/mc-pack-tile.types.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 /**
  * # Pack grid

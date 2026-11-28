@@ -7,7 +7,7 @@ import "../mc-creator-row/mc-creator-row.js";
 import { McCreatorListStyles } from "./mc-creator-list.styles.js";
 import type { McCreatorListProps } from "./mc-creator-list.types.js";
 import type { CreatorModel } from "../mc-creator-row/mc-creator-row.types.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 /**
  * # Credits

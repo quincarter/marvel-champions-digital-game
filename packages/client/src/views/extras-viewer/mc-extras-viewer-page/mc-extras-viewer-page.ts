@@ -1,6 +1,6 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "@mc/ui";
-import "../../../components/viewer/mc-viewer-header/mc-viewer-header.js";
+import { viewerEvent } from "../../../components/viewer/shared/viewer-events.types.js";
 import "../../../components/viewer/mc-viewer-slide/mc-viewer-slide.js";
 import "../../../components/viewer/mc-viewer-text/mc-viewer-text.js";
 import { McExtrasViewerPageStyles } from "./mc-extras-viewer-page.styles.js";
@@ -44,11 +44,20 @@ export class McExtrasViewerPage extends LitElement {
   override render() {
     const m = this.model;
     if (!m) return nothing;
-    return html`<mc-viewer-header
-        ?compact=${m.compact}
-        .heading=${m.header.title}
-        .closeLabel=${m.header.closeLabel}
-      ></mc-viewer-header>
+    return html`<mc-top-bar class="bar" ?compact=${m.compact} .heading=${m.header.title}>
+        <mc-button
+          slot="end"
+          class="close"
+          kind="onInk"
+          data-stop="close"
+          .label=${"✕"}
+          aria-label=${m.header.closeLabel}
+          @mc-press=${(event: Event) => {
+            event.stopPropagation();
+            this.dispatchEvent(viewerEvent({ type: "close" }));
+          }}
+        ></mc-button>
+      </mc-top-bar>
       <div class="body">
         <mc-viewer-slide
           .picture=${m.slide.picture}

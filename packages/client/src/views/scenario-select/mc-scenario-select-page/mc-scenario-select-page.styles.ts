@@ -8,7 +8,7 @@ export const McScenarioSelectPageStyles = css`
   :host {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: var(--bar-height) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     width: 100%;
     height: 100%;
     background-color: var(--mc-fill-paper);

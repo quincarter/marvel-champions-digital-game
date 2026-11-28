@@ -10,7 +10,7 @@ const model = (over: Partial<ReaderPageModel> = {}): ReaderPageModel => ({
   wide: true,
   phone: false,
   pane: "toc",
-  bar: { backLabel: "◂ EXTRAS", title: "Rules", right: "1 / 2", backGlyph: null, titleDrop: 0, titleMaxRight: 0 },
+  bar: { backLabel: "◂ EXTRAS", title: "Rules", right: "1 / 2", backGlyph: null },
   status: "ready",
   message: "",
   contents: {

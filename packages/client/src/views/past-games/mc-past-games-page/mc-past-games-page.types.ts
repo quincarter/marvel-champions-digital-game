@@ -10,9 +10,6 @@ export interface PastGamesBarModel {
   readonly backLabel: string;
   readonly backGlyph: ControlGlyph | undefined;
   readonly title: string;
-  /** How far the title drops, and where it must end, to clear the dark mode tab (`sheetThemeFor`). */
-  readonly titleDrop: number;
-  readonly titleMaxRight: number;
 }
 
 /** Everything Past games shows. The scene builds it from the saves and its own state (`scenes/past-games/page-model.ts`). */

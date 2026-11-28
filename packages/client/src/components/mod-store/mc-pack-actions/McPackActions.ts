@@ -4,7 +4,7 @@ import { ModStoreElement } from "../shared/ModStoreElement.js";
 import { McPackActionsStyles } from "./mc-pack-actions.styles.js";
 import type { McPackActionsProps } from "./mc-pack-actions.types.js";
 import type { PackAction } from "../../../view/mod-store-model.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 /**
  * # Pack actions

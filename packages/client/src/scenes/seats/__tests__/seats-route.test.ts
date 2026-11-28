@@ -64,7 +64,7 @@ describe("the route while the Pick a deck sheet is up", () => {
     await page.updateComplete;
     const sheet = page.shadowRoot!.querySelector<HTMLElement>("mc-hero-decks-sheet")!;
     await (sheet as unknown as { updateComplete: Promise<unknown> }).updateComplete;
-    const header = page.shadowRoot!.querySelector("mc-seats-header")!;
+    const header = page.shadowRoot!.querySelector("mc-top-bar")!;
     await (header as unknown as { updateComplete: Promise<unknown> }).updateComplete;
     // Read from the whole page, the first `back` is the header's: that is why the scene reads the sheet alone.
     const pageBacks = collectStops(page).filter((stop) => stop.key === "back");

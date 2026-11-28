@@ -9,9 +9,6 @@ export interface TrophyBarModel {
   readonly backLabel: string;
   readonly backGlyph: ControlGlyph | undefined;
   readonly title: string;
-  /** How far the title drops, and where it must end, to clear the dark mode tab (`sheetThemeFor`). */
-  readonly titleDrop: number;
-  readonly titleMaxRight: number;
 }
 
 /** "Your stats" at the bar's right end (X on a pad). */

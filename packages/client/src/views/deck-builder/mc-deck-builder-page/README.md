@@ -7,7 +7,7 @@ pinned Save bar. Every part is an element in `components/deck-builder/`; shared 
 
 ```
 mc-deck-builder-page
-  mc-builder-header                         title + Back (+ a ghost title the scene measures for the dark mode toggle)
+  mc-top-bar (tone paper)                   the heading and Back (the shared bar keeps the title clear of the dark mode tab)
   mc-identity-picker > mc-identity-tile     New deck, step one
   mc-start-from                             New deck, step two (a hero with a precon)
   mc-identity-row                           the chosen identity ("Read card")
@@ -21,11 +21,10 @@ mc-deck-builder-page
   mc-tip-plate                              the open aspect tip, over everything
 ```
 
-| Property    | Type                      | Notes                                                                                         |
-| ----------- | ------------------------- | --------------------------------------------------------------------------------------------- |
-| `model`     | `DeckBuilderPageModel`    | everything shown, already computed and translated by the scene's view models                  |
-| `layout`    | `wide`, `narrow`, `phone` | which layout the scene says is current                                                        |
-| `titleDrop` | number                    | px the header drops, and `titleMax` how long its title may run, to clear the dark mode toggle |
+| Property | Type                      | Notes                                                                        |
+| -------- | ------------------------- | ---------------------------------------------------------------------------- |
+| `model`  | `DeckBuilderPageModel`    | everything shown, already computed and translated by the scene's view models |
+| `layout` | `wide`, `narrow`, `phone` | which layout the scene says is current                                       |
 
 | Event                                                                     | Detail                                                                                                   |
 | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -35,5 +34,4 @@ mc-deck-builder-page
 | `mc-card-hover`, `mc-card-hover-end`, `mc-card-inspect`, `mc-image-error` | from the card pictures                                                                                   |
 
 The scene mounts it with `mountElement`, reads its focus stops through `focusStopsOf`, and uses `CardEvents` for the hover
-popover and Inspect. Helpers for the scene: `scrollers()` (every list that scrolls, by name), `mainScroller`, `poolList`,
-`headerElement`.
+popover and Inspect. Helpers for the scene: `scrollers()` (every list that scrolls, by name), `mainScroller`, `poolList`.

@@ -24,8 +24,14 @@ export const HowToPlayPageStyles = [
     *::after {
       box-sizing: border-box;
     }
-    mc-learn-header {
+    .bar {
       flex: none;
+      --mc-top-bar-height: 64px;
+      --mc-top-bar-pad: 16px;
+      --mc-top-bar-title-size: 22px;
+    }
+    :host([mode="wide"]) .bar {
+      --mc-top-bar-pad: 28px;
     }
     /* The page's one scroller: the rows scroll with it, so no control sits over a scrolling region. */
     .main {

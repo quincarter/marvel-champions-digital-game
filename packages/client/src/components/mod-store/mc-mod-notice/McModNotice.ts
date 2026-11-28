@@ -4,7 +4,7 @@ import { ThemeStyles, glyphLabelShift, type ControlGlyph } from "@mc/ui";
 import { ModStoreElement } from "../shared/ModStoreElement.js";
 import { McModNoticeStyles } from "./mc-mod-notice.styles.js";
 import type { McModNoticeProps, ModNoticeLineModel } from "./mc-mod-notice.types.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 import type { ModNoticeAnswer } from "../../../view/mod-notice.js";
 
 /**

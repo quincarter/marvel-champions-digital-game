@@ -43,8 +43,6 @@ const input = (): TableSetupPageInput => ({
   summary: { rows: [], seedText: "1", watchable: false, room: false, villain: null },
   encounter: { composition: [], whatsInThere: [], nemesis: null, deckSize: 30 },
   deal: { starting: false, room: false, blocked: null, status: "", footerLine: "" },
-  titleDrop: 0,
-  titleMax: 0,
 });
 
 async function make(mode: "wide" | "phone") {
@@ -69,7 +67,7 @@ describe("mc-table-setup-page", () => {
       "mc-setup-encounter",
     ]);
     expect(tags(root.querySelector(".side")!)).toEqual(["mc-setup-summary", "mc-setup-deal-bar"]);
-    expect(root.querySelector("mc-setup-top-bar")).not.toBeNull();
+    expect(root.querySelector("mc-top-bar")).not.toBeNull();
     expect(el.scroller).toBe(root.querySelector(".main"));
   });
 

@@ -1,5 +1,5 @@
 import type { PackTileModel } from "../mc-pack-tile/mc-pack-tile.types.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 export interface McPackGridProps {
   size: ModStoreSize;

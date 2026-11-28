@@ -11,8 +11,8 @@
  */
 import { html, nothing, type PropertyDeclarations } from "lit";
 import { ThemeStyles, type McSearchField } from "@mc/ui";
+import { hintGlyphOf } from "../../../dom/hint-glyph.js";
 import { ModStoreElement } from "../../../components/mod-store/shared/ModStoreElement.js";
-import "../../../components/mod-store/mc-mod-store-header/mc-mod-store-header.js";
 import "../../../components/mod-store/mc-mod-beta-caption/mc-mod-beta-caption.js";
 import "../../../components/mod-store/mc-mod-tabs/mc-mod-tabs.js";
 import "../../../components/mod-store/mc-mod-message/mc-mod-message.js";
@@ -117,16 +117,35 @@ export class McModStorePage extends ModStoreElement {
   override render() {
     const model = this.model;
     if (!model) return nothing;
-    return html`<mc-mod-store-header
-        .size=${this.size}
-        .backLabel=${model.header.backLabel}
-        .heading=${model.header.heading}
-        .badge=${model.header.badge}
-        .installedText=${model.header.installedText}
-        .aboutLabel=${model.header.aboutLabel}
-        .backGlyph=${model.header.backGlyph}
-        .aboutGlyph=${model.header.aboutGlyph}
-      ></mc-mod-store-header>
+    const head = model.header;
+    const phone = this.size === "phone";
+    return html`<mc-top-bar
+        class="header"
+        ?compact=${phone}
+        .heading=${head.heading}
+        .backLabel=${head.backLabel}
+        .backGlyph=${hintGlyphOf(head.backGlyph)}
+        @mc-press=${(event: Event) => {
+          event.stopPropagation();
+          this.emit({ type: "back" });
+        }}
+      >
+        ${!phone && head.badge ? html`<span slot="end" class="badge">${head.badge}</span>` : nothing}
+        ${head.installedText ? html`<span slot="end" class="installed">${head.installedText}</span>` : nothing}
+        <mc-hint-button
+          slot="end"
+          class="about"
+          data-stop="about"
+          kind="onInk"
+          display
+          .label=${head.aboutLabel}
+          .glyph=${hintGlyphOf(head.aboutGlyph)}
+          @mc-press=${(event: Event) => {
+            event.stopPropagation();
+            this.emit({ type: "about" });
+          }}
+        ></mc-hint-button>
+      </mc-top-bar>
       ${
         model.detail
           ? html`<mc-pack-detail .size=${this.size} .pack=${model.detail}></mc-pack-detail>`

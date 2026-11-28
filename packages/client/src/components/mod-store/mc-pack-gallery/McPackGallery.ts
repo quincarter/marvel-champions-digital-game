@@ -6,7 +6,7 @@ import { keepScroll, restoreScroll } from "../shared/list-scroll.js";
 import "../mc-pack-card/mc-pack-card.js";
 import { McPackGalleryStyles } from "./mc-pack-gallery.styles.js";
 import type { GallerySectionModel, McPackGalleryProps } from "./mc-pack-gallery.types.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 /**
  * # Pack gallery

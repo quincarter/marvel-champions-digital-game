@@ -3,7 +3,7 @@ import { ThemeStyles } from "@mc/ui";
 import { ModStoreElement } from "../shared/ModStoreElement.js";
 import { McModUpdateBarStyles } from "./mc-mod-update-bar.styles.js";
 import type { McModUpdateBarProps } from "./mc-mod-update-bar.types.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 import type { UpdateAllAction, UpdateAllBar } from "../../../view/mod-store-update-all.js";
 
 /**

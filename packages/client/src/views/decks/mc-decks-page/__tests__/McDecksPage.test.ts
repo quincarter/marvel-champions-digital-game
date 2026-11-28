@@ -21,9 +21,6 @@ const page = (over: Partial<DecksPageModel> = {}): DecksPageModel => ({
     title: "Decks",
     poolMeta: null,
     statsLabel: "Your stats",
-    titleDrop: 0,
-    titleMaxRight: null,
-    stacked: false,
   },
   list: {
     heading: "Your decks",
@@ -86,7 +83,7 @@ describe("mc-decks-page", () => {
   it("composes the three panes side by side when wide, and nothing else", async () => {
     const element = await mount(page());
     const root = element.shadowRoot!;
-    expect(root.querySelector("mc-decks-header")).not.toBeNull();
+    expect(root.querySelector("mc-top-bar")).not.toBeNull();
     expect(root.querySelector("mc-decks-list")).not.toBeNull();
     expect(root.querySelector("mc-decks-cards")).not.toBeNull();
     expect(root.querySelector("mc-decks-stats")).not.toBeNull();

@@ -43,7 +43,6 @@ export interface RulesModelInput {
   readonly query: string;
   readonly backGlyph: HintGlyph | null;
   /** How far the title drops, and where it must end, to clear the dark mode tab. */
-  readonly clearance: { readonly drop: number; readonly maxRight: number };
   readonly cardScale: number;
   readonly caption: number;
   /** A picture's URL (held while shown) and the key to re-resolve it by. */
@@ -186,8 +185,6 @@ export function rulesPageModelOf(input: RulesModelInput): RulesModelResult {
       backLabel: t("rules.back"),
       heading: t("rules.title"),
       backGlyph: input.backGlyph,
-      titleDrop: input.clearance.drop,
-      titleMax: input.clearance.maxRight,
       caption: game
         ? input.scope === "table"
           ? t("rules.scope.captionTable")

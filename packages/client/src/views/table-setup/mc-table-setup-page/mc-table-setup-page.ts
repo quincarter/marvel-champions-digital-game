@@ -5,10 +5,11 @@ import "../../../components/table-setup/mc-setup-encounter/mc-setup-encounter.js
 import "../../../components/table-setup/mc-setup-modulars/mc-setup-modulars.js";
 import "../../../components/table-setup/mc-setup-seating/mc-setup-seating.js";
 import "../../../components/table-setup/mc-setup-summary/mc-setup-summary.js";
-import "../../../components/table-setup/mc-setup-top-bar/mc-setup-top-bar.js";
 import type { McSetupSeating } from "../../../components/table-setup/mc-setup-seating/McSetupSeating.js";
 import type { McSetupSummary } from "../../../components/table-setup/mc-setup-summary/McSetupSummary.js";
-import type { SetupMode } from "../../../components/table-setup/shared/setup-events.types.js";
+import { setupEvent, type SetupMode } from "../../../components/table-setup/shared/setup-events.types.js";
+import { hintGlyphOf } from "../../../dom/hint-glyph.js";
+import { t } from "../../../i18n/translate.js";
 import type { TableSetupPageInput } from "./mc-table-setup-page.types.js";
 import { TableSetupPageStyles } from "./mc-table-setup-page.styles.js";
 
@@ -80,12 +81,20 @@ export class McTableSetupPage extends LitElement {
     const encounter = html`<mc-setup-encounter .input=${input.encounter} .mode=${mode}></mc-setup-encounter>`;
     const summary = html`<mc-setup-summary .input=${input.summary} .mode=${mode}></mc-setup-summary>`;
     const deal = html`<mc-setup-deal-bar .input=${input.deal} .mode=${mode}></mc-setup-deal-bar>`;
-    const bar = html`<mc-setup-top-bar
-      .mode=${mode}
-      .titleDrop=${input.titleDrop}
-      .titleMax=${input.titleMax}
-      .backGlyph=${input.backGlyph}
-    ></mc-setup-top-bar>`;
+    const phoneBar = mode === "phone";
+    const bar = html`<mc-top-bar
+      class="bar"
+      ?compact=${phoneBar}
+      .heading=${t("tableSetup.title")}
+      .right=${t(phoneBar ? "tableSetup.stepShort" : "tableSetup.step")}
+      .backLabel=${phoneBar ? "◂" : t("tableSetup.back")}
+      .backName=${t("tableSetup.back")}
+      .backGlyph=${hintGlyphOf(input.backGlyph)}
+      @mc-press=${(event: Event) => {
+        event.stopPropagation();
+        this.dispatchEvent(setupEvent({ type: "back" }));
+      }}
+    ></mc-top-bar>`;
     if (mode === "phone")
       return html`${bar}
         <div class="body">

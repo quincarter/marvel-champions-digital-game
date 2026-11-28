@@ -2,12 +2,12 @@ import type { FilterChip, TabRailTab } from "@mc/ui";
 import type { UpdateAllBar } from "../../../view/mod-store-update-all.js";
 import type { CreatorModel } from "../../../components/mod-store/mc-creator-row/mc-creator-row.types.js";
 import type { McModNoticeProps } from "../../../components/mod-store/mc-mod-notice/mc-mod-notice.types.js";
-import type { McModStoreHeaderProps } from "../../../components/mod-store/mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreHeaderModel } from "../../../components/mod-store/shared/mod-store-header.types.js";
 import type { ModFindersSearch } from "../../../components/mod-store/mc-mod-finders/mc-mod-finders.types.js";
 import type { PackDetailModel } from "../../../components/mod-store/mc-pack-detail/mc-pack-detail.types.js";
 import type { PackTileModel } from "../../../components/mod-store/mc-pack-tile/mc-pack-tile.types.js";
 
-export type { ModStoreSize } from "../../../components/mod-store/mc-mod-store-header/mc-mod-store-header.types.js";
+export type { ModStoreSize } from "../../../components/mod-store/shared/mod-store-size.types.js";
 
 /** The finders over a tab's grid: shown or folded away (a phone), and what they say. */
 export interface FindersModel {
@@ -51,7 +51,7 @@ export interface BrowseModel {
 
 /** Everything the Mod Store's page shows (`view/mod-store-page-model.ts` builds it from the store's state). */
 export interface ModStorePageModel {
-  readonly header: Omit<McModStoreHeaderProps, "size">;
+  readonly header: ModStoreHeaderModel;
   /** The browse view (tabs over a grid or Credits); null while a pack's page is open. */
   readonly browse: BrowseModel | null;
   /** A pack's page; null in the browse view. */

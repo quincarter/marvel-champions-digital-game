@@ -56,7 +56,6 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { SCENES } from "./keys.js";
 import type { CampaignReturn } from "./campaign/routes.js";
-import { clearToggle } from "./deck-builder/builder-toggle.js";
 import { BuilderPictures } from "./deck-builder/builder-pictures.js";
 import { BuilderActions } from "./deck-builder/builder-actions.js";
 import type { BuilderHost } from "./deck-builder/builder-host.js";
@@ -405,12 +404,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     });
   }
 
-  /** The draw is down: lists go where they were left, the toggle's room is made, hover and stops are read. */
+  /** The draw is down: lists go where they were left, hover and stops are read. */
   #afterDraw(): void {
     const page = this.#page;
     if (!page) return;
     this.#restoreScrolls(page.element.scrollers());
-    if (this.#page) clearToggle(this, this.#page.region, this.#page.element, this.#layout() === "phone");
     this.#hover?.onDraw();
     this.#queueStops();
   }

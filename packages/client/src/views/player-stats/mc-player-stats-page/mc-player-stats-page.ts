@@ -13,7 +13,9 @@ import { ThemeStyles } from "@mc/ui";
 import type { StatsMode } from "../../../components/player-stats/shared/stats-events.types.js";
 import "../../../components/player-stats/mc-stats-credited/mc-stats-credited.js";
 import "../../../components/player-stats/mc-stats-matchup-legend/mc-stats-matchup-legend.js";
-import "../../../components/player-stats/mc-stats-header/mc-stats-header.js";
+import "../../../components/player-stats/mc-stats-source-switch/mc-stats-source-switch.js";
+import { hintGlyphOf } from "../../../dom/hint-glyph.js";
+import { statsEvent } from "../../../components/player-stats/shared/stats-events.types.js";
 import "../../../components/player-stats/mc-stats-tabs/mc-stats-tabs.js";
 import "../../../components/player-stats/mc-stats-controls/mc-stats-controls.js";
 import "../../../components/player-stats/mc-stats-list/mc-stats-list.js";
@@ -73,7 +75,31 @@ export class McPlayerStatsPage extends LitElement implements McPlayerStatsPagePr
   override render() {
     const model = this.model;
     if (!model) return nothing;
-    return html`<mc-stats-header .input=${model.header} .mode=${this.mode}></mc-stats-header>
+    const head = model.header;
+    return html`<mc-top-bar
+        ?compact=${this.mode === "phone"}
+        .heading=${head.title}
+        .backLabel=${head.backLabel}
+        .backGlyph=${hintGlyphOf(head.backGlyph)}
+        @mc-press=${(event: Event) => {
+          event.stopPropagation();
+          this.dispatchEvent(statsEvent({ type: "back" }));
+        }}
+      >
+        ${head.played ? html`<span slot="end" class="played">${head.played}</span>` : nothing}
+        ${
+          head.showSource
+            ? html`<mc-stats-source-switch
+                slot="end"
+                .source=${head.source}
+                .youLabel=${head.youLabel}
+                .everyoneLabel=${head.everyoneLabel}
+                .glyph=${head.sourceGlyph}
+                ?compact=${this.mode === "phone"}
+              ></mc-stats-source-switch>`
+            : nothing
+        }
+      </mc-top-bar>
       <div class="body">
         ${
           model.tabs

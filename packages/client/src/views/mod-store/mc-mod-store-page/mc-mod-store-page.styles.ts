@@ -12,8 +12,37 @@ export const McModStorePageStyles = css`
     /* A size container, so the heads-up's portraits can size to the screen's height (cqh). */
     container-type: size;
   }
-  mc-mod-store-header {
+  mc-top-bar {
     flex: none;
+  }
+  /* The caution tag: ink words on yellow, so it never rests on colour alone. */
+  .badge {
+    flex: none;
+    padding: 3px 8px;
+    background: var(--mc-fill-caution);
+    color: var(--mc-text-ink-on-hue);
+    font-weight: 800;
+    font-size: var(--mc-small-11, 11px);
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+  }
+  .installed {
+    flex: none;
+    font-weight: 800;
+    font-size: var(--mc-small-11, 11px);
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+    opacity: 0.6;
+    white-space: nowrap;
+  }
+  .about {
+    flex: none;
+    min-width: 132px;
+    height: 44px;
+    --mc-button-size: 18px;
+  }
+  :host([size="phone"]) .about {
+    min-width: 44px;
   }
   mc-pack-detail {
     flex: 1;

@@ -70,8 +70,6 @@ export class McScenarioSelectPage extends LitElement {
         .right=${m.topBar.right}
         .backLabel=${m.topBar.backLabel}
         .backGlyph=${m.topBar.backGlyph}
-        .titleDrop=${m.topBar.titleDrop}
-        .titleMaxRight=${m.topBar.titleMaxRight}
         ?compact=${m.phone}
         @mc-press=${pressOf(this, "back")}
       ></mc-top-bar>

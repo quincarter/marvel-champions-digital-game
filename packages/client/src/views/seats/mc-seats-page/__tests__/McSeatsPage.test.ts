@@ -64,7 +64,7 @@ describe("mc-seats-page", () => {
     const page = await mount(model());
     const root = page.shadowRoot!;
     for (const tag of [
-      "mc-seats-header",
+      "mc-top-bar",
       "mc-seats-table",
       "mc-seats-filters",
       "mc-seats-roster",
@@ -103,10 +103,7 @@ describe("mc-seats-page", () => {
     const page = await mount(model());
     const seen: SeatsEvent[] = [];
     page.addEventListener("mc-seats", (event) => seen.push((event as CustomEvent<SeatsEvent>).detail));
-    page
-      .shadowRoot!.querySelector("mc-seats-header")!
-      .shadowRoot!.querySelector<HTMLElement>('[data-stop="back"]')!
-      .click();
+    page.shadowRoot!.querySelector("mc-top-bar")!.shadowRoot!.querySelector<HTMLElement>('[data-stop="back"]')!.click();
     expect(seen).toEqual([{ type: "action", action: "back" }]);
   });
 });

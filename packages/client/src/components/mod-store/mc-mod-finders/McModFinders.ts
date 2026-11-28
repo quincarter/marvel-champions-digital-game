@@ -3,7 +3,7 @@ import { ThemeStyles, type FilterChip, type McSearchField } from "@mc/ui";
 import { ModStoreElement } from "../shared/ModStoreElement.js";
 import { McModFindersStyles } from "./mc-mod-finders.styles.js";
 import type { McModFindersProps, ModFindersSearch } from "./mc-mod-finders.types.js";
-import type { ModStoreSize } from "../mc-mod-store-header/mc-mod-store-header.types.js";
+import type { ModStoreSize } from "../shared/mod-store-size.types.js";
 
 /**
  * # Mod Store finders

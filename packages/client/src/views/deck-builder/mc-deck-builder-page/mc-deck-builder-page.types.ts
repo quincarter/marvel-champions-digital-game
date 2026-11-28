@@ -3,7 +3,7 @@ import type { BuilderActionsModel } from "../../../components/deck-builder/mc-bu
 import type {
   BuilderHeaderModel,
   BuilderLayout,
-} from "../../../components/deck-builder/mc-builder-header/mc-builder-header.types.js";
+} from "../../../components/deck-builder/shared/builder-header.types.js";
 import type { SaveBarModel } from "../../../components/deck-builder/mc-builder-save-bar/mc-builder-save-bar.types.js";
 import type { BuilderTabsModel } from "../../../components/deck-builder/mc-builder-tabs/mc-builder-tabs.types.js";
 import type { DeckChartsModel } from "../../../components/deck-builder/mc-deck-charts/mc-deck-charts.types.js";

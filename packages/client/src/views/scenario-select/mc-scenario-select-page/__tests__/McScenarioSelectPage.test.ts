@@ -15,8 +15,6 @@ const model = (over: Partial<ScenarioSelectPageModel> = {}): ScenarioSelectPageM
     title: "Choose a scenario",
     right: "Step 1",
     backGlyph: null,
-    titleDrop: 0,
-    titleMaxRight: 0,
   },
   filters: {
     searchValue: "",

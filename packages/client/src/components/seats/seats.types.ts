@@ -266,9 +266,6 @@ export interface SeatsHeaderModel {
   readonly step: string;
   /** The Cancel key or button beside Back's word, while a keyboard or pad is in use. */
   readonly backGlyph?: ControlGlyph;
-  /** How far the title drops, in px, and where it ends (px from the bar's left; null: no limit), to clear the dark mode tab that hangs from the top centre. */
-  readonly titleDrop?: number;
-  readonly titleMaxRight?: number | null;
 }
 
 export interface SeatsFooterModel {

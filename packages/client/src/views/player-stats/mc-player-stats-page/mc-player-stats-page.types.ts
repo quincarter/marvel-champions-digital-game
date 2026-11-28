@@ -1,5 +1,5 @@
 import type { ControlGlyph, TabRailTab } from "@mc/ui";
-import type { StatsHeaderInput } from "../../../components/player-stats/mc-stats-header/mc-stats-header.types.js";
+import type { StatsHeaderInput } from "../../../components/player-stats/shared/stats-header.types.js";
 import type { StatsControlRow } from "../../../components/player-stats/mc-stats-controls/mc-stats-controls.types.js";
 import type { StatsChipModel } from "../../../components/player-stats/mc-stats-chip-row/mc-stats-chip-row.types.js";
 import type { StatsBlock } from "../../../components/player-stats/mc-stats-list/mc-stats-list.types.js";

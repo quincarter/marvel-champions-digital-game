@@ -2,7 +2,7 @@
 import type { PictureSource } from "@mc/ui";
 import type { ControlGlyph } from "@mc/ui";
 import type { HeroIdentityCard } from "@mc/content";
-import type { BuilderLayout } from "../../components/deck-builder/mc-builder-header/mc-builder-header.types.js";
+import type { BuilderLayout } from "../../components/deck-builder/shared/builder-header.types.js";
 import type { ArtSource } from "../../art/art-source.js";
 import type { DeckBuilderRowSizes } from "../../view/deck-builder-rows.js";
 

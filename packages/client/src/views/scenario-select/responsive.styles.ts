@@ -7,12 +7,8 @@ import { css } from "lit";
 export const ScenarioSelectResponsive = css`
   :host {
     --gutter: 16px;
-    --bar-height: 60px;
   }
   :host([wide]) {
     --gutter: 24px;
-  }
-  :host([phone]) {
-    --bar-height: 64px;
   }
 `;

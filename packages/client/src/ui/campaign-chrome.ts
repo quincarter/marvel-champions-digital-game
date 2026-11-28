@@ -25,7 +25,7 @@ import { McButton, fitText } from "./widgets.js";
 import { reportSlots } from "./report-slot.js";
 import { musicSlots } from "./music-slot.js";
 import { setThemeSlot } from "./theme-slot.js";
-import { sheetThemePlan, topBarThemePlan } from "../view/theme-button.js";
+import { topBarThemePlan } from "../view/theme-button.js";
 
 /** Heights the canvases draw at: 60px chrome on desktop/tablet ("60px chrome to match Screens - Desktop"), 52 on phone. */
 export const CAMPAIGN_TOP_BAR = { wide: 60, phone: 52 } as const;
@@ -96,8 +96,8 @@ export interface TopBar {
 const BACK_GLYPH_ROOM = 64;
 
 /**
- * The one rule that keeps the dark mode toggle off the words of a top bar, for the Phaser bar (`drawTopBar`) and every
- * panel bar (`dom/sheet-top-bar.ts`, the Decks, Deck builder and How to win headers): asks `topBarThemePlan` where
+ * The rule that keeps the dark mode toggle off the words of a Phaser-drawn top bar (`drawTopBar`; the screens built as
+ * elements follow `@mc/ui`'s `titleClearance` instead): asks `topBarThemePlan` where
  * the toggle goes for words spanning `textLeft` to `textRight`, tells the toggle (`setThemeSlot`, cleared when the
  * scene shuts down) and returns how far the words drop to sit under it. A screen carrying the chrome cluster (Report,
  * music, language) keeps the toggle beside it, and its words stay put.
@@ -118,35 +118,6 @@ export function themeDropFor(
     });
   }
   return plan.drop;
-}
-
-/**
- * `themeDropFor` for words drawn in a panel (`sheetThemePlan`): the toggle's whole press area is cut out of the panel, so
- * the words drop under it or end before it. Returns how far to drop and where to stop (null: no limit).
- */
-export function sheetThemeFor(
-  scene: Phaser.Scene,
-  args: {
-    width: number;
-    textLeft: number;
-    textRight: number;
-    textTop: number;
-    textHeight: number;
-    barHeight?: number;
-  },
-): { drop: number; maxRight: number | null } {
-  const key = scene.sys.settings.key;
-  if (reportSlots().has(key) || musicSlots().has(key)) return { drop: 0, maxRight: null };
-  const plan = sheetThemePlan(args);
-  setThemeSlot(key, plan.slot);
-  if (!scene.data.get("mc-topbar-theme")) {
-    scene.data.set("mc-topbar-theme", true);
-    scene.events.once("shutdown", () => {
-      setThemeSlot(key, null);
-      scene.data.set("mc-topbar-theme", false);
-    });
-  }
-  return { drop: plan.drop, maxRight: plan.maxRight };
 }
 
 /** The ink top bar: boxed back button, Bangers title, right-aligned label. */
