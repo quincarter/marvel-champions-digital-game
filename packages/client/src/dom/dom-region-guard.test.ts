@@ -193,4 +193,62 @@ describe("guardRegion: a panel field under a modal keeps its text in step with t
     expect(guardStops(new CustomEvent("mc-input", { detail: { value: "x" } }), true)).toBe(false);
     expect(GUARDED_EVENTS).toContain("mc-input");
   });
+
+  it("a redraw between typing and the modal does not move the baseline: the screen hands the field the text it accepted", async () => {
+    const takes = { value: true };
+    const { wrap, apply } = region(takes);
+    // The consumer (the Decks pool search): it keeps the text it accepted and hands the field exactly that on every redraw.
+    let acceptedText = "";
+    const results: string[] = [];
+    const sheet = document.createElement("mc-sheet") as McSheet;
+    const draw = async (): Promise<void> => {
+      sheet.nodes = [
+        {
+          kind: "search",
+          key: "pool-search",
+          rect: { x: 0, y: 0, width: 300, height: 44 },
+          value: acceptedText,
+          placeholder: "Search",
+          clearLabel: "Clear",
+          debounce: 40,
+        },
+      ];
+      await sheet.updateComplete;
+    };
+    wrap.addEventListener("mc-search", (event) => {
+      acceptedText = (event as CustomEvent<{ value: string }>).detail.value;
+      results.push(acceptedText);
+    });
+    wrap.append(sheet);
+    await draw();
+    const field = sheet.elementOf("pool-search") as McSearchField;
+    field.focusInput();
+    // Accept A.
+    await typeInto(field, "think");
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    await draw();
+    expect(results).toEqual(["think"]);
+    // Type B; before the pause ends the screen redraws (a resize, a worker answer), then a modal covers it.
+    await typeInto(field, "think fast");
+    await draw();
+    takes.value = false;
+    apply();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    await field.updateComplete;
+    // The pool still has A, and so does the field: nothing the pool did not take is shown.
+    expect(results).toEqual(["think"]);
+    expect(field.text).toBe("think");
+    expect(inputOf(field).value).toBe("think");
+    // The modal closes and the screen redraws: the text and the results are still one.
+    takes.value = true;
+    apply();
+    await draw();
+    expect(inputOf(field).value).toBe(acceptedText);
+    expect(field.text).toBe(acceptedText);
+    // A new edit is taken as usual.
+    await typeInto(field, "thinking");
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(results.at(-1)).toBe("thinking");
+    expect(field.text).toBe(acceptedText);
+  });
 });

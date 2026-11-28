@@ -343,6 +343,9 @@ function fieldOf(event: Event): RestorableField | null {
  * the screen accepted (what an event it let through carried, else the `value` the screen handed the field), and what
  * was typed since is dropped. So the text on screen and the results the screen shows always agree.
  *
+ * A screen hands a field the text it has accepted as its `value`, never the field's live draft (`McSearchField.text`):
+ * a redraw that copies the draft in would make the unaccepted text the baseline this puts the field back to.
+ *
  * Returns the function that applies the blur; call it each time the answer may have changed.
  */
 export function guardRegion(wrap: HTMLElement, takes: () => boolean, destroyed: () => boolean): () => void {
