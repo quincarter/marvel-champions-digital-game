@@ -82,6 +82,11 @@ const overlayHoles = new Map<string, readonly Rect[] | (() => readonly Rect[])>(
 /** Every live region, so one overlay's holes reach the panels under it at once. */
 const liveRegions = new Set<{ readonly resync: () => void }>();
 
+/** Re-reads every live region's cut-outs now: a card hover popover that has just gone must stop cutting its hole at once. */
+export function resyncLiveRegions(): void {
+  for (const region of liveRegions) region.resync();
+}
+
 /** The holes of overlay scenes drawn above `key` (later in the draw order), in game coordinates. */
 export function holesAbove(scenes: readonly { readonly key: string }[], key: string): Rect[] {
   const at = scenes.findIndex((scene) => scene.key === key);
@@ -286,6 +291,7 @@ export const GUARDED_EVENTS = [
   "mc-step",
   "mc-search",
   "mc-submit",
+  "mc-info",
   "mc-sort",
   "mc-filter-sheet",
   "mc-input",
@@ -496,9 +502,20 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
    * the canvas only, which the panel covers. For a scene that shows a card hover popover over its panel
    * (`ui/card-hover-preview.ts`, which follows Phaser's pointer); a finger or pen is left alone.
    */
-  forwardMouseMoves(): void {
+  forwardMouseMoves(onPress?: () => void): void {
     const off = forwardMouseMoves(this.#wrap, this.#scene.game.canvas);
     this.#scene.events.once("shutdown", off);
+    // A tap on the panel never reaches Phaser's own pointer-down, so the card hover popover is told here that a press
+    // began (it takes itself down and stays down for the card pressed).
+    if (onPress) {
+      this.#wrap.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (event.pointerType === "mouse") onPress();
+        },
+        true,
+      );
+    }
   }
 
   /** Hides the region whatever its scene does (the scene shows something else in its place for now). */
