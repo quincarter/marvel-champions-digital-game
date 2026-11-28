@@ -162,3 +162,23 @@ export type { AlertBannerModel } from "./components/mc-alert-banner/mc-alert-ban
 export type { PromoPanelModel } from "./components/mc-promo-panel/mc-promo-panel.types.js";
 export type { FooterBarLink, FooterBarModel } from "./components/mc-footer-bar/mc-footer-bar.types.js";
 export type { Placed, TitlePanelModel } from "./components/mc-title-panel/mc-title-panel.types.js";
+export { McLanguageMenu } from "./components/mc-language-menu/mc-language-menu.js";
+export { McReportIssue } from "./components/mc-report-issue/mc-report-issue.js";
+export { McMusicPlayer } from "./components/mc-music-player/mc-music-player.js";
+export type { LanguageMenuModel, LanguageNote } from "./components/mc-language-menu/mc-language-menu.types.js";
+export type { ReportIssueModel } from "./components/mc-report-issue/mc-report-issue.types.js";
+export type { ReportStep } from "./components/mc-report-step/mc-report-step.types.js";
+export type { MusicPlayerModel } from "./components/mc-music-player/mc-music-player.types.js";
+export type { NowPlayingModel } from "./components/mc-now-playing/mc-now-playing.types.js";
+export type { PlayerControlsModel } from "./components/mc-player-controls/mc-player-controls.types.js";
+export type { TrackListModel } from "./components/mc-track-list/mc-track-list.types.js";
+export type { TrackRowModel } from "./components/mc-track-row/mc-track-row.types.js";
+export type { VolumeSliderProps } from "./components/mc-volume-slider/mc-volume-slider.types.js";
+export type {
+  ActivateDetail,
+  ControlGlyph,
+  ControlGlyphs,
+  PopupButton,
+  SlideDetail,
+  StepDetail,
+} from "./shared/popup.types.js";
