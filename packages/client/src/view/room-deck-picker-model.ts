@@ -8,6 +8,7 @@ import { artLanguageNow } from "../art/art-source.js";
 import { deckReasonText } from "./deck-reason.js";
 import { aspectName } from "./aspect-stamp.js";
 import type { DeckOption } from "./deck-list-model.js";
+import { deckDisplayName, localHeroName } from "./deck-names.js";
 import { queryScoreOf } from "./deck-search.js";
 
 export interface PickerRow {
@@ -38,11 +39,12 @@ export interface CurrentDeck {
 export const cardsOf = (option: DeckOption): number => option.deck.cards.reduce((sum, line) => sum + line.quantity, 0);
 
 function rowOf(option: DeckOption, current: CurrentDeck | null): PickerRow {
-  const heroName = option.identityName ?? (option.deck.identityCardId as string);
+  const heroId = option.deck.identityCardId as string;
+  const heroName = option.identityName === null ? heroId : localHeroName(heroId, option.identityName);
   return {
     id: option.deck.id as string,
     option,
-    name: option.deck.name,
+    name: deckDisplayName(option.deck),
     cardId: option.deck.identityCardId as string,
     heroName,
     aspects: option.deck.aspects.map((a) => aspectName(a as string, artLanguageNow())).join(" + "),
@@ -76,7 +78,7 @@ export function pickerRows(
   options.forEach((option, index) => {
     const row = rowOf(option, current);
     const score = queryScoreOf(text, {
-      primary: [row.name, row.heroName],
+      primary: [row.name, row.heroName, option.deck.name, option.identityName ?? ""],
       secondary: [row.aspects, option.deck.source.kind],
     });
     if (score !== null) scored.push({ row, score, index });

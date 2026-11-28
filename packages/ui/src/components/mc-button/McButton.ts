@@ -69,6 +69,11 @@ export class McButton extends LitElement {
     this.reason = "";
   }
 
+  #onClick = (event: MouseEvent): void => {
+    if (event.detail !== 0 || (this.disabled && !this.pressable)) return;
+    this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true }));
+  };
+
   override connectedCallback(): void {
     super.connectedCallback();
     this.#stopTap = onTap(
@@ -76,6 +81,8 @@ export class McButton extends LitElement {
       () => this.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true })),
       { enabled: () => !this.disabled || this.pressable },
     );
+    // `click()` from the focus route (Enter on a `data-stop`) has no pointer press behind it (`detail` 0): it presses.
+    this.addEventListener("click", this.#onClick);
     // The label is fitted to the button's own width, so a button sized after the fact (by its sheet) refits.
     if (typeof ResizeObserver !== "undefined") {
       this.#resize = new ResizeObserver(() => this.#fit());

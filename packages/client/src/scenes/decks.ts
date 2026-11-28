@@ -168,6 +168,7 @@ import {
   type CostCurveBar,
 } from "../view/deck-stats.js";
 import { deckStatusOf } from "../view/deck-status.js";
+import { deckDisplayName, identityLabelOf, localHeroName } from "../view/deck-names.js";
 import { cardTitleOf, deckAspectsText, deckMetaCandidates } from "../view/deck-title.js";
 import { decksLayout, type DecksTab } from "../view/decks-layout.js";
 import { poolGridGeometry } from "../view/deck-pool-grid.js";
@@ -1760,9 +1761,15 @@ export class DecksScene extends Phaser.Scene {
       : [];
     return {
       id: deck.id as string,
-      primary: [deck.name, option.identityName, hero?.hero.faceName, hero?.alterEgo.faceName, entry?.heroName].filter(
-        (t): t is string => typeof t === "string",
-      ),
+      primary: [
+        deck.name,
+        deckDisplayName(deck),
+        option.identityName,
+        identityLabelOf(option),
+        hero?.hero.faceName,
+        hero?.alterEgo.faceName,
+        entry?.heroName,
+      ].filter((t): t is string => typeof t === "string"),
       secondary: [
         ...deck.aspects.map((a) => aspectLabelOf([a])),
         ...sourceWords,
@@ -2566,14 +2573,17 @@ export class DecksScene extends Phaser.Scene {
     };
     if (!this.#insights) block(t("decks.card.yourPlay"), null, t("decks.games.reading"));
     else {
-      const heroName = (currentCardsById().get(heroId)?.name ?? heroId).replace(/ \(.*\)$/, "");
+      const heroName = localHeroName(
+        heroId as string,
+        (currentCardsById().get(heroId)?.name ?? heroId).replace(/ \(.*\)$/, ""),
+      );
       block(t("decks.card.withHero", { hero: heroName }), hero, t("decks.card.notWithHero", { hero: heroName }));
       block(t("decks.card.everyHero"), all, t("decks.card.notYet"));
     }
     // Your decks that hold it.
     const holding = this.#deckOptions()
       .filter((option) => option.deck.cards.some((line) => line.cardId === card.id))
-      .map((option) => option.deck.name);
+      .map((option) => deckDisplayName(option.deck));
     if (holding.length > 0 && y + 36 < inspectRect.y - 8) {
       b.text(left, y, t("decks.card.inDecks").toUpperCase(), typeRole.label, { color: signal.caution.hex });
       y += 18;
@@ -2932,7 +2942,7 @@ export class DecksScene extends Phaser.Scene {
       left,
       y,
       [
-        option.identityName ?? entry.heroName,
+        identityLabelOf(option) ?? entry.heroName,
         deckCountText(stats),
         ...(published ? [published] : []),
         t("decks.community.notOfficial"),

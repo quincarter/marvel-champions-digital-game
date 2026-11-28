@@ -74,6 +74,7 @@ import { isDesktopType } from "../ui/desktop-type.js";
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import { cssOf } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { deckDisplayName, identityLabelOf } from "../view/deck-names.js";
 import { aspectStampOf, aspectStampsOf, titleWithoutAspects } from "../view/aspect-stamp.js";
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
@@ -717,7 +718,7 @@ export class SeatsScene extends Phaser.Scene {
     for (const deckId of this.#draft.seats) {
       const deck = deckOptions.find((candidate) => (candidate.deck.id as string) === deckId);
       const lock = deck ? deckLockOf(deck.deck) : null;
-      if (lock) return `${deck!.identityName ?? deck!.deck.name}: ${lock}`;
+      if (lock) return `${identityLabelOf(deck!) ?? deckDisplayName(deck!.deck)}: ${lock}`;
     }
     return null;
   }
@@ -765,7 +766,7 @@ export class SeatsScene extends Phaser.Scene {
     const found = (region?.element as unknown as { elementOf(key: string): HTMLElement | null } | undefined)?.elementOf(
       key,
     );
-    return found && region ? region.rectOf(found) : null;
+    return found && region ? region.visibleRectOf(found) : null;
   }
 
   /** Wires a panel's region: presses reach `#actions`, a hold reaches `#inspects`, a stale pack picture asks again, the mouse reaches the hover popover. */
@@ -1415,7 +1416,7 @@ export class SeatsScene extends Phaser.Scene {
           panelOption && detail
             ? {
                 name: detail.identityName,
-                credit: credit ? `${panelOption.deck.name} · ${credit}` : null,
+                credit: credit ? `${deckDisplayName(panelOption.deck)} · ${credit}` : null,
                 stats: t("seats.detailFull", {
                   aspect: detail.aspectLabel,
                   hp: detail.hp ?? "—",
@@ -1941,17 +1942,17 @@ export class SeatsScene extends Phaser.Scene {
                 .filter((part) => part !== null)
                 .join(" · ") || null;
     const rec = this.#insights?.analysis.get(option.deck.id as string);
-    const name = option.identityName ?? option.deck.name;
+    const name = identityLabelOf(option) ?? deckDisplayName(option.deck);
     const model = heroCardModelOf(
       {
-        title: several ? name : titleWithoutAspects(option.deck.name.split(" — ")[0]!, option.deck.aspects),
+        title: several ? name : titleWithoutAspects(deckDisplayName(option.deck).split(" — ")[0]!, option.deck.aspects),
         // A recommended tile says *why* in the line a normal tile uses for its source.
         subtitle:
           recommended && rec?.caption
             ? rec.caption
             : several
               ? t("seats.decksSummary", { count: formatCount(decks.length), sources: sourceWordsOf(decks) })
-              : `${sourceText} · ${option.identityName ?? t("seats.unknownIdentity")}`,
+              : `${sourceText} · ${identityLabelOf(option) ?? t("seats.unknownIdentity")}`,
         // Locked: the free way (the villain to beat) and the paid one (tap it to spend points), side by side.
         warning: seatedElsewhere
           ? null
@@ -2111,7 +2112,7 @@ export class SeatsScene extends Phaser.Scene {
     const rec = focusId ? insights.analysis.get(focusId) : undefined;
     const option = focusId ? this.#deckOptions().find((o) => (o.deck.id as string) === focusId) : undefined;
     if (rec && rec.lines.length > 0 && option) {
-      put(t("seats.why", { name: option.identityName ?? option.deck.name }), typeRole.label, 1, 2);
+      put(t("seats.why", { name: identityLabelOf(option) ?? deckDisplayName(option.deck) }), typeRole.label, 1, 2);
       for (const line of rec.lines) put(line, typeRole.body, 1, 4);
     }
     region.setRect(area);
@@ -2291,9 +2292,15 @@ export class SeatsScene extends Phaser.Scene {
       : [];
     return {
       id: deck.id as string,
-      primary: [deck.name, option.identityName, hero?.hero.faceName, hero?.alterEgo.faceName, entry?.heroName].filter(
-        (t): t is string => typeof t === "string",
-      ),
+      primary: [
+        deck.name,
+        deckDisplayName(deck),
+        option.identityName,
+        identityLabelOf(option),
+        hero?.hero.faceName,
+        hero?.alterEgo.faceName,
+        entry?.heroName,
+      ].filter((t): t is string => typeof t === "string"),
       secondary: [
         ...seatSearchWordsOf(deck.aspects, deck.source.kind, entry !== undefined),
         ...packs.filter((t): t is string => typeof t === "string"),
@@ -2397,7 +2404,7 @@ export class SeatsScene extends Phaser.Scene {
       return {
         row: heroDeckRowOf({
           deckId: deck.id as string,
-          name: titleWithoutAspects(deck.name.split(" — ")[0]!, deck.aspects),
+          name: titleWithoutAspects(deckDisplayName(deck).split(" — ")[0]!, deck.aspects),
           sourceKind: deck.source.kind,
           testedCredit: testedSubtitleOf(deck, testedCatalog()),
           cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0),
@@ -2415,7 +2422,7 @@ export class SeatsScene extends Phaser.Scene {
     });
     this.scene.launch(SCENES.heroDecks, {
       from: this.scene.key,
-      heroName: group.rep.identityName ?? group.rep.deck.name,
+      heroName: identityLabelOf(group.rep) ?? deckDisplayName(group.rep.deck),
       identityCardId: identityId,
       picture: this.#heroPictureFor(identityId),
       rows,
