@@ -49,6 +49,7 @@ export class McScenarioChips extends LitElement {
             data-stop=${`scenario-chip:${chip.id}`}
             .label=${chip.label}
             .value=${chip.id}
+            hug
             ?selected=${chip.selected}
             @mc-activate=${pressOf(this, `scenario-chip:${chip.id}`)}
           ></mc-filter-chip>`,

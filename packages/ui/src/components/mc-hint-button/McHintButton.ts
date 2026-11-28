@@ -23,6 +23,7 @@ const GAP = 8;
  * @attr pressable - With `disabled`: a tap still raises `mc-press`.
  * @attr display - A Bangers label.
  * @attr plain - A label in its own case.
+ * @attr hug - The button is as wide as its word (and glyph), never shrinking the word (a Back button).
  * @prop glyph - `HintGlyph`, or null for none.
  * @fires mc-press - A tap on an enabled button (from the inner `mc-button`, re-raised unchanged).
  */
@@ -37,6 +38,7 @@ export class McHintButton extends LitElement {
     pressable: { type: Boolean, reflect: true },
     display: { type: Boolean, reflect: true },
     plain: { type: Boolean, reflect: true },
+    hug: { type: Boolean, reflect: true },
     reason: { type: String },
     glyph: { attribute: false },
   };
@@ -48,6 +50,7 @@ export class McHintButton extends LitElement {
   declare pressable: boolean;
   declare display: boolean;
   declare plain: boolean;
+  declare hug: boolean;
   declare reason: string;
   declare glyph: HintGlyph | null;
 
@@ -60,6 +63,7 @@ export class McHintButton extends LitElement {
     this.pressable = false;
     this.display = false;
     this.plain = false;
+    this.hug = false;
     this.reason = "";
     this.glyph = null;
   }
@@ -101,6 +105,7 @@ export class McHintButton extends LitElement {
         ?pressable=${this.pressable}
         ?display=${this.display}
         ?plain=${this.plain}
+        ?hug=${this.hug}
         .reason=${this.reason}
       ></mc-button>
       ${

@@ -26,9 +26,10 @@ export const McScenarioRandomRowStyles = css`
     text-transform: uppercase;
     margin-left: 2px;
   }
+  /* Wide enough for the longest word in the app languages (a Spanish Random scenario). */
   .random {
-    flex: 0 1 150px;
-    min-width: 0;
+    flex: 0 1 210px;
+    min-width: 150px;
     height: 28px;
   }
   /* Drilled into a box, the buttons sit at the right: the title takes the room between. */

@@ -101,6 +101,7 @@ export class McTopBar extends LitElement {
               data-stop=${this.backStop}
               kind="onInk"
               display
+              hug
               .label=${this.backLabel}
               .glyph=${this.compact ? null : this.backGlyph}
             ></mc-hint-button>`
