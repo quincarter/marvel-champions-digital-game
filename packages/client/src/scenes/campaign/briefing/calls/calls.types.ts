@@ -60,6 +60,8 @@ export interface OptionTileModel {
   readonly available: boolean;
   /** A heal-green stripe down the left edge (the set already chosen). */
   readonly stripe?: boolean;
+  /** A switched-on tile (the easier start's toggle): a thick Hero Red frame. */
+  readonly on?: boolean;
   readonly onPick: () => void;
 }
 

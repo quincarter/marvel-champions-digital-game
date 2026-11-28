@@ -49,7 +49,12 @@ export function drawPickArt(
   art: Rect,
   card: PickArtCard,
   key: string,
-  options: { readonly badge?: number; readonly onInspect?: (card: PickArtCard) => void } = {},
+  options: {
+    readonly badge?: number;
+    readonly onInspect?: (card: PickArtCard) => void;
+    /** What stands in for the scan while it loads or when there is none (default: the card's name). */
+    readonly missing?: string;
+  } = {},
 ): void {
   const source = artFor(campaignCardsById().get(card.cardId as string), { kind: "front" });
   const held = ctx.leases.image(source);
@@ -57,7 +62,7 @@ export function drawPickArt(
   b.image(art, {
     src: held.src,
     fill: surface.parchment.hex,
-    missing: card.name,
+    missing: options.missing ?? card.name,
     color: surface.ink.hex,
     key: `art:${key}`,
     ...(held.retry !== undefined ? { retry: held.retry } : {}),

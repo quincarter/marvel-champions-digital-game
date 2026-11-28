@@ -16,11 +16,17 @@ export function drawOptionTile(b: SheetBuilder, col: Column, tile: OptionTileMod
   const { x, y, width, height } = tile.rect;
   const dim = tile.available || tile.stripe ? 1 : 0.5;
   b.box(tile.rect, { fill: tile.available ? surface.card.hex : surface.parchment.hex });
-  b.box(tile.rect, {
-    stroke: surface.ink.hex,
-    strokeWidth: tile.available ? 2 : 1,
-    ...(tile.available ? {} : { alpha: 0.4 }),
-  });
+  // A switched-on tile (the easier start) wears a thick Hero Red frame; the state is in its words as well.
+  b.box(
+    tile.rect,
+    tile.on
+      ? { stroke: accent.heroRed.hex, strokeWidth: 4 }
+      : {
+          stroke: surface.ink.hex,
+          strokeWidth: tile.available ? 2 : 1,
+          ...(tile.available ? {} : { alpha: 0.4 }),
+        },
+  );
   if (tile.stripe) b.box({ x, y, width: 6, height }, { fill: signal.heal.hex });
   const stamps = tile.chips;
   const chipsWidth = stamps && stamps.length > 0 ? chipRunWidth(b, stamps) : 0;
