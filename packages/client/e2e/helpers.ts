@@ -417,8 +417,7 @@ export async function pressHookStop(page: Page, hookName: string, key: string, t
   await waitFor(read, `control "${key}" on ${hookName}`, timeoutMs);
   // A screen whose controls scroll (a phone's page) can bring one into view through its hook's `reveal(key)`.
   await page.evaluate(
-    ([n, k]) =>
-      (window as unknown as Record<string, { reveal?: (key: string) => void } | undefined>)[n!]?.reveal?.(k!),
+    ([n, k]) => (window as unknown as Record<string, { reveal?: (key: string) => void } | undefined>)[n!]?.reveal?.(k!),
     [hookName, key] as const,
   );
   await settle(page, { quietMs: 150, maxMs: 500 });
