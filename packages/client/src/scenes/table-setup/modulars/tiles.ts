@@ -23,7 +23,7 @@ import type { ModularsEvents } from "./modulars.types.js";
 /** The modular tiles' pictures: the set's most recognizable card, framed from the top. */
 export const PICTURE_FOCUS = { x: 0.5, y: 0.12 } as const;
 /** The "Cards" tab in a wide tile's bottom-right corner. */
-const TAB_WIDTH = 64;
+const TAB_WIDTH = 80;
 
 const facesBySet = new WeakMap<object, Map<string, FaceRef | null>>();
 
