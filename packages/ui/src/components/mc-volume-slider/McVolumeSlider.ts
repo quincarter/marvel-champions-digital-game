@@ -1,6 +1,6 @@
 import { html, LitElement, type PropertyDeclarations } from "lit";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import { slide, step } from "../../shared/popup-parts.js";
+import type { SlideDetail, StepDetail } from "../../shared/popup.types.js";
 import { McVolumeSliderStyles } from "./mc-volume-slider.styles.js";
 
 const KNOB = 9;
@@ -61,6 +61,14 @@ export class McVolumeSlider extends LitElement {
     this.#press = null;
   }
 
+  #slide(detail: SlideDetail): void {
+    this.dispatchEvent(new CustomEvent<SlideDetail>("mc-slide", { detail, bubbles: true, composed: true }));
+  }
+
+  #step(detail: StepDetail): void {
+    this.dispatchEvent(new CustomEvent<StepDetail>("mc-step", { detail, bubbles: true, composed: true }));
+  }
+
   #shareAt(track: HTMLElement, clientX: number): number {
     const box = track.getBoundingClientRect();
     const bar = box.width - KNOB * 2;
@@ -88,7 +96,7 @@ export class McVolumeSlider extends LitElement {
       press.mode = dy > dx ? "scroll" : "drag";
     }
     if (press.mode === "drag") {
-      slide(this, { key: KEY, share: this.#shareAt(event.currentTarget as HTMLElement, event.clientX), commit: false });
+      this.#slide({ key: KEY, share: this.#shareAt(event.currentTarget as HTMLElement, event.clientX), commit: false });
     }
   };
 
@@ -107,7 +115,7 @@ export class McVolumeSlider extends LitElement {
         event.clientY <= box.bottom;
       if (!inside) return;
     }
-    slide(this, { key: KEY, share: this.#shareAt(track, event.clientX), commit: true });
+    this.#slide({ key: KEY, share: this.#shareAt(track, event.clientX), commit: true });
   };
 
   #cancel = (): void => {
@@ -120,7 +128,7 @@ export class McVolumeSlider extends LitElement {
         kind="quiet"
         .label=${this.stepLabels[0]}
         aria-label=${this.stepLabels[0]}
-        @mc-press=${() => step(this, { key: KEY, direction: -1 })}
+        @mc-press=${() => this.#step({ key: KEY, direction: -1 })}
       ></mc-button>
       <div
         class="track"
@@ -139,7 +147,7 @@ export class McVolumeSlider extends LitElement {
         kind="quiet"
         .label=${this.stepLabels[1]}
         aria-label=${this.stepLabels[1]}
-        @mc-press=${() => step(this, { key: KEY, direction: 1 })}
+        @mc-press=${() => this.#step({ key: KEY, direction: 1 })}
       ></mc-button>
       <span class="label">${this.label}</span>`;
   }

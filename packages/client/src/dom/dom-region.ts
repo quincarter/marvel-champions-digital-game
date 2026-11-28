@@ -293,6 +293,7 @@ export function forwardMouseMoves(
  */
 export const GUARDED_EVENTS = [
   "mc-activate",
+  "mc-music",
   "mc-inspect",
   "mc-slide",
   "mc-step",
