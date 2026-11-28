@@ -10,7 +10,7 @@ async function mount(): Promise<McUnlocksPage> {
   const el = document.createElement("mc-unlocks-page");
   el.model = {
     phone: false,
-    bar: { title: "Unlocks", backLabel: "Back", backGlyph: null, titleDrop: 0, titleMaxRight: 0 },
+    bar: { title: "Unlocks", backLabel: "Back", backGlyph: null },
     door: { label: "How it works", glyph: null },
     guide: false,
     points: { title: "3 points", detail: "Earn more" },

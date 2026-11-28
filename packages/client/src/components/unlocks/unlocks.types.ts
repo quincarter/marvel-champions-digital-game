@@ -63,8 +63,6 @@ export interface UnlocksPageModel {
     readonly title: string;
     readonly backLabel: string;
     readonly backGlyph: HintGlyph | null;
-    readonly titleDrop: number;
-    readonly titleMaxRight: number;
   };
   /** The door's word and its LB / RB glyph. */
   readonly door: { readonly label: string; readonly glyph: HintGlyph | null };

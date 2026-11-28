@@ -7,8 +7,6 @@ export interface CreditsPageModel {
     readonly title: string;
     readonly backLabel: string;
     readonly backGlyph: HintGlyph | null;
-    readonly titleDrop: number;
-    readonly titleMaxRight: number;
   };
   readonly rows: readonly CreditsListRow[];
 }

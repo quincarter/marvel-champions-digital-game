@@ -10,7 +10,7 @@ async function mount(): Promise<McCreditsPage> {
   const el = document.createElement("mc-credits-page");
   el.model = {
     phone: false,
-    bar: { title: "Art & Credits", backLabel: "Back", backGlyph: null, titleDrop: 0, titleMaxRight: 0 },
+    bar: { title: "Art & Credits", backLabel: "Back", backGlyph: null },
     rows: [
       { kind: "notice", text: "Fan project" },
       { kind: "section", title: "Music", count: "2" },

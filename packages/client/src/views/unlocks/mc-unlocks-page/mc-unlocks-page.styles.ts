@@ -23,10 +23,6 @@ export const McUnlocksPageStyles = css`
   }
   .bar {
     flex: none;
-    height: 60px;
-  }
-  :host([phone]) .bar {
-    height: 52px;
   }
   .body {
     flex: 1 1 0;

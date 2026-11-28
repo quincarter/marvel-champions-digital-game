@@ -31,7 +31,6 @@ import { t } from "../i18n/translate.js";
 import { onLanguageChange } from "../language-change.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
-import { barClearanceOf } from "./screen-bar.js";
 
 /** How far a page (Page Up / Down, a shoulder button) scrolls, as a share of the list's height. */
 const PAGE = 0.85;
@@ -107,14 +106,6 @@ export class CreditsScene extends Phaser.Scene {
     const title = t("credits.title");
     const glyph = this.#glyphs.glyph("back", ["cancel"], "ink", 44);
     this.#glyphs.settled();
-    const clearance = barClearanceOf(this, {
-      width,
-      phone,
-      back,
-      title,
-      endWidth: 0,
-      backGlyph: glyph !== undefined,
-    });
     const rows = creditsRowsOf();
     region.setRect({ x: 0, y: 0, width, height });
     element.model = {
@@ -123,8 +114,6 @@ export class CreditsScene extends Phaser.Scene {
         title,
         backLabel: back,
         backGlyph: hintGlyphOf(glyph),
-        titleDrop: clearance.drop,
-        titleMaxRight: clearance.maxRight,
       },
       rows: rows.map((row) => (row.kind === "entry" ? { kind: "entry", title: row.title, lines: row.lines } : row)),
     };

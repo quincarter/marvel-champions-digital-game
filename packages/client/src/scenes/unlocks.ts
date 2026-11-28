@@ -47,7 +47,6 @@ import type { UnlocksEventDetail, UnlocksListRow, UnlocksSwitchInput } from "../
 import { setUnlockPrefs, unlocks } from "../progression/progression.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
-import { barClearanceOf } from "./screen-bar.js";
 import { askToUnlock } from "./unlock-confirm.js";
 
 /** Launch data, for a Settings search result: a row to show, or a section of "How it works" to open on. */
@@ -207,14 +206,6 @@ export class UnlocksOverlay extends Phaser.Scene {
     const backGlyph = this.#glyphs.glyph("back", ["cancel"], "ink", 44);
     const doorGlyph = this.#glyphs.glyph("guide", [this.#guide ? "zonePrevious" : "zoneNext"], "ink", 44);
     this.#glyphs.settled();
-    const clearance = barClearanceOf(this, {
-      width,
-      phone,
-      back: backLabel,
-      title,
-      endWidth: (phone ? 120 : 190) + 12,
-      backGlyph: backGlyph !== undefined,
-    });
     region.setRect({ x: 0, y: 0, width, height });
     element.model = {
       phone,
@@ -222,8 +213,6 @@ export class UnlocksOverlay extends Phaser.Scene {
         title,
         backLabel,
         backGlyph: hintGlyphOf(backGlyph),
-        titleDrop: clearance.drop,
-        titleMaxRight: clearance.maxRight,
       },
       door: { label: door, glyph: hintGlyphOf(doorGlyph) },
       guide: this.#guide,

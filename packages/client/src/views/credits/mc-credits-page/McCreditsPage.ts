@@ -56,8 +56,6 @@ export class McCreditsPage extends LitElement {
         .heading=${m.bar.title}
         .backLabel=${m.bar.backLabel}
         .backGlyph=${m.bar.backGlyph}
-        .titleDrop=${m.bar.titleDrop}
-        .titleMaxRight=${m.bar.titleMaxRight}
         ?compact=${m.phone}
         @mc-press=${() => this.dispatchEvent(creditsEvent({ type: "back" }))}
       ></mc-top-bar>
