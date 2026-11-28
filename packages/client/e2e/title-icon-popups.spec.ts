@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { devices, expect, test, type Page } from "@playwright/test";
 import { activeScenes, isPhonePage, trackPageErrors, waitFor, waitForText } from "./helpers.js";
 import { openApp } from "./wave6-helpers-b.js";
 
@@ -203,14 +203,14 @@ test("theme and Discord: the Title's menu stays and still presses after each", a
   await titleStillPresses(page);
 });
 
-test.describe("an Android phone's user agent", () => {
-  test.use({
-    userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/129.0 Mobile Safari/537.36",
-  });
+test.describe("a real Android phone (Pixel 7 descriptor: Android user agent, touch)", () => {
+  // The descriptor minus `defaultBrowserType`, which a describe group may not set.
+  const { defaultBrowserType: _browser, ...pixel } = devices["Pixel 7"];
+  test.use(pixel);
 
   test("report says the Power and Volume down shortcut, and the rank plate reads in Spanish", async ({ page }) => {
     await openSpanishTitle(page);
-    await expect(titleMenu(page).getByText("Compañero en prácticas")).toBeVisible();
+    await expect(titleMenu(page).getByText("Compinche en prácticas")).toBeVisible();
     await expect(titleMenu(page).getByText(/pts para Vigilante del barrio/)).toBeVisible();
     await press(page, await stopOf(page, "chrome:report"));
     await sceneUp(page, "ReportIssueOverlay", true);
