@@ -1,9 +1,8 @@
 import { css } from "lit";
-import { PopupPartStyles } from "../../shared/popup-parts.js";
 
 export const McMusicPlayerStyles = css`
-  ${PopupPartStyles}
   :host {
+    --popover-width: min(380px, calc(100% - 16px));
     display: block;
     position: absolute;
     inset: 0;
@@ -12,29 +11,39 @@ export const McMusicPlayerStyles = css`
     position: absolute;
     inset: 0;
   }
+  /* A popover hangs from the music button: its right edge on the button's, kept 8px inside the screen, as tall as its
+     songs need and no taller than the screen allows (the list scrolls). */
   .panel {
     position: absolute;
-    left: var(--panel-x);
-    top: var(--panel-y);
-    width: var(--panel-w);
-    height: var(--panel-h);
+    top: calc(var(--anchor-bottom) + 8px);
+    left: clamp(8px, calc(var(--anchor-right) - var(--popover-width)), calc(100% - 8px - var(--popover-width)));
+    width: var(--popover-width);
+    max-height: calc(100% - var(--anchor-bottom) - 16px);
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 4px 14px 0;
+    padding: 4px 14px 8px;
     background: var(--mc-fill-paper);
     border: 3px solid var(--mc-line-ink);
     box-shadow: 6px 6px 0 color-mix(in srgb, var(--mc-fill-void) 28%, transparent);
   }
+  /* On a phone it fills the screen under the top bar. */
   :host([phone]) .panel {
+    top: calc(var(--anchor-bottom) + 6px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: none;
     padding: 6px 16px 0;
     border: 0;
     box-shadow: none;
   }
   .caret {
     position: absolute;
-    left: calc(var(--caret-x) - 10px);
-    top: calc(var(--panel-y) - 8px);
+    left: calc(var(--anchor-center) - 10px);
+    top: calc(var(--anchor-bottom) + 0px);
     width: 20px;
     height: 11px;
     overflow: visible;
@@ -54,6 +63,7 @@ export const McMusicPlayerStyles = css`
     flex: 0 0 44px;
   }
   .close {
+    position: relative;
     width: 36px;
     height: 36px;
     order: 3;
@@ -61,6 +71,10 @@ export const McMusicPlayerStyles = css`
   :host([phone]) .close {
     width: 92px;
     order: 0;
+  }
+  .close mc-button {
+    height: 100%;
+    --mc-button-size: 12px;
   }
   .title {
     font-family: var(--mc-font-display);
@@ -75,9 +89,7 @@ export const McMusicPlayerStyles = css`
     text-transform: uppercase;
     opacity: 0.65;
   }
-  mc-now-playing {
-    flex: none;
-  }
+  mc-now-playing,
   mc-player-controls {
     flex: none;
   }
@@ -85,7 +97,11 @@ export const McMusicPlayerStyles = css`
     height: 40px;
   }
   mc-track-list {
-    flex: 1;
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+  :host([phone]) mc-track-list {
+    flex: 1 1 0;
   }
   .foot {
     flex: 0 0 36px;

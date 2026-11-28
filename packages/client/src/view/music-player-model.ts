@@ -1,18 +1,19 @@
 /**
  * What the music player pop-up (`scenes/music-player.ts`) hands its `mc-music-player` element: the header, "Now
  * playing", the controls, the volume and the earned songs, every word in the app's language. Pure: what is playing and
- * what is earned come in as arguments.
+ * what is earned come in as arguments. The layout is the element's CSS; only the music button's rect comes in.
  */
-import type { ControlGlyphs, MusicPlayerModel } from "@mc/ui";
+import type { ControlGlyphs } from "@mc/ui";
 import type { Track } from "../audio/music-catalog.js";
+import type { MusicPlayerModel } from "../views/music/mc-music-player/mc-music-player.types.js";
 import { t } from "../i18n/translate.js";
 import type { Rect } from "./layout.js";
-import { nowPlayingTitleOf, playerPanelRect, type PlayerSong } from "./music-player.js";
+import { nowPlayingTitleOf, type PlayerSong } from "./music-player.js";
 import { localizedWhere } from "./music-where.js";
 
 export interface MusicPlayerInput {
-  readonly screen: { readonly width: number; readonly height: number };
   readonly phone: boolean;
+  /** The music button, which the popover hangs from. */
   readonly icon: Rect;
   readonly songs: readonly PlayerSong[];
   readonly locked: number;
@@ -25,48 +26,29 @@ export interface MusicPlayerInput {
   readonly glyphs?: ControlGlyphs;
 }
 
-/** The panel's rect: a popover grows by the gaps between its parts, which the fixed rows of the old layout did not have. */
-function panelOf(input: MusicPlayerInput): Rect {
-  const panel = playerPanelRect(input.icon, input.screen, input.phone, input.songs.length);
-  if (input.phone) return panel;
-  return { ...panel, height: Math.min(panel.height + 40, input.screen.height - panel.y - 8) };
-}
-
 export function musicPlayerModelOf(input: MusicPlayerInput): MusicPlayerModel {
   const { songs, playing } = input;
   const song = playing ? songs.find((one) => one.track.key === playing.key) : undefined;
   const enabled = songs.length > 0;
-  const reason = t("music.earnFirst");
   const mode = input.shuffle ? t("music.shuffling") : song ? t("music.repeating") : t("music.screenOwn");
   return {
     phone: input.phone,
-    panel: panelOf(input),
-    icon: input.icon,
+    anchor: input.icon,
     title: t("music.player.title"),
     earned: t("music.player.earned", { count: songs.length, total: songs.length + input.locked }),
-    close: { key: "close", label: input.phone ? `◂ ${t("common.back")}` : "✕", kind: "quiet" },
+    closeLabel: input.phone ? `◂ ${t("common.back")}` : "✕",
     nowPlaying: {
       status: playing ? (input.paused ? t("music.paused") : t("music.nowPlaying")) : t("music.nothingPlaying"),
-      title: playing ? nowPlayingTitleOf(playing) : null,
+      song: playing ? nowPlayingTitleOf(playing) : null,
       detail: playing ? mode : null,
     },
     controls: {
-      shuffle: {
-        key: "shuffle",
-        label: input.shuffle ? t("music.shuffleOn") : t("music.shuffleOff"),
-        kind: "secondary",
-        selected: input.shuffle,
-        ...(enabled ? {} : { disabled: reason }),
-      },
-      next: { key: "next", label: t("music.next"), kind: "secondary", ...(enabled ? {} : { disabled: reason }) },
-      pause: {
-        key: "pause",
-        label: input.paused ? t("music.play") : t("music.pause"),
-        kind: "secondary",
-        selected: input.paused,
-      },
-      withSlider: input.withSlider,
-      ...(input.glyphs ? { glyphs: input.glyphs } : {}),
+      shuffleLabel: input.shuffle ? t("music.shuffleOn") : t("music.shuffleOff"),
+      nextLabel: t("music.next"),
+      pauseLabel: input.paused ? t("music.play") : t("music.pause"),
+      shuffleOn: input.shuffle,
+      paused: input.paused,
+      reason: enabled ? "" : t("music.earnFirst"),
     },
     volume: input.withSlider ? { value: input.volume, label: `${input.volume}%`, stepLabels: ["−", "+"] } : null,
     list: {
@@ -83,6 +65,6 @@ export function musicPlayerModelOf(input: MusicPlayerInput): MusicPlayerModel {
       }),
     },
     foot: input.locked > 0 ? t("music.player.locked", { count: input.locked }) : t("music.player.all"),
-    ...(input.glyphs ? { glyphs: input.glyphs } : {}),
+    glyphs: input.glyphs ?? {},
   };
 }

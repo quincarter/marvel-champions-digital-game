@@ -2,14 +2,16 @@ import { css } from "lit";
 
 export const McTrackListStyles = css`
   :host {
-    display: block;
+    display: flex;
+    flex-direction: column;
     min-height: 0;
   }
   .list {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
     padding-right: 10px;
   }
   mc-track-row {

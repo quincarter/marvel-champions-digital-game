@@ -1,8 +1,6 @@
 import { css } from "lit";
-import { PopupPartStyles } from "../../shared/popup-parts.js";
 
 export const McPlayerControlsStyles = css`
-  ${PopupPartStyles}
   :host {
     display: block;
   }
@@ -14,8 +12,15 @@ export const McPlayerControlsStyles = css`
   .row + .row {
     margin-top: 8px;
   }
-  .row .ctl {
+  .ctl {
+    position: relative;
+    min-width: 0;
+    height: 100%;
     flex: 1;
+  }
+  .ctl mc-button {
+    height: 100%;
+    --mc-button-size: 12px;
   }
   :host([slider]) .pause .ctl {
     flex: 0 0 104px;
