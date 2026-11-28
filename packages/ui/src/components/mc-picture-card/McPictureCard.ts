@@ -103,6 +103,8 @@ export class McPictureCard extends LitElement {
     fitTextWithin(this.renderRoot);
   }
 
+  #pressing = false;
+
   #activate(): void {
     this.dispatchEvent(
       new CustomEvent("mc-activate", { detail: { key: this.activateKey }, bubbles: true, composed: true }),
@@ -197,15 +199,23 @@ export class McPictureCard extends LitElement {
               class="tap"
               aria-label=${this.label || this.#nameOf() || nothing}
               aria-pressed=${this.selected || m?.selected === true ? "true" : "false"}
-              @focus=${() =>
-                // The screen's own keyboard route and this native focus are one: it moves its focus to this tile.
+              @pointerdown=${() => {
+                // A press focuses the button too, but the route must not chase it (it would scroll the tile under the finger).
+                this.#pressing = true;
+                setTimeout(() => (this.#pressing = false), 0);
+              }}
+              @focus=${() => {
+                // The screen's own keyboard route and this native focus are one: it moves its focus to this tile (keyboard
+                // or assistive-technology focus; a pointer press is the screen's own tap).
+                if (this.#pressing) return;
                 this.dispatchEvent(
                   new CustomEvent("mc-tile-focus", {
                     detail: { key: this.activateKey },
                     bubbles: true,
                     composed: true,
                   }),
-                )}
+                );
+              }}
               @click=${(event: MouseEvent) => {
                 // Enter or Space on the focused button (a pointer press goes through `tapped`).
                 if (event.detail === 0) this.#activate();

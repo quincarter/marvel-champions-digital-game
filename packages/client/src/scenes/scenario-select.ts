@@ -1314,7 +1314,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const headerToCardsGap = 8;
     const shelfGap = 20;
     const cardWidth = Math.min(300, shelvesRect.width - 40);
-    const available = shelvesRect.height - SHELF_HEADER - headerToCardsGap - shelfGap;
+    // A few px short of the viewport so the picked tile is fully in view and its reveal never scrolls the first header away.
+    const available = shelvesRect.height - SHELF_HEADER - headerToCardsGap - shelfGap - 6;
     const cardHeight = Math.max(220, Math.min(440, available));
     return { cardWidth, cardHeight, cardGap: 12 };
   }

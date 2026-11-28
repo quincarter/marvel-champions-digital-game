@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, findText, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { hook, openApp } from "./wave6-helpers-b.js";
 
 /**
@@ -200,7 +200,10 @@ test.describe("Take your seats panels", () => {
     await page.keyboard.press("Enter");
     await waitFor(
       async () =>
-        (await seats(page)).length !== before.length || (await activeScenes(page)).includes("HeroDecks") ? true : null,
+        (await seats(page)).join() !== before.join() ||
+        (await findText(page, "Pick the one this seat plays")).length > 0
+          ? true
+          : null,
       "Enter pressed the focused tile",
       5000,
     );

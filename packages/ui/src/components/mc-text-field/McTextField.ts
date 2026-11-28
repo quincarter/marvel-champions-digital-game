@@ -62,6 +62,16 @@ export class McTextField extends LitElement {
     this.#field()?.blur();
   }
 
+  /** Puts the field back to `text` (a host refused the edit, a modal covered the screen): it never shows text the screen did not take. */
+  restoreValue(text: string): void {
+    this.#composing = false;
+    this.#text = text;
+    // Written to the field itself too: the template only writes a text that differs from the last one it drew.
+    const field = this.#field();
+    if (field && field.value !== text) field.value = text;
+    this.requestUpdate();
+  }
+
   #field(): HTMLInputElement | HTMLTextAreaElement | null {
     return this.renderRoot.querySelector("input, textarea");
   }
