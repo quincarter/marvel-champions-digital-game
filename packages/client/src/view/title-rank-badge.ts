@@ -6,6 +6,7 @@
 import { formatCount } from "./number-format.js";
 import { rankProgressOf } from "../progression/achievements.js";
 import { t } from "../i18n/translate.js";
+import { rankTitleOf } from "./trophy-room-model.js";
 
 export interface TitleRankBadge {
   /** "RANK 3" */
@@ -29,21 +30,24 @@ export function titleRankBadgeOf(lifetimePoints: number): TitleRankBadge {
   const grouped = (n: number): string => formatCount(n);
   const pointsLabel = t("title.rankPoints", { points: grouped(lifetimePoints) });
   const nextLabel = progress.next
-    ? t("title.rankToNext", { points: grouped(progress.next.threshold - lifetimePoints), name: progress.next.title })
+    ? t("title.rankToNext", {
+        points: grouped(progress.next.threshold - lifetimePoints),
+        name: rankTitleOf(progress.next.rank),
+      })
     : t("title.rankTop");
   const shortNextLabel = progress.next
     ? t("title.rankToRank", { points: grouped(progress.next.threshold - lifetimePoints), n: progress.next.rank })
     : t("title.rankTop");
   return {
     rankLabel: t("title.rank", { n: progress.rank.rank }),
-    title: progress.rank.title,
+    title: rankTitleOf(progress.rank.rank),
     pointsLabel,
     fraction: progress.fraction,
     nextLabel,
     shortNextLabel,
     summary: t("title.rankSummary", {
       n: progress.rank.rank,
-      name: progress.rank.title,
+      name: rankTitleOf(progress.rank.rank),
       points: pointsLabel,
       next: nextLabel,
     }),
@@ -70,7 +74,7 @@ export function rankUpAnnouncementOf(lastSeen: number | null, lifetimePoints: nu
   if (lastSeen === null) return { announce: false, text: "", remember: rank.rank };
   return {
     announce: rank.rank > lastSeen,
-    text: rank.rank > lastSeen ? `Rank up: ${rank.title}` : "",
+    text: rank.rank > lastSeen ? t("title.rankUpNamed", { name: rankTitleOf(rank.rank) }) : "",
     remember: Math.max(lastSeen, rank.rank),
   };
 }

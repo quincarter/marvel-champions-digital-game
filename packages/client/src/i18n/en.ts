@@ -72,6 +72,7 @@ export const en = {
   "title.rankToNext": "{points} to {name}",
   "title.rankToRank": "{points} to rank {n}",
   "title.rankTop": "Top rank",
+  "title.rankUpNamed": "Rank up: {name}",
   "title.rankSummary": "Rank {n} of 9, {name}, {points}. {next}. Opens the Trophy Room.",
   "title.games.heading": "IN-PROGRESS GAMES ({count})",
   "title.games.resume": "Resume",
