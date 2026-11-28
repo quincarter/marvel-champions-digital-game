@@ -123,6 +123,25 @@ test("the keyboard walks the picker with the DOM ring, Enter opens a deck, Escap
   expect(errors).toEqual([]);
 });
 
+test("in Spanish every precon's title and hero are Spanish, not only the chrome", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => localStorage.setItem("mc-settings", '{"cardLanguage":"es"}'));
+  const errors = trackPageErrors(page);
+  await openApp(page, OPEN, { landing: SCENE });
+  const tiles = grid(page).locator('[data-key^="deck:"]');
+  await waitFor(async () => ((await tiles.count()) > 5 ? true : null), "the grid lists the device's decks", 30_000);
+  // The names come from the Spanish card text, which loads after the screen: they show once it is in.
+  await expect(grid(page)).toContainText("Capitana Marvel", { timeout: 30_000 });
+  await expect(grid(page)).toContainText("mazo inicial de la Caja básica");
+  await expect(grid(page)).toContainText("tutorial de la Caja básica");
+  await expect(grid(page)).toContainText("Ojo de Halcón");
+  await expect(grid(page)).toContainText("Hulka");
+  for (const english of ["Captain Marvel", "She-Hulk", "Hawkeye", "starter deck", "tutorial deck"]) {
+    await expect(grid(page)).not.toContainText(english);
+  }
+  expect(errors).toEqual([]);
+});
+
 test("the search narrows the decks, and says so when none match", async ({ page }) => {
   test.setTimeout(120_000);
   const errors = trackPageErrors(page);

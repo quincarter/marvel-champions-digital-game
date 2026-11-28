@@ -137,6 +137,22 @@ test("Decks reads in Spanish", async ({ page }) => {
   await expect(page.locator(PANEL).getByText("Tus mazos").first()).toBeVisible();
 });
 
+test("Decks names the precons and their heroes in Spanish", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => localStorage.setItem("mc-settings", '{"cardLanguage":"es"}'));
+  await openDecks(page);
+  await waitForText(page, "MAZOS Y COLECCIÓN", { sceneKey: "Decks" });
+  const panel = page.locator(PANEL);
+  // The names come from the Spanish card text, which loads after the screen: they show once it is in.
+  await expect(panel).toContainText("Capitana Marvel", { timeout: 30_000 });
+  await expect(panel).toContainText("Hulka");
+  await expect(panel).toContainText("Ojo de Halcón");
+  await expect(panel).toContainText("mazo inicial de la Caja básica");
+  for (const english of ["Captain Marvel", "She-Hulk", "Hawkeye", "starter deck"]) {
+    await expect(panel).not.toContainText(english);
+  }
+});
+
 test("on a phone, the tab rail switches panes and a swipe over the deck list opens nothing", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "a touch layout");
   test.setTimeout(150_000);

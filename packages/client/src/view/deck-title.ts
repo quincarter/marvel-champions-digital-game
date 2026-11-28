@@ -7,6 +7,7 @@
  * words Decks & Collection already uses, rather than inventing its own
  * phrasing for "which deck is this and is it legal" a second time.
  */
+import { artLanguageNow } from "../art/art-source.js";
 import type { Deck } from "@mc/content";
 import type { CardPool } from "@mc/engine";
 import { deckCountText, deckStatsOf } from "./deck-stats.js";
@@ -14,6 +15,7 @@ import { deckStatusOf } from "./deck-status.js";
 import type { DeckOption } from "./deck-list-model.js";
 import type { DeckSourceKind } from "./roster-filter.js";
 import { aspectName } from "./aspect-stamp.js";
+import { deckDisplayName, identityLabelOf } from "./deck-names.js";
 
 export const SOURCE_LABEL: Readonly<Record<DeckSourceKind, string>> = {
   precon: "Precon",
@@ -35,8 +37,8 @@ export function titleCase(word: string): string {
  */
 export function cardTitleOf(option: DeckOption): string {
   if (option.deck.source.kind !== "precon") return option.deck.name;
-  const identity = option.identityName ?? "Unknown";
-  const aspects = option.deck.aspects.map((aspect) => aspectName(aspect)).join(" + ");
+  const identity = identityLabelOf(option) ?? "Unknown";
+  const aspects = option.deck.aspects.map((aspect) => aspectName(aspect, artLanguageNow())).join(" + ");
   return aspects ? `${identity} / ${aspects}` : identity;
 }
 
@@ -44,7 +46,7 @@ export function cardTitleOf(option: DeckOption): string {
 export function deckAspectsText(deck: Pick<Deck, "aspects">): string {
   return deck.aspects.length > 0
     ? `${deck.aspects
-        .map((aspect) => aspectName(aspect))
+        .map((aspect) => aspectName(aspect, artLanguageNow()))
         .join(" + ")
         .toUpperCase()} · `
     : "";
@@ -75,12 +77,13 @@ export function deckMetaCandidates(option: DeckOption, pool: CardPool): readonly
   if (deck.source.kind === "precon") {
     // The title already says hero and aspect; keep only what the printed name adds ("Core Set Starter Deck"),
     // so the count and legality always fit on the one line this reads on.
-    const product = deck.name.includes("—") ? deck.name.slice(deck.name.indexOf("—") + 1).trim() : deck.name;
+    const shown = deckDisplayName(deck);
+    const product = shown.includes("—") ? shown.slice(shown.indexOf("—") + 1).trim() : shown;
     return [`${product} · ${count} · ${status}`, `${count} · ${status}`, count];
   }
   // A saved deck's own name never says its aspect (a precon's title does), so the line names hero and aspect(s).
-  const aspects = deck.aspects.map((aspect) => aspectName(aspect)).join(" + ");
-  const who = [option.identityName ?? "unknown identity", ...(aspects ? [aspects] : [])].join(" · ");
+  const aspects = deck.aspects.map((aspect) => aspectName(aspect, artLanguageNow())).join(" + ");
+  const who = [identityLabelOf(option) ?? "unknown identity", ...(aspects ? [aspects] : [])].join(" · ");
   const source = SOURCE_LABEL[deck.source.kind].toLowerCase();
   return [`${who} · ${count} · ${status} · ${source}`, `${who} · ${count} · ${status}`, `${who} · ${count}`, count];
 }
