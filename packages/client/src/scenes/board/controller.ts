@@ -1289,9 +1289,10 @@ export class BoardController {
   /** "Play it": the free card the board was asking about. */
   async confirmPlay(): Promise<void> {
     if (this.#readOnly || this.#selection.kind !== "confirmingPlay") return;
-    const { action, controllerId } = this.#selection;
+    const { action, controllerId, command } = this.#selection;
     this.#selection = { kind: "idle" };
-    await this.#dispatch(withController(action.example, controllerId));
+    // Through `#send`, as a play that skips the question goes: another player's contribution still asks them first.
+    await this.#send(command ?? withController(action.example, controllerId));
   }
 
   /** The card a free play is waiting on a yes for, or null when nothing is. */
@@ -1372,19 +1373,76 @@ export class BoardController {
     if (this.#tryOpenInPlayCost(entry, target, controllerId)) return;
     // A pick for a cost that searches the encounter deck (Hunted) is a cost choice, not a host (`view/play-aim.ts`).
     const aim = game ? paymentAimOf(game, gameDeps(), entry.action, target) : { target };
+    // A picked target is priced as itself: `needsPayment` is the first working variant's, so a free first ally must not
+    // skip the pay step for a paid one the player picked, nor a paid first ally lend its price to a free pick (#1050).
     if (
-      entry.needsPayment &&
+      (entry.needsPayment || target !== null) &&
       this.#openPayment(entry, aim.target, controllerId, undefined, aim.costChoices, destinationNote)
     ) {
       return;
     }
+    let aimed: Command = entry.example;
+    if (target !== null && game) {
+      const built = this.#freeAimed(game, entry, target, controllerId, aim.costChoices);
+      // Refused with nothing paid: nothing is sent, and above all not `example` re-aimed with its payment. The engine's
+      // reason goes on the advisory banner, as a refused command's would.
+      if ("refused" in built) {
+        this.#selection = { kind: "idle" };
+        appSession().store.advise(built.refused);
+        this.#host.redraw();
+        return;
+      }
+      aimed = built.command;
+    }
+    aimed = withController(aimed, controllerId);
+    // The command goes with the question, so its yes sends the pick the player made, not `example` (#1050).
     if (confirmFree) {
-      this.#selection = { kind: "confirmingPlay", action: entry, controllerId };
+      this.#selection = { kind: "confirmingPlay", action: entry, controllerId, command: aimed };
       this.#host.redraw();
       return;
     }
-    const aimed = target !== null && game ? retarget(game, entry.example, target) : entry.example;
-    await this.#send(withController(aimed, controllerId));
+    await this.#send(aimed);
+  }
+
+  /**
+   * A hand play aimed at `target` that has nothing to pay there, built by the engine with an empty payment, or why the
+   * engine refuses it. `example` is only the first variant `legalActions` found, with the payment that variant needed
+   * (Make the Call's: the first ally in any discard pile, with hand cards spent for it), so it is never sent in place of
+   * the player's own pick (#1050). The command must be aimed at `target`: its host or one of its cost picks.
+   */
+  #freeAimed(
+    game: GameState,
+    entry: LegalAction,
+    target: InstanceId,
+    controllerId: PlayerId | null,
+    costChoices: CostChoices | undefined,
+  ): { readonly command: Command } | { readonly refused: string } {
+    const { perspectiveId } = appSession().store.state;
+    if (perspectiveId === null || entry.action.kind !== "playCard" || entry.example.type !== "playCard") {
+      return { refused: "this play cannot be aimed there" };
+    }
+    const attempt = tryPayment(
+      game,
+      perspectiveId,
+      entry.action,
+      [],
+      {
+        target,
+        ...(controllerId ? { controllerId } : {}),
+        ...optionalSelection(withEntryPayers(entry, mergedCostSelection(entry))),
+        ...(costChoices ? { costChoices } : {}),
+        ...(entry.example.abilityId ? { abilityId: entry.example.abilityId } : {}),
+        ...paymentIntoOf({ into: intoOf(entry) ?? null }),
+      },
+      gameDeps(),
+    );
+    if (!attempt.ok) return { refused: attempt.message };
+    if (attempt.command.type !== "playCard") return { refused: "this play cannot be aimed there" };
+    // The engine aims at the listed variant whose pick is `target`; a command aimed anywhere else is not the player's.
+    const { attachToInstanceId, costChoices: picks } = attempt.command;
+    const aimedAtTarget =
+      attachToInstanceId === target || Object.values(picks ?? {}).some((ids) => ids.includes(target));
+    return aimedAtTarget ? { command: attempt.command } : { refused: "this play cannot be aimed there" };
   }
 
   /** Every `useAbility` entry `legalActions` currently lists for one card, in order. */
