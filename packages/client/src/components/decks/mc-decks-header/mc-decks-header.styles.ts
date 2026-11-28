@@ -62,6 +62,7 @@ export const McDecksHeaderStyles = css`
       width: 112px;
     }
     .title {
+      padding-top: calc(var(--drop, 0px) + 8px);
       font-size: 22px;
     }
   }

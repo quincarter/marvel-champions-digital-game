@@ -45,7 +45,7 @@ function headerOf(input: PageInput, phone: boolean, glyphs: ControlGlyphs): Deck
   const poolMeta = phone ? null : t("decks.poolMeta", { count: currentPool().length });
   const title = t("decks.title");
   const titleSize = 28;
-  const titleLeft = 16 + 100 + 12;
+  const titleLeft = (width >= 1280 ? 32 : phone ? 12 : 16) + 100 + (phone ? 8 : 12);
   const titleRight = Math.min(
     width - statsWidth - 32 - (poolMeta ? 200 : 0),
     titleLeft + estimateBangersWidth(title, titleSize),
@@ -54,8 +54,8 @@ function headerOf(input: PageInput, phone: boolean, glyphs: ControlGlyphs): Deck
     width,
     textLeft: titleLeft,
     textRight: titleRight,
-    textTop: HEADER_HEIGHT / 2 - titleSize / 2,
-    textHeight: titleSize,
+    textTop: 6,
+    textHeight: titleSize + 12,
     barHeight: HEADER_HEIGHT,
   });
   return {
@@ -66,7 +66,8 @@ function headerOf(input: PageInput, phone: boolean, glyphs: ControlGlyphs): Deck
     statsLabel: t("decks.yourStats"),
     statsGlyph: glyphs.glyph("player-stats", ["guide"], "ink", hit.target),
     titleDrop: drop,
-    titleMaxRight: maxRight,
+    // The bar caps the title by its width, from where it starts.
+    titleMaxRight: maxRight === null ? null : Math.max(40, maxRight - titleLeft),
   };
 }
 

@@ -99,7 +99,10 @@ export class ControlGlyphs {
   ): ControlGlyph | undefined {
     this.#asked.set(key, { ids: [], height: controlHeight });
     const snapshot = this.#snapshot;
-    const spec = snapshot ? layerTriggerGlyph(layer, snapshot.state, snapshot.settings) : null;
+    const onPad =
+      snapshot !== null &&
+      glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource) === "pad";
+    const spec = snapshot && onPad ? layerTriggerGlyph(layer, snapshot.state, snapshot.settings) : null;
     if (!snapshot || !spec) return undefined;
     const height = scaledGlyphHeight(glyphHeightFor(controlHeight), snapshot.settings.glyphSize);
     const uiSpecs = [uiSpecOf(spec)];

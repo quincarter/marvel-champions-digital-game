@@ -15,6 +15,7 @@ export const DecksSharedStyles = css`
   .ctl {
     position: relative;
     display: flex;
+    height: 100%;
     min-width: 0;
   }
   .ctl mc-button {

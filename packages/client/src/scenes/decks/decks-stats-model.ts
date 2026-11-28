@@ -85,7 +85,13 @@ export function curveBarsOf(bars: readonly CostCurveBar[]): readonly BarChartBar
       .sort((a, b) => b - a)
       .slice(0, 2),
   );
-  return bars.map((bar) => ({ label: bar.label, count: bar.count, highlight: top.has(bar.count) }));
+  // The rail is ink: a bar that does not stand out is paper (ink on ink would not show).
+  return bars.map((bar) => ({
+    label: bar.label,
+    count: bar.count,
+    highlight: top.has(bar.count),
+    ...(top.has(bar.count) ? {} : { tint: PAPER }),
+  }));
 }
 
 function button(

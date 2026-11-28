@@ -51,6 +51,9 @@ export const McDecksPageStyles = [
     .tabs {
       flex: none;
     }
+    .tabs {
+      height: 44px;
+    }
     .tab-hint {
       position: relative;
       display: flex;
