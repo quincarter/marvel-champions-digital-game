@@ -30,14 +30,6 @@ export const McPausePageStyles = [
       min-height: 0;
       min-width: 0;
     }
-    .dots {
-      background-image: radial-gradient(
-        circle,
-        color-mix(in srgb, var(--mc-line-paper) 8%, transparent) 1px,
-        transparent 1.5px
-      );
-      background-size: 8px 8px;
-    }
     .search {
       flex: none;
       height: 44px;
