@@ -35,7 +35,7 @@ export const McTrackRowStyles = css`
     min-width: 0;
     flex: 1;
   }
-  .title {
+  .heading {
     font-size: 13px;
     font-weight: 800;
     line-height: 1.25;
@@ -44,7 +44,7 @@ export const McTrackRowStyles = css`
     font-size: 10px;
     opacity: 0.7;
   }
-  .title,
+  .heading,
   .where {
     overflow: hidden;
     text-overflow: ellipsis;

@@ -1,8 +1,6 @@
 import { css } from "lit";
-import { PopupPartStyles } from "../../shared/popup-parts.js";
 
 export const McLanguageMenuStyles = css`
-  ${PopupPartStyles}
   :host {
     display: block;
     position: absolute;
@@ -24,15 +22,6 @@ export const McLanguageMenuStyles = css`
     padding: 6px;
     background: var(--mc-fill-ink);
     border: 2px solid var(--mc-line-paper);
-  }
-  .row {
-    height: var(--row-h, 44px);
-  }
-  .row .ctl {
-    height: 100%;
-  }
-  .row mc-button {
-    --mc-button-size: 13px;
   }
   .note {
     position: absolute;
@@ -84,7 +73,7 @@ export const McLanguageMenuStyles = css`
     gap: 10px;
     margin-top: 14px;
   }
-  .links .ctl {
+  .links mc-popup-button {
     height: 44px;
   }
 `;
