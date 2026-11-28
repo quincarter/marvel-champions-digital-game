@@ -202,3 +202,18 @@ test("theme and Discord: the Title's menu stays and still presses after each", a
   }
   await titleStillPresses(page);
 });
+
+test.describe("an Android phone's user agent", () => {
+  test.use({
+    userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/129.0 Mobile Safari/537.36",
+  });
+
+  test("report says the Power and Volume down shortcut, and the rank plate reads in Spanish", async ({ page }) => {
+    await openSpanishTitle(page);
+    await expect(titleMenu(page).getByText("Compañero en prácticas")).toBeVisible();
+    await expect(titleMenu(page).getByText(/pts para Vigilante del barrio/)).toBeVisible();
+    await press(page, await stopOf(page, "chrome:report"));
+    await sceneUp(page, "ReportIssueOverlay", true);
+    await expect(wrap(page, "ReportIssueOverlay").getByText(/Encendido y Bajar volumen/)).toBeVisible();
+  });
+});

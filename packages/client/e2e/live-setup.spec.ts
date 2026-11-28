@@ -144,13 +144,17 @@ test("a swipe of the setup list that lifts over the watch toggle leaves it alone
   await openSetup(page, false);
   const size = page.viewportSize() ?? { width: 390, height: 844 };
   // Wheel the setup list until the row is on screen with room above it for a swipe.
-  let row = await waitFor(() => watchStop(page), "the watch toggle", 15000);
-  for (let step = 0; step < 40 && (row.y < 220 || row.y + row.height > size.height - 90); step++) {
-    await page.mouse.move(size.width / 2, size.height / 2);
-    await page.mouse.wheel(0, row.y < 220 ? -200 : 200);
-    await settle(page);
-    row = (await watchStop(page)) ?? row;
-  }
+  const reveal = async (from: { y: number; height: number } | null) => {
+    let found = from ?? (await waitFor(() => watchStop(page), "the watch toggle", 15000));
+    for (let step = 0; step < 40 && (found.y < 220 || found.y + found.height > size.height - 90); step++) {
+      await page.mouse.move(size.width / 2, size.height / 2);
+      await page.mouse.wheel(0, found.y < 220 ? -200 : 200);
+      await settle(page);
+      found = (await watchStop(page)) ?? found;
+    }
+    return found;
+  };
+  const row = await reveal(null);
   expect(row.y, "the toggle is on screen").toBeGreaterThanOrEqual(150);
   const target = { x: row.x + row.width / 2, y: row.y + row.height / 2 };
   // The toggle's own state (pixels shift with the list's sub-pixel scroll, so they can't tell a flip apart).
@@ -167,10 +171,26 @@ test("a swipe of the setup list that lifts over the watch toggle leaves it alone
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await cdp.detach();
   await settle(page);
-  // The list may have scrolled under the swipe: look at the toggle where it is now.
-  const after = (await watchStop(page)) ?? row;
+  // The page scrolls natively and may still be coasting after the swipe: look at the toggle once it has come to rest.
+  let after = (await watchStop(page)) ?? row;
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(150);
+    const now = (await watchStop(page)) ?? after;
+    const rested = Math.abs(now.y - after.y) < 0.5;
+    after = now;
+    if (rested) break;
+  }
   expect(await watchOn(page), "the swipe's lift flipped the toggle").toBe(before);
 
+  // The page coasts after a quick lift, as any phone page does: bring the toggle back on screen before the tap.
+  await page.evaluate(() =>
+    document
+      .querySelector("mc-sheet")
+      ?.shadowRoot?.querySelector('[data-key="watch"]')
+      ?.scrollIntoView({ block: "center" }),
+  );
+  await settle(page);
+  after = (await watchStop(page)) ?? after;
   await page.touchscreen.tap(after.x + after.width / 2, after.y + after.height / 2);
   await settle(page);
   expect(await watchOn(page), "a tap flips the toggle").toBe(!before);

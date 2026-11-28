@@ -467,7 +467,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** A panel part's box on screen now, scroll included; null when it is not drawn. */
   #liveRect(region: DomRegion<McSheet> | DomRegion<McShelfRoster> | null, key: string): Rect | null {
     const found = (region?.element as { elementOf(key: string): HTMLElement | null } | undefined)?.elementOf(key);
-    return found && region ? region.rectOf(found) : null;
+    return found && region ? region.visibleRectOf(found) : null;
   }
 
   /** Wires a panel's region: presses reach `#actions`, a hold `#inspects`, a stale pack picture asks again, the mouse reaches the hover popover. */

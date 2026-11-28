@@ -9,6 +9,8 @@ export { McAspectChip } from "./components/mc-aspect-chip/mc-aspect-chip.js";
 export { McButton } from "./components/mc-button/mc-button.js";
 export { McSettingsBody } from "./components/mc-settings-body/mc-settings-body.js";
 export { cancelPressesWithin, onHold, onTap, HOLD_MS, HOLD_SLOP_PX, TAP_SLOP_PX } from "./shared/tap.js";
+export { watchCard } from "./shared/card-events.js";
+export type { CardHoverDetail, CardHoverEndDetail, CardRef } from "./shared/card-events.js";
 export { McSheet } from "./components/mc-sheet/mc-sheet.js";
 export {
   McGlyph,
@@ -32,6 +34,14 @@ export { McPictureTile } from "./components/mc-picture-tile/mc-picture-tile.js";
 export { McPictureCard } from "./components/mc-picture-card/mc-picture-card.js";
 export { McListRow } from "./components/mc-list-row/mc-list-row.js";
 export { McEmptyState } from "./components/mc-empty-state/mc-empty-state.js";
+export { McFirstPlayerToken } from "./components/mc-first-player-token/mc-first-player-token.js";
+export type {
+  TokenFlight,
+  TokenFrame,
+  TokenPoint,
+  TokenRect,
+} from "./components/mc-first-player-token/mc-first-player-token.types.js";
+export { flipOffset } from "./components/mc-first-player-token/token-motion.js";
 export { McSearchField } from "./components/mc-search-field/mc-search-field.js";
 export { McArticle } from "./components/mc-article/mc-article.js";
 export { McFilterChip } from "./components/mc-filter-chip/mc-filter-chip.js";
@@ -162,3 +172,23 @@ export type { AlertBannerModel } from "./components/mc-alert-banner/mc-alert-ban
 export type { PromoPanelModel } from "./components/mc-promo-panel/mc-promo-panel.types.js";
 export type { FooterBarLink, FooterBarModel } from "./components/mc-footer-bar/mc-footer-bar.types.js";
 export type { Placed, TitlePanelModel } from "./components/mc-title-panel/mc-title-panel.types.js";
+export { McLanguageMenu } from "./components/mc-language-menu/mc-language-menu.js";
+export { McReportIssue } from "./components/mc-report-issue/mc-report-issue.js";
+export { McMusicPlayer } from "./components/mc-music-player/mc-music-player.js";
+export type { LanguageMenuModel, LanguageNote } from "./components/mc-language-menu/mc-language-menu.types.js";
+export type { ReportIssueModel } from "./components/mc-report-issue/mc-report-issue.types.js";
+export type { ReportStep } from "./components/mc-report-step/mc-report-step.types.js";
+export type { MusicPlayerModel } from "./components/mc-music-player/mc-music-player.types.js";
+export type { NowPlayingModel } from "./components/mc-now-playing/mc-now-playing.types.js";
+export type { PlayerControlsModel } from "./components/mc-player-controls/mc-player-controls.types.js";
+export type { TrackListModel } from "./components/mc-track-list/mc-track-list.types.js";
+export type { TrackRowModel } from "./components/mc-track-row/mc-track-row.types.js";
+export type { VolumeSliderProps } from "./components/mc-volume-slider/mc-volume-slider.types.js";
+export type {
+  ActivateDetail,
+  ControlGlyph,
+  ControlGlyphs,
+  PopupButton,
+  SlideDetail,
+  StepDetail,
+} from "./shared/popup.types.js";

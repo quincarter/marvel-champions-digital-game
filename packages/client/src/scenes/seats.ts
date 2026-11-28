@@ -766,7 +766,7 @@ export class SeatsScene extends Phaser.Scene {
     const found = (region?.element as unknown as { elementOf(key: string): HTMLElement | null } | undefined)?.elementOf(
       key,
     );
-    return found && region ? region.rectOf(found) : null;
+    return found && region ? region.visibleRectOf(found) : null;
   }
 
   /** Wires a panel's region: presses reach `#actions`, a hold reaches `#inspects`, a stale pack picture asks again, the mouse reaches the hover popover. */
