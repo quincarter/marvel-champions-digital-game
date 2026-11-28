@@ -111,7 +111,7 @@ import { readConsent } from "../global-stats/global-consent.js";
 import type { ControlsTab } from "../view/controls-rows.js";
 import type { ControlsSceneData } from "./controls.js";
 import type { UnlocksSceneData } from "./unlocks.js";
-import type { StatsTab } from "../view/player-stats-layout.js";
+import type { StatsTab } from "../view/player-stats-tabs.js";
 import { drawSearchField, drawSearchToggle } from "./roster-panel.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { drawSearchResultRow, SEARCH_RESULT_ROW_HEIGHT } from "./settings-search-row.js";

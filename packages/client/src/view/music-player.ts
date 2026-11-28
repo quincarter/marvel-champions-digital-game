@@ -117,32 +117,6 @@ export function nowPlayingBanner(icon: Rect, screenWidth: number): Rect {
   return { x: gutter, y: icon.y + icon.height + 10, width: screenWidth - gutter * 2, height: 56 };
 }
 
-export const PLAYER_ROW_HEIGHT = 52;
-/** The panel's header, the now-playing block, the Shuffle / Next row and the Pause / volume row, above the song list. */
-export const PLAYER_HEAD_HEIGHT = 44 + 64 + 56 + 48;
-/** The line under the list saying how many songs are still to earn. */
-export const PLAYER_FOOT_HEIGHT = 36;
-const POPOVER_WIDTH = 380;
-
-/**
- * Where the player opens. On a phone it fills the screen below the top bar, so the bar's music button (and the Back
- * button in the panel) close it. On a tablet or desktop it is a popover hanging from the music button, as tall as its
- * songs need and no taller than the screen allows.
- */
-export function playerPanelRect(
-  icon: Rect,
-  screen: { readonly width: number; readonly height: number },
-  phone: boolean,
-  songCount: number,
-): Rect {
-  const top = icon.y + icon.height + (phone ? 6 : 8);
-  if (phone) return { x: 0, y: top, width: screen.width, height: Math.max(0, screen.height - top) };
-  const width = Math.min(POPOVER_WIDTH, screen.width - 16);
-  const x = Math.max(8, Math.min(icon.x + icon.width - width, screen.width - 8 - width));
-  const wanted = PLAYER_HEAD_HEIGHT + Math.max(1, songCount) * PLAYER_ROW_HEIGHT + PLAYER_FOOT_HEIGHT + 8;
-  return { x, y: top, width, height: Math.max(0, Math.min(wanted, screen.height - top - 8)) };
-}
-
 /** How far one press of the volume slider's − or + (or an arrow key) moves it, in percent. */
 export const MUSIC_VOLUME_STEP = 10;
 

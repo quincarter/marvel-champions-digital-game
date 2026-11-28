@@ -3,10 +3,7 @@ import { defaultGuidePrefs } from "../guide/guide-prefs.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS } from "../progression/unlocks.js";
 import { defaultSettings } from "../settings.js";
 import {
-  PAUSE_RESULT_HEADING_HEIGHT,
-  PAUSE_RESULT_LINK_HEIGHT,
   groupPauseResults,
-  pauseResultsContentOf,
   pauseSettingRowsOf,
   PauseSearchSession,
   type PauseSearchClient,
@@ -160,35 +157,6 @@ describe("rows Pause has no control for", () => {
       // Not one Pause draws a control for: its result opens Settings on the row.
       expect(inline.has(id.slice("setting:".length))).toBe(false);
     }
-  });
-});
-
-describe("pauseResultsContentOf", () => {
-  it("stacks headings and rows without overlap, a choice row tall enough for its options", () => {
-    const content = pauseResultsContentOf(
-      [
-        { kind: "heading" },
-        {
-          kind: "choice",
-          detail: "A long description that wraps onto a second line at phone width, and maybe a third.",
-        },
-        { kind: "toggle", detail: "Short." },
-        { kind: "heading" },
-        { kind: "link" },
-      ],
-      343,
-    );
-    const [heading, choice, toggle, heading2, link] = content.rects;
-    expect(heading?.height).toBe(PAUSE_RESULT_HEADING_HEIGHT);
-    expect(choice!.height).toBeGreaterThanOrEqual(20 + 12.5 * 2 + 44);
-    expect(link?.height).toBe(PAUSE_RESULT_LINK_HEIGHT);
-    for (let i = 1; i < content.rects.length; i++) {
-      const above = content.rects[i - 1]!;
-      expect(content.rects[i]!.y).toBeGreaterThanOrEqual(above.y + above.height);
-    }
-    // A new group sits further from the row above it than one row from the next.
-    expect(heading2!.y - (toggle!.y + toggle!.height)).toBeGreaterThan(toggle!.y - (choice!.y + choice!.height));
-    expect(content.totalHeight).toBe(link!.y + link!.height);
   });
 });
 

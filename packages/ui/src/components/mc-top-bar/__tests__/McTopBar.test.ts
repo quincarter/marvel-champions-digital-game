@@ -32,4 +32,11 @@ describe("mc-top-bar", () => {
     const el = await bar({ heading: "T", titleDrop: 18 });
     expect(el.style.getPropertyValue("--mc-title-drop")).toBe("18px");
   });
+
+  it("holds a slotted control at its right end", async () => {
+    const el = await bar({ heading: "T" });
+    const slot = el.shadowRoot!.querySelector<HTMLSlotElement>('slot[name="end"]');
+    expect(slot).not.toBeNull();
+    expect(slot!.closest(".end")).not.toBeNull();
+  });
 });

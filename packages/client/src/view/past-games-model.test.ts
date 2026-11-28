@@ -1,20 +1,16 @@
 import { describe, expect, test } from "vitest";
 import type { SaveMeta } from "../engine/game-storage.js";
-import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
 import {
   PAST_GAME_ACTIONS,
+  aspectBadgesOf,
   aspectChipsOf,
   aspectsNotInName,
   pastGameMatches,
-  ROW_SIDE_BY_SIDE_FROM,
   isPastGame,
   pastGameCounts,
-  pastGameDetailParts,
-  pastGameRowHeight,
-  pastGameRowParts,
   pastGameRowsOf,
-  pastGamesLayout,
+  pastGamesSidePanel,
   partialLogStop,
   playedMinutesOf,
   seatFatesOf,
@@ -306,77 +302,11 @@ describe("playedMinutesOf", () => {
   });
 });
 
-const within =
-  (outer: Rect) =>
-  (r: Rect): boolean =>
-    r.x >= outer.x - 0.001 &&
-    r.y >= outer.y - 0.001 &&
-    r.x + r.width <= outer.x + outer.width + 0.001 &&
-    r.y + r.height <= outer.y + outer.height + 0.001;
-
-const overlaps = (a: Rect, b: Rect): boolean =>
-  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-
-describe("pastGameRowParts", () => {
-  // An iPhone SE's list (375 less the gutters and the scrollbar), a Pixel's, and the side panel's list on desktop.
-  for (const width of [323, 360, 700]) {
-    test(`a ${width}px row holds the villain and four heroes and its text without overlap`, () => {
-      const row: Rect = { x: 20, y: 100, width, height: pastGameRowHeight(width) };
-      const parts = pastGameRowParts(row, 4);
-      expect(parts.pictures).toHaveLength(5);
-      const inRow = within(row);
-      for (const [i, pic] of parts.pictures.entries()) {
-        expect(inRow(pic), `picture ${i}`).toBe(true);
-        expect(overlaps(pic, parts.text)).toBe(false);
-        if (i > 0) expect(overlaps(pic, parts.pictures[i - 1]!)).toBe(false);
-      }
-      expect(inRow(parts.text)).toBe(true);
-      expect(parts.text.width).toBeGreaterThan(200);
-    });
-  }
-
-  test("pictures sit beside the text on a wide row and above it on a phone's", () => {
-    const wide = pastGameRowParts({ x: 0, y: 0, width: ROW_SIDE_BY_SIDE_FROM, height: 200 }, 1);
-    expect(wide.text.x).toBeGreaterThan(wide.pictures.at(-1)!.x);
-    const narrow = pastGameRowParts({ x: 0, y: 0, width: 330, height: 200 }, 1);
-    expect(narrow.text.y).toBeGreaterThan(narrow.pictures[0]!.y + narrow.pictures[0]!.height);
+describe("pastGamesSidePanel", () => {
+  test("the details sit beside the list from 700px wide (desktop and a tablet either way up), and open as a popup under it", () => {
+    for (const width of [820, 1024, 1180, 1440, 700]) expect(pastGamesSidePanel(width), String(width)).toBe(true);
+    for (const width of [375, 412, 699]) expect(pastGamesSidePanel(width), String(width)).toBe(false);
   });
-});
-
-describe("pastGamesLayout and the details", () => {
-  const sizes = [
-    { name: "iPhone SE", width: 375, height: 667 },
-    { name: "Pixel 10", width: 412, height: 923 },
-    { name: "iPad portrait", width: 820, height: 1180 },
-    { name: "iPad landscape", width: 1180, height: 820 },
-    { name: "desktop", width: 1440, height: 980 },
-  ];
-
-  for (const size of sizes) {
-    test(`${size.name}: the details fit the screen and their actions are touch-sized and apart`, () => {
-      const area: Rect = { x: 16, y: 130, width: Math.min(size.width - 32, 1220), height: size.height - 146 };
-      const layout = pastGamesLayout(area, size);
-      expect(layout.side).toBe(size.width >= 700);
-      const screen: Rect = { x: 0, y: 0, width: size.width, height: size.height };
-      expect(within(screen)(layout.details)).toBe(true);
-      if (layout.side) {
-        expect(within(area)(layout.list)).toBe(true);
-        expect(within(area)(layout.details)).toBe(true);
-        expect(overlaps(layout.list, layout.details)).toBe(false);
-      }
-      const parts = pastGameDetailParts(layout.details, 4, !layout.side);
-      const inPanel = within(layout.details);
-      expect(parts.close !== null).toBe(!layout.side);
-      for (const pic of parts.pictures) expect(inPanel(pic)).toBe(true);
-      const actions = PAST_GAME_ACTIONS.map((action) => parts.actions[action]);
-      for (const [i, rect] of actions.entries()) {
-        expect(inPanel(rect)).toBe(true);
-        expect(rect.height).toBeGreaterThanOrEqual(hit.target);
-        for (const other of actions.slice(i + 1)) expect(overlaps(rect, other)).toBe(false);
-      }
-      expect(parts.text.height).toBeGreaterThan(120);
-    });
-  }
 });
 
 describe("aspectsNotInName", () => {
@@ -512,5 +442,17 @@ describe("a room guest's finished row (#909)", () => {
     expect(row!.result).toBe("won");
     expect([...PAST_GAME_ACTIONS]).toEqual(["watch", "share", "export", "log"]);
     expect(PAST_GAME_ACTIONS.some((action) => /resume|rewind|continue/i.test(action))).toBe(false);
+  });
+});
+
+describe("aspectBadgesOf (the words each aspect chip can say)", () => {
+  test("one badge per aspect the app colours, once each, in the deck's order, with the name, a code and a letter", () => {
+    expect(aspectBadgesOf([])).toEqual([]);
+    expect(aspectBadgesOf(["hero:spider-ham"])).toEqual([]);
+    expect(aspectBadgesOf(["justice", "justice"])).toHaveLength(1);
+    expect(aspectBadgesOf(["aggression", "pool"])).toEqual([
+      { id: "aggression", full: "AGGRESSION", code: "AGG", letter: "A" },
+      { id: "pool", full: "'POOL", code: "'PL", letter: "P" },
+    ]);
   });
 });

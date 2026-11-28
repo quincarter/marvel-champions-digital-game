@@ -17,7 +17,8 @@ import {
   globalTabViewOf,
   hasGlobalSource,
 } from "./global-stats-ui.js";
-import { globalRowsOf, type StatsTab } from "./player-stats-layout.js";
+import { globalBlocksOf } from "./player-stats-blocks.js";
+import type { StatsTab } from "./player-stats-tabs.js";
 
 const STATS: GlobalStats = {
   updatedAt: 1,
@@ -124,13 +125,13 @@ describe("globalTabViewOf", () => {
     expect(view({ kind: "unavailable" }, "heroes", true).notes).toEqual([NOTE_FILTERS, NOTE_UNAVAILABLE]);
   });
 
-  test("the hero rows lead with the hero's card; notes and rows lay out as list rows", () => {
+  test("the hero rows lead with the hero's card; notes and rows are list blocks", () => {
     const { notes, section } = view({ kind: "ready", data: STATS, stale: true });
-    const rows = globalRowsOf(notes, section, true);
+    const rows = globalBlocksOf(notes, section);
     expect(rows.map((r) => r.kind)).toEqual(["note", "stat"]);
     const stat = rows[1]!;
     expect(stat.kind === "stat" && stat.row.cardId).toBe("spidey");
-    // A hero with losses gets the taller row for its loss bar.
-    expect(stat.height).toBeGreaterThan(rows[0]!.height);
+    // A hero with losses carries why they were lost, for the row's small bar.
+    expect(stat.kind === "stat" && stat.row.losses?.length).toBeGreaterThan(0);
   });
 });

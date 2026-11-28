@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { Track } from "../audio/music-catalog.js";
 import { languageMenuModelOf } from "./language-menu-model.js";
-import { musicPlayerModelOf } from "./music-player-model.js";
 import { REPORT_ORDER, reportIssueModelOf } from "./report-issue-model.js";
 
 const anchor = { x: 300, y: 10, width: 58, height: 34 };
-const track = { key: "title/main", file: "x.mp3" } as unknown as Track;
 
 describe("languageMenuModelOf", () => {
   it("lists the languages with the current one marked, hung under the button", () => {
@@ -36,39 +33,5 @@ describe("reportIssueModelOf", () => {
     expect(wide.columns).toBe(2);
     expect(reportIssueModelOf({ width: 412, height: 924 }, "tip", "").columns).toBe(1);
     expect(wide.steps[0]!.body).toContain("tip");
-  });
-});
-
-describe("musicPlayerModelOf", () => {
-  const song = { id: "a", title: "Main Title", where: "Title screen", track };
-  const base = {
-    screen: { width: 1440, height: 900 },
-    phone: false,
-    icon: { x: 1290, y: 10, width: 44, height: 34 },
-    songs: [song],
-    locked: 3,
-    playing: track,
-    paused: false,
-    shuffle: false,
-    volume: 40,
-    withSlider: true,
-  };
-
-  it("reads what is playing, marks its row and offers the slider on a desktop", () => {
-    const model = musicPlayerModelOf(base);
-    expect(model.nowPlaying.title).toBeTruthy();
-    expect(model.list.tracks[0]!.playing).toBe(true);
-    expect(model.volume!.label).toBe("40%");
-    expect(model.close.label).toBe("✕");
-    expect(model.earned).toBe("1 of 4 earned");
-  });
-
-  it("dims Shuffle and Next with a reason when no song is earned, and has no slider on a phone", () => {
-    const model = musicPlayerModelOf({ ...base, songs: [], playing: null, phone: true, withSlider: false });
-    expect(model.controls.shuffle.disabled).toBeTruthy();
-    expect(model.controls.next.disabled).toBeTruthy();
-    expect(model.volume).toBeNull();
-    expect(model.close.label).toContain("Back");
-    expect(model.nowPlaying.title).toBeNull();
   });
 });

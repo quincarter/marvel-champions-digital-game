@@ -20,6 +20,7 @@ import { domFocusRing } from "../dom/dom-ring.js";
 import { renderDeep } from "../dom/element-render.js";
 import { focusStopsOf } from "../dom/element-stops.js";
 import { mountElement, type MountedElement } from "../dom/element-region.js";
+import "../views/music/mc-music-player/mc-music-player.js";
 import { shownMusicButton } from "../ui/music-slot.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { musicPlayerModelOf } from "../view/music-player-model.js";
@@ -76,18 +77,17 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     this.#mounted = mounted;
     const gate = new ActivationGate(this);
     const { element } = mounted;
-    element.addEventListener("mc-activate", (event) => {
-      const { key } = (event as CustomEvent<{ key: string }>).detail;
-      if (gate.take()) this.#press(key);
-    });
-    element.addEventListener("mc-slide", (event) => {
-      const { share, commit } = (event as CustomEvent<{ share: number; commit: boolean }>).detail;
-      this.#dragging = !commit;
-      this.#setVolume(volumeAtTrack(share, { x: 0, width: 1 }), commit);
-    });
-    element.addEventListener("mc-step", (event) => {
-      const { direction } = (event as CustomEvent<{ direction: -1 | 1 }>).detail;
-      this.#setVolume(steppedVolume(this.#volume, direction), true);
+    // The element speaks one event: a press by key, the slider's slide, its step.
+    element.addEventListener("mc-music", (event) => {
+      const detail = event.detail;
+      if (detail.type === "press") {
+        if (gate.take()) this.#press(detail.key);
+      } else if (detail.type === "slide") {
+        this.#dragging = !detail.commit;
+        this.#setVolume(volumeAtTrack(detail.share, { x: 0, width: 1 }), detail.commit);
+      } else {
+        this.#setVolume(steppedVolume(this.#volume, detail.direction), true);
+      }
     });
     this.#glyphs = new ControlGlyphs(this, () => this.#draw());
     const onResize = (): void => this.#draw();
@@ -220,7 +220,6 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     this.#glyphs.reset();
     const g = this.#glyphs;
     element.model = musicPlayerModelOf({
-      screen: { width, height },
       phone: form === "phone" || form === "phoneLandscape",
       icon: shownMusicButton() ?? { x: width - 104, y: 5, width: 44, height: 34 },
       songs: this.#songs,

@@ -1,4 +1,5 @@
 import type { PictureSource } from "../../shared/picture.types.js";
+import type { McMediaRowModel } from "../mc-media-row/mc-media-row.types.js";
 
 /** An aspect stamp on a deck: the aspect's name on its printed frame colour (CSS colours). */
 export interface DeckRowStamp {
@@ -31,6 +32,18 @@ export interface McDeckRowModel {
   readonly mark?: string;
   /** The card the picture stands for: a hover popover and Inspect on the picture. Left out, none. */
   readonly cardId?: string | null;
+  /**
+   * The deck as an entry of a list the player browses (Decks & Collection) rather than a row with a button: the whole row is
+   * the press (`mc-deck-pick`, never the lift that ends a swipe), a hold or the route's Inspect raises `mc-deck-inspect`, and
+   * it is drawn as the `deck` look of `mc-media-row` (group label, chosen ink fill, problem outline, record badge). With it
+   * the button row's own button, verdict and stamps are not drawn (the media row carries its own).
+   */
+  readonly listing?: McMediaRowModel;
+}
+
+/** `mc-deck-inspect`: a hold on a listed row, or Inspect on its stop. */
+export interface DeckInspectDetail {
+  readonly deckId: string;
 }
 
 /** `mc-deck-pick`: the row's action button was pressed (and was not disabled). */
