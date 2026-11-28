@@ -320,3 +320,28 @@ describe("the modular call", () => {
     expect(h.answers).toEqual([["a"]]);
   });
 });
+
+describe("a long role-building list", () => {
+  const many = [...eventsOf("aggression", 80), ...eventsOf("protection", 80)];
+  const h = callHarness((s) => {
+    withSeat(s, [{ instructionId: "r", slot: "role", seatNumber: 1, picked: ["brawler"] }]);
+    s.pending = pendingOf({ seatNumber: 1, optional: true, options: many });
+  });
+
+  it("draws only the rows near its view, yet keeps a focus stop for every card", () => {
+    const { b } = h.draw((ctx, bb, col) => callSlot.draw(ctx, bb, col, 80));
+    expect(many.length).toBeGreaterThan(40);
+    expect(h.stopKeys().filter((key) => key.startsWith("rb-card:")).length).toBe(many.length);
+    const scroll = b.nodes.find((node) => node.kind === "scroll");
+    const takes = scroll && scroll.kind === "scroll" ? scroll.nodes.filter((n) => n.kind === "button").length : 0;
+    expect(takes).toBeGreaterThan(0);
+    expect(takes).toBeLessThan(many.length);
+  });
+
+  it("presses a card that is out of the window the same as one in it", () => {
+    h.draw((ctx, b, col) => callSlot.draw(ctx, b, col, 80));
+    const last = many.at(-1)!;
+    h.press(`rb-card:${last}`);
+    expect(h.inspected.at(-1)).toEqual({ cardId: last, choice: { optionId: last, label: "Take this card" } });
+  });
+});

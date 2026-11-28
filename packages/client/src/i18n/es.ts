@@ -3092,4 +3092,6 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "briefing.call.build.recommendedReason": "Recomendada: {reason}",
   "briefing.call.villain.listed": "El siguiente villano de la lista recomendada",
   "briefing.call.villain.random": "Un villano al azar de los no anotados",
+  "briefing.call.fne.first": "Primera vez",
+  "briefing.call.fne.later": "No es la primera vez",
 };

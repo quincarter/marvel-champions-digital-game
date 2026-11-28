@@ -291,6 +291,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
           "scroll",
           () => {
             this.#tops.set(key, scroller.scrollTop);
+            this.#ctx.slots.call.onScroll?.(this.#ctx, key);
           },
           { passive: true },
         );

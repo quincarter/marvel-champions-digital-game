@@ -3035,4 +3035,6 @@ export const en = {
   "briefing.call.build.recommendedReason": "Recommended: {reason}",
   "briefing.call.villain.listed": "The next villain on the recommended list",
   "briefing.call.villain.random": "A random unrecorded villain",
+  "briefing.call.fne.first": "First playthrough",
+  "briefing.call.fne.later": "Not the first playthrough",
 } as const;

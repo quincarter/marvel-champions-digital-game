@@ -10,6 +10,7 @@ import { campaignCardsById } from "../../../../content/campaign-pool.js";
 import { packNameOf } from "../../../../content/pool.js";
 import type { SheetBuilder } from "../../../../dom/sheet-builder.js";
 import { t } from "../../../../i18n/translate.js";
+import { issueTitleIn } from "../../../../campaign/campaign-text.js";
 import { issueStoryFor } from "../../../../campaign/story.js";
 import { ink, surface, typeRole } from "../../../../tokens.js";
 import { CARD_OPTION_GRID, cardOptionCell, type PickCard } from "../../../../view/campaign-briefing-model.js";
@@ -67,7 +68,11 @@ export function optionLabelsFor(ctx: BriefingCtx, options: readonly string[]): R
     options,
     (id) => campaignCardsById().get(id),
     packNameOf,
-    (id) => (record ? issueStoryFor(record.campaignId as string, id)?.title : undefined),
+    (id) => {
+      // A scenario a choice graph offers (Fear No Evil) is billed by its issue title, in the player's language.
+      const title = record ? issueStoryFor(record.campaignId as string, id)?.title : undefined;
+      return title === undefined ? undefined : issueTitleIn(record!.campaignId as string, id, title);
+    },
   );
   return new Map(options.map((id) => [id, optionLabelIn(id, base.get(id) ?? cardNameOf(id))]));
 }

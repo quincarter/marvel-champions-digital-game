@@ -7,6 +7,7 @@ import { accent, ink, signal, surface, typeRole } from "../../../../tokens.js";
 import type { ModularSetTile } from "../../../../view/campaign-modular-call-model.js";
 import type { Rect } from "../../../../view/layout.js";
 import type { CallInput, CallKind, OptionTileModel } from "./calls.types.js";
+import { modularViewIn } from "./modular-text.js";
 import { drawOptionTile } from "./option-tile.js";
 
 type ModularKind = Extract<CallKind, { kind: "modular" }>;
@@ -40,7 +41,7 @@ export function modularTileModel(tile: ModularSetTile, rect: Rect, pick: (id: st
 /** Draws the call from `top` and returns its bottom. */
 export function drawModularCall(input: CallInput, top: number, kind: ModularKind): number {
   const { ctx, b, col } = input;
-  const { view } = kind;
+  const view = modularViewIn(kind.view);
   let y = top;
   y += b.text(col.x, y, view.question, typeRole.rowTitle, { color: surface.ink.hex, wrapWidth: col.width }).height + 4;
   y +=

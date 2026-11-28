@@ -68,11 +68,26 @@ export function drawPickArt(
   );
   const badge = options.badge ?? 18;
   if (badge > 0) drawMagnifier(b, art, badge);
-  const open = (): void => (options.onInspect ?? ((c) => ctx.inspectCard(c.cardId as string)))(card);
   b.tap(key, art, { inspect: true });
+  registerPickStop(ctx, col, art, card, key, options.onInspect);
+  col.hover(`pick:${key}`, card.cardId as string, art);
+}
+
+/**
+ * A picture's press without its parts: the stop (so a pad can walk to it and scroll it into view) and its hold. A windowed list
+ * does this for the rows it does not draw, so the route still reaches every card.
+ */
+export function registerPickStop(
+  ctx: BriefingCtx,
+  col: Column,
+  art: Rect,
+  card: PickArtCard,
+  key: string,
+  onInspect?: (card: PickArtCard) => void,
+): void {
+  const open = (): void => (onInspect ?? ((c) => ctx.inspectCard(c.cardId as string)))(card);
   ctx.inspects.set(key, open);
   col.control(key, art, open, { inspect: open });
-  col.hover(`pick:${key}`, card.cardId as string, art);
 }
 
 /** A caption's tone: the earned side reads green, as on the campaign sheet; the rest are quiet labels. */

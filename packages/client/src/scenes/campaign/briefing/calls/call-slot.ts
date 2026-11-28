@@ -9,7 +9,9 @@ import { drawCallHead, drawPrompt } from "./call-head.js";
 import type { CallInput } from "./calls.types.js";
 import { drawModularCall } from "./modular-call.js";
 import { drawAcceptDecline, drawOptionGrid } from "./option-grid.js";
+import { ROLE_SCROLL } from "../context.js";
 import { drawRoleBuild, takeFromInspect } from "./role-build.js";
+import { roleWindowMoved } from "./role-build-list.js";
 import { drawRoleCall } from "./role-call.js";
 import { drawSideSchemeCall } from "./side-scheme-call.js";
 
@@ -40,6 +42,11 @@ export const callSlot: CallSlot = {
       case "options":
         return drawOptionGrid(input, drawPrompt(input, head.y, head.header), kind);
     }
+  },
+
+  // Role-building draws only the rows near its list's view: a scroll that moves that window draws the page again.
+  onScroll(ctx, key) {
+    if (key === ROLE_SCROLL && roleWindowMoved(ctx)) ctx.redraw();
   },
 
   isGenreSetPick: (ctx, pending) => callKindFor(ctx.state, pending).kind === "modular",

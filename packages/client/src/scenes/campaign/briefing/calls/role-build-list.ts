@@ -24,7 +24,9 @@ import {
 } from "../../../../view/campaign-role-build-model.js";
 import type { Rect } from "../../../../view/layout.js";
 import type { BriefingCtx, Column } from "../context.js";
-import { drawPickArt } from "./pick-art.js";
+import { drawPickArt, registerPickStop } from "./pick-art.js";
+import { inWindow, rowWindowOf, windowKeyOf, type RowWindow } from "./role-build-window.js";
+import { ROLE_SCROLL } from "../context.js";
 
 const INSET = 4;
 
@@ -45,15 +47,31 @@ function sectionLabel(view: RoleBuildView, kind: "recommended" | "rest" | "all")
   return t(`briefing.call.build.${key}_${view.noun}` as "briefing.call.build.others_event");
 }
 
-/** Draws the list's rows into `b` (the scroller's own builder, x on screen and y from 0); returns where they end. */
+/** The rows last drawn: what a scroll is measured against to tell whether the window moved. */
+let drawn: { readonly heights: readonly number[]; readonly viewHeight: number; readonly window: string } | null = null;
+
+/** True when the list's scroll has moved its window of drawn rows, so the page should draw again. */
+export function roleWindowMoved(ctx: BriefingCtx): boolean {
+  const scroller = ctx.scroller(ROLE_SCROLL);
+  if (!drawn || !scroller) return false;
+  return windowKeyOf(rowWindowOf(drawn.heights, scroller.scrollTop, drawn.viewHeight)) !== drawn.window;
+}
+
+/**
+ * Draws the list's rows into `b` (the scroller's own builder, x on screen and y from 0); returns where they end. Only the rows
+ * near the view are parts (`role-build-window.ts`); every card keeps its focus stop, so a pad reaches it and scrolls it in.
+ */
 export function drawRoleBuildRows(
   ctx: BriefingCtx,
   b: SheetBuilder,
   col: Column,
   view: RoleBuildView,
   width: number,
+  viewHeight: number,
 ): number {
   const { rows, heights, geometry } = roleBuildRowsOf(view, width);
+  const window: RowWindow = rowWindowOf(heights, ctx.scroller(ROLE_SCROLL)?.scrollTop ?? 0, viewHeight);
+  drawn = { heights, viewHeight, window: windowKeyOf(window) };
   const take = (id: string): void => {
     ctx.state.roleBuild = selectRoleBuildCard(ctx.state.roleBuild, view, id);
     ctx.redraw();
@@ -64,7 +82,9 @@ export function drawRoleBuildRows(
     const height = heights[index]!;
     const top = y;
     y += height;
+    const shown = inWindow(window, index);
     if (row.kind === "label") {
+      if (!shown) return;
       const noun = view.recommended.length > 0 ? "rest" : "all";
       const text =
         index === 0 && view.recommended.length > 0 ? sectionLabel(view, "recommended") : sectionLabel(view, noun);
@@ -77,7 +97,14 @@ export function drawRoleBuildRows(
       return;
     }
     if (row.kind === "recommended") {
-      drawRecommended(ctx, b, col, { x: col.x, y: top, width, height }, row.card, read, take);
+      const at: Rect = { x: col.x, y: top, width, height };
+      if (shown) drawRecommended(ctx, b, col, at, row.card, read, take);
+      else {
+        const { id, name } = row.card;
+        registerPickStop(ctx, col, recommendedArtOf(at), { cardId: id as CardId, name }, `rb-card:${id}`, () =>
+          read(id),
+        );
+      }
       return;
     }
     row.cards.forEach((card, at) => {
@@ -88,6 +115,12 @@ export function drawRoleBuildRows(
         height: geometry.cellHeight - 4,
       };
       const art: Rect = { x: cell.x, y: cell.y, width: cell.width, height: geometry.artHeight };
+      if (!shown) {
+        registerPickStop(ctx, col, art, { cardId: card.id as CardId, name: card.name }, `rb-card:${card.id}`, () =>
+          read(card.id),
+        );
+        return;
+      }
       drawPickArt(ctx, b, col, art, { cardId: card.id as CardId, name: card.name }, `rb-card:${card.id}`, {
         badge: 26,
         onInspect: () => read(card.id),
@@ -129,6 +162,14 @@ export function drawRoleBuildRows(
   return y;
 }
 
+/** The recommended card's picture in its row. */
+const recommendedArtOf = (row: Rect): Rect => ({
+  x: row.x + INSET,
+  y: row.y + 8,
+  width: REC_ART_WIDTH,
+  height: recRowHeight() - 16,
+});
+
 /** One recommended card: its picture, the RECOMMENDED tag, name, reason, and Inspect / Take. */
 function drawRecommended(
   ctx: BriefingCtx,
@@ -139,7 +180,7 @@ function drawRecommended(
   read: (id: string) => void,
   take: (id: string) => void,
 ): void {
-  const art: Rect = { x: row.x + INSET, y: row.y + 8, width: REC_ART_WIDTH, height: recRowHeight() - 16 };
+  const art = recommendedArtOf(row);
   drawPickArt(ctx, b, col, art, { cardId: card.id as CardId, name: card.name }, `rb-card:${card.id}`, {
     badge: 26,
     onInspect: () => read(card.id),

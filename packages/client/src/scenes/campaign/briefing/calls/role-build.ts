@@ -130,7 +130,7 @@ export function drawRoleBuild(input: CallInput, top: number, kind: BuildKind): n
       scrollKey: ROLE_SCROLL,
     });
     b.scrollFit(ROLE_SCROLL, list, (scrollB) =>
-      drawRoleBuildRows(ctx, scrollB, inner, view, list.width - SCROLL_GUTTER),
+      drawRoleBuildRows(ctx, scrollB, inner, view, list.width - SCROLL_GUTTER, list.height),
     );
   }
   drawDecline(ctx, b, col, decline, "secondary", t(`briefing.call.build.decline_${view.noun}`));

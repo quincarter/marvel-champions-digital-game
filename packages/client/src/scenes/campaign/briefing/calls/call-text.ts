@@ -14,6 +14,8 @@ import { ROLE_EXPLAINER } from "../../../../view/campaign-role-call-model.js";
 /** The option ids of Fear No Evil step 5b (`@mc/cards`: `FNE_VILLAIN_LISTED` / `FNE_VILLAIN_RANDOM`); the log and the engine match them as written. */
 export const FNE_VILLAIN_LISTED = "The next villain on the recommended list";
 export const FNE_VILLAIN_RANDOM = "A random unrecorded villain";
+export const FNE_FIRST_PLAYTHROUGH = "First playthrough";
+export const FNE_LATER_PLAYTHROUGH = "Not the first playthrough";
 
 const ROLE_SUMMARY_ES: Readonly<Record<string, string>> = {
   brawler: "El luchador de primera línea: golpea fuerte y aguanta el daño.",
@@ -71,5 +73,7 @@ export function roleExplainerIn(lang: CardLanguage = artLanguageNow()): {
 export function optionLabelIn(optionId: string, label: string, lang: CardLanguage = artLanguageNow()): string {
   if (optionId === FNE_VILLAIN_LISTED) return t("briefing.call.villain.listed", undefined, lang);
   if (optionId === FNE_VILLAIN_RANDOM) return t("briefing.call.villain.random", undefined, lang);
+  if (optionId === FNE_FIRST_PLAYTHROUGH) return t("briefing.call.fne.first", undefined, lang);
+  if (optionId === FNE_LATER_PLAYTHROUGH) return t("briefing.call.fne.later", undefined, lang);
   return label;
 }

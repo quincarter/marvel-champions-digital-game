@@ -205,6 +205,8 @@ export interface CallSlot {
   draw: BriefingBlock;
   /** True when `pending` is the modular-set (genre-set) pick, which the waiting notes name. */
   isGenreSetPick?(ctx: BriefingCtx, pending: CampaignPendingChoice): boolean;
+  /** A scroller of the page moved (`key` is its panel key): a call that draws only the rows in view redraws when the window changes. */
+  onScroll?(ctx: BriefingCtx, key: string): void;
   /** A card chosen in the Inspect sheet ("Take this card", `mc-choice-toggle`). */
   onInspectTake?(ctx: BriefingCtx, optionId: string): void;
 }
