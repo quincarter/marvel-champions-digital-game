@@ -1,0 +1,21 @@
+import { css } from "lit";
+
+/** The responsive rules every Trophy Room view spreads into its `static styles`: the page fills its region, text never shrinks below a legible size. */
+export const TrophyRoomResponsiveStyles = css`
+  :host {
+    box-sizing: border-box;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  *,
+  *::before,
+  *::after {
+    box-sizing: inherit;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+`;

@@ -53,4 +53,15 @@ export const McTopBarStyles = css`
     opacity: 0.5;
     white-space: nowrap;
   }
+  /* The slotted control sits at the right end; with a right label before it, the label keeps its own place. */
+  .end {
+    margin-left: auto;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .right + .end {
+    margin-left: 0;
+  }
 `;

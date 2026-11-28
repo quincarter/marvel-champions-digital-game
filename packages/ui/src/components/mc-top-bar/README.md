@@ -29,6 +29,10 @@ The bar fills the height its parent gives it. A tap on Back raises `mc-press` (t
 | `title-max-right` | attribute | Where the title must end (px from the bar's left edge); 0 for no limit. |
 | `backGlyph`       | property  | The Back button's glyph (`HintGlyph`), or null.                         |
 
+## Slots
+
+- `end`: A control at the bar's right end (Past games' "Open a replay file", the Trophy Room's "Your stats").
+
 ## Events
 
 - `mc-press`: A tap on Back.
