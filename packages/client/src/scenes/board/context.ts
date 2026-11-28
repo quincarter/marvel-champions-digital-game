@@ -21,6 +21,7 @@ import type { BoardController } from "./controller.js";
 import type { HandScroll } from "./hand.js";
 import type { SchemeScrollState } from "./schemes.js";
 import type { LargeSchemeShape } from "../../view/scheme-list-layout.js";
+import type { ThreatMeterStyle } from "../../settings.js";
 import type { SchemePanel } from "../../view/board-model.js";
 import type { RowDrag } from "../../view/hand-scroll.js";
 import type { PlayAreaScroll } from "../../view/play-area-row.js";
@@ -165,6 +166,8 @@ export interface BoardDrawContext {
   readonly largeSchemes: boolean;
   /** The Stack schemes setting: the schemes stacked like a deck in their panel, fanned out on a tap (`schemes.ts`). */
   readonly schemeStack: boolean;
+  /** The Threat bar setting: how a scheme's threat meter shows its count (`ui/widgets.ts` `paintThreatMeter`). */
+  readonly threatMeterStyle: ThreatMeterStyle;
   /** Asks for the table to be drawn again on the next frame (the scheme stack brought another card forward). */
   requestDraw(): void;
   /**

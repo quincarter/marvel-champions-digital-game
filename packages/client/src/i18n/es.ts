@@ -1505,7 +1505,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   // Sources: Deadpool insert "Using the 'Pool Aspect"; RRG 1.8 FAQ p.64 (Crisis of Infinite Deadpools #37); RRG 1.8 "Basic Card" p.10 and Appendix I p.49; Spanish insert MC44 and the 2019 Spanish guide (docs/rules/es/mc_guia_de_referencia_es_2019.md l.2213-2217).
   "aspectTip.pool.tagline": "Grandes jugadas, a un precio",
   "aspectTip.pool.tip":
-    "Elígelo para cartas salvajes y arriesgadas. Si eliges el aspecto Masacrismo, se añade «Crisis de Masacres infinitos» al mazo de Encuentros; cuando se muestra, el resto del conjunto de Encuentros de Malsacre se añade al mazo de Encuentros.",
+    "Elígelo para cartas salvajes y arriesgadas. Si eliges Masacrismo, baraja una copia de Crisis de Masacres infinitos en el mazo de Encuentros. Cuando se muestre, entran en juego Malsacre y su plan secundario, y se barajan las demás cartas del conjunto.",
   "aspectTip.basic.tagline": "Cartas sin aspecto, para cualquier mazo",
   "aspectTip.basic.tip": "Cualquier mazo puede incluirlas junto a las cartas de su aspecto; ninguna es obligatoria.",
   "aspectTip.link": "Aspectos ▸",
@@ -2109,6 +2109,13 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Qué hay detrás de los planes cuando Apilar planes los despliega. Ninguno deja las cartas sobre la mesa oscurecida; los demás ponen una hoja de papel detrás, hasta opaca.",
   "settings.fanBackground.none": "Ninguno",
   "settings.fanBackground.solid": "Opaco",
+  "settings.threatMeterStyle.title": "Barra de amenaza",
+  "settings.threatMeterStyle.detail":
+    "Cómo muestra su cifra la barra de amenaza de un plan. Recuadro pone el número en un recuadro sobre la barra; Barra alta hace la barra más alta para que el rojo se vea por encima y por debajo del recuadro; Al lado lleva el número junto a la barra para que se vea entera; Contorneado lo escribe directamente sobre la barra, sin recuadro.",
+  "settings.threatMeterStyle.box": "Recuadro",
+  "settings.threatMeterStyle.tall": "Barra alta",
+  "settings.threatMeterStyle.beside": "Al lado",
+  "settings.threatMeterStyle.outline": "Contorneado",
   "settings.deckListOnOpen.title": "Lista de mazos al abrir",
   "settings.deckListOnOpen.detail":
     "Con qué lista se abre la pantalla Mazos: las tres juntas (como siempre), solo los mazos preconstruidos (Precons), solo los tuyos (Tuyos, el filtro Tus mazos), solo los de la comunidad (Com., el filtro Comunidad), o la que tuvieras abierta la última vez. Los filtros de la lista la cambian cuando quieras.",

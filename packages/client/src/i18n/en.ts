@@ -1479,10 +1479,11 @@ export const en = {
   "aspectTip.leadership.tip": "Pick it when your hero likes a wide board of allies.",
   "aspectTip.protection.tagline": "Defending and healing",
   "aspectTip.protection.tip": "Pick it when the villain hits hard or your hero is fragile.",
+  // The Crisis card (44037): "When Revealed: Reveal the set-aside Dreadpool minion and Dreadful Deeds side scheme. Shuffle the rest of the set-aside Dreadpool encounter set into the encounter deck."
   // Sources: Deadpool insert "Using the 'Pool Aspect"; RRG 1.8 FAQ p.64 (Crisis of Infinite Deadpools #37); RRG 1.8 "Basic Card" p.10 and Appendix I p.49; Spanish insert MC44 and the 2019 Spanish guide (docs/rules/es/mc_guia_de_referencia_es_2019.md l.2213-2217).
   "aspectTip.pool.tagline": "Big swings, at a price",
   "aspectTip.pool.tip":
-    "Pick it for wild, risky cards. Choosing 'Pool shuffles Crisis of Infinite Deadpools into the encounter deck; when it is revealed, the rest of the Dreadpool set joins the encounter deck.",
+    "Pick it for wild, risky cards. Choosing 'Pool shuffles one Crisis of Infinite Deadpools into the encounter deck. When it is revealed, Dreadpool and his side scheme come into play, and the rest of the Dreadpool set is shuffled in.",
   "aspectTip.basic.tagline": "Cards with no aspect, open to any deck",
   "aspectTip.basic.tip": "Any deck may add these alongside its aspect cards; none are required.",
   "aspectTip.link": "Aspects ▸",
@@ -2079,6 +2080,13 @@ export const en = {
     "What's behind the schemes when Stack schemes fans them out. None leaves the cards over the dimmed table; the others lay a paper sheet behind them, up to solid.",
   "settings.fanBackground.none": "None",
   "settings.fanBackground.solid": "Solid",
+  "settings.threatMeterStyle.title": "Threat bar",
+  "settings.threatMeterStyle.detail":
+    "How a scheme's threat bar shows its count. Box puts the number on a box across the bar; Taller bar makes the bar taller so the red shows above and below the box; Beside moves the number next to the bar so the whole bar shows; Outlined writes it straight on the bar with no box.",
+  "settings.threatMeterStyle.box": "Box",
+  "settings.threatMeterStyle.tall": "Taller bar",
+  "settings.threatMeterStyle.beside": "Beside",
+  "settings.threatMeterStyle.outline": "Outlined",
   "settings.deckListOnOpen.title": "Deck list on open",
   "settings.deckListOnOpen.detail":
     "Which list the Decks screen opens on: all three together (as it always has), only the preconstructed decks (Precons), only your own (Yours, the Your decks chip), only the community decks (Comm., the Community chip), or whichever you had open last. The list chips switch it any time.",

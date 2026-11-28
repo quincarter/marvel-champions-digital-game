@@ -36,6 +36,7 @@ describe("regionTakesEvents", () => {
       "mc-input",
       "mc-field-focus",
       "mc-search-focus",
+      "mc-tile-focus",
     ]);
   });
 });

@@ -125,10 +125,10 @@ describe("the 'Pool and Basic wording", () => {
 
   it("says choosing 'Pool shuffles Crisis of Infinite Deadpools in, which brings the Dreadpool set", () => {
     expect(guide("pool").tipLine).toBe(
-      "Pick it for wild, risky cards. Choosing 'Pool shuffles Crisis of Infinite Deadpools into the encounter deck; when it is revealed, the rest of the Dreadpool set joins the encounter deck.",
+      "Pick it for wild, risky cards. Choosing 'Pool shuffles one Crisis of Infinite Deadpools into the encounter deck. When it is revealed, Dreadpool and his side scheme come into play, and the rest of the Dreadpool set is shuffled in.",
     );
     expect(guide("pool").pickItWhen[1]).toBe(
-      "Choosing 'Pool puts Crisis of Infinite Deadpools in the encounter deck, which brings in the Dreadpool set. 'Pool cards in another aspect's deck don't.",
+      "Choosing 'Pool puts one Crisis of Infinite Deadpools in the encounter deck; when it is revealed, Dreadpool and his side scheme enter play and the rest of the Dreadpool set is shuffled in. 'Pool cards in another aspect's deck don't.",
     );
   });
 

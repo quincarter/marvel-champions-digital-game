@@ -109,3 +109,28 @@ test("the screen reads in Spanish", async ({ page }) => {
   await open(page);
   await waitForText(page, "Editar mazo", { sceneKey: "DeckCheck" });
 });
+
+test("an open aspect tip sits over the filter chips, inside the screen, and a tap on it presses nothing beneath", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "the aspect tiles and their tips are in the wide rail");
+  test.setTimeout(120_000);
+  // A short screen, in Spanish (the longest 'Pool tip): the tip must wrap, stay on screen and not run under the chips.
+  await page.setViewportSize({ width: 1280, height: 560 });
+  await open(page, `${URL}&lang=es`);
+  await showCards(page);
+  const before = await page.locator(`${panel} mc-card-sections [data-key^="card:"]`).count();
+  await page.locator(`${panel} [data-key="aspect-info:pool"]`).first().click();
+  const plate = page.locator(`${panel} [data-key="aspect-tip-plate"]`).first();
+  await plate.waitFor({ state: "visible", timeout: 10_000 });
+  const box = (await plate.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(1280);
+  expect(box.y + box.height).toBeLessThanOrEqual(560);
+  expect((await findText(page, "Masacrismo", "DeckCheck")).length).toBeGreaterThan(0);
+  // A tap on the plate (over where the filter chips are) shuts the tip and presses no chip.
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await plate.waitFor({ state: "detached", timeout: 10_000 });
+  expect(await page.locator(`${panel} mc-card-sections [data-key^="card:"]`).count()).toBe(before);
+});

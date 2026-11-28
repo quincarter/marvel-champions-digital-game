@@ -65,6 +65,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import { SCENES, type SceneKey } from "./keys.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { tipPlacement, tipWidthFor } from "../dom/aspect-tip-sheet.js";
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 import { t, type MessageKey } from "../i18n/translate.js";
 import { cardTypeWordOf } from "../view/card-type-word.js";
@@ -166,6 +167,8 @@ export class DeckCheckScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   /** Which aspect tile's inline tip is open, if any — wide only. */
   #aspectTipOpen: CoreAspect | null = null;
+  /** The open aspect tip, laid out and drawn last so it stays above the controls below its row. */
+  #pendingTip: { readonly rect: Rect; readonly text: string; readonly viewport: Rect } | null = null;
   #hover: HoverPreview | null = null;
   /** The cards' box on screen: what a hover popover is clipped to. */
   #view: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -412,6 +415,8 @@ export class DeckCheckScene extends Phaser.Scene {
       this.#drawActions(b, layout.editDeck, layout.startGame);
     }
 
+    this.#drawAspectTipPlate(b);
+
     const full: Rect = { x: 0, y: 0, width, height };
     const sheet = (this.#sheet ??= this.#wire(document.createElement("mc-sheet") as McSheet, full));
     sheet.setRect(full);
@@ -512,6 +517,29 @@ export class DeckCheckScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * The open aspect tip as a plate over everything: below its row, or above where there is no room, clamped inside the
+   * screen and wrapped to its width (`tipPlacement`). It takes the presses on it (a tap shuts it), so none reaches the
+   * filter chips or the chart beneath.
+   */
+  #drawAspectTipPlate(b: SheetBuilder): void {
+    const open = this.#pendingTip;
+    this.#pendingTip = null;
+    if (!open) return;
+    const width = tipWidthFor(open.viewport);
+    const size = b.measure(open.text, typeRole.body, { wrapWidth: width - 20 });
+    const placement = tipPlacement(open.rect, Math.ceil(size.height) + 20, open.viewport, width);
+    const box = placement.panel;
+    b.box(box, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2 });
+    b.text(box.x + 10, box.y + 10, open.text, typeRole.body, { color: surface.ink.hex, wrapWidth: width - 20 });
+    const key = "aspect-tip-plate";
+    b.tap(key, box);
+    this.#actions.set(key, () => {
+      this.#aspectTipOpen = null;
+      this.#compose();
+    });
+  }
+
   // ------------------------------------------------------------------------------------------------------------
   // The left rail (wide only, D04): aspect tiles (read-only, with their tips), the type filter chips (filtering the
   // cards, never the deck), and the cost curve pinned at the rail's foot.
@@ -575,14 +603,8 @@ export class DeckCheckScene extends Phaser.Scene {
       }
     });
     y += SELECTABLE_ASPECTS.length * (hit.target + aspectGap) + 3;
-    if (tip) {
-      const open: { readonly rect: Rect; readonly text: string } = tip;
-      const width = Math.min(260, viewport.width - open.rect.x - 8);
-      const size = b.measure(open.text, typeRole.body, { wrapWidth: width - 20 });
-      const box: Rect = { x: open.rect.x, y: open.rect.y + open.rect.height + 4, width, height: size.height + 20 };
-      b.box(box, { fill: surface.card.hex, stroke: surface.ink.hex, strokeWidth: 2 });
-      b.text(box.x + 10, box.y + 10, open.text, typeRole.body, { color: surface.ink.hex, wrapWidth: width - 20 });
-    }
+    // Drawn last (`#drawAspectTipPlate`), over everything, so the chips and chart below it never paint over its words.
+    this.#pendingTip = tip === null ? null : { ...(tip as { rect: Rect; text: string }), viewport };
     b.box({ x: left, y, width: column, height: 3 }, { fill: surface.ink.hex });
     y += 16;
 
