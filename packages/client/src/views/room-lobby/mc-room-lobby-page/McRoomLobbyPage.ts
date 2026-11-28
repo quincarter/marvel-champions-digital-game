@@ -8,9 +8,6 @@ import { deepQuery } from "../../../components/room-lobby/room-lobby.deep.js";
 import type { LobbyPageModel, LobbySeatsPanelModel } from "../../../components/room-lobby/room-lobby.types.js";
 import { McRoomLobbyPageStyles } from "./mc-room-lobby-page.styles.js";
 
-/** The seats panel's tag for each of its three forms. */
-const SEATS_TAG = { seats: "mc-lobby-seats", epic: "mc-lobby-epic", competitive: "mc-lobby-competitive" } as const;
-
 /**
  * # Room lobby
  * The page: it only composes the sections and holds no state. Header (the top bar and the code strip), then, by `model.mode`,
