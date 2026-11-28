@@ -71,9 +71,10 @@ export function deckMetaLine(option: DeckOption, pool: CardPool): string {
  */
 export function deckMetaCandidates(option: DeckOption, pool: CardPool): readonly string[] {
   const stats = deckStatsOf(option.deck, pool);
-  const status = deckStatusOf(option).text.toLowerCase();
+  const lang = artLanguageNow();
+  const status = deckStatusOf(option, lang).text.toLowerCase();
   const deck: Deck = option.deck;
-  const count = deckCountText(stats);
+  const count = deckCountText(stats, lang);
   if (deck.source.kind === "precon") {
     // The title already says hero and aspect; keep only what the printed name adds ("Core Set Starter Deck"),
     // so the count and legality always fit on the one line this reads on.
