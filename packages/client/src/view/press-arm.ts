@@ -173,3 +173,14 @@ export class TapTracker {
     this.#gestures.delete(pointerId);
   }
 }
+
+/**
+ * Whether a DOM event is the mouse press a touch screen sends after a touch (Chrome's `sourceCapabilities.firesTouchEvents`). When a
+ * panel took the touch, the canvas below only hears this echo, and a control the tap just opened (a sheet's button under the
+ * finger) must not take it as a press of its own.
+ */
+export function isTouchEcho(event: unknown): boolean {
+  const e = event as { type?: string; sourceCapabilities?: { firesTouchEvents?: boolean } } | null | undefined;
+  // A touch event itself also says it fires touch events: only the mouse events it sends afterwards are echoes.
+  return e?.type?.startsWith("mouse") === true && e.sourceCapabilities?.firesTouchEvents === true;
+}

@@ -293,6 +293,7 @@ export function forwardMouseMoves(
  */
 export const GUARDED_EVENTS = [
   "mc-activate",
+  "mc-music",
   "mc-inspect",
   "mc-slide",
   "mc-step",
@@ -313,6 +314,10 @@ export const GUARDED_EVENTS = [
   "mc-scenario-select",
   "mc-past-games",
   "mc-trophy-room",
+  "mc-player-stats",
+  "mc-pause",
+  "mc-title",
+  "mc-decks",
 ] as const;
 
 /** The guarded events that say the caret went into or left a field: its leaving (`focused: false`) always gets through, so the scene never keeps a stale "typing" flag. */

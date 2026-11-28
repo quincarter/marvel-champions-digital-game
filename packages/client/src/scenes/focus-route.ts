@@ -283,7 +283,8 @@ export class FocusRoute {
       if (!this.#ring || this.#focus === null) return;
       // A chrome button can leave the route (the pad toast covers the bar for a moment), or move a frame after a
       // redraw (its scene follows the slot in its own update): the ring is drawn again for either.
-      if (CHROME_STOPS.has(this.#focus)) {
+      // A screen that draws these buttons itself (the Title) has them as its own stops: those follow like any other.
+      if (CHROME_STOPS.has(this.#focus) && !this.#ownStops.has(this.#focus)) {
         // The theme button stays drawn while the row is hidden (it floats alone): it answers for itself, the bug for
         // itself, and the note for the rest of the row.
         const shown =

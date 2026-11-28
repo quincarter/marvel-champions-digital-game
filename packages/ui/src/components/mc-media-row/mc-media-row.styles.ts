@@ -16,6 +16,10 @@ export const McMediaRowStyles = css`
     cursor: default;
     pointer-events: none;
   }
+  /* The picture takes the pointer again, so a mouse over it can open the card popover (its taps still reach the row's own press target). */
+  :host([look="deck"]) .art mc-picture-tile {
+    pointer-events: auto;
+  }
   .row {
     position: relative;
     display: flex;
