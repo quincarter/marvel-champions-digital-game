@@ -201,6 +201,12 @@ export interface DeckRowModel {
   readonly seatLabel: string;
   /** Why this deck cannot be seated now, or null. */
   readonly disabled: string | null;
+  /** Added by `mc-hero-decks-sheet`: the verdict's kind; left out, `ok` when `legal`, else `blocked`. */
+  readonly status?: "ok" | "warning" | "blocked" | "locked";
+  /** Added: the verdict's leading mark, already translated (`seats.lockedMark` for a locked deck); left out, ✓ ! or ✕ by `status`. */
+  readonly mark?: string;
+  /** Added: the hero's identity card, which the picture's hover popover and Inspect show; left out, none. */
+  readonly cardId?: string | null;
 }
 
 export interface DecksSheetModel {
