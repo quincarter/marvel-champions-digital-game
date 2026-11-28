@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { hook, type Rect } from "./wave6-helpers-b.js";
 
 /**
@@ -30,19 +30,19 @@ test("the difficulty, the modular picks and the first player change the draft th
   test.setTimeout(90_000);
   const errors = trackPageErrors(page);
   await open(page);
-  expect(await hook<string>(page, HOOK, "difficulty")).toBe("standard");
-  await pressHookStop(page, HOOK, "difficulty:expert");
-  await waitFor(
-    async () => ((await hook<string>(page, HOOK, "difficulty")) === "expert" ? true : null),
-    "expert",
-    5000,
-  );
-
+  // The seat chips first: on a phone Expert adds a row, which pushes them down the page.
   expect(await hook<number | null>(page, HOOK, "firstPlayer")).toBe(0);
   await pressHookStop(page, HOOK, "first-player:1");
   await waitFor(
     async () => ((await hook<number | null>(page, HOOK, "firstPlayer")) === 1 ? true : null),
     "seat 2 first",
+    5000,
+  );
+  expect(await hook<string>(page, HOOK, "difficulty")).toBe("standard");
+  await pressHookStop(page, HOOK, "difficulty:expert");
+  await waitFor(
+    async () => ((await hook<string>(page, HOOK, "difficulty")) === "expert" ? true : null),
+    "expert",
     5000,
   );
   expect(errors).toEqual([]);
@@ -101,7 +101,6 @@ test("a swipe of the page that lifts on a control presses nothing", async ({ pag
     difficulty: await hook<string>(page, HOOK, "difficulty"),
     picks: await hook<string[]>(page, HOOK, "picks"),
     first: await hook<number | null>(page, HOOK, "firstPlayer"),
-    scenes: await activeScenes(page),
   };
   const cdp = await page.context().newCDPSession(page);
   const swipe = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
@@ -124,5 +123,6 @@ test("a swipe of the page that lifts on a control presses nothing", async ({ pag
   expect(await hook<string>(page, HOOK, "difficulty")).toBe(before.difficulty);
   expect(await hook<string[]>(page, HOOK, "picks")).toEqual(before.picks);
   expect(await hook<number | null>(page, HOOK, "firstPlayer")).toBe(before.first);
-  expect(await activeScenes(page)).toEqual(before.scenes);
+  // Still on Set up the table: the Deal button was not pressed.
+  expect(await stopOf(page, "deal-it-out")).not.toBeNull();
 });
