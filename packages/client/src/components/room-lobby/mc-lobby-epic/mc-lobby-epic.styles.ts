@@ -42,14 +42,4 @@ export const McLobbyEpicStyles = css`
     flex-direction: column;
     gap: 12px;
   }
-  .people {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .person {
-    margin: 0 4px;
-    font-size: 13px;
-    overflow-wrap: anywhere;
-  }
 `;

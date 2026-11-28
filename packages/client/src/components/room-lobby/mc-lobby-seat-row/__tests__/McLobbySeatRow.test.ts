@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import "@mc/ui";
+import type { LitElement } from "lit";
 import { afterEach, describe, expect, it } from "vitest";
 import "../mc-lobby-seat-row.js";
 import type { McLobbySeatRow } from "../McLobbySeatRow.js";
@@ -67,10 +68,15 @@ async function mount(model: LobbySeatRowModel): Promise<McLobbySeatRow> {
   return element;
 }
 
+/** Every lobby button in the row, through the nested button rows, in document order. */
+const lobbyButtons = (root: ParentNode): LitElement[] =>
+  [...root.querySelectorAll("*")].flatMap((node) => [
+    ...(node.localName === "mc-lobby-button" ? [node as LitElement] : []),
+    ...(node.shadowRoot ? lobbyButtons(node.shadowRoot) : []),
+  ]);
+
 const stops = (element: McLobbySeatRow): string[] =>
-  [...element.shadowRoot!.querySelectorAll("mc-lobby-button")].map(
-    (b) => b.getAttribute("stop") ?? (b as unknown as { stop: string }).stop,
-  );
+  lobbyButtons(element.shadowRoot!).map((b) => (b as unknown as { stop: string }).stop);
 
 describe("mc-lobby-seat-row", () => {
   it("shows every part of a full seat, with every button on its own stop", async () => {
@@ -126,10 +132,13 @@ describe("mc-lobby-seat-row", () => {
   it("raises each button's command", async () => {
     const element = await mount(ROW);
     const seen: unknown[] = [];
-    element.addEventListener("mc-pressed", (event) => seen.push((event as CustomEvent).detail.action));
-    const buttons = [...element.shadowRoot!.querySelectorAll("mc-lobby-button")];
+    const pressed: unknown[] = [];
+    element.addEventListener("mc-room-lobby", (event) => seen.push(event.detail));
+    document.body.addEventListener("mc-pressed", (event) => pressed.push(event));
+    const buttons = lobbyButtons(element.shadowRoot!);
     await Promise.all(buttons.map((b) => b.updateComplete));
     for (const b of buttons) b.shadowRoot!.querySelector<HTMLElement>("mc-button")!.click();
+    expect(pressed).toEqual([]);
     expect(seen).toHaveLength(8);
     expect(seen[0]).toEqual({ type: "seat", seat: "s1", action: "leave" });
     expect(seen[6]).toEqual({ type: "seat-answer", seat: "s1", participant: "p2", answer: "approve" });

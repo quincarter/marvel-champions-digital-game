@@ -4,6 +4,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { FeatureRelay } from "../../../dom/feature-relay.js";
 import "../mc-lobby-button/mc-lobby-button.js";
 import "../mc-lobby-button-row/mc-lobby-button-row.js";
+import "../mc-lobby-people/mc-lobby-people.js";
 import "../mc-lobby-team/mc-lobby-team.js";
 import { LOBBY_EVENT, type LobbyCompetitiveModel, type LobbyEvent } from "../room-lobby.types.js";
 import { LOBBY_STOP } from "../room-lobby.stops.js";
@@ -64,10 +65,7 @@ export class McLobbyCompetitive extends LitElement {
           (team) => html`<mc-lobby-team .model=${team}></mc-lobby-team>`,
         )}
       </div>
-      <div class="people">
-        <mc-section-heading label=${comp.people.heading}></mc-section-heading>
-        ${comp.people.rows.map((person) => html`<p class="person">${person.line}</p>`)}
-      </div>
+      <mc-lobby-people .model=${comp.people}></mc-lobby-people>
     </div>`;
   }
 }

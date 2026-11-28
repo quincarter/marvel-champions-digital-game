@@ -1,4 +1,5 @@
 import { ThemeStyles } from "@mc/ui";
+import "../mc-lobby-seat-row/mc-lobby-seat-row.js";
 import { html, LitElement, nothing, type PropertyDeclarations, type PropertyValues } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { FeatureRelay } from "../../../dom/feature-relay.js";

@@ -6,6 +6,7 @@ import { CardWatchController } from "../card-watch.controller.js";
 import { McLobbySeatRowStyles } from "./mc-lobby-seat-row.styles.js";
 import type { LobbySeatRowModel } from "./mc-lobby-seat-row.types.js";
 import "../mc-lobby-button/mc-lobby-button.js";
+import "../mc-lobby-button-row/mc-lobby-button-row.js";
 
 /**
  * # Lobby seat row
@@ -128,10 +129,7 @@ export class McLobbySeatRow extends LitElement {
       (request) =>
         html`<div class="request">
           <p class="request-text">${request.text}</p>
-          <div class="pair">
-            <mc-lobby-button .model=${request.approve}></mc-lobby-button>
-            <mc-lobby-button .model=${request.deny}></mc-lobby-button>
-          </div>
+          <mc-lobby-button-row .row=${[request.approve, request.deny]}></mc-lobby-button-row>
         </div>`,
     );
   }

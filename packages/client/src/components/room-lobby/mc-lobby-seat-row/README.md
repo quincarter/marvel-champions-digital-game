@@ -15,6 +15,6 @@ html`<mc-lobby-seat-row .model=${row}></mc-lobby-seat-row>`;
 | `model`  | `LobbySeatRowModel \| null` | the hero picture is a leased `PictureSource`; every button is a full `LobbyButtonModel` |
 
 Events: each button raises `mc-pressed` with its command (`seat`, `seat-play`, `seat-give`, `seat-answer`, `seat-deck`,
-`mod-store`, or `blocked`); the owning section's `FeatureRelay` turns it into `mc-room-lobby`. The picture raises
+`mod-store`, or `blocked`); this element's own `FeatureRelay` turns it into the one `mc-room-lobby` event. The picture raises
 `mc-card-hover`, `mc-card-hover-end` and `mc-card-inspect` (`watchCard`). Stops are the model's (`LOBBY_STOP.seat(id)` and
 the rest). Needs `mc-picture-tile` (`import "@mc/ui"`).

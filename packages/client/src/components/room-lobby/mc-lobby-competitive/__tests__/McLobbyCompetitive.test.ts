@@ -63,7 +63,7 @@ describe("mc-lobby-competitive", () => {
     expect(scroller.dataset.key).toBe("list:seats");
     expect(scroller.querySelector(".detail")!.textContent).toBe("Two sides, one sealed scenario each.");
     expect(scroller.querySelectorAll("mc-lobby-team")).toHaveLength(2);
-    expect(scroller.querySelector(".person")!.textContent).toBe("Ana (you) · Host");
+    expect(scroller.querySelector("mc-lobby-people")!.model!.rows[0]!.line).toBe("Ana (you) · Host");
   });
 
   it("leaves the size buttons and the result out when the model has none", async () => {

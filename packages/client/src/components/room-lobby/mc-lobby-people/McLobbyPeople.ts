@@ -1,6 +1,7 @@
 import { html, LitElement, nothing, svg, type PropertyDeclarations } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import type { SvgOp } from "@mc/ui";
+import type { PlayPlatform } from "../../../platform/play-platform.js";
 import { playPlatformMarkOf } from "../../../view/play-platform-mark.js";
 import { PLATFORM_ICON_VIEWBOX, playPlatformSvgOps } from "../../../view/play-platform-svg.js";
 import { McLobbyPeopleStyles } from "./mc-lobby-people.styles.js";
@@ -47,7 +48,7 @@ export class McLobbyPeople extends LitElement {
 
   #device(person: LobbyPersonModel) {
     if (!person.device) return nothing;
-    const mark = person.platform ? playPlatformMarkOf({ platform: person.platform }) : null;
+    const mark = person.platform ? playPlatformMarkOf({ platform: person.platform as PlayPlatform }) : null;
     return html`<div class="device">
       ${
         mark

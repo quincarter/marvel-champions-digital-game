@@ -134,11 +134,6 @@ export const McLobbySeatRowStyles = css`
     flex-direction: column;
     gap: 6px;
   }
-  .pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-  }
   .problem {
     box-sizing: border-box;
     display: flex;

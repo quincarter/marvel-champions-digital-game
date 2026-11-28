@@ -36,7 +36,6 @@ export class McLobbySeats extends LitElement {
 
   declare model: LobbySeatsModel | null;
 
-
   constructor() {
     super();
     this.model = null;

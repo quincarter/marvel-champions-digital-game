@@ -89,11 +89,9 @@ describe("mc-lobby-epic", () => {
   it("lists the people one line each under the heading", async () => {
     const element = await mount(EPIC);
     const root = element.shadowRoot!;
-    expect(root.querySelector("mc-section-heading")!.getAttribute("label")).toBe("People");
-    expect([...root.querySelectorAll(".person")].map((p) => p.textContent)).toEqual([
-      "Ana (you) · Host",
-      "Bo · Player · Seat 1",
-    ]);
+    const people = root.querySelector("mc-lobby-people")!;
+    expect(people.model!.heading).toBe("People");
+    expect(people.model!.rows.map((p) => p.line)).toEqual(["Ana (you) · Host", "Bo · Player · Seat 1"]);
   });
 
   it("raises the organizer's command as one mc-room-lobby event", async () => {

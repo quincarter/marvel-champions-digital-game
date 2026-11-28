@@ -3,6 +3,7 @@ import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { FeatureRelay } from "../../../dom/feature-relay.js";
 import "../mc-lobby-button-row/mc-lobby-button-row.js";
+import "../mc-lobby-people/mc-lobby-people.js";
 import "../mc-lobby-epic-table/mc-lobby-epic-table.js";
 import { LOBBY_EVENT, type LobbyEpicModel, type LobbyEvent } from "../room-lobby.types.js";
 import { LOBBY_STOP } from "../room-lobby.stops.js";
@@ -63,10 +64,7 @@ export class McLobbyEpic extends LitElement {
           (table) => html`<mc-lobby-epic-table .model=${table}></mc-lobby-epic-table>`,
         )}
       </div>
-      <div class="people">
-        <mc-section-heading label=${epic.people.heading}></mc-section-heading>
-        ${epic.people.rows.map((person) => html`<p class="person">${person.line}</p>`)}
-      </div>
+      <mc-lobby-people .model=${epic.people}></mc-lobby-people>
     </div>`;
   }
 }

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import "@mc/ui";
+import type { LitElement } from "lit";
 import { afterEach, describe, expect, it } from "vitest";
 import "../mc-lobby-seat-count.js";
 import type { McLobbySeatCount } from "../McLobbySeatCount.js";
@@ -48,7 +49,7 @@ describe("mc-lobby-seat-count", () => {
 
   it("raises each button's command, and the reason of a button that is off", async () => {
     const element = await mount();
-    const [less, more] = [...element.shadowRoot!.querySelectorAll("mc-lobby-button")];
+    const [less, more] = [...element.shadowRoot!.querySelectorAll<LitElement>("mc-lobby-button")];
     await Promise.all([less!.updateComplete, more!.updateComplete]);
     const seen: unknown[] = [];
     element.addEventListener("mc-pressed", (event) => seen.push((event as CustomEvent).detail.action));

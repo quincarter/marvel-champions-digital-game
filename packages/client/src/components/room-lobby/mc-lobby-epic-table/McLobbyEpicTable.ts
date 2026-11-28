@@ -3,6 +3,7 @@ import { html, LitElement, nothing, type PropertyDeclarations, type PropertyValu
 import { repeat } from "lit/directives/repeat.js";
 import { FeatureRelay } from "../../../dom/feature-relay.js";
 import "../mc-lobby-button-row/mc-lobby-button-row.js";
+import "../mc-lobby-seat-row/mc-lobby-seat-row.js";
 import { LOBBY_EVENT, type LobbyEpicTableModel, type LobbyEvent } from "../room-lobby.types.js";
 import { McLobbyEpicTableStyles } from "./mc-lobby-epic-table.styles.js";
 
