@@ -4,6 +4,7 @@ import type { SeatsPageModel } from "../../../components/seats/seats.types.js";
 import "../../../components/seats/mc-hero-decks-sheet/mc-hero-decks-sheet.js";
 import "../../../components/seats/mc-seats-detail/mc-seats-detail.js";
 import "../../../components/seats/mc-seats-filters/mc-seats-filters.js";
+import "../../../components/seats/mc-seats-hints/mc-seats-hints.js";
 import "../../../components/seats/mc-seats-footer/mc-seats-footer.js";
 import "../../../components/seats/mc-seats-header/mc-seats-header.js";
 import "../../../components/seats/mc-seats-notice/mc-seats-notice.js";
@@ -64,6 +65,7 @@ export class McSeatsPage extends LitElement {
           ?compact=${!wide}
         ></mc-seats-table>
         <mc-seats-notice class="notice" .text=${page.notice ?? ""}></mc-seats-notice>
+        ${wide && page.hints ? html`<mc-seats-hints class="hints" .model=${page.hints}></mc-seats-hints>` : nothing}
         <mc-seats-filters class="filters" .model=${page.filters}></mc-seats-filters>
         <mc-seats-roster class="roster" .model=${page.roster}></mc-seats-roster>
       </main>

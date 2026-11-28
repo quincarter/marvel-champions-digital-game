@@ -3,7 +3,7 @@
  * together. It reads state and returns data; the scene sets it on the page and sorts out the focus route.
  */
 import type Phaser from "phaser";
-import type { SeatsPageModel } from "../../components/seats/seats.types.js";
+import type { SeatsHintsModel, SeatsPageModel } from "../../components/seats/seats.types.js";
 import type { ControlGlyphs } from "../../dom/control-glyphs.js";
 import { t, tPlural } from "../../i18n/translate.js";
 import { earnedPromoSets } from "../../progression/progression.js";
@@ -39,6 +39,8 @@ export interface PageInput {
   readonly typed: string | null;
   /** The focused shelf's paging glyphs (a pad only). */
   readonly paging: Pick<SeatsPageModel["roster"], "pagingHintShelf" | "pagingGlyphs">;
+  /** The wide layout heading and key hints, asked for after the glyphs are reset. */
+  readonly hints: () => SeatsHintsModel;
 }
 
 export interface PageBuild {
@@ -48,6 +50,8 @@ export interface PageBuild {
   readonly insights: SeatInsights;
   readonly conflicts: number;
   readonly wide: boolean;
+  /** Where focus starts on arrival: the topmost hero tile on screen (a recommended pick when that shelf leads). */
+  readonly firstTileKey: string | null;
 }
 
 /** The header bar's words fitted to the width: the step line gives way to its shorter forms, the title clears the dark mode tab. */
@@ -156,8 +160,15 @@ export function buildSeatsPage(input: PageInput): PageBuild {
     footer: playGlyph ? { ...footer, playGlyph } : footer,
     decks: group ? decksSheetOf(book, group, active, leases) : null,
     wide,
+    hints: wide ? input.hints() : null,
     notice: conflicts > 0 ? `${conflictNoticeOf(conflicts)} ▸` : null,
   };
   glyphs.settled();
-  return { page, keys, shelfOfKey, insights, conflicts, wide };
+  const firstTileKey =
+    keys.recIds[0] !== undefined
+      ? `hero-rec:${keys.recIds[0]}`
+      : keys.cardIds[0] !== undefined
+        ? `hero:${keys.cardIds[0]}`
+        : null;
+  return { page, keys, shelfOfKey, insights, conflicts, wide, firstTileKey };
 }

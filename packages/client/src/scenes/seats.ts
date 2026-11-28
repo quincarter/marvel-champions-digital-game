@@ -16,7 +16,7 @@ import type { CardId } from "@mc/content";
 import { PackLeases } from "../art/pack-art.js";
 import "../views/seats/mc-seats-page/mc-seats-page.js";
 import type { McSeatsRoster } from "../components/seats/mc-seats-roster/McSeatsRoster.js";
-import type { SeatsPageModel } from "../components/seats/seats.types.js";
+import type { SeatsHintsModel, SeatsPageModel } from "../components/seats/seats.types.js";
 import { CardEvents } from "../dom/card-events.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { mountElement, type MountedElement } from "../dom/element-region.js";
@@ -40,11 +40,12 @@ import { SCENES } from "./keys.js";
 import { pagingGlyphsOf } from "./seats/seats-paging.js";
 import { installSeatsDebug } from "./seats/seats-debug.js";
 import { unresolvedConflictsOf } from "./seats/seats-flow.js";
-import { deckIdOfStop, focusOrderOf, withInspect } from "./seats/seats-order.js";
+import { deckIdOfStop, focusOrderOf, sheetRoute, withInspect } from "./seats/seats-order.js";
 import { type RosterKeys } from "./seats/seats-roster-model.js";
 import { SeatsSearch } from "./seats/seats-search.js";
 import { goBack, goToTableSetup } from "./seats/seats-flow.js";
 import { tipZoneOf, watchTipLeave, wirePage, type SearchFieldLike } from "./seats/seats-listeners.js";
+import { hintsModelOf } from "./seats/seats-hints-model.js";
 import { FilterAreas } from "./seats/seats-filter-areas.js";
 import { SeatsActions } from "./seats/seats-actions.js";
 import { buildSeatsPage } from "./seats/seats-page-model.js";
@@ -102,7 +103,7 @@ export class SeatsScene extends Phaser.Scene {
           () => this.#rebuild(),
           () => this.#renderPage(),
         ),
-      focusSearchField: () => void this.#focusSearchField(),
+      focusSearchField: () => void this.#focusAfterRender(() => "hero-search"),
     });
   }
 
@@ -232,7 +233,7 @@ export class SeatsScene extends Phaser.Scene {
     this.#rebuild();
     // Arriving by pad at blank seats, focus is on the topmost hero rather than Back. A mouse or touch player gets no
     // ring (it would read as a preselection), and a return trip (Deck check, Table setup) keeps its own place.
-    if (this.#st.draft.seats.length === 0 && padInputTracked()) void this.#focusFirstTile();
+    if (this.#st.draft.seats.length === 0 && padInputTracked()) void this.#focusAfterRender(() => this.#firstTileKey);
     fadeScreenIn(this);
     void refreshUnlocks().then((changed) => {
       if (changed && this.sys.isActive()) this.#rebuild();
@@ -263,11 +264,6 @@ export class SeatsScene extends Phaser.Scene {
 
   #scroller(): HTMLElement | null {
     return this.#section<McSeatsRoster>("mc-seats-roster")?.scroller ?? null;
-  }
-
-  async #focusSearchField(): Promise<void> {
-    await this.#renderPage();
-    this.#route?.focusKey("hero-search");
   }
 
   #goToTableSetup(): void {
@@ -347,16 +343,27 @@ export class SeatsScene extends Phaser.Scene {
     const page = this.#page;
     const mounted = this.#mounted;
     if (!page || !mounted || !this.#alive) return;
-    const options = this.#st.book.deckOptions();
+    const { book, draft } = this.#st;
     const detail = detailModelOf(
-      this.#st.draft,
-      options,
-      this.#st.book.insights(options, this.#st.book.seating(options)),
+      draft,
+      book.deckOptions(),
+      book.insightsNow(),
       this.#st.hoverDeckId ?? this.#st.focusDeckId,
     );
     const roster = { ...page.roster, ...this.#pagingOf() };
-    this.#page = { ...page, detail, roster };
+    this.#page = { ...page, detail, roster, hints: page.wide ? this.#hintsNow() : null };
     mounted.element.model = this.#page;
+  }
+
+  /** The heading and key hints: the Y word follows where focus is now. */
+  #hintsNow(): SeatsHintsModel {
+    return hintsModelOf({
+      glyphs: this.#glyphs,
+      activeSeat: this.#st.draft.activeSeatIndex,
+      focused: this.#route?.focused ?? null,
+      areas: this.#fa.areas,
+      padMode: this.#fa.pad.padMode,
+    });
   }
 
   /** LT before and RT after the focused shelf's row, on a pad only. */
@@ -404,16 +411,11 @@ export class SeatsScene extends Phaser.Scene {
       folded,
       typed: this.#searchField()?.text ?? null,
       paging: this.#pagingOf(),
+      hints: () => this.#hintsNow(),
     });
     this.#page = built.page;
     this.#roster = built;
-    const { keys } = built;
-    this.#firstTileKey =
-      keys.recIds[0] !== undefined
-        ? `hero-rec:${keys.recIds[0]}`
-        : keys.cardIds[0] !== undefined
-          ? `hero:${keys.cardIds[0]}`
-          : null;
+    this.#firstTileKey = built.firstTileKey;
     element.model = built.page;
     const stamp = ++this.#built;
     void renderDeep(element).then(() => {
@@ -451,9 +453,9 @@ export class SeatsScene extends Phaser.Scene {
       const sheet = this.#section("mc-hero-decks-sheet");
       if (sheet) {
         this.#heldFocus ??= this.#route?.focused ?? null;
-        const stops = focusStopsOf(sheet, rectOf);
+        const { order, stops } = sheetRoute(sheet, rectOf);
         this.#stops = stops;
-        this.#route?.set([...stops.keys()].filter((key) => key.startsWith("deck:")).concat("back"), stops);
+        this.#route?.set(order, stops);
         return;
       }
     }
@@ -489,8 +491,10 @@ export class SeatsScene extends Phaser.Scene {
     }
   }
 
-  async #focusFirstTile(): Promise<void> {
+  /** Focus goes to the key once the page has drawn its stops. */
+  async #focusAfterRender(key: () => string | null): Promise<void> {
     await this.#renderPage();
-    if (this.#firstTileKey !== null) this.#route?.focusKey(this.#firstTileKey);
+    const target = key();
+    if (target !== null) this.#route?.focusKey(target);
   }
 }

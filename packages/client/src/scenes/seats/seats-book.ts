@@ -167,6 +167,12 @@ export class SeatsBook {
     });
   }
 
+  /** The insights for the table as it is now (the detail panel follows the pointer and focus without a full compose). */
+  insightsNow(): SeatInsights {
+    const options = this.deckOptions();
+    return this.insights(options, this.seating(options));
+  }
+
   /** The decks Random may seat: the roster's own checks, the chips and the search, the seat's own hero left out. */
   randomCandidates(
     deckOptions: readonly DeckOption[],

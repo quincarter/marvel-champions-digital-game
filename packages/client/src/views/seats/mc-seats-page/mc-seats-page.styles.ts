@@ -41,6 +41,7 @@ export const McSeatsPageStyles = [
     }
     .table,
     .notice,
+    .hints,
     .filters {
       flex: none;
     }

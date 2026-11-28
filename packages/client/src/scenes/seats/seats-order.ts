@@ -2,6 +2,8 @@
  * The pad and keyboard route of Take your seats: the order its focus stops are walked in (the stop keys specs and the pad
  * route have always used), and the filters and the list as two areas of it (`view/focus-areas.ts`).
  */
+import { focusStopsOf } from "../../dom/element-stops.js";
+import type { Rect } from "../../view/layout.js";
 import type { FocusStop } from "../focus-route.js";
 import type { FocusAreas } from "../../view/focus-areas.js";
 import { seatsFocusOrder } from "../../view/screen-focus.js";
@@ -79,4 +81,16 @@ export function withInspect(
     stops.set(key, { ...stop, inspect: /^hero(-rec)?:/.test(key) ? () => inspectTile(key) : jump });
   }
   return stops;
+}
+
+/**
+ * The route while the Pick a deck sheet is up: its rows and its Back, and nothing under it. The page also has a header
+ * Back (`back`), so the stops are read from the sheet alone: two stops never share a key.
+ */
+export function sheetRoute(
+  sheet: HTMLElement,
+  rectOf: (target: Element) => Rect,
+): { readonly order: readonly string[]; readonly stops: Map<string, FocusStop> } {
+  const stops = focusStopsOf(sheet, rectOf);
+  return { order: [...stops.keys()].filter((key) => key.startsWith("deck:")).concat("back"), stops };
 }

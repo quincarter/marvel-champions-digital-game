@@ -281,6 +281,13 @@ export interface SeatsFooterModel {
   readonly playGlyph?: ControlGlyph;
 }
 
+/** The wide layout's row above the filters: "Heroes, seat 2 of 4" and, while a keyboard or pad is in use, the keys that pick the seat, clear it and move between the filters and the list. */
+export interface SeatsHintsModel {
+  readonly heading: string;
+  /** Each key or button with its word; only hints with a glyph are shown (a mouse or touch has no key to name). */
+  readonly hints: readonly { readonly word: string; readonly glyph: ControlGlyph | null }[];
+}
+
 /** What the page shows; the scene rebuilds it from its state and sets `page.model`. */
 export interface SeatsPageModel {
   readonly header: SeatsHeaderModel;
@@ -299,4 +306,6 @@ export interface SeatsPageModel {
   readonly wide?: boolean;
   /** "2 cards can't be played with these heroes ▸" while a same-name clash is unanswered (stop `conflict-notice`), or null. */
   readonly notice?: string | null;
+  /** The heading and key hints row, wide layouts only; null on a narrow one. */
+  readonly hints?: SeatsHintsModel | null;
 }
