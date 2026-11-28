@@ -31,4 +31,15 @@ describe("mc-deck-check-header", () => {
     expect(heard).toHaveBeenCalledWith({ type: "back" });
     el.remove();
   });
+
+  it("hangs the Cancel glyph on Back when it is given one, and slides Back's word over to make room", async () => {
+    const el = document.createElement("mc-deck-check-header");
+    document.body.append(el);
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector<HTMLElement & { glyph: unknown }>("mc-glyph-hint")!.glyph).toBeUndefined();
+    el.backGlyph = { specs: [], width: 40, height: 20, ground: "ink", openness: 1 } as never;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector<HTMLElement>(".ctl")!.style.getPropertyValue("--mc-label-shift")).toBe("24px");
+    el.remove();
+  });
 });

@@ -154,6 +154,7 @@ export class McDeckCheckPage extends DeckCheckElement {
   #narrow(model: DeckCheckPageModel) {
     return html`<div class="narrow">
       <div class="column">
+        ${model.tabsGlyph ? html`<div class="tab-hint"><mc-glyph-hint .glyph=${model.tabsGlyph}></mc-glyph-hint></div>` : nothing}
         <mc-tab-rail
           .tabs=${model.tabs}
           .selected=${this.tab}
@@ -179,6 +180,7 @@ export class McDeckCheckPage extends DeckCheckElement {
         .badgeText=${model.header.badgeText}
         .badgeTone=${model.header.badgeTone}
         .meta=${model.header.meta}
+        .backGlyph=${model.header.backGlyph}
       ></mc-deck-check-header>
       ${this.size === "wide" ? this.#wide(model) : this.#narrow(model)}
       ${

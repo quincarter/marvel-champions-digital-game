@@ -3,7 +3,7 @@
  * from `view/deck-stats.ts` and the engine's own legality verdict (`view/deck-list-model.ts`), and every word through the
  * i18n layer. The scene calls this and sets the result on the page; the page and its parts draw it and compute nothing.
  */
-import type { BarChartBar, CardCellModel, PictureSource, StatTile } from "@mc/ui";
+import type { BarChartBar, CardCellModel, ControlGlyph, PictureSource, StatTile } from "@mc/ui";
 import type { CoreAspect, Deck } from "@mc/content";
 import { POOL_VERSION, currentCardsById, currentDeps, currentPool } from "../content/pool.js";
 import { artFor, artLanguageNow, type ArtSource } from "../art/art-source.js";
@@ -71,6 +71,8 @@ export interface DeckCheckModelInput {
   readonly backLabel: string;
   readonly cardScale: number;
   readonly desktop: boolean;
+  readonly backGlyph: ControlGlyph | undefined;
+  readonly tabsGlyph: ControlGlyph | undefined;
 }
 
 export interface DeckCheckModelResult {
@@ -123,6 +125,7 @@ export function deckCheckPageModel(input: DeckCheckModelInput): DeckCheckModelRe
         badgeText: verdictWords,
         badgeTone: status.tone,
         meta: "",
+        backGlyph: input.backGlyph,
       }
     : {
         backLabel: input.backLabel,
@@ -130,6 +133,7 @@ export function deckCheckPageModel(input: DeckCheckModelInput): DeckCheckModelRe
         badgeText: "",
         badgeTone: status.tone,
         meta: input.inFlow ? "3/4" : verdictWords,
+        backGlyph: input.backGlyph,
       };
 
   const tips: Record<string, DeckCheckTipModel> = {};
@@ -223,6 +227,7 @@ export function deckCheckPageModel(input: DeckCheckModelInput): DeckCheckModelRe
 
   const model: DeckCheckPageModel = {
     header,
+    tabsGlyph: input.tabsGlyph,
     rail: {
       aspectHeading: t("deckCheck.aspect"),
       aspects,

@@ -43,6 +43,7 @@ import { t } from "../i18n/translate.js";
 import { mountElement, type MountedElement } from "../dom/element-region.js";
 import { bindStopFocus, focusStopsOf } from "../dom/element-stops.js";
 import { CardEvents } from "../dom/card-events.js";
+import { ControlGlyphs } from "../dom/control-glyphs.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { renderNow } from "../dom/dom-region.js";
 import { isDesktopType } from "../ui/desktop-type.js";
@@ -69,6 +70,9 @@ export interface DeckCheckSceneData {
 type Page = MountedElement<HTMLElementTagNameMap["mc-deck-check-page"]>;
 
 const PAGE = 0.85;
+/** The heights the glyphs hung on Back and over the tab strip are drawn for. */
+const BACK_HEIGHT = 44;
+const TAB_HINT_HEIGHT = 14;
 /** Below this width a narrow layout is a phone's: its title sits under the dark mode tab. */
 const PHONE_WIDTH = 600;
 
@@ -112,6 +116,7 @@ export class DeckCheckScene extends Phaser.Scene {
   /** The cards list reads from its top on the next draw (a new filter, sort or tab). */
   #fromTop = false;
   #syncQueued = false;
+  #glyphs!: ControlGlyphs;
   /** The page's focus stops as last read: Escape's Back is the stop named `back`. */
   #stops = new Map<string, FocusStop>();
 
@@ -133,6 +138,7 @@ export class DeckCheckScene extends Phaser.Scene {
     this.#openTip = null;
     this.#page = null;
     this.#result = null;
+    this.#glyphs = new ControlGlyphs(this, () => this.#compose());
     this.scale.on("resize", this.#compose, this);
     // A pack picture that resolves later, or a card language switch (#390), reads the screen again.
     const artOff = onArtChange(() => {
@@ -154,6 +160,7 @@ export class DeckCheckScene extends Phaser.Scene {
       this.#unbind?.();
       this.#unbind = null;
       this.#leases.dispose();
+      this.#glyphs.dispose();
       this.#page = null;
     });
     this.#mount();
@@ -258,6 +265,7 @@ export class DeckCheckScene extends Phaser.Scene {
       case "tip":
         this.#openTip = this.#openTip === detail.aspect ? null : detail.aspect;
         if (this.#page) this.#page.element.openTip = this.#openTip;
+        this.#queueStops();
         return;
       case "tip-link":
         this.scene.launch(SCENES.aspectLesson, {
@@ -313,6 +321,7 @@ export class DeckCheckScene extends Phaser.Scene {
   #compose(): void {
     if (!this.#alive || !this.#page) return;
     this.#leases.begin();
+    this.#glyphs.reset();
     resetHoverCards(this);
     const { width, height } = this.scale.gameSize;
     const layout = deckCheckLayout({ width, height });
@@ -329,7 +338,13 @@ export class DeckCheckScene extends Phaser.Scene {
       backLabel: this.#returnTo.scene === SCENES.seats ? t("deckCheck.backToSeats") : t("scenario.back"),
       cardScale: cardSizeFactor(appSession().settings.cardSize),
       desktop: isDesktopType(),
+      // Back's B glyph, and LB / RB over the narrow tab strip, while a keyboard or pad is in use.
+      backGlyph: this.#glyphs.glyph("back", ["cancel"], "ink", BACK_HEIGHT),
+      tabsGlyph: layout.wide
+        ? undefined
+        : this.#glyphs.glyph("tabs", ["zonePrevious", "zoneNext"], "paper", TAB_HINT_HEIGHT),
     });
+    this.#glyphs.settled();
     const { region, element } = this.#page;
     region.setRect({ x: 0, y: 0, width, height });
     element.size = size;
@@ -370,15 +385,20 @@ export class DeckCheckScene extends Phaser.Scene {
     }
     this.#stops = stops;
     const wide = this.#wide();
+    // An open tip's "Aspects ▸" link is the first stop, as Seats has it.
+    const tipLink = wide && this.#openTip !== null && stops.has("aspect-tip-link") ? ["aspect-tip-link"] : [];
     this.#route.set(
-      deckCheckFocusOrder({
-        wide,
-        activeTab: this.#activeTab,
-        cardIds: this.#result.cardIds,
-        faceIds: this.#result.faceIds,
-        filterChipIds: wide ? TYPE_FILTERS.map((f) => f.id) : [],
-        showSort: wide || this.#activeTab === "cards",
-      }),
+      [
+        ...tipLink,
+        ...deckCheckFocusOrder({
+          wide,
+          activeTab: this.#activeTab,
+          cardIds: this.#result.cardIds,
+          faceIds: this.#result.faceIds,
+          filterChipIds: wide ? TYPE_FILTERS.map((f) => f.id) : [],
+          showSort: wide || this.#activeTab === "cards",
+        }),
+      ],
       stops,
     );
   }

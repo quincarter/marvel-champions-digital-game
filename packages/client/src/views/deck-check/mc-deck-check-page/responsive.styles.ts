@@ -47,6 +47,13 @@ export const DeckCheckResponsiveStyles = css`
     width: min(calc(100% - var(--pad) * 2), 640px);
     margin: var(--pad) auto 0;
   }
+  /* The LB / RB hint over the tab strip: a row of its own, only while a keyboard or pad is in use. */
+  .tab-hint {
+    position: relative;
+    flex: none;
+    height: 14px;
+    margin-bottom: -6px;
+  }
   .tab-body {
     flex: 1;
     min-height: 0;

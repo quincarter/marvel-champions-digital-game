@@ -1,5 +1,6 @@
 import { html, nothing, type PropertyDeclarations } from "lit";
-import { ThemeStyles } from "@mc/ui";
+import { styleMap } from "lit/directives/style-map.js";
+import { ThemeStyles, glyphLabelShift, type ControlGlyph } from "@mc/ui";
 import { DeckCheckElement } from "../shared/DeckCheckElement.js";
 import "../mc-deck-status-badge/mc-deck-status-badge.js";
 import { McDeckCheckHeaderStyles } from "./mc-deck-check-header.styles.js";
@@ -24,6 +25,7 @@ export class McDeckCheckHeader extends DeckCheckElement implements McDeckCheckHe
     badgeText: { type: String, attribute: "badge-text" },
     badgeTone: { type: String, attribute: "badge-tone" },
     meta: { type: String },
+    backGlyph: { attribute: false },
   };
 
   declare size: DeckCheckSize;
@@ -32,6 +34,8 @@ export class McDeckCheckHeader extends DeckCheckElement implements McDeckCheckHe
   declare badgeText: string;
   declare badgeTone: DeckStatusBadgeTone;
   declare meta: string;
+  /** The Cancel glyph on Back while a keyboard or pad is in use. */
+  declare backGlyph: ControlGlyph | undefined;
 
   constructor() {
     super();
@@ -41,18 +45,22 @@ export class McDeckCheckHeader extends DeckCheckElement implements McDeckCheckHe
     this.badgeText = "";
     this.badgeTone = "legal";
     this.meta = "";
+    this.backGlyph = undefined;
   }
 
   override render() {
-    return html`<mc-button
-        class="back"
-        kind="onInk"
-        display
-        data-stop="back"
-        data-key="back"
-        .label=${this.backLabel}
-        @mc-press=${() => this.emit({ type: "back" })}
-      ></mc-button>
+    return html`<div class="ctl" style=${styleMap({ "--mc-label-shift": `${glyphLabelShift(this.backGlyph)}px` })}>
+        <mc-button
+          class="back"
+          kind="onInk"
+          display
+          data-stop="back"
+          data-key="back"
+          .label=${this.backLabel}
+          @mc-press=${() => this.emit({ type: "back" })}
+        ></mc-button>
+        <mc-glyph-hint .glyph=${this.backGlyph}></mc-glyph-hint>
+      </div>
       <div class="title" title=${this.title}>${this.title}</div>
       ${
         this.size === "wide"

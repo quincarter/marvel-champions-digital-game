@@ -1,4 +1,4 @@
-import type { BarChartBar, StatTile, LineListGroup } from "@mc/ui";
+import type { BarChartBar, ControlGlyph, StatTile, LineListGroup } from "@mc/ui";
 import type { DeckCheckTab } from "../../../components/deck-check/shared/deck-check-events.types.js";
 import type { DeckCheckSize } from "../../../components/deck-check/mc-deck-check-header/mc-deck-check-header.types.js";
 import type { DeckStatusBadgeTone } from "../../../components/deck-check/mc-deck-status-badge/mc-deck-status-badge.types.js";
@@ -31,7 +31,10 @@ export interface DeckCheckPageModel {
     readonly badgeText: string;
     readonly badgeTone: DeckStatusBadgeTone;
     readonly meta: string;
+    readonly backGlyph?: ControlGlyph | undefined;
   };
+  /** The LB / RB glyph over the tab strip (narrow, a keyboard or pad in use). */
+  readonly tabsGlyph?: ControlGlyph | undefined;
   /** The wide layout's left rail. */
   readonly rail: {
     readonly aspectHeading: string;

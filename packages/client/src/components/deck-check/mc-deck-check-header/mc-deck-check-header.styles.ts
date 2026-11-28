@@ -11,10 +11,15 @@ export const McDeckCheckHeaderStyles = css`
     color: var(--mc-text-paper);
     container-type: inline-size;
   }
-  .back {
+  .ctl {
+    position: relative;
     flex: none;
     width: 90px;
     height: 44px;
+  }
+  .back {
+    width: 100%;
+    height: 100%;
   }
   .title {
     flex: 0 1 auto;

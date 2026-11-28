@@ -1,3 +1,4 @@
+import type { ControlGlyph } from "@mc/ui";
 import type { DeckStatusBadgeTone } from "../mc-deck-status-badge/mc-deck-status-badge.types.js";
 
 /** Which layout the screen is in: the three-column desktop, the one-column tablet, or the phone. */
@@ -14,4 +15,6 @@ export interface McDeckCheckHeaderProps {
   badgeTone: DeckStatusBadgeTone;
   /** The right-hand words on the narrow layouts ("40 CARDS · LEGAL", or "3/4" in the setup flow). */
   meta: string;
+  /** The Cancel glyph hung on Back (none on touch or a mouse). */
+  backGlyph: ControlGlyph | undefined;
 }
