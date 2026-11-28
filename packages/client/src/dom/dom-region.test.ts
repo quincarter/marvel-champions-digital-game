@@ -37,6 +37,7 @@ describe("regionTakesEvents", () => {
       "mc-field-focus",
       "mc-search-focus",
       "mc-tile-focus",
+      "mc-seats",
       "mc-setup",
       "mc-card-inspect",
     ]);

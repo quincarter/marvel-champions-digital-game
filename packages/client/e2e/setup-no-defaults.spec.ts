@@ -100,7 +100,7 @@ test("Scenario select and Take your seats start empty, focused on the topmost ti
   await padTap(page, PAD.a);
   await settle(page);
   // A hero with several decks asks which one first ("Pick a deck"): the first row seats.
-  if ((await activeScenes(page)).includes("HeroDecksSheet")) {
+  if (await hook(page, "__mcSeatsDebug", "decksOpen")) {
     await padTap(page, PAD.down);
     await padTap(page, PAD.a);
     await settle(page);
@@ -136,11 +136,11 @@ test("Spider-Man (Pick a deck) as the first pick: focus returns to his tile afte
   await showRing(page, "Seats");
   await padTap(page, PAD.a);
   await settle(page);
-  expect(await activeScenes(page)).toContain("HeroDecksSheet");
+  expect(await hook(page, "__mcSeatsDebug", "decksOpen")).toBe(true);
   await padTap(page, PAD.down);
   await padTap(page, PAD.a);
   await settle(page);
-  expect(await activeScenes(page)).not.toContain("HeroDecksSheet");
+  expect(await hook(page, "__mcSeatsDebug", "decksOpen")).toBe(false);
   expect(await buttonEnabled(page, "Seats", "play"), "the seat is filled").toBe(true);
   expect(await focusOf(page, "Seats"), "focus stays on the picked hero's tile").toBe(first);
   expect(errors).toEqual([]);

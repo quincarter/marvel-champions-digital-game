@@ -28,7 +28,7 @@ describe("the dark mode toggle", () => {
     for (const key of ["Decks", "ScenarioSelect", "GameOver", "RulesOverlay", "SetCardsOverlay"]) {
       expect(floatsOver(key)).toBe(true);
     }
-    for (const key of ["PauseOverlay", "InspectOverlay", "ChoiceOverlay", "UnlockConfirmOverlay", "HeroDecksSheet"]) {
+    for (const key of ["PauseOverlay", "InspectOverlay", "ChoiceOverlay", "UnlockConfirmOverlay"]) {
       expect(floatsOver(key)).toBe(false);
     }
   });
