@@ -25,6 +25,7 @@ import { TIP_ARROW, tipPlacement, tipWidthFor, type TipPlacement } from "./tip-p
  * @attr link-available - The link is live (a press raises `mc-tip-link`).
  * @attr link-stop - The link's focus stop key (`data-stop`).
  * @fires mc-tip-link - A tap, or Enter on its stop, on the live link.
+ * @fires mc-tip-hover - A mouse entered or left the plate itself: `detail.over`.
  * @fires mc-tip-close - A tap on the backdrop (anywhere that is not the plate).
  */
 export class McTipPlate extends LitElement {
@@ -109,6 +110,12 @@ export class McTipPlate extends LitElement {
       this.placement = next;
   }
 
+  /** A mouse resting on the plate (not the backdrop): the screen keeps the tip open while it does. */
+  #hover(event: PointerEvent, over: boolean): void {
+    if (event.pointerType !== "mouse") return;
+    this.dispatchEvent(new CustomEvent("mc-tip-hover", { detail: { over }, bubbles: true, composed: true }));
+  }
+
   #close = (): void => {
     this.dispatchEvent(new CustomEvent("mc-tip-close", { bubbles: true, composed: true }));
   };
@@ -134,7 +141,13 @@ export class McTipPlate extends LitElement {
         };
     const arrow = p && p.arrow ? { left: `${p.arrowX - p.panel.x - TIP_ARROW}px` } : null;
     return html`<div class="backdrop" aria-hidden="true" ${tapped(this.#close)}></div>
-      <div class="plate" data-above=${p?.above ? "true" : "false"} style=${styleMap(place)}>
+      <div
+        class="plate"
+        data-above=${p?.above ? "true" : "false"}
+        style=${styleMap(place)}
+        @pointerenter=${(e: PointerEvent) => this.#hover(e, true)}
+        @pointerleave=${(e: PointerEvent) => this.#hover(e, false)}
+      >
         ${arrow ? html`<span class="arrow" style=${styleMap(arrow)}></span>` : nothing}
         <h3 class="heading">${this.heading}</h3>
         <p class="tagline">${this.tagline}</p>

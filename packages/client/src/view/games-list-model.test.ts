@@ -19,18 +19,24 @@ const at = (y: number, mo: number, d: number, h = 12, mi = 0): number => new Dat
 
 describe("relativeTimeOf", () => {
   test("reads minutes, hours, yesterday, days and weeks", () => {
-    expect(relativeTimeOf(NOW - 20_000, NOW)).toBe("just now");
-    expect(relativeTimeOf(NOW - 5 * 60_000, NOW)).toBe("5 min ago");
-    expect(relativeTimeOf(at(2026, 9, 22, 12, 30), NOW)).toBe("3 h ago");
-    expect(relativeTimeOf(at(2026, 9, 21, 23, 0), NOW)).toBe("yesterday");
-    expect(relativeTimeOf(at(2026, 9, 21, 9, 0), NOW)).toBe("yesterday");
-    expect(relativeTimeOf(at(2026, 9, 19, 9, 0), NOW)).toBe("3 days ago");
-    expect(relativeTimeOf(at(2026, 9, 8, 9, 0), NOW)).toBe("2 wk ago");
+    expect(relativeTimeOf(NOW - 20_000, NOW, "en")).toBe("just now");
+    expect(relativeTimeOf(NOW - 5 * 60_000, NOW, "en")).toMatch(/^5 min\.? ago$/);
+    expect(relativeTimeOf(at(2026, 9, 22, 12, 30), NOW, "en")).toMatch(/^3 (hr\.|h) ago$/);
+    expect(relativeTimeOf(at(2026, 9, 21, 23, 0), NOW, "en")).toBe("yesterday");
+    expect(relativeTimeOf(at(2026, 9, 21, 9, 0), NOW, "en")).toBe("yesterday");
+    expect(relativeTimeOf(at(2026, 9, 19, 9, 0), NOW, "en")).toBe("3 days ago");
+    expect(relativeTimeOf(at(2026, 9, 8, 9, 0), NOW, "en")).toMatch(/^2 wk\.? ago$/);
+  });
+
+  test("reads in Spanish with the words of the language", () => {
+    expect(relativeTimeOf(NOW - 20_000, NOW, "es")).toBe("ahora mismo");
+    expect(relativeTimeOf(at(2026, 9, 21, 9, 0), NOW, "es")).toBe("ayer");
+    expect(relativeTimeOf(at(2026, 9, 19, 9, 0), NOW, "es")).toMatch(/^hace 3 d/);
   });
 
   test("an old game reads as a date, a clock set back reads as just now", () => {
     expect(relativeTimeOf(at(2026, 5, 1), NOW)).toMatch(/2026/);
-    expect(relativeTimeOf(NOW + 5 * 60_000, NOW)).toBe("just now");
+    expect(relativeTimeOf(NOW + 5 * 60_000, NOW, "en")).toBe("just now");
   });
 });
 
@@ -73,7 +79,11 @@ describe("gameRowsOf", () => {
       NOW,
     );
     expect(rows.map((row) => row.id)).toEqual(["new", "c", "old"]);
-    expect(rows[0]).toMatchObject({ title: "Rhino · Spider-Man", kicker: null, detail: "Round 4 · 1 h ago" });
+    expect(rows[0]).toMatchObject({
+      title: "Rhino · Spider-Man",
+      kicker: null,
+      detail: expect.stringMatching(/^Round 4 · 1 (hr.|h) ago$/),
+    });
     expect(rows[1]!.kicker).toBe("Campaign: The Rise of Red Skull");
   });
 

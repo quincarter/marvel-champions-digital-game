@@ -42,6 +42,8 @@ export const McStatsTabsStyles = [
       --chip-height: 44px;
       --chip-size: 16px;
       --chip-pad: 8px;
+      --chip-on-fill: var(--mc-fill-red);
+      --chip-on-color: var(--mc-text-paper);
     }
   `,
 ];

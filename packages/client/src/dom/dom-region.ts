@@ -317,6 +317,8 @@ export const GUARDED_EVENTS = [
   "mc-viewer",
   "mc-extras",
   "mc-rules",
+  "mc-mod-store",
+  "mc-deck-builder",
   "mc-past-games",
   "mc-trophy-room",
   "mc-player-stats",

@@ -10,6 +10,7 @@ export const McStatsControlsStyles = [
       gap: 10px;
     }
     mc-stepper {
+      --chip-on-fill: var(--mc-fill-red);
       --arrow-width: 78px;
     }
     :host([mode="phone"]) mc-stepper {

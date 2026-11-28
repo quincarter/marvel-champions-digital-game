@@ -12,6 +12,11 @@ import { artFor, type ArtSource } from "../art/art-source.js";
 import { heroFocusOf, heroSourceOf, villainSourceOf } from "../art/matchup-pictures.js";
 import type { PictureLeases } from "../dom/picture-leases.js";
 import { scenarioCardIdOf } from "../view/random-villain.js";
+import type Phaser from "phaser";
+import { onArtChange } from "../language-change.js";
+import { cardArt } from "../art/card-art.js";
+import { cardFaces } from "../art/card-face-baker.js";
+import { onBackfillProgress } from "../progression/stats-backfill.js";
 
 /**
  * The picture a stats row draws for a card. A hero identity shows its hero side: a separated identity (SP//dr Suit) has
@@ -72,4 +77,27 @@ export function playerStatsLooks(leases: PictureLeases): StatsLooks {
     hero,
     villain,
   };
+}
+
+/**
+ * Draws the page again when pictures arrive (a card scan, a baked face, a Mod Store hero's or villain's picture read from
+ * its pack a moment after the first ask, #966) once per batch, and when older games finish being filled in (#529:
+ * the Overview says how far it has got, and the stats reload when it ends). Returns the function that stops listening.
+ */
+export function watchStatsArt(scene: Phaser.Scene, on: { redraw: () => void; reload: () => void }): (() => void)[] {
+  let queued = false;
+  const redraw = (): void => {
+    if (queued) return;
+    queued = true;
+    scene.time.delayedCall(0, () => {
+      queued = false;
+      on.redraw();
+    });
+  };
+  return [
+    cardArt(scene).onArrived(redraw),
+    cardFaces(scene).onBaked(redraw),
+    onArtChange(redraw),
+    onBackfillProgress((progress) => (progress.running ? redraw() : on.reload())),
+  ];
 }

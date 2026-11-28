@@ -14,7 +14,7 @@ import { McChipStyles } from "./mc-chip.styles.js";
  * @attr link - Words only, no box.
  * @attr disabled - Dimmed; a press does nothing.
  * @attr data-stop - Its focus stop's key.
- * @cssprop --chip-fill - The box fill; --chip-color the words; --chip-line the border (a red Deal chip, an ink Reroll); --chip-pad the side padding.
+ * @cssprop --chip-fill - The box fill; --chip-color the words; --chip-line the border (a red Deal chip, an ink Reroll); --chip-pad the side padding; --chip-on-fill and --chip-on-color the chosen state (ink and paper).
  * @prop action - What a tap raises.
  * @fires mc-pressed - `PressDetail`.
  */

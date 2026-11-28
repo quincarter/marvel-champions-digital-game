@@ -43,6 +43,7 @@ export class McFilterBar extends LitElement {
     rowHeight: { type: Number, attribute: "row-height" },
     gap: { type: Number },
     rail: { type: Boolean, reflect: true },
+    stops: { type: Boolean },
   };
 
   declare chips: readonly FilterChip[];
@@ -53,6 +54,8 @@ export class McFilterBar extends LitElement {
   declare rowHeight: number;
   declare gap: number;
   declare rail: boolean;
+  /** Each chip is a focus stop (`data-stop` is its key): a screen's route walks them and presses one with `click()`. */
+  declare stops: boolean;
 
   constructor() {
     super();
@@ -64,6 +67,7 @@ export class McFilterBar extends LitElement {
     this.rowHeight = 0;
     this.gap = 8;
     this.rail = false;
+    this.stops = false;
   }
 
   /** The element that scrolls sideways (a `rail` bar), for a focus stop that must bring a chip into view. */
@@ -136,6 +140,7 @@ export class McFilterBar extends LitElement {
           const main = html`<mc-filter-chip
             class="chip"
             data-key=${key}
+            data-stop=${this.stops ? key : nothing}
             style=${`${chip.width !== undefined ? `width:${chip.width}px;` : ""}${cell}`}
             .label=${chip.label}
             .count=${chip.count}

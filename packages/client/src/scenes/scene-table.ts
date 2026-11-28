@@ -96,7 +96,6 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.gamesList]: () => import("./games-list.js").then((m) => m.GamesListOverlay),
   [SCENES.manualAdjust]: () => import("./manual-adjust.js").then((m) => m.ManualAdjustOverlay),
   [SCENES.endTurnConfirm]: () => import("./end-turn-confirm.js").then((m) => m.EndTurnConfirmOverlay),
-  [SCENES.modNotice]: () => import("./mod-notice.js").then((m) => m.ModNoticeOverlay),
   [SCENES.optionNotice]: () => import("./option-notice.js").then((m) => m.OptionNoticeOverlay),
   [SCENES.tutorialResumeConfirm]: () =>
     import("./tutorial-resume-confirm.js").then((m) => m.TutorialResumeConfirmOverlay),

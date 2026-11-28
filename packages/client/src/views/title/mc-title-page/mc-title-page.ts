@@ -91,6 +91,11 @@ export class McTitlePage extends LitElement {
             ></mc-title-notice-bar>`
           : html`<span></span>`
       }
+      ${
+        input.problem
+          ? html`<mc-title-status class="problem" .input=${input.problem}></mc-title-status>`
+          : html`<span></span>`
+      }
       <div class="body">
         ${
           phone
@@ -121,7 +126,6 @@ export class McTitlePage extends LitElement {
           </div>
         </main>
       </div>
-      ${input.problem ? html`<mc-title-status class="problem" .input=${input.problem}></mc-title-status>` : nothing}
     </div>`;
   }
 }
