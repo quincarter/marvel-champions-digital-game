@@ -57,8 +57,19 @@ export const McSwitchRowStyles = [
         inset 0 0 0 3px var(--mc-fill-ink),
         inset 0 0 0 4.5px var(--mc-line-paper);
     }
-    :host([unavailable]) {
+    :host([unavailable]),
+    :host([readonly]) {
       cursor: default;
+    }
+    /* On paper (the lobby's settings): ink words and an ink frame, the same switch. */
+    :host([onpaper]) {
+      color: var(--mc-text-ink);
+    }
+    :host([onpaper]) .switch {
+      outline-color: var(--mc-line-ink);
+    }
+    :host([onpaper][unavailable]) .switch {
+      color: var(--mc-text-ink);
     }
     :host([unavailable]) .text {
       opacity: 0.55;
