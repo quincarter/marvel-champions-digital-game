@@ -224,3 +224,8 @@ export type {
   SlideDetail,
   StepDetail,
 } from "./shared/popup.types.js";
+export { McSegmentBar } from "./components/mc-segment-bar/mc-segment-bar.js";
+export { McDonutChart } from "./components/mc-donut-chart/mc-donut-chart.js";
+export { McStepper } from "./components/controls/mc-stepper/mc-stepper.js";
+export type { SegmentBarPart } from "./components/mc-segment-bar/mc-segment-bar.types.js";
+export type { DonutSlice } from "./components/mc-donut-chart/mc-donut-chart.types.js";
