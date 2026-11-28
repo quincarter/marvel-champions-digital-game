@@ -129,10 +129,10 @@ test("an open aspect tip sits over the filter chips, inside the screen, and a ta
   expect(box.x + box.width).toBeLessThanOrEqual(1280);
   expect(box.y + box.height).toBeLessThanOrEqual(560);
   expect((await findText(page, "Crisis of Infinite Deadpools", "DeckCheck")).length).toBeGreaterThan(0);
-  // The plate sits over the filter chips: a tap on a chip beside it lands on the plate's backdrop, shuts the tip and
-  // presses no chip.
-  const chip = (await page.locator(`${panel} [data-stop="filter:upgrade"]`).first().boundingBox())!;
-  await page.mouse.click(chip.x + chip.width / 2, chip.y + chip.height / 2);
+  // A tap beside the plate lands on its backdrop: it shuts the tip and presses nothing beneath (here, a card).
+  const card = (await page.locator(`${panel} mc-card-sections [data-key^="card:"]`).first().boundingBox())!;
+  await page.mouse.click(card.x + card.width / 2, card.y + card.height / 2);
   await page.locator(`${panel} mc-tip-plate`).first().waitFor({ state: "detached", timeout: 10_000 });
+  expect(await activeScenes(page)).not.toContain("InspectOverlay");
   expect(await page.locator(`${panel} mc-card-sections [data-key^="card:"]`).count()).toBe(before);
 });
