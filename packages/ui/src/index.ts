@@ -102,6 +102,7 @@ export type {
 } from "./components/controls/mc-option-card/mc-option-card.types.js";
 export { McSectionHeading } from "./components/layout/mc-section-heading/mc-section-heading.js";
 export { McStepTicks } from "./components/layout/mc-step-ticks/mc-step-ticks.js";
+export { McQrCode } from "./components/mc-qr-code/mc-qr-code.js";
 export { McStamp } from "./components/layout/mc-stamp/mc-stamp.js";
 export type { McStampTone } from "./components/layout/mc-stamp/mc-stamp.types.js";
 export { McLinkRow } from "./components/controls/mc-link-row/mc-link-row.js";
