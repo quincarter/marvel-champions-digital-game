@@ -853,16 +853,16 @@
         <div class="box">
           <h3>Moved in this release</h3>
           <p>
-            Art &amp; Credits, Settings (with Controls, Save data and Unlocks), the Pause menu, the confirm, Concede,
-            Ask for a change and room chat pop-ups, the Rules reference, How to play, the game log, Play online and the
-            name prompt, the room lobby and its deck picker, the room mode picker, Give a seat, Rejoin and the game's
-            notices.
+            The Title, Art &amp; Credits, Settings (with Controls, Save data and Unlocks), the Pause menu and its
+            pop-ups, the Rules reference, How to play, How to win, the game log, Decks &amp; Collection's deck list, the
+            deck builder, the Mod Store, Past games, Your stats, the Trophy Room, Extras and its readers, the New to the
+            fight? chooser, Play online, the room lobby and its deck picker, and the room's pickers and notices. The
+            deck builder now builds only the card rows on screen, and the chooser's picture is a smaller copy.
           </p>
-          <!-- PENDING: Lit phases 4 (#1051) and 5 were not merged when this was written. Confirm or cut this paragraph. -->
+          <!-- PENDING: Lit phase 5 (#1052) and phase 6 were not merged when this was written. Confirm or cut this paragraph. -->
           <p>
-            Also moving: the Title, Decks &amp; Collection, the deck builder, the Mod Store, Past games, Your stats, the
-            Trophy Room, Extras, How to win, the guide chooser and the game setup screens. Their pictures are sent as
-            smaller files too.
+            Still moving: the game setup screens (Choose a scenario, Take your seats, Pick a deck and Deck Check, with
+            smaller hero and villain pictures, and a new Threat bar setting), then one more batch.
           </p>
         </div>
         <div class="box">
@@ -1071,7 +1071,7 @@
       <!-- ============ YOU ASKED ============ -->
       <div class="band">
         <h2>You asked, we fixed</h2>
-        <div class="lab">Issues #1001, #1006, #1012, #1017, #1018, #1021, #1028, #1050</div>
+        <div class="lab">Issues #1001, #1006, #1012, #1017, #1018, #1021, #1028, #1050 · PR #1057</div>
       </div>
       <div class="cards">
         <div class="paper">
@@ -1139,6 +1139,15 @@
           <p>
             The Discord Watch live button and a game's watch link said a game played in a room wasn't open any more.
             They <b>open it again</b>.
+          </p>
+        </div>
+        <div class="paper" style="grid-column: 1 / -1">
+          <div class="eb">Reported by kitkat on Discord · PR #1057</div>
+          <h3>Handheld controllers work in the Android app</h3>
+          <p>
+            The Android app saw a Retroid Pocket's built-in controls but ignored their buttons, because Android has no
+            layout for them. It now <b>reads controllers like these</b>, and kitkat confirmed it on their Retroid
+            Pocket.
           </p>
         </div>
       </div>
@@ -1219,7 +1228,11 @@
             <h3>@VladsEpitaph</h3>
             <p>Reported Make the Call bringing the wrong ally, <b>#1050</b>.</p>
           </div>
-          <div class="person wide">
+          <div class="person">
+            <h3>kitkat</h3>
+            <p>Tested the Android controller fix on a Retroid Pocket, on Discord.</p>
+          </div>
+          <div class="person">
             <h3>Stay Humble Eh</h3>
             <p>Reported the game's memory climbing on a Mac, on Discord.</p>
           </div>

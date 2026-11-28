@@ -1,6 +1,6 @@
 ## Chi Flows Faster
 
-Elektra and Iron Fist are playable, with their precon decks, their obligation and nemesis sets, and English and Spanish card scans from @bluefireF5ran (#699). The menu screens are moving off the game's canvas onto plain web pages drawn over it: the same look, with less drawing work for the game, and each one reads in Spanish as it moves. Online rooms get Each player Undo, a sound for the host and kept host settings, thanks to GarethMagis; the Fear No Evil scenarios get Skirmish (#995, @andy-xxvii27); memory grows more slowly in long games; and your reports are fixed, from @bluefireF5ran's 26-game rules audit (#1012, #1006) to @FirePenguin17's Crushing Blow (#1028) and engaged minions (#1001) and @VladsEpitaph's Make the Call (#1050).
+Elektra and Iron Fist are playable, with their precon decks, their obligation and nemesis sets, and English and Spanish card scans from @bluefireF5ran (#699). The menu screens are moving off the game's canvas onto plain web pages drawn over it: the same look, with less drawing work for the game, and each one reads in Spanish as it moves. Online rooms get Each player Undo, a sound for the host and kept host settings, thanks to GarethMagis; the Fear No Evil scenarios get Skirmish (#995, @andy-xxvii27); memory grows more slowly in long games; and your reports are fixed, from @bluefireF5ran's 26-game rules audit (#1012, #1006) to @FirePenguin17's Crushing Blow (#1028) and engaged minions (#1001) and @VladsEpitaph's Make the Call (#1050), and the Android app now reads handheld controllers like the Retroid Pocket's, thanks to kitkat.
 
 **[Read the full v1.1.0 report on the site ↗](https://champions-digital-game.com/releases/v1.1.0/)**: Elektra and Iron Fist, faster menus with the same look, more of the game in Spanish, smoother online rooms, Skirmish at Fear No Evil, lighter memory and the fixes you asked for.
 
@@ -41,6 +41,7 @@ Elektra and Iron Fist are playable, with their precon decks, their obligation an
 - Online rooms: the host hears a sound when a guest asks for an Undo or a change, and the host's room settings are kept for the next room (GarethMagis)
 - Controller and keyboard button glyphs on the Lit panels, as one shared component drawn as inline SVG, folding away while the mouse moves as before.
 - The v1.1.0 release report has its own page on the site, at /releases/v1.1.0/
+- Shared panel components in @mc/ui: section header, empty state, picture tile, search field, filter chip and filter bar, with the Trophy Room and Past games using the first two
 
 ### Changed
 
@@ -60,8 +61,20 @@ Elektra and Iron Fist are playable, with their precon decks, their obligation an
 - Settings ▸ Save data is now a Lit panel over the canvas, with its QR code drawn in the panel
 - Settings ▸ Controls is now a Lit panel over the canvas: the controller drawing is an inline SVG and the Hint size slider is a sheet part
 - Pop-ups slide up from the bottom and back down on the way out, and on a phone swipe down from their grab handle to dismiss them.
+- The first-run chooser (New to the fight?) is now a Lit panel over the canvas with the same look, and its picture is a small WebP copy made at build time (about a quarter of the bytes on a phone).
+- Past games draws its list, game details and popup as a Lit panel over the canvas, with the same look, keys and pad focus, and its Back label is translated
 - The room lobby (seats, settings, chat, Start) is a Lit panel over the canvas, same look, with native scrolling lists and the controller and keyboard stops kept
+- How to win is now a Lit panel over the canvas with the same look, in English and Spanish (the card scans, the threat term's tooltip and the card hover popover work as before).
 - The room deck picker is a Lit panel over the canvas, with the deck details as a panel that slides in, and its stats and counts now read in Spanish
+- The Trophy Room draws its list and achievement sheet as a Lit panel over the canvas, with the same look, keys and pad focus, and its own words are translated into Spanish
+- Extras and its viewer are now Lit panels over the canvas with the same look, translated into Spanish (tabs, tiles, unlock hints, the music player's labels); the Music tab's player is unchanged.
+- Your stats draws its dashboard list as a Lit panel over the canvas, with the same look, keys and pad focus, and its screen words are translated into Spanish
+- The Title menu (its buttons, update and save notices, rank bar, what's new bar, Play online panel and footer) is now a Lit panel over the canvas, looking the same, and its remaining English text (what's new, the rank bar, the cards-live count, in-progress games) reads in Spanish too.
+- The Extras rulebook reader and the side-story reader are now Lit panels over the canvas, in English and Spanish: the reader's search is a real input with a clear button, and the section text wraps and scrolls natively.
+- The Mod Store (browse tabs, search and tag filters, pack tiles, pack page, card gallery, Update all bar) is a Lit panel over the canvas, same look, with a real search input and native scrolling lists
+- Decks and Collection's top bar, tabs and deck list (search, filters, deck rows with their hero pictures) are now a Lit panel over the canvas, in English and Spanish; the card pool, stats rail and Import/Export box keep their Phaser drawing.
+- The deck builder's search cheat sheet and pack and wave picker are Lit pop-up panels, same look, with native scrolling lists
+- The deck builder is now a panel over the canvas with the same layout: the search and deck name are real text fields, every list scrolls natively, and the card pool only builds the rows on screen, so it opens and scrolls faster with thousands of cards.
 
 ### Fixed
 
@@ -88,6 +101,7 @@ Elektra and Iron Fist are playable, with their precon decks, their obligation an
 - Every Lit sheet's close and back control now has a 44px press area around the drawn control, so the Pause, Settings, Rules reference, How to play, Controls, Save data, Unlocks and game log closes are easy to hit on a phone
 - Make the Call puts in the 0-cost ally you picked (a Rise of Red Skull campaign ally) for free, instead of the first ally in a discard pile with cards spent for it (#1050)
 - Releases no longer rewrite the card-data SCHEMA_VERSION to the release number; it stays 1.0.0 and changes only on a breaking card-data shape change
+- The Android app now reads controllers that Android has no layout for, such as a Retroid Pocket's built-in controls, instead of detecting them and ignoring their buttons.
 
 ### Engine
 
@@ -115,4 +129,5 @@ Elektra and Iron Fist are playable, with their precon decks, their obligation an
 - @FirePenguin17 reported #1001 and #1028.
 - @VladsEpitaph reported #1050.
 - GarethMagis reported #1017 and #1018 on Discord.
+- kitkat reported the Retroid Pocket controls on Discord and tested the fix.
 - Stay Humble Eh reported the memory growth on a Mac on Discord.

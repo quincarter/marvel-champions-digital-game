@@ -34,7 +34,8 @@
     "v1.1.0": [
       "@bluefireF5ran contributed the Elektra and Iron Fist card scans.",
       "GarethMagis reported #1017 and #1018 on Discord.",
-      "Stay Humble Eh reported the memory growth on a Mac on Discord."
+      "Stay Humble Eh reported the memory growth on a Mac on Discord.",
+      "kitkat reported the Retroid Pocket controls on Discord and tested the fix."
     ]
   },
   "exclude": []
