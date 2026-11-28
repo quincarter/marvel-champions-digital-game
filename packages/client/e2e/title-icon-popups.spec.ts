@@ -158,6 +158,8 @@ test("report: the dialog opens over the Title in Spanish, dims the icon row, and
 }) => {
   const errors = trackPageErrors(page);
   await openSpanishTitle(page);
+  // Read before the dialog opens: the Title's route is not walked while a pop-up is up.
+  const music = await stopOf(page, "chrome:music");
   await press(page, await stopOf(page, "chrome:report"));
   await sceneUp(page, "ReportIssueOverlay", true);
   expect(await menuShown(page), "the Title's menu is still drawn under the dialog").toBe(true);
@@ -180,7 +182,6 @@ test("report: the dialog opens over the Title in Spanish, dims the icon row, and
     /\b(Report an issue|Snap a screenshot|Copy log|Download log|Request a deck)\b/,
   );
   // The icon row is under the dialog's scrim, as it was when Phaser drew it, not cut out of it.
-  const music = await stopOf(page, "chrome:music");
   expect(await panelAt(page, "ReportIssueOverlay", music.x + music.width / 2, music.y + music.height / 2)).toBe(true);
   await page.keyboard.press("Escape");
   await sceneUp(page, "ReportIssueOverlay", false);

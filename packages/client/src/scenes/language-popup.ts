@@ -58,6 +58,8 @@ export class LanguagePopupOverlay extends Phaser.Scene {
   #anchor: Rect = { x: 0, y: 0, width: 56, height: 34 };
   #focused = false;
   #route: FocusRoute | null = null;
+  /** The list's or note's box this draw. */
+  #box: Rect | null = null;
   #panel!: PopupSheet;
   /** What each button does this draw, by key. */
   #actions = new Map<string, () => void>();
@@ -118,7 +120,22 @@ export class LanguagePopupOverlay extends Phaser.Scene {
     // Under the panel Phaser still hit-tests a press: this zone keeps it from reaching the screen under, and answers a
     // tap that lands in a hole the panel leaves (the language button itself) as "outside".
     const shield = this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    onTap(shield, () => this.#close(), "language-popup-outside");
+    onTap(
+      shield,
+      (pointer) => {
+        // A press on the panel reaches Phaser too (its listeners are on the window): only one outside the list or note is
+        // "outside", which is where the panel's holes are (the language button, which this scene's input switch-off covers).
+        const box = this.#box;
+        const inside =
+          box !== null &&
+          pointer.x >= box.x &&
+          pointer.x <= box.x + box.width &&
+          pointer.y >= box.y &&
+          pointer.y <= box.y + box.height;
+        if (!inside) this.#close();
+      },
+      "language-popup-outside",
+    );
     if (this.#mode === "menu") this.#drawMenu(width, height);
     else this.#drawInfo(width, height);
   }
@@ -130,6 +147,7 @@ export class LanguagePopupOverlay extends Phaser.Scene {
     const labelWidth = Math.max(...languages.map((language) => CARD_LANGUAGE_NAMES[language].length)) * 10;
     const { box, rows } = languageMenuLayout(this.#anchor, languages.length, { width, height }, hit.target, labelWidth);
     // A tap outside the list closes it; the list's own press area is laid over it, so a miss between rows is not "outside".
+    this.#box = box;
     b.tap("outside", { x: 0, y: 0, width, height });
     this.#actions.set("outside", () => this.#close());
     b.box(box, { fill: surface.ink.hex, stroke: surface.paper.hex, strokeWidth: 2 });
@@ -189,6 +207,7 @@ export class LanguagePopupOverlay extends Phaser.Scene {
     };
     b.tap("outside", { x: 0, y: 0, width, height });
     this.#actions.set("outside", () => this.#close());
+    this.#box = box;
     b.box(box, { fill: surface.paper.hex, stroke: surface.ink.hex, strokeWidth: 4 });
     b.tap("note", box);
     b.text(box.x + pad, box.y + pad + (closeSize - titleHeight) / 2, title, typeRole.barTitle, {

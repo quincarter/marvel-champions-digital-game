@@ -211,7 +211,19 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     // Under the panel Phaser still hits a press: this shield keeps it from reaching the screen under, and answers a tap
     // in a hole the panel leaves (outside the popover, over the screen's own art) as "outside".
     const shield = this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    onTap(shield, () => this.#close(), "music-player-outside");
+    onTap(
+      shield,
+      (pointer) => {
+        // A press on the panel reaches Phaser too (its listeners are on the window): only one off it is "outside".
+        const inside =
+          pointer.x >= panel.x &&
+          pointer.x <= panel.x + panel.width &&
+          pointer.y >= panel.y &&
+          pointer.y <= panel.y + panel.height;
+        if (!inside) this.#close();
+      },
+      "music-player-outside",
+    );
 
     const b = this.#panel.begin(width, height, 0);
     const desktop = hasDesktopWindow() || formFactorFor(width, height) === "desktop";
