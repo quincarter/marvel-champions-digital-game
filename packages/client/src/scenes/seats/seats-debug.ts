@@ -21,15 +21,13 @@ export interface SeatsDebugSource {
   readonly decksOpen: () => boolean;
 }
 
-/** Every `<img>` a hero tile's picture drew, through the open shadow roots under the roster. */
-function pictureImages(root: ParentNode): HTMLImageElement[] {
-  const found: HTMLImageElement[] = [];
+/** Every hero tile's picture box (an `mc-picture-tile`), through the open shadow roots under `root`. */
+function pictureTiles(root: ParentNode): HTMLElement[] {
+  const found: HTMLElement[] = [];
+  if (root instanceof HTMLElement && root.shadowRoot) found.push(...pictureTiles(root.shadowRoot));
   for (const node of root.querySelectorAll<HTMLElement>("*")) {
-    if (node.localName === "mc-picture-tile") {
-      const img = node.shadowRoot?.querySelector("img");
-      if (img) found.push(img);
-    }
-    if (node.shadowRoot) found.push(...pictureImages(node.shadowRoot));
+    if (node.localName === "mc-picture-tile") found.push(node);
+    if (node.shadowRoot) found.push(...pictureTiles(node.shadowRoot));
   }
   return found;
 }
@@ -59,14 +57,17 @@ export function installSeatsDebug(_scene: Phaser.Scene, source: SeatsDebugSource
         key,
         ...(typeof stop.rect === "function" ? stop.rect() : stop.rect),
       })),
-    hoverCards: () => pictureImages(source.roster() ?? document.body).length,
+    hoverCards: () => pictureTiles(source.roster() ?? document.body).length,
     heroPictures: () => {
       const root = source.roster();
-      return (root ? pictureImages(root) : []).map((img) => ({
-        src: img.getAttribute("src"),
-        loaded: img.complete && img.naturalWidth > 0,
-        width: img.naturalWidth,
-      }));
+      return (root ? pictureTiles(root) : []).map((tile) => {
+        const img = tile.shadowRoot?.querySelector("img") ?? null;
+        return {
+          src: img?.getAttribute("src") ?? null,
+          loaded: img ? img.complete && img.naturalWidth > 0 : false,
+          width: img?.naturalWidth ?? 0,
+        };
+      });
     },
   };
 }

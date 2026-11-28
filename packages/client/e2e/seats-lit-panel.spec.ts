@@ -3,7 +3,7 @@ import { activeScenes, findText, pressHookStop, settle, trackPageErrors, waitFor
 import { hook, openApp } from "./wave6-helpers-b.js";
 
 /**
- * Take your seats as Lit panels over the canvas: the fixed parts (an `mc-sheet`), the hero roster (`mc-shelf-roster`),
+ * Take your seats as one page element over the canvas (`mc-seats-page`, its sections in `components/seats/`),
  * hero tiles that show the small copy of each picture, taps that seat a hero, a drag that ends over a tile seating
  * nothing (the "no tap on finger lift" rule, issue #227), the search field narrowing the tiles, and "See all" opening a
  * pack as a full grid. Runs on the desktop and phone projects.
@@ -36,8 +36,7 @@ test.describe("Take your seats panels", () => {
         (wrap) => wrap.firstElementChild?.tagName,
       ),
     );
-    expect(regions).toContain("MC-SHEET");
-    expect(regions).toContain("MC-SHELF-ROSTER");
+    expect(regions).toEqual(["MC-SEATS-PAGE"]);
     // Pictures load lazily: wait for the ones in view, then check none is a full-size 4000 px picture.
     await waitFor(async () => ((await pictures(page)).some((p) => p.loaded) ? true : null), "a loaded picture", 30_000);
     const loaded = (await pictures(page)).filter((p) => p.loaded);
@@ -99,7 +98,7 @@ test.describe("Take your seats panels", () => {
     await open(page);
     const count = async (): Promise<number> => (await pictures(page)).length;
     const all = await count();
-    const field = page.locator('#mc-ui [data-scene="Seats"] mc-sheet').first().locator("mc-search-field input");
+    const field = page.locator('#mc-ui [data-scene="Seats"] mc-search-field input').first();
     await field.click();
     await field.fill("spider");
     await waitFor(async () => ((await count()) < all ? true : null), "fewer tiles", 15_000);
@@ -111,11 +110,7 @@ test.describe("Take your seats panels", () => {
     test.setTimeout(120_000);
     const errors = trackPageErrors(page);
     await open(page);
-    const link = page
-      .locator('#mc-ui [data-scene="Seats"] mc-shelf-roster')
-      .first()
-      .locator('[data-key^="all:"]')
-      .first();
+    const link = page.locator('#mc-ui [data-scene="Seats"] mc-hero-shelf button[data-action="all"]').first();
     await link.scrollIntoViewIfNeeded();
     await link.click();
     await waitFor(
@@ -138,7 +133,7 @@ test.describe("Take your seats panels", () => {
     const errors = trackPageErrors(page);
     await openApp(page, "screen=seats&unlock=all", { landing: "Seats" });
     await waitFor(async () => ((await pictures(page)).length > 0 ? true : null), "the hero tiles", 30_000);
-    const field = page.locator('#mc-ui [data-scene="Seats"] mc-sheet').first().locator("mc-search-field input");
+    const field = page.locator('#mc-ui [data-scene="Seats"] mc-search-field input').first();
     await field.click();
     await field.fill("Maria Hill");
     await settle(page);
@@ -149,12 +144,12 @@ test.describe("Take your seats panels", () => {
     const tile = await stopOf("hero:");
     await page.mouse.click(tile.x + tile.width / 2, tile.y + tile.height / 2);
     await waitFor(
-      async () => ((await seats(page)).length > 0 || (await activeScenes(page)).includes("HeroDecks") ? true : null),
+      async () => ((await seats(page)).length > 0 || (await hook<boolean>(page, "__mcSeatsDebug", "decksOpen")) ? true : null),
       "the first press on the tile did something",
       5000,
     );
     // Play: seat someone, then one real click on Play goes on to Table setup.
-    if ((await activeScenes(page)).includes("HeroDecks")) await page.keyboard.press("Escape");
+    if ((await hook<boolean>(page, "__mcSeatsDebug", "decksOpen"))) await page.keyboard.press("Escape");
     if ((await seats(page)).length === 0) await pressHookStop(page, "__mcSeatsDebug", "hero-random");
     await waitFor(async () => ((await stopOf("play")) ? true : null), "Play", 10_000);
     await settle(page);
@@ -183,15 +178,18 @@ test.describe("Take your seats panels", () => {
       );
     // The second tile of the roster takes native focus (what a screen reader's focus or a click does).
     const key = await page.evaluate(() => {
-      const roster = document.querySelector('#mc-ui > [data-scene="Seats"] mc-shelf-roster') as HTMLElement & {
-        shadowRoot: ShadowRoot;
+      // Through the open shadow roots: every hero tile's native button, in document order.
+      const found: HTMLButtonElement[] = [];
+      const visit = (root: ParentNode): void => {
+        for (const node of root.querySelectorAll<HTMLElement>("*")) {
+          if (node instanceof HTMLButtonElement && /^hero(-rec)?:/.test(node.dataset.stop ?? "")) found.push(node);
+          if (node.shadowRoot) visit(node.shadowRoot);
+        }
       };
-      const cards = [...roster.shadowRoot.querySelectorAll("mc-picture-card")] as (HTMLElement & {
-        shadowRoot: ShadowRoot;
-      })[];
-      const card = cards[1]!;
-      (card.shadowRoot.querySelector("button.tap") as HTMLButtonElement).focus();
-      return card.dataset.key ?? "";
+      visit(document.querySelector('#mc-ui > [data-scene="Seats"] mc-seats-page')!);
+      const button = found[1]!;
+      button.focus();
+      return button.dataset.stop ?? "";
     });
     expect(key.startsWith("hero")).toBe(true);
     await waitFor(async () => ((await focusKey()) === key ? true : null), "the route follows the native focus", 5000);
