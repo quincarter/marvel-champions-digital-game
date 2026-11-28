@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Set up the table is rebuilt as custom elements: a page that only composes its sections (difficulty, modular sets, seating, game summary, encounter deck), each made of smaller elements, with the same look at every screen size.'
+time: 2026-11-28T00:27:53.2840234-05:00

@@ -1,4 +1,4 @@
-import { css, html, LitElement, nothing, type PropertyDeclarations } from "lit";
+import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
 import { tapped } from "../../shared/tapped.js";
@@ -11,10 +11,9 @@ import "../mc-section-header/mc-section-header.js";
 import type { McPictureCard } from "../mc-picture-card/McPictureCard.js";
 import { SCROLL_GUTTER } from "../mc-sheet/McSheet.js";
 import type { PictureSource } from "../../shared/picture.types.js";
+import { McShelfRosterStyles } from "./mc-shelf-roster.styles.js";
 import type { ShelfRosterHint, ShelfRosterItem, ShelfRosterModel, ShelfRosterShelf } from "./mc-shelf-roster.types.js";
 
-/** A shelf header's height: one touch target. */
-const HEAD = 44;
 /**
  * How far outside the box a tile may be and still load its picture, px: a tile loads when a finger's flick or a few
  * arrow presses away, so the first screen fetches the pictures it shows and not every shelf's.
@@ -27,158 +26,6 @@ const idOfKey = (key: string): string => key.replace(/^entry:/, "");
 
 /** A page of a row, as a share of its width. */
 const PAGE = 0.85;
-
-const styles = css`
-  :host {
-    display: block;
-    position: relative;
-    width: 100%;
-    height: 100%;
-  }
-  .scroller {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-  }
-  .shelf {
-    padding-bottom: 20px;
-  }
-  .head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: ${HEAD}px;
-  }
-  .title {
-    position: relative;
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .title mc-picture-tile {
-    flex: none;
-    width: 34px;
-    height: 34px;
-  }
-  .title mc-section-header {
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-  }
-  .tap {
-    position: absolute;
-    inset: 0;
-    appearance: none;
-    background: none;
-    border: 0;
-    padding: 0;
-    margin: 0;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-  }
-  .all {
-    appearance: none;
-    background: none;
-    border: 0;
-    margin: 0;
-    font-family: var(--mc-font-body);
-    flex: none;
-    display: flex;
-    align-items: center;
-    height: 100%;
-    padding: 0 6px;
-    font-weight: 800;
-    font-size: var(--mc-small-11);
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    white-space: nowrap;
-    color: var(--mc-text-red);
-    text-decoration: underline;
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-  }
-  .head[data-clipped] .chevrons,
-  .head[data-clipped] .all {
-    visibility: hidden;
-  }
-  .chevrons {
-    display: none;
-    flex: none;
-    gap: 4px;
-  }
-  /* Real buttons: a keyboard reaches them and Enter or Space presses them. */
-  .chevrons button {
-    appearance: none;
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    margin: 0;
-    font: 800 24px var(--mc-font-body);
-    line-height: 1;
-    color: var(--mc-text-ink);
-    background: var(--mc-fill-paper);
-    border: 2.5px solid var(--mc-line-ink);
-    border-radius: 0;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  @media (hover: hover) {
-    .chevrons button:hover {
-      color: var(--mc-text-paper);
-      background: var(--mc-fill-ink);
-    }
-  }
-  .tap:focus-visible,
-  .all:focus-visible,
-  .chevrons button:focus-visible {
-    outline: 3px solid var(--mc-line-red);
-    outline-offset: -3px;
-  }
-  @media (pointer: fine) {
-    .chevrons {
-      display: flex;
-    }
-  }
-  .chevrons.hinted {
-    display: flex;
-  }
-  .chevrons .hint {
-    display: flex;
-    align-items: center;
-    pointer-events: none;
-  }
-  mc-picture-card[data-dim] {
-    opacity: 0.5;
-  }
-  .row {
-    display: flex;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-    padding: 4px 4px 4px 0;
-  }
-  .row::-webkit-scrollbar {
-    display: none;
-  }
-  .row mc-picture-card,
-  .grid mc-picture-card {
-    flex: none;
-  }
-  .grid {
-    display: flex;
-    flex-wrap: wrap;
-    padding: 4px 0 20px;
-  }
-`;
 
 /**
  * # Shelf roster
@@ -198,7 +45,7 @@ const styles = css`
  * @fires mc-inspect - `detail.key`.
  */
 export class McShelfRoster extends LitElement {
-  static override styles = [ThemeStyles, styles];
+  static override styles = [ThemeStyles, McShelfRosterStyles];
 
   static override properties: PropertyDeclarations = { model: { attribute: false } };
 
@@ -228,6 +75,10 @@ export class McShelfRoster extends LitElement {
       emptyText: null,
       clearLabel: "",
     };
+  }
+
+  protected override willUpdate(): void {
+    this.toggleAttribute("fluid", this.model.cardWidth === 0);
   }
 
   override disconnectedCallback(): void {
@@ -380,17 +231,20 @@ export class McShelfRoster extends LitElement {
   }
 
   #tile(item: ShelfRosterItem) {
-    const { cardWidth, cardHeight } = this.model;
+    const { cardWidth, cardHeight, stops } = this.model;
     const key = keyOf(item);
     return html`<mc-picture-card
       data-key=${key}
       ?data-dim=${item.dim === true}
       data-card=${item.cardId}
-      style=${`width:${cardWidth}px;height:${cardHeight}px`}
+      style=${cardWidth === 0 ? nothing : `width:${cardWidth}px;height:${cardHeight}px`}
       .picture=${this.#pictureOf(item)}
       .model=${item.card}
       ?selected=${item.selected}
       activate-key=${key}
+      card-id=${item.cardId}
+      .cardFace=${item.face}
+      stop-key=${stops ? `${stops.entry}${item.id}` : ""}
       inspect-key=${item.inspect ? key : ""}
     ></mc-picture-card>`;
   }
@@ -417,6 +271,7 @@ export class McShelfRoster extends LitElement {
           type="button"
           class="tap"
           data-key=${key}
+          data-stop=${folds && this.model.stops ? `${this.model.stops.fold}${shelf.id}` : nothing}
           aria-label=${shelf.title}
           aria-expanded=${folds ? String(shelf.open) : nothing}
           ${tapped(() => this.#emit("mc-activate", key))}
@@ -485,6 +340,7 @@ export class McShelfRoster extends LitElement {
             ? html`<mc-button
                 kind="quiet"
                 data-key="clear"
+                data-stop=${this.model.stops?.clear ?? nothing}
                 .label=${clearLabel}
                 @mc-press=${(event: Event) => {
                   event.stopPropagation();
@@ -508,8 +364,9 @@ export class McShelfRoster extends LitElement {
         (shelf) => this.#shelf(shelf),
       );
     }
-    return html`<div class="scroller" style=${`width:${contentWidth + SCROLL_GUTTER}px`}>
-      <div class="content" style=${`width:${contentWidth}px`}>${body}</div>
+    const fluid = contentWidth === 0;
+    return html`<div class="scroller" style=${fluid ? nothing : `width:${contentWidth + SCROLL_GUTTER}px`}>
+      <div class="content" style=${fluid ? nothing : `width:${contentWidth}px`}>${body}</div>
     </div>`;
   }
 }

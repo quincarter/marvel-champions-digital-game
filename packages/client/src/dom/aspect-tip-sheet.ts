@@ -3,6 +3,9 @@
  * panel: the aspect's name, tagline and short tip, an "Aspects ▸" link to its lesson, on an ink plate with a caution
  * rule and an arrow toward the chip's "i". The same numbers, so the tip sits where the Phaser one did: below the
  * segment by default, above where there is no room below, clamped inside the screen.
+ *
+ * TODO: the placement maths is also in `packages/ui/src/components/mc-tip-plate/tip-placement.ts`, which is the canonical copy;
+ * delete this one once Deck Check's rebuild no longer draws its tip as sheet parts.
  */
 import { border, ink, signal, surface, typeRole } from "../tokens.js";
 import type { AspectTipContent } from "../view/aspect-tip-model.js";

@@ -23,6 +23,7 @@ import {
 } from "./deck-stats.js";
 import { deckFaceGroups } from "./deck-faces.js";
 import { deckOptionOf } from "./deck-list-model.js";
+import { identityLabelOf } from "./deck-names.js";
 import { deckStatusOf } from "./deck-status.js";
 import type { CampaignDeckVerdict } from "./campaign-deck-edit-model.js";
 import { aspectLabelOf } from "./seat-slots.js";
@@ -118,7 +119,7 @@ export function deckCheckPageModel(input: DeckCheckModelInput): DeckCheckModelRe
     ? {
         backLabel: input.backLabel,
         title:
-          `${option.identityName ?? t("deckCheck.unknown")} — ${aspectLabelOf(deck.aspects, language)}`.toUpperCase(),
+          `${identityLabelOf(option) ?? t("deckCheck.unknown")} — ${aspectLabelOf(deck.aspects, language)}`.toUpperCase(),
         badgeText: verdictWords,
         badgeTone: status.tone,
         meta: "",

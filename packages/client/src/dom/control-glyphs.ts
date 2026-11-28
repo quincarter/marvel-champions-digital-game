@@ -89,6 +89,11 @@ export class ControlGlyphs {
     };
   }
 
+  /** The last input snapshot (the device, the settings), for a screen that places glyphs of its own. */
+  get snapshot(): InputHintsSnapshot | null {
+    return this.#snapshot;
+  }
+
   dispose(): void {
     this.#binding.dispose();
   }

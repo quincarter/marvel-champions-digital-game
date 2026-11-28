@@ -14,6 +14,8 @@ export interface ShelfRosterItem {
   readonly dim?: boolean;
   /** The card a hover popover shows from the picture; empty for none. */
   readonly cardId: string;
+  /** The face of that card when it is not its default (a villain stage, a scheme B side). */
+  readonly face?: unknown;
   readonly picture: PictureSource;
   /** The chip, title and detail printed on the tile. */
   readonly card: McPictureCardModel;
@@ -55,14 +57,25 @@ export interface ShelfRosterHint {
   readonly still: boolean;
 }
 
+/** The `data-stop` keys a screen's focus route uses for the roster's parts; absent: the roster marks none. */
+export interface ShelfRosterStops {
+  /** Before a tile id: `scenario:` gives `scenario:rhino`. */
+  readonly entry: string;
+  /** Before a shelf id, on its fold header: `scenario-shelf:`. */
+  readonly fold: string;
+  /** The empty state's button. */
+  readonly clear: string;
+}
+
 export interface ShelfRosterModel {
   /** `shelves`: each shelf with its header and a sideways row. `grid`: the first shelf's tiles wrapped as a grid, no header. */
   readonly mode: "shelves" | "grid";
   readonly shelves: readonly ShelfRosterShelf[];
+  /** The tile's px size; 0 for a fluid roster, whose tiles and width the stylesheet sizes from the box it is in. */
   readonly cardWidth: number;
   readonly cardHeight: number;
   readonly gap: number;
-  /** The width the shelves take, px; the scrollbar's gutter comes out of the frame beside it. */
+  /** The width the shelves take, px; the scrollbar's gutter comes out of the frame beside it. 0: the box's own width. */
   readonly contentWidth: number;
   /** The row chevrons' words for a screen reader ("Scroll left" / "Scroll right"). */
   readonly previousLabel: string;
@@ -71,6 +84,8 @@ export interface ShelfRosterModel {
   readonly emptyText: string | null;
   /** The button under the words that undoes the filter ("Clear"); empty for none. It raises `mc-activate` with `clear`. */
   readonly clearLabel: string;
+  /** The focus stops the parts carry (`data-stop`), or none. */
+  readonly stops?: ShelfRosterStops;
   /** The row-paging glyphs (a pad is in use), or none. */
   readonly hint?: ShelfRosterHint | null;
 }
