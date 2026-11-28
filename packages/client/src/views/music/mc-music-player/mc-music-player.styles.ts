@@ -74,10 +74,6 @@ export const McMusicPlayerStyles = css`
     width: 92px;
     order: 0;
   }
-  .close mc-button {
-    height: 100%;
-    --mc-button-size: 12px;
-  }
   .title {
     font-family: var(--mc-font-display);
     font-size: 20px;

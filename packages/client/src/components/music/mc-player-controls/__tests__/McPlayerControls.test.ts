@@ -14,12 +14,20 @@ async function controls(set: (el: HTMLElementTagNameMap["mc-player-controls"]) =
   set(el);
   document.body.append(el);
   await el.updateComplete;
-  for (const button of el.shadowRoot!.querySelectorAll<HTMLElement & { updateComplete: Promise<unknown> }>("mc-button"))
-    await button.updateComplete;
+  for (const popup of el.shadowRoot!.querySelectorAll<HTMLElement & { updateComplete: Promise<unknown> }>(
+    "mc-popup-button",
+  ))
+    await popup.updateComplete;
   return el;
 }
 
-const stop = (el: HTMLElement, key: string): HTMLElement => el.shadowRoot!.querySelector(`[data-stop="${key}"]`)!;
+/** A control's `mc-popup-button`, and the `[data-stop]` button inside it. */
+const popup = (el: HTMLElement, key: string): HTMLElement =>
+  [...el.shadowRoot!.querySelectorAll<HTMLElement>("mc-popup-button")].find(
+    (p) => p.shadowRoot!.querySelector(`[data-stop="${key}"]`) !== null,
+  )!;
+const stop = (el: HTMLElement, key: string): HTMLElement =>
+  popup(el, key).shadowRoot!.querySelector(`[data-stop="${key}"]`)!;
 const press = (button: HTMLElement) =>
   button.dispatchEvent(new CustomEvent("mc-press", { bubbles: true, composed: true }));
 
@@ -59,7 +67,8 @@ describe("mc-player-controls", () => {
       c.glyphs = { pause: { specs: [], height: 20, ground: "paper", openness: 1, width: 40 } };
     });
     expect(el.hasAttribute("slider")).toBe(true);
-    expect(el.shadowRoot!.querySelectorAll("mc-glyph-hint")).toHaveLength(1);
-    expect(stop(el, "pause").parentElement!.style.getPropertyValue("--mc-label-shift")).toBe("24px");
+    expect(popup(el, "pause").shadowRoot!.querySelectorAll("mc-glyph-hint")).toHaveLength(1);
+    expect(popup(el, "shuffle").shadowRoot!.querySelectorAll("mc-glyph-hint")).toHaveLength(0);
+    expect(popup(el, "pause").style.getPropertyValue("--mc-label-shift")).toBe("24px");
   });
 });

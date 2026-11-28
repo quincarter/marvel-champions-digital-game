@@ -139,6 +139,8 @@ describe("mc-music-player", () => {
     const el = await mount(
       model({ glyphs: { close: { specs: [], height: 20, ground: "paper", openness: 1, width: 40 } } }),
     );
-    expect(el.shadowRoot!.querySelector(".close mc-glyph-hint")).not.toBeNull();
+    const close = el.shadowRoot!.querySelector<HTMLElement & { updateComplete: Promise<unknown> }>(".close")!;
+    await close.updateComplete;
+    expect(close.shadowRoot!.querySelector("mc-glyph-hint")).not.toBeNull();
   });
 });
