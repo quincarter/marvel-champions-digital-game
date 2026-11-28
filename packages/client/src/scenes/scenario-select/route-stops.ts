@@ -6,10 +6,18 @@ import { collectStops, focusStopsOf } from "../../dom/element-stops.js";
 import type { Rect } from "../../view/layout.js";
 import type { FocusStop } from "../focus-route.js";
 
-/** Whether the element is drawn and not hidden (`visibility`, `display`), so a stop under a covering sheet is skipped. */
-function onScreen(element: HTMLElement): boolean {
-  if (typeof element.checkVisibility === "function") return element.checkVisibility({ visibilityProperty: true });
-  return element.getClientRects().length > 0;
+/**
+ * Whether a part is under a covered section (`data-covered`: a phone's open stages sheet hides the list), so it is not
+ * walked. The region's own `visibility` is not read: it is hidden until the scene is shown, and the stops of a screen
+ * that is still arriving are the route's to hold.
+ */
+function covered(element: HTMLElement, root: ParentNode): boolean {
+  let node: Node | null = element;
+  while (node && node !== root) {
+    if (node instanceof HTMLElement && node.hasAttribute("data-covered")) return true;
+    node = node instanceof ShadowRoot ? node.host : (node.parentNode ?? null);
+  }
+  return false;
 }
 
 export function routeStopsOf(
@@ -19,7 +27,7 @@ export function routeStopsOf(
 ): Map<string, FocusStop> {
   const elements = new Map<string, HTMLElement>();
   for (const stop of collectStops(page))
-    if (!elements.has(stop.key) && onScreen(stop.element)) elements.set(stop.key, stop.element);
+    if (!elements.has(stop.key) && !covered(stop.element, page)) elements.set(stop.key, stop.element);
   const stops = new Map<string, FocusStop>();
   for (const [key, stop] of focusStopsOf(page, toGame)) {
     const element = elements.get(key);
