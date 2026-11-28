@@ -36,6 +36,7 @@ import { McPictureCardStyles } from "./mc-picture-card.styles.js";
  * @attr inspect-key - With an `activate-key`: a press-and-hold or a right-click raises `mc-inspect` with this key (the
  *   release that ended a hold is not a tap).
  * @fires mc-activate - `detail.key`: the card was tapped.
+ * @fires mc-tile-focus - `detail.key`: the card's button took focus (the screen's keyboard route follows it).
  * @fires mc-inspect - `detail.key`: the card was held or right-clicked.
  */
 export class McPictureCard extends LitElement {
@@ -196,6 +197,15 @@ export class McPictureCard extends LitElement {
               class="tap"
               aria-label=${this.label || this.#nameOf() || nothing}
               aria-pressed=${this.selected || m?.selected === true ? "true" : "false"}
+              @focus=${() =>
+                // The screen's own keyboard route and this native focus are one: it moves its focus to this tile.
+                this.dispatchEvent(
+                  new CustomEvent("mc-tile-focus", {
+                    detail: { key: this.activateKey },
+                    bubbles: true,
+                    composed: true,
+                  }),
+                )}
               @click=${(event: MouseEvent) => {
                 // Enter or Space on the focused button (a pointer press goes through `tapped`).
                 if (event.detail === 0) this.#activate();

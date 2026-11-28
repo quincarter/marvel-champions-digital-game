@@ -17,7 +17,7 @@ const EXPECTED: Readonly<Record<string, string>> = {
   "aspectTip.protection.tip": "Elígelo cuando el villano golpea fuerte o tu héroe es frágil.",
   "aspectTip.pool.tagline": "Grandes jugadas, a un precio",
   "aspectTip.pool.tip":
-    "Elígelo para cartas salvajes y arriesgadas. Si eliges el aspecto Masacrismo, se añade «Crisis de Masacres infinitos» al mazo de Encuentros; cuando se muestra, el resto del conjunto de Encuentros de Malsacre se añade al mazo de Encuentros.",
+    "Elígelo para cartas salvajes y arriesgadas. Si eliges Masacrismo, baraja una copia de Crisis de Masacres infinitos en el mazo de Encuentros. Cuando se muestre, entran en juego Malsacre y su plan secundario, y se barajan las demás cartas del conjunto.",
   "aspectTip.basic.tagline": "Cartas sin aspecto, para cualquier mazo",
   "aspectTip.basic.tip": "Cualquier mazo puede incluirlas junto a las cartas de su aspecto; ninguna es obligatoria.",
   "aspectTip.link": "Aspectos ▸",

@@ -1479,10 +1479,11 @@ export const en = {
   "aspectTip.leadership.tip": "Pick it when your hero likes a wide board of allies.",
   "aspectTip.protection.tagline": "Defending and healing",
   "aspectTip.protection.tip": "Pick it when the villain hits hard or your hero is fragile.",
+  // The Crisis card (44037): "When Revealed: Reveal the set-aside Dreadpool minion and Dreadful Deeds side scheme. Shuffle the rest of the set-aside Dreadpool encounter set into the encounter deck."
   // Sources: Deadpool insert "Using the 'Pool Aspect"; RRG 1.8 FAQ p.64 (Crisis of Infinite Deadpools #37); RRG 1.8 "Basic Card" p.10 and Appendix I p.49; Spanish insert MC44 and the 2019 Spanish guide (docs/rules/es/mc_guia_de_referencia_es_2019.md l.2213-2217).
   "aspectTip.pool.tagline": "Big swings, at a price",
   "aspectTip.pool.tip":
-    "Pick it for wild, risky cards. Choosing 'Pool shuffles Crisis of Infinite Deadpools into the encounter deck; when it is revealed, the rest of the Dreadpool set joins the encounter deck.",
+    "Pick it for wild, risky cards. Choosing 'Pool shuffles one Crisis of Infinite Deadpools into the encounter deck. When it is revealed, Dreadpool and his side scheme come into play, and the rest of the Dreadpool set is shuffled in.",
   "aspectTip.basic.tagline": "Cards with no aspect, open to any deck",
   "aspectTip.basic.tip": "Any deck may add these alongside its aspect cards; none are required.",
   "aspectTip.link": "Aspects ▸",

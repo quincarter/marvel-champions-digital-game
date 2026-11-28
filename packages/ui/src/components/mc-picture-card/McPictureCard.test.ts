@@ -116,4 +116,16 @@ describe("mc-picture-card press control", () => {
     await card.updateComplete;
     expect(card.shadowRoot!.querySelector("button.tap")!.getAttribute("aria-label")).toBe("Open Spider-Man");
   });
+
+  it("tells the screen when its button takes focus, so a keyboard route can follow it", async () => {
+    const card = document.createElement("mc-picture-card");
+    card.model = model;
+    card.setAttribute("activate-key", "entry:spider");
+    document.body.append(card);
+    await card.updateComplete;
+    const keys: string[] = [];
+    card.addEventListener("mc-tile-focus", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
+    (card.shadowRoot!.querySelector("button.tap") as HTMLButtonElement).focus();
+    expect(keys).toEqual(["entry:spider"]);
+  });
 });

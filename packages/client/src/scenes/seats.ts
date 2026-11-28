@@ -55,7 +55,7 @@ import {
   currentPoolKey,
   packNameOf,
 } from "../content/pool.js";
-import { TIP_LINK_KEY, drawAspectTip, tipLayoutOf, tipPlacement } from "../dom/aspect-tip-sheet.js";
+import { TIP_LINK_KEY, drawAspectTip, tipLayoutOf, tipPlacement, tipWidthFor } from "../dom/aspect-tip-sheet.js";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { heroTilePictureOf } from "../dom/hero-picture.js";
@@ -788,6 +788,11 @@ export class SeatsScene extends Phaser.Scene {
       const { id } = (event as CustomEvent<{ id: string }>).detail;
       const info = this.#composed?.chipDefs.find((chip) => chip.id === id)?.info;
       if (info) (info.isOpen ? info.onClose : info.onOpen)();
+    });
+    // A tile's native button took focus (a screen reader, or a click): the keyboard route follows, so Enter, Space and
+    // Inspect act on that tile and no other (the route owns the keys: `bindKeyboard` stops the browser acting on them).
+    element.addEventListener("mc-tile-focus", (event) => {
+      this.#route?.focusKey((event as CustomEvent<{ key: string }>).detail.key);
     });
     // A pack picture's blob URL went stale before its lazy image loaded: read it again, once.
     element.addEventListener("mc-image-error", (event) => {
@@ -2145,8 +2150,10 @@ export class SeatsScene extends Phaser.Scene {
       return;
     }
     const probe = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
-    const layout = tipLayoutOf(probe, content);
-    const placement = tipPlacement(anchor, layout.height, { x: 0, y: 0, width: c.width, height: c.height });
+    const screen = { x: 0, y: 0, width: c.width, height: c.height };
+    const tipWidth = tipWidthFor(screen);
+    const layout = tipLayoutOf(probe, content, tipWidth);
+    const placement = tipPlacement(anchor, layout.height, screen, tipWidth);
     const b = new SheetBuilder(this.game, { x: placement.bounds.x, y: placement.bounds.y }, isDesktopType);
     drawAspectTip(b, placement, content, layout);
     this.#actions.set(TIP_LINK_KEY, () => {

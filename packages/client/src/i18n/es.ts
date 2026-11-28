@@ -1505,7 +1505,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   // Sources: Deadpool insert "Using the 'Pool Aspect"; RRG 1.8 FAQ p.64 (Crisis of Infinite Deadpools #37); RRG 1.8 "Basic Card" p.10 and Appendix I p.49; Spanish insert MC44 and the 2019 Spanish guide (docs/rules/es/mc_guia_de_referencia_es_2019.md l.2213-2217).
   "aspectTip.pool.tagline": "Grandes jugadas, a un precio",
   "aspectTip.pool.tip":
-    "Elígelo para cartas salvajes y arriesgadas. Si eliges el aspecto Masacrismo, se añade «Crisis de Masacres infinitos» al mazo de Encuentros; cuando se muestra, el resto del conjunto de Encuentros de Malsacre se añade al mazo de Encuentros.",
+    "Elígelo para cartas salvajes y arriesgadas. Si eliges Masacrismo, baraja una copia de Crisis de Masacres infinitos en el mazo de Encuentros. Cuando se muestre, entran en juego Malsacre y su plan secundario, y se barajan las demás cartas del conjunto.",
   "aspectTip.basic.tagline": "Cartas sin aspecto, para cualquier mazo",
   "aspectTip.basic.tip": "Cualquier mazo puede incluirlas junto a las cartas de su aspecto; ninguna es obligatoria.",
   "aspectTip.link": "Aspectos ▸",

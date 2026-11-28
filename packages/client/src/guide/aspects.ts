@@ -113,12 +113,12 @@ const POOL: AspectGuide = {
     "asks for one.",
   pickItWhen: [
     "You want a deck with bigger swings and a sense of humor, and can live with a few risks.",
-    "Choosing 'Pool puts Crisis of Infinite Deadpools in the encounter deck, which brings in the Dreadpool set. 'Pool cards in another aspect's deck don't.",
+    "Choosing 'Pool puts one Crisis of Infinite Deadpools in the encounter deck; when it is revealed, Dreadpool and his side scheme enter play and the rest of the Dreadpool set is shuffled in. 'Pool cards in another aspect's deck don't.",
   ],
   signatureCardCodes: [cardId("44013"), cardId("44017"), cardId("44029")],
   preconId: starterDeckId("deadpool-pool"),
   tipLine:
-    "Pick it for wild, risky cards. Choosing 'Pool shuffles Crisis of Infinite Deadpools into the encounter deck; when it is revealed, the rest of the Dreadpool set joins the encounter deck.",
+    "Pick it for wild, risky cards. Choosing 'Pool shuffles one Crisis of Infinite Deadpools into the encounter deck. When it is revealed, Dreadpool and his side scheme come into play, and the rest of the Dreadpool set is shuffled in.",
 };
 
 // Basic: RRG 1.8 "Basic Card" p.10 and Appendix I p.49 (no aspect; any deck may include them, none is required).

@@ -167,4 +167,44 @@ test.describe("Take your seats panels", () => {
     );
     expect(errors).toEqual([]);
   });
+
+  test("a tile's native button and the screen's keyboard route are one: Enter acts on the focused tile only", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const errors = trackPageErrors(page);
+    await open(page);
+    const focusKey = (): Promise<string | null> =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __mcFocusState: Record<string, () => { focus: string | null }> }).__mcFocusState[
+            "Seats"
+          ]!().focus,
+      );
+    // The second tile of the roster takes native focus (what a screen reader's focus or a click does).
+    const key = await page.evaluate(() => {
+      const roster = document.querySelector('#mc-ui > [data-scene="Seats"] mc-shelf-roster') as HTMLElement & {
+        shadowRoot: ShadowRoot;
+      };
+      const cards = [...roster.shadowRoot.querySelectorAll("mc-picture-card")] as (HTMLElement & {
+        shadowRoot: ShadowRoot;
+      })[];
+      const card = cards[1]!;
+      (card.shadowRoot.querySelector("button.tap") as HTMLButtonElement).focus();
+      return card.dataset.key ?? "";
+    });
+    expect(key.startsWith("hero")).toBe(true);
+    await waitFor(async () => ((await focusKey()) === key ? true : null), "the route follows the native focus", 5000);
+    // Enter presses that tile once (a hero seated, or its decks opened): never the tile the route had before.
+    const before = await seats(page);
+    await page.keyboard.press("Enter");
+    await waitFor(
+      async () =>
+        (await seats(page)).length !== before.length || (await activeScenes(page)).includes("HeroDecks") ? true : null,
+      "Enter pressed the focused tile",
+      5000,
+    );
+    expect(await focusKey()).toBe(key);
+    expect(errors).toEqual([]);
+  });
 });

@@ -297,6 +297,7 @@ export const GUARDED_EVENTS = [
   "mc-input",
   "mc-field-focus",
   "mc-search-focus",
+  "mc-tile-focus",
 ] as const;
 
 /** The guarded events that say the caret went into or left a field: its leaving (`focused: false`) always gets through, so the scene never keeps a stale "typing" flag. */
