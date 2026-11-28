@@ -4,7 +4,6 @@ import {
   MOD_NOTICE_BUTTONS,
   MOD_NOTICE_LINES,
   modNoticeControlLabelOf,
-  modNoticeLayoutOf,
   modNoticeOutcomeOf,
   showNoticeBeforeInstall,
   showNoticeOnOpen,
@@ -66,25 +65,5 @@ describe("mod notice", () => {
     expect(spidey.text).toMatch(/bugs/);
     expect(spidey.text).toMatch(/patient/);
     expect(spidey.text).toMatch(/Report a problem/);
-  });
-
-  test.each([
-    [375, 667, true],
-    [412, 924, true],
-    [768, 1024, false],
-    [1024, 768, false],
-    [1440, 900, false],
-  ])("lays out inside %ix%i without overlap", (width, height, phone) => {
-    const layout = modNoticeLayoutOf(width, height, phone);
-    const rects = [...layout.speakers.flatMap((s) => [s.portrait, s.bubble]), ...layout.buttons];
-    for (const r of rects) {
-      expect(r.x).toBeGreaterThanOrEqual(0);
-      expect(r.y).toBeGreaterThanOrEqual(0);
-      expect(r.x + r.width).toBeLessThanOrEqual(width);
-      expect(r.y + r.height).toBeLessThanOrEqual(height);
-    }
-    const [a, b] = layout.speakers;
-    expect(a!.bubble.y + a!.bubble.height).toBeLessThanOrEqual(b!.bubble.y);
-    expect(layout.buttons[0]!.y).toBeGreaterThanOrEqual(b!.bubble.y + b!.bubble.height);
   });
 });

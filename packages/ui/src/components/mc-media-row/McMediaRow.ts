@@ -1,7 +1,7 @@
 import { html, LitElement, nothing, type PropertyDeclarations } from "lit";
 import { styleMap } from "lit/directives/style-map.js";
 import { ThemeStyles } from "../../shared/theme.styles.js";
-import type { PictureFit } from "../../shared/picture.types.js";
+import type { PictureFit, PictureSource } from "../../shared/picture.types.js";
 import "../mc-picture-tile/mc-picture-tile.js";
 import type { McMediaRowStamp } from "./mc-media-row.types.js";
 import { McMediaRowStyles } from "./mc-media-row.styles.js";
@@ -30,6 +30,7 @@ import { McMediaRowStyles } from "./mc-media-row.styles.js";
  * @attr solid - The pack badge is the call to action (a red fill) rather than an outline.
  * @attr src - The picture URL; empty for none.
  * @attr letter - What the picture box says in big faint type while it has no picture (the pack initial).
+ * @attr retry - Where `src` came from, so a stale URL can be asked for again (`mc-image-error` `detail.key`).
  * @attr focus-x - Where the subject sits across the picture, 0 to 1 (`fit="cover"`).
  * @attr focus-y - Where the subject sits down the picture, 0 to 1 (`fit="cover"`).
  * @attr focus-centered - The crop is centered on the focal point (a hero focus.json) instead of a share of the overflow.
@@ -55,6 +56,7 @@ export class McMediaRow extends LitElement {
     solid: { type: Boolean },
     src: { type: String },
     letter: { type: String },
+    retry: { type: String },
     focusX: { type: Number, attribute: "focus-x" },
     focusY: { type: Number, attribute: "focus-y" },
     focusCentered: { type: Boolean, attribute: "focus-centered" },
@@ -77,6 +79,8 @@ export class McMediaRow extends LitElement {
   declare solid: boolean;
   declare src: string;
   declare letter: string;
+  /** Names where `src` came from (a pack file key), so a stale URL is asked for again: `mc-image-error` carries it as `key`. */
+  declare retry: string;
   declare focusX: number;
   declare focusY: number;
   declare focusCentered: boolean;
@@ -100,6 +104,7 @@ export class McMediaRow extends LitElement {
     this.solid = false;
     this.src = "";
     this.letter = "";
+    this.retry = "";
     this.focusX = 0.5;
     this.focusY = 0.3;
     this.focusCentered = false;
@@ -119,6 +124,18 @@ export class McMediaRow extends LitElement {
     return this.renderRoot.querySelector("mc-picture-tile");
   }
 
+  /** The picture as one value when it names its source (`retry`): the tile then asks once per key for a stale URL. */
+  #named(deck: boolean): PictureSource | null {
+    if (this.retry === "") return null;
+    const fit = deck ? "cover" : this.fit;
+    return {
+      src: this.src === "" ? null : this.src,
+      missing: this.letter,
+      retry: this.retry,
+      ...(fit === "cover" ? { cover: { x: this.focusX, y: this.focusY, centered: this.focusCentered } } : {}),
+    };
+  }
+
   #art() {
     const deck = this.look === "deck";
     return html`<div class="art" style=${styleMap(this.artWidth > 0 ? { width: `${this.artWidth}px` } : {})}>
@@ -126,6 +143,7 @@ export class McMediaRow extends LitElement {
         .src=${this.src}
         .missing=${this.letter}
         .letter=${true}
+        .picture=${this.#named(deck)}
         .fit=${deck ? "cover" : this.fit}
         .subject=${{ x: this.focusX, y: this.focusY, centered: this.focusCentered }}
         .frame=${0}
