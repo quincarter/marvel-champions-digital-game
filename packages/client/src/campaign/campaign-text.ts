@@ -6,7 +6,7 @@
 import { artLanguageNow } from "../art/art-source.js";
 import type { CardLanguage } from "../art/card-language.js";
 import { t, type MessageKey } from "../i18n/translate.js";
-import { CAMPAIGN_COPY_ES, ISSUE_COPY_ES, VILLAIN_ES } from "./campaign-copy-es.js";
+import { CAMPAIGN_COPY_ES, ISSUE_COPY_ES, ROSTER_COPY_ES, VILLAIN_ES } from "./campaign-copy-es.js";
 
 /** The catalog key of each base box's official name (`unlock.name.*`). A pack campaign names itself. */
 const NAME_KEY: Readonly<Record<string, MessageKey>> = {
@@ -78,4 +78,14 @@ export function volumeNameIn(
   lang: CardLanguage = artLanguageNow(),
 ): string {
   return volume.custom ? volume.name : campaignNameIn(volume.campaignId, volume.name, lang);
+}
+
+/** The roster screen's banner for a box. */
+export function rosterBannerIn(campaignId: string, english: string, lang: CardLanguage = artLanguageNow()): string {
+  return lang === "en" ? english : (ROSTER_COPY_ES[campaignId]?.banner ?? english);
+}
+
+/** The roster screen's note about a box's cast, when the box has its own. */
+export function rosterNoteIn(campaignId: string, english: string, lang: CardLanguage = artLanguageNow()): string {
+  return lang === "en" ? english : (ROSTER_COPY_ES[campaignId]?.note ?? english);
 }

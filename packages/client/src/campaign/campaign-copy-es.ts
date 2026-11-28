@@ -180,3 +180,48 @@ export const VILLAIN_ES: Readonly<Record<string, string>> = {
   "Baron Zemo": "Barón Zemo",
   "An underling": "Un subordinado",
 };
+
+/** The roster screen's banner and, for a box that has one, its note about the cast, by `Campaign.id`. */
+export const ROSTER_COPY_ES: Readonly<Record<string, { readonly banner: string; readonly note?: string }>> = {
+  trors: { banner: "Quien firma aquí lo ve hasta el final. Los cinco números. Sin sustituciones." },
+  gmw: {
+    banner: "Quien firma aquí gasta la Colección con el resto de la tripulación. Elige bien: es compartida.",
+  },
+  mts: {
+    banner:
+      "La reserva de campaña viaja con el grupo, no con un asiento. Lo que gane o pierda un número lo heredan todos los siguientes.",
+  },
+  sm: {
+    banner:
+      "Cómo quede el registro de reputación de esta partida pasa a todos los escenarios siguientes: una marca puede dar al grupo ventaja inicial, o un problema que antes no tenía.",
+  },
+  mut_gen: {
+    banner:
+      "Cada héroe asume un papel durante toda la campaña, y lo que añadas a tu mazo por el camino te sigue de número en número.",
+  },
+  mojo: {
+    banner:
+      "Cada héroe se queda los tres episodios. Los sets de género que uses y las cartas que registres pasan de un número al siguiente.",
+    note: "Gambito y Pícara son el reparto por defecto, y sus viñetas de historia están escritas para ellos. Cualquier otro héroe recibe las mismas viñetas con textos del narrador.",
+  },
+  next_evol: {
+    banner:
+      "Cada héroe se queda toda la campaña. Los planes secundarios que elijas y los entornos que ganes pasan de un número al siguiente.",
+  },
+  aoa: {
+    banner: "Cada héroe se queda los cinco escenarios. Lo que deje cada misión, bueno o malo, viaja con toda la mesa.",
+  },
+  aos: {
+    banner:
+      "Cada héroe se queda los cinco escenarios. Los secretos de los miembros de la Junta y las pruebas que consigas viajan con toda la mesa.",
+  },
+  fne: {
+    banner:
+      "Cada héroe se queda toda la campaña. Los subordinados que derrotes quedan tachados, y el Kingpin espera al final.",
+  },
+  shadowland: {
+    banner:
+      "Cada héroe conserva una identidad durante toda la campaña, y la corrupción que carga cada uno te sigue de número en número.",
+    note: "Shadowland no trae héroes propios: trae el que quieras.",
+  },
+};

@@ -7,11 +7,13 @@
  * deck is legal" are: 1-4 seats, and no two seats share an identity — both are roster composition, not deckbuilding,
  * so they live here rather than in `validateDeck`.
  */
-import type { AnyCard, CardId, CoreAspect, Deck } from "@mc/content";
+import type { AnyCard, CardId, Deck } from "@mc/content";
 import { type CardPool, validateDeck } from "@mc/engine";
 import { NOT_READY_REASON, leadsNotReadyHero, preconDecks } from "./deck-list-model.js";
 import { currentPool } from "../content/pool.js";
 import { type AspectStamp, aspectName, aspectStampsOf } from "./aspect-stamp.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { t } from "../i18n/translate.js";
 import { cardDisplayName } from "./hero-names.js";
 import { matchesSearch } from "./roster-filter.js";
 import type { SearchDocument } from "./deck-search.js";
@@ -37,15 +39,17 @@ export interface RosterModel {
   readonly blockedReason: string | null;
 }
 
-const capitalize = (aspect: CoreAspect): string => aspect.charAt(0).toUpperCase() + aspect.slice(1);
-
 function aspectsLabelOf(deck: Deck): string {
   // Only a printed precon is a "starter deck"; a one-aspect deck the player built or imported is just its aspect.
   if (deck.aspects.length <= 1 && deck.source.kind === "precon") {
     const aspect = deck.aspects[0];
-    return aspect ? `${capitalize(aspect)} · starter deck` : "Starter deck";
+    return aspect
+      ? t("roster.aspects.starter", { aspect: aspectName(aspect, artLanguageNow()) })
+      : t("roster.aspects.starterOnly");
   }
-  return deck.aspects.length === 0 ? "No aspect" : deck.aspects.map(capitalize).join(" + ");
+  return deck.aspects.length === 0
+    ? t("roster.aspects.none")
+    : deck.aspects.map((aspect) => aspectName(aspect, artLanguageNow())).join(" + ");
 }
 
 /**
@@ -115,11 +119,16 @@ export function rosterDeckOptions(
     return {
       deck,
       identityId: deck.identityCardId as string,
-      stamps: aspectStampsOf(deck.aspects),
-      sourceLabel: deck.source.kind === "precon" ? "Precon" : deck.source.kind === "imported" ? "Imported" : "Built",
+      stamps: aspectStampsOf(deck.aspects, artLanguageNow()),
+      sourceLabel:
+        deck.source.kind === "precon"
+          ? t("deckSource.precon")
+          : deck.source.kind === "imported"
+            ? t("deckSource.imported")
+            : t("deckSource.built"),
       deckName: savedDeckNameOf(deck),
       blocked: seat !== undefined || lock !== null,
-      blockedReason: seat !== undefined ? `Already seated at #${seat}` : lock,
+      blockedReason: seat !== undefined ? t("roster.blocked.seatedAt", { number: seat }) : lock,
     };
   });
 }
@@ -157,10 +166,10 @@ export function rosterModelOf(seats: readonly (Deck | null)[], pool: CardPool): 
   const anyNotReady = filled.some((seat) => leadsNotReadyHero(seat.deck, pool));
 
   let blockedReason: string | null = null;
-  if (filled.length === 0) blockedReason = "Seat at least one hero.";
-  else if (!uniqueIdentities) blockedReason = "Each seat needs a different hero (MC10 p. 3).";
+  if (filled.length === 0) blockedReason = t("roster.reason.none");
+  else if (!uniqueIdentities) blockedReason = t("roster.reason.duplicate");
   else if (anyNotReady) blockedReason = NOT_READY_REASON;
-  else if (!allLegal) blockedReason = "Every signed deck has to be legal first.";
+  else if (!allLegal) blockedReason = t("roster.reason.illegal");
 
   return { seats: seatViews, canSign: blockedReason === null, blockedReason };
 }
@@ -292,8 +301,8 @@ export function pickerEntriesOf(
   const group = (text: string, indexes: readonly number[]): PickerEntry[] =>
     indexes.length > 0 ? [{ kind: "heading", text }, ...indexes.map(row)] : [];
   return [
-    ...group(`Recommended for seat #${seatNumber}`, recommended),
-    ...group(recommended.length > 0 ? "Other heroes" : "Available heroes", available),
-    ...group("Locked or already seated", unavailable),
+    ...group(t("roster.heading.recommended", { number: seatNumber }), recommended),
+    ...group(recommended.length > 0 ? t("roster.heading.other") : t("roster.heading.available"), available),
+    ...group(t("roster.heading.locked"), unavailable),
   ];
 }

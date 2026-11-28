@@ -1,168 +1,94 @@
 /**
  * C02 — Sign the roster: the seats a fresh campaign run is signed with. Pre-filled with the box's own cast
  * (`story.castIdentityIds`' precons); any seat can be reassigned to any legal deck through this screen's own picker
- * overlay (there is no separate tile for it — design tiles show only the filled state).
+ * (there is no separate tile for it — design tiles show only the filled state).
  *
  * `view/campaign-roster-model.ts` owns every rule this screen enforces (1-4 seats, unique identities, deck
- * legality); this scene only lays the seats out and turns a tap into a seat edit or the sign action.
+ * legality); this scene only turns a tap into a seat edit or the sign action.
+ *
+ * The whole screen is one Lit panel over the canvas (`dom/dom-region.ts`, `mc-sheet`): the page, the four seats and the
+ * deck picker over them, each drawn by a module in `roster/`. This scene is the thin owner: the panel, the focus route,
+ * the search worker, the card hover popover, signing and navigation.
  */
 import Phaser from "phaser";
+import "@mc/ui";
+import type { McSearchField, McSheet } from "@mc/ui";
 import type { CardId, Deck } from "@mc/content";
 import { POOL_VERSION, currentCardsById, currentPool, currentPoolKey } from "../../content/pool.js";
-import { HERO_ART, heroArtForIdentity } from "../../art/hero-art.js";
-import { artFor, artLanguageNow } from "../../art/art-source.js";
-import type { Picture } from "../../art/pictures.js";
-import { cardDisplayName } from "../../view/hero-names.js";
-import { accent, ink, surface, typeRole } from "../../tokens.js";
-import {
-  bangers,
-  campaignFrame,
-  captionBox,
-  drawActionBar,
-  drawPicture,
-  drawTopBar,
-} from "../../ui/campaign-chrome.js";
-import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
-import { ASPECT_CHIP_LINE_STEP, aspectChipLines, drawAspectChips } from "../../ui/aspect-chips.js";
-import { campaignActionButton } from "../../ui/campaign-buttons-a.js";
-import { destroyChildren } from "../../ui/destroy-children.js";
-import { cssOf, skin, textStyle } from "../../ui/theme.js";
-import { clampLines, dashedRect, fitText, McButton, type McTextInput } from "../../ui/widgets.js";
+import { surface } from "../../tokens.js";
+import { campaignFrame } from "../../ui/campaign-chrome.js";
+import { cssOf } from "../../ui/theme.js";
+import { isDesktopType } from "../../ui/desktop-type.js";
 import { HoverPreview, screenHoverArea } from "../../ui/card-hover-preview.js";
-import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../../view/card-hover.js";
 import { DeckSearchClient } from "../../view/deck-search-client.js";
-import { drawSearchField } from "../roster-panel.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
-import { McVirtualList } from "../../ui/virtual-list.js";
-import { addPressShield } from "../../ui/press-shield.js";
-import { onTap } from "../../ui/tap.js";
-import { deckStorage, campaignService } from "../../session.js";
+import { campaignService, deckStorage, appSession } from "../../session.js";
 import { rollSeed } from "../../view/seed.js";
-import type { Rect } from "../../view/layout.js";
-import { ListScroll } from "../../view/list-scroll.js";
-import { TEAM_UP_ART, teamUpArtFor } from "../../art/team-up-art.js";
-import { drawRingImage } from "../board/team-up-badge.js";
-import { pairCatalogOf, seatedTeamUps, type SeatedPair } from "../../view/seat-recommendations.js";
-import { PAIR_ROW_HEIGHT } from "../../view/seats-layout.js";
 import {
   ROSTER_SEAT_COUNT,
-  pickerEntriesOf,
   pickerSearchDocumentsOf,
-  type RosterDeckOption,
-  pickerRecommendationsOf,
   preconRosterOf,
-  rosterDeckOptions,
   rosterModelOf,
-  type PickerEntry,
-  type RosterModel,
+  type RosterDeckOption,
 } from "../../view/campaign-roster-model.js";
-import type { SeatRecommendation } from "../../view/seat-recommendations.js";
 import { storyFor } from "../../campaign/story.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
-import type { GlyphHints } from "../../ui/glyph-hints.js";
 import { bindTextFieldEscape } from "../text-field-escape.js";
-import { createHints, forwardHintAtEnd } from "./pad-hints.js";
-import { unlocks } from "../../progression/progression.js";
 import { tableRulesOf } from "../../settings.js";
-import { appSession } from "../../session.js";
-import {
-  applyDeckSwaps,
-  nameConflictsOf,
-  unresolvedConflicts,
-  type DeckSwap,
-  type KeptConflict,
-  type NameConflict,
-} from "../../view/name-conflicts.js";
+import { applyDeckSwaps, nameConflictsOf, unresolvedConflicts, type NameConflict } from "../../view/name-conflicts.js";
 import { openNameConflictSheet } from "../name-conflict.js";
 import { rebuildOnPackChange } from "../../ui/pack-redraw.js";
+import { t } from "../../i18n/translate.js";
+import { onArtChange, onLanguageChange } from "../../language-change.js";
+import { DomRegion, renderNow } from "../../dom/dom-region.js";
+import { domFocusRing } from "../../dom/dom-ring.js";
+import { PictureLeases } from "../../dom/picture-leases.js";
+import { SheetBuilder } from "../../dom/sheet-builder.js";
+import { SheetGlyphs } from "../../dom/sheet-glyphs.js";
+import type { Rect } from "../../view/layout.js";
+import { PICKER_LIST, PICKER_SEARCH, type RosterCtx, type RosterState } from "./roster/context.js";
+import { drawPage } from "./roster/page.js";
+import { drawPicker, pickerDebugRows, pickerHoverCards } from "./roster/picker.js";
 import type { CampaignRosterData } from "./routes.js";
-
-/** The pool's Team-Up pairs, rebuilt when the loaded packs change, so a pack hero's team-up cards are known. */
-let pairCatalog: { readonly key: string; readonly catalog: ReturnType<typeof pairCatalogOf> } | null = null;
-const rosterPairCatalog = (): ReturnType<typeof pairCatalogOf> => {
-  const key = currentPoolKey();
-  if (pairCatalog?.key !== key) pairCatalog = { key, catalog: pairCatalogOf(currentCardsById()) };
-  return pairCatalog.catalog;
-};
-
-/** A heading in the seat picker's list ("Recommended for seat #2", "All heroes"): a compact band, not a full row. */
-const PICKER_HEADING_HEIGHT = 22;
-/** A saved deck's own name (#658) takes a line under the hero's in its picker row, so the row grows by this much. */
-const PICKER_DECK_NAME_STEP = 16;
-/** A seat card's footer height that fits the hero, a saved deck's name and the aspects without overlap (#658). */
-const SEAT_FOOTER_THREE_LINES = 64;
-/** How long a burst of hero pictures arriving is gathered into one redraw. */
-const ART_REDRAW_MS = 80;
-
-const CAST_NOTE =
-  "These two ship in this box, so their story beats are written for them. Other heroes get the same beats with narrator captions.";
 
 export class CampaignRosterScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
-  #stops = new Map<string, FocusStop>();
-  #campaignId = "";
-  #expertCampaign = false;
-  /** Galaxy's Most Wanted's Balanced house rule, as chosen on the prompt before this screen (issue #609); null for Normal. */
-  #balanced: CampaignRosterData["balanced"] | null = null;
-  #seats: (Deck | null)[] = Array.from({ length: ROSTER_SEAT_COUNT }, () => null);
-  #savedDecks: readonly Deck[] = [];
-  #model: RosterModel | null = null;
-  #pickerSeat: number | null = null;
-  #pickerScroll = new ListScroll();
-  #pickerList: McVirtualList | null = null;
-  /** The picker's search text, and its field (kept across rebuilds so typing keeps focus). Cleared when it closes. */
-  #pickerQuery = "";
-  #pickerSearch: McTextInput | null = null;
-  #hints: GlyphHints | null = null;
-  /** Ranks the picker's decks for the query off the main thread; `#pickerRanking` is its latest answer (null: no query). */
-  readonly #search = new DeckSearchClient();
-  #pickerRanking: ReadonlyMap<string, number> | null = null;
-  #searchDocsKey = "";
-  /** The open picker's recommendations, worked out once per seat line-up rather than on every keystroke. */
-  #pickerRecs: { readonly key: string; readonly recs: readonly SeatRecommendation[] } | null = null;
-  /** Redraws only the picker's visible rows (a row picture arrived); null while the picker is closed. */
-  #redrawPickerRows: (() => void) | null = null;
-  /** The thumbnails of the picker's option rows, for the desktop hover popover; null while the picker is closed. */
-  #pickerHoverCards: (() => ReadonlyMap<string, HoverCardIdRect>) | null = null;
-  /** Where the search field sits while the picker is open: a DOM field draws over the canvas, popover included. */
-  #pickerSearchRect: Rect | null = null;
-  #hover: HoverPreview | null = null;
-  /**
-   * A redraw asked for by arriving art and not yet run: "list" redraws the picker's visible rows, "all" the screen.
-   * Every picture used to call the full rebuild itself, and every rebuild queued another waiter on the pictures still
-   * loading, so the rebuilds multiplied while the picker's art streamed in until the screen froze (#177).
-   */
-  #artQueued: "none" | "list" | "all" = "none";
-  readonly #onSceneArt = (): void => this.#queueArtRedraw("all");
-  readonly #onRowArt = (): void => this.#queueArtRedraw("list");
-  /** Dev e2e hook only (see `#drawPicker`): the picker rows drawn since it opened. */
-  #pickerRowsDebug = new Map<number, { name: string; picture: boolean; badges: { label: string; fill: number }[] }>();
-  /** Dev e2e hook only: each drawn picker row's rect and the texts drawn over its button (#272). */
-  #pickerRowTextDebug = new Map<
-    number,
-    { name: string; rect: Rect; texts: readonly Phaser.GameObjects.Text[]; button: McButton }
-  >();
-  #heroArtCache = new Map<string, Picture | null>();
-  #signing = false;
-  #error: string | null = null;
-  /** Circle masks the Team-Up pill's picture made; destroyed with the next rebuild. */
-  #masks: Phaser.GameObjects.Graphics[] = [];
-  /** The seated pairs of the latest rebuild, for the phone's per-card tags. */
-  #pairs: readonly SeatedPair[] = [];
-  #phoneLayout = false;
-  /**
-   * Cards the player replaced because they cannot be played beside another seat's hero (`view/name-conflicts.ts`),
-   * and cards kept as a resource. Applied to the decks as the roster is signed: the campaign stores its own copy of each
-   * deck with the replacement in it (so every issue of the run plays with it), and the saved deck is never touched.
-   */
-  #swaps: readonly DeckSwap[] = [];
-  #kept: readonly KeptConflict[] = [];
-
-  /** One stable callback for the page art's load (`ui/campaign-pane.ts`), so repeat waiters fold into one. */
-  readonly #redrawArt = (): void => {
-    if (this.sys.isActive()) this.#rebuild();
+  #glyphs!: SheetGlyphs;
+  #region: DomRegion<McSheet> | null = null;
+  readonly #leases = new PictureLeases();
+  readonly #actions = new Map<string, () => void>();
+  readonly #inspects = new Map<string, () => void>();
+  readonly #stops = new Map<string, FocusStop>();
+  readonly #obstacles: Rect[] = [];
+  readonly #state: RosterState = {
+    seats: Array.from({ length: ROSTER_SEAT_COUNT }, () => null),
+    savedDecks: [],
+    model: null,
+    balanced: null,
+    campaignId: "",
+    expertCampaign: false,
+    pickerSeat: null,
+    pickerQuery: "",
+    pickerRanking: null,
+    pickerRecs: null,
+    pickerView: null,
+    pickerTop: 0,
+    signing: false,
+    error: null,
+    pairs: [],
+    phoneLayout: false,
+    swaps: [],
+    kept: [],
   };
+  /** Ranks the picker's decks for the query off the main thread. */
+  readonly #search = new DeckSearchClient();
+  #searchDocsKey = "";
+  #hover: HoverPreview | null = null;
+  #ctx!: RosterCtx;
+  #alive = false;
+  /** The scrollers whose scroll place has been restored and listened to. */
+  readonly #placed = new WeakSet<HTMLElement>();
 
   constructor() {
     super(SCENES.campaignRoster);
@@ -170,69 +96,119 @@ export class CampaignRosterScene extends Phaser.Scene {
 
   create(data: CampaignRosterData): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    this.#alive = true;
+    this.#region = null;
     this.scale.on("resize", this.#rebuild, this);
+    this.#glyphs = new SheetGlyphs(
+      this,
+      () => this.#rebuild(),
+      () => this.#obstacles,
+    );
+    const offArt = onArtChange(() => {
+      if (this.sys.isActive()) this.#rebuild();
+    });
+    const offLanguage = onLanguageChange(() => {
+      if (this.sys.isActive()) this.#rebuild();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#alive = false;
       this.scale.off("resize", this.#rebuild, this);
-      for (const mask of this.#masks) mask.destroy();
-      this.#masks = [];
-      this.#pickerSearch?.destroy();
-      this.#pickerSearch = null;
+      offArt();
+      offLanguage();
       this.#search.destroy();
       this.#hover?.destroy();
       this.#hover = null;
+      this.#glyphs.dispose();
+      this.#leases.dispose();
+      this.#region = null;
     });
+    const covered = (): boolean => this.scene.isActive(SCENES.nameConflict) || this.scene.isActive(SCENES.inspect);
     this.#hover = new HoverPreview(this, {
-      cardIds: () => this.#pickerHoverCards?.() ?? new Map(),
-      area: (pointer) => this.#hoverArea(pointer),
+      cardIds: () => (this.#state.pickerSeat === null ? new Map() : pickerHoverCards(this.#ctx)),
+      area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.#searchFocused() }),
     });
-    this.#hints = createHints(this);
     // Before the route, so the press that puts the caret in the field is not also the one that takes it out.
-    bindTextFieldEscape(
-      this,
-      () => this.#pickerSearch,
-      () => this.scene.isActive(SCENES.nameConflict) || this.scene.isActive(SCENES.inspect),
-    );
+    bindTextFieldEscape(this, () => this.#field(), covered);
     this.#route = new FocusRoute(this, {
-      blocked: () =>
-        this.scene.isActive(SCENES.nameConflict) ||
-        this.scene.isActive(SCENES.inspect) ||
-        (this.#pickerSearch?.focused ?? false),
+      ring: domFocusRing,
+      blocked: () => covered() || this.#searchFocused(),
       // Start and A with nothing focused: Sign & open issue #1 (never behind the open deck picker).
-      primary: () => (this.#pickerSeat === null ? "cta" : null),
+      primary: () => (this.#state.pickerSeat === null ? "cta" : null),
       onCancel: () => this.#onCancel(),
-      onPage: (direction) => this.#pickerList?.scrollByPage(direction),
-      onScroll: (_dx, dy) => this.#pickerList?.scrollByPx(dy),
-      onHomeEnd: (edge) => (edge === "home" ? this.#pickerList?.scrollToStart() : this.#pickerList?.scrollToEnd()),
+      onPage: (direction) =>
+        this.#scroller()?.scrollBy({ top: direction * (this.#state.pickerView?.listRect.height ?? 0) * 0.9 }),
+      onScroll: (_dx, dy) => this.#scroller()?.scrollBy({ top: dy }),
+      onHomeEnd: (edge) => {
+        const scroller = this.#scroller();
+        if (scroller) scroller.scrollTop = edge === "home" ? 0 : scroller.scrollHeight;
+      },
     });
-    this.#campaignId = data.campaignId;
-    this.#expertCampaign = data.expertCampaign ?? false;
-    this.#balanced = data.balanced ?? null;
-    this.#seats = preconRosterOf(
-      (storyFor(this.#campaignId)?.castIdentityIds ?? []) as readonly CardId[],
+    this.#ctx = {
+      scene: this,
+      glyphs: this.#glyphs,
+      leases: this.#leases,
+      actions: this.#actions,
+      inspects: this.#inspects,
+      stops: this.#stops,
+      obstacles: this.#obstacles,
+      state: this.#state,
+      scroller: () => this.#scroller(),
+      openPicker: (seat) => this.#openPicker(seat),
+      closePicker: () => this.#closePicker(),
+      removeSeat: (seat) => {
+        this.#state.seats[seat - 1] = null;
+        this.#closePicker();
+      },
+      pickDeck: (seat, option) => this.#pickDeck(seat, option),
+      onSign: () => this.#onSign(),
+      onCancel: () => this.#onCancel(),
+      syncSearch: (options) => this.#syncSearchDocuments(options),
+      focusSearch: () => this.#focusSearch(),
+      inspectIdentity: (cardId) => this.#inspectIdentity(cardId),
+    };
+    const state = this.#state;
+    state.campaignId = data.campaignId;
+    state.expertCampaign = data.expertCampaign ?? false;
+    state.balanced = data.balanced ?? null;
+    state.seats = preconRosterOf(
+      (storyFor(state.campaignId)?.castIdentityIds ?? []) as readonly CardId[],
       POOL_VERSION,
     );
-    this.#pickerSeat = null;
-    this.#pickerScroll.reset();
-    this.#pickerList = null;
-    this.#pickerQuery = "";
-    this.#pickerRanking = null;
+    state.pickerSeat = null;
+    state.pickerTop = 0;
+    state.pickerQuery = "";
+    state.pickerRanking = null;
+    state.pickerRecs = null;
+    state.pickerView = null;
     this.#search.cancel();
-    this.#pickerRecs = null;
-    this.#artQueued = "none";
-    this.#signing = false;
-    this.#error = null;
-    this.#swaps = [];
-    this.#kept = [];
-    this.#model = rosterModelOf(this.#seats, currentPool());
+    state.signing = false;
+    state.error = null;
+    state.swaps = [];
+    state.kept = [];
+    state.model = rosterModelOf(state.seats, currentPool());
     void this.#loadSavedDecks();
-    // Installed packs load a moment after boot, and again after an install or removal: a pack hero joins the picker
-    // (and its seat's legality is checked again) when they do (#978).
-    rebuildOnPackChange(this, () => {
-      this.#model = rosterModelOf(this.#seats, currentPool());
-      this.#rebuild();
-    });
+    // Installed packs load a moment after boot, and again after an install or removal: a pack hero joins the picker (and
+    // its seat's legality is checked again) when they do (#978).
+    rebuildOnPackChange(this, () => this.#rebuild());
     this.#rebuild();
     fadeScreenIn(this);
+  }
+
+  #scroller(): HTMLElement | null {
+    return this.#region?.element.elementOf(PICKER_LIST) ?? null;
+  }
+
+  #field(): McSearchField | null {
+    return (this.#region?.element.elementOf(PICKER_SEARCH) as McSearchField | null) ?? null;
+  }
+
+  #searchFocused(): boolean {
+    return this.#field()?.focused ?? false;
+  }
+
+  #focusSearch(): void {
+    const field = this.#field();
+    if (field) void field.updateComplete.then(() => field.focusInput());
   }
 
   /** Hands the worker the picker's decks when the list changes, and re-asks the open query of the new list. */
@@ -241,7 +217,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     if (key === this.#searchDocsKey) return;
     this.#searchDocsKey = key;
     this.#search.setDocuments(pickerSearchDocumentsOf(options, currentCardsById()), key);
-    const text = this.#pickerQuery;
+    const text = this.#state.pickerQuery;
     // After this redraw, not inside it: the answer redraws again.
     if (text.trim() !== "") queueMicrotask(() => this.sys.isActive() && this.#requestSearch(text));
   }
@@ -250,13 +226,13 @@ export class CampaignRosterScene extends Phaser.Scene {
   #requestSearch(text: string): void {
     if (text.trim() === "") {
       this.#search.cancel();
-      this.#pickerRanking = null;
+      this.#state.pickerRanking = null;
       this.#rebuild();
       return;
     }
     this.#search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
-      this.#pickerRanking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#state.pickerRanking = new Map(ranked.map((r) => [r.id, r.score]));
       this.#rebuild();
     });
   }
@@ -264,22 +240,64 @@ export class CampaignRosterScene extends Phaser.Scene {
   async #loadSavedDecks(): Promise<void> {
     const decks = await deckStorage().list();
     if (!this.sys.isActive()) return;
-    this.#savedDecks = decks;
-    if (this.#pickerSeat !== null) this.#rebuild();
+    this.#state.savedDecks = decks;
+    if (this.#state.pickerSeat !== null) this.#rebuild();
+  }
+
+  #resetPickerSearch(): void {
+    const state = this.#state;
+    state.pickerTop = 0;
+    state.pickerQuery = "";
+    state.pickerRanking = null;
+    this.#search.cancel();
+    state.pickerRecs = null;
+  }
+
+  #openPicker(seatNumber: number): void {
+    this.#state.pickerSeat = seatNumber;
+    this.#resetPickerSearch();
+    this.#rebuild();
+  }
+
+  #closePicker(): void {
+    this.#state.pickerSeat = null;
+    this.#resetPickerSearch();
+    this.#rebuild();
+  }
+
+  #pickDeck(seatNumber: number, option: RosterDeckOption): void {
+    if (option.blocked) return;
+    const state = this.#state;
+    const before = state.seats.filter((deck): deck is Deck => deck !== null);
+    state.seats[seatNumber - 1] = option.deck;
+    // A replacement answered a hero who has now left the table: drop the answers (a hero only joining keeps them).
+    const after = state.seats.filter((deck): deck is Deck => deck !== null);
+    if (!before.every((deck) => after.some((other) => other.id === deck.id))) {
+      state.swaps = [];
+      state.kept = [];
+    }
+    this.#closePicker();
   }
 
   #onCancel(): void {
-    if (this.#pickerSeat !== null) {
-      this.#pickerSeat = null;
-      this.#rebuild();
+    if (this.#state.pickerSeat !== null) {
+      this.#closePicker();
       return;
     }
-    goToScreen(this, SCENES.campaignCover, { campaignId: this.#campaignId });
+    goToScreen(this, SCENES.campaignCover, { campaignId: this.#state.campaignId });
+  }
+
+  /** Y: the hero's identity card in full. */
+  #inspectIdentity(cardId: string): void {
+    this.scene.launch(SCENES.inspect, { card: { cardId: cardId as CardId, face: { kind: "front" } } });
+    this.scene.bringToTop(SCENES.inspect);
   }
 
   /** The signed decks as the roster stands: each seat's deck with this run's replacements applied. */
   #effectiveDecks(): readonly Deck[] {
-    return this.#seats.filter((deck): deck is Deck => deck !== null).map((deck) => applyDeckSwaps(deck, this.#swaps));
+    return this.#state.seats
+      .filter((deck): deck is Deck => deck !== null)
+      .map((deck) => applyDeckSwaps(deck, this.#state.swaps));
   }
 
   /** Cards that cannot be played beside another seat's hero and have not been answered. */
@@ -289,19 +307,19 @@ export class CampaignRosterScene extends Phaser.Scene {
       currentCardsById(),
       tableRulesOf(appSession().settings),
     );
-    return unresolvedConflicts(found, this.#kept);
+    return unresolvedConflicts(found, this.#state.kept);
   }
 
   #openConflictSheet(): void {
     openNameConflictSheet(this, {
-      decks: this.#seats.filter((deck): deck is Deck => deck !== null),
-      swaps: this.#swaps,
-      kept: this.#kept,
+      decks: this.#state.seats.filter((deck): deck is Deck => deck !== null),
+      swaps: this.#state.swaps,
+      kept: this.#state.kept,
       tableRules: tableRulesOf(appSession().settings),
-      continueLabel: "Sign",
+      continueLabel: t("roster.sign.conflictContinue"),
       onChange: (swaps, kept) => {
-        this.#swaps = swaps;
-        this.#kept = kept;
+        this.#state.swaps = swaps;
+        this.#state.kept = kept;
         this.#rebuild();
       },
       onContinue: () => void this.#sign(),
@@ -310,804 +328,123 @@ export class CampaignRosterScene extends Phaser.Scene {
 
   /** "Sign" with a clash still open asks first (the sheet's Continue signs); otherwise signs. */
   #onSign(): void {
-    if (this.#model?.canSign && this.#unresolved().length > 0) {
+    if (this.#state.model?.canSign && this.#unresolved().length > 0) {
       this.#openConflictSheet();
       return;
     }
     void this.#sign();
   }
 
-  /** The popover's area: the whole screen on desktop, kept below the picker's search field so the field never covers it. */
-  #hoverArea(pointer: Phaser.Input.Pointer): Rect | null {
-    const area = screenHoverArea(this, pointer);
-    const field = this.#pickerSearchRect;
-    if (!area || !field) return area;
-    const top = field.y + field.height;
-    return { ...area, y: top, height: area.y + area.height - top };
-  }
-
-  #queueArtRedraw(kind: "list" | "all"): void {
-    const queued = this.#artQueued;
-    if (queued !== "all") this.#artQueued = kind === "all" ? "all" : "list";
-    if (queued !== "none") return;
-    this.time.delayedCall(ART_REDRAW_MS, () => {
-      const wanted = this.#artQueued;
-      this.#artQueued = "none";
-      if (!this.sys.isActive()) return;
-      if (wanted === "list" && this.#redrawPickerRows) this.#redrawPickerRows();
-      else this.#rebuild();
-    });
-  }
-
   #rebuild(): void {
-    this.#pickerList?.destroy();
-    this.#pickerList = null;
-    this.#redrawPickerRows = null;
-    this.#pickerHoverCards = null;
-    this.#pickerSearchRect = null;
-    for (const mask of this.#masks) mask.destroy();
-    this.#masks = [];
-    if (this.#pickerSeat === null && this.#pickerSearch) {
-      this.#pickerSearch.destroy();
-      this.#pickerSearch = null;
-      this.#pickerQuery = "";
-      this.#pickerRanking = null;
-      this.#search.cancel();
-      this.#pickerRecs = null;
-    }
-    const kept = this.#pickerSearch ? [this.#pickerSearch.gameObject] : [];
-    for (const node of kept) this.children.remove(node);
-    destroyChildren(this);
-    for (const node of kept) this.children.add(node);
-    this.#stops = new Map();
-    this.#hints?.reset();
-    this.#model = rosterModelOf(this.#seats, currentPool());
-    drawCampaignPageArt(this, this.#campaignId, this.#redrawArt);
+    if (!this.#alive) return;
+    const state = this.#state;
+    this.#glyphs.reset();
+    this.#leases.begin();
+    this.#actions.clear();
+    this.#inspects.clear();
+    this.#stops.clear();
+    this.#obstacles.length = 0;
+    state.pickerView = null;
+    state.model = rosterModelOf(state.seats, currentPool());
 
     const frame = campaignFrame(this);
-    const top = drawTopBar(this, {
-      backLabel: frame.phone ? "◂" : "◂ Cover",
-      onBack: () => this.#onCancel(),
-      hints: this.#hints,
-      title: `Sign the roster${this.#expertCampaign ? " · Expert" : ""}${this.#balanced ? " · Balanced" : ""}`,
-    });
-    if (top.backRect) this.#stops.set("back", { rect: top.backRect, activate: () => this.#onCancel() });
-
-    const story = storyFor(this.#campaignId);
-    const gutter = frame.gutter;
-    let y = top.height + gutter;
-    // A box with no story file (MojoMania) has no banner to show: no empty caption box either.
-    if (story) {
-      const banner = captionBox(this, gutter, y, frame.width - gutter * 2, story.rosterBanner, { size: 13 });
-      y += banner.rect.height + gutter;
-    }
-
-    const actionBar = drawActionBar(this);
-    const seatsBottom = actionBar.y - gutter;
-
-    // Seated Team-Up pairs: a strip above the seat cards, one row per pair, reserved only while there are some.
-    this.#phoneLayout = frame.phone;
-    const pairs = seatedTeamUps(this.#seats, currentCardsById(), rosterPairCatalog());
-    this.#pairs = pairs;
-    const stripRows = Math.min(pairs.length, 3);
-    const stripRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: stripRows * PAIR_ROW_HEIGHT };
-    if (stripRows > 0) y += stripRect.height + 6;
-
-    const seatsHeight = seatsBottom - y - (frame.phone ? 96 : 60);
-    const seatRects = frame.phone
-      ? this.#phoneSeatRects(gutter, y, frame.width - gutter * 2, seatsHeight)
-      : this.#wideSeatRects(gutter, y, frame.width - gutter * 2, seatsHeight);
-    seatRects.forEach((rect, i) => this.#drawSeat(i + 1, rect));
-    if (stripRows > 0) this.#drawPairStrip(stripRect, pairs, seatRects, y, frame.phone);
-
-    const model = this.#model;
-    const noteY = seatsBottom - 52;
-    const noteRect: Rect = { x: gutter, y: noteY, width: frame.width - gutter * 2, height: 44 };
-    const noteBg = this.add.graphics();
-    noteBg.lineStyle(1.5, surface.ink.hex, 1).strokeRect(noteRect.x, noteRect.y, noteRect.width, noteRect.height);
-    void noteBg;
-    this.add.text(
-      noteRect.x + 10,
-      noteRect.y + 6,
-      "LOCKED",
-      textStyle({ ...typeRole.rowTitle, size: 11 }, surface.ink.hex),
-    );
-    this.add.text(noteRect.x + 66, noteRect.y + 6, "Hero identity, whole campaign.", {
-      ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-      fontSize: "11px",
-    });
-    this.add
-      .text(noteRect.x + 10, noteRect.y + 22, "FREE", textStyle({ ...typeRole.rowTitle, size: 11 }, 0x1f7a4c))
-      .setColor(cssOf(0x1f7a4c));
-    this.add.text(noteRect.x + 52, noteRect.y + 22, "Aspects and deck, between issues.", {
-      ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-      fontSize: "11px",
-    });
-    if (!frame.phone && story) {
-      this.add.text(noteRect.x + 320, noteRect.y + 6, story.rosterNote ?? CAST_NOTE, {
-        ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
-        fontSize: "10px",
-        wordWrap: { width: noteRect.width - 330, useAdvancedWrap: true },
-      });
-    }
-
-    const ctaWidth = frame.phone ? actionBar.width - 24 : Math.min(360, actionBar.width - 32);
-    const ctaRect: Rect = {
-      x: actionBar.x + actionBar.width - 16 - ctaWidth,
-      y: actionBar.y + (actionBar.height - 52) / 2,
-      width: ctaWidth,
-      height: 52,
-    };
-    const cta = campaignActionButton(this, {
-      kind: "primary",
-      rect: ctaRect,
-      title: this.#signing ? "Signing…" : "Sign & open issue #1",
-      chevron: !this.#signing,
-      enabled: model?.canSign === true && !this.#signing,
-      ...(model?.blockedReason ? { reason: model.blockedReason } : {}),
-      onClick: () => this.#onSign(),
-      titleSize: 16,
-    });
-    void cta;
-    this.#stops.set("cta", { rect: ctaRect, activate: () => this.#onSign() });
-    if (this.#pickerSeat === null)
-      forwardHintAtEnd(this.#hints, ctaRect, "ink", model?.canSign === true && !this.#signing);
-
-    if (this.#error) {
-      this.add.text(gutter, actionBar.y - 20, this.#error, textStyle(typeRole.label, 0xc8102e, 1));
-    }
-
-    if (this.#pickerSeat !== null) this.#drawPicker(frame, this.#pickerSeat);
+    const b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+    drawPage(this.#ctx, b, frame);
+    if (state.pickerSeat !== null) drawPicker(this.#ctx, b, frame, state.pickerSeat);
 
     // With the deck picker open it is the whole route: nothing behind it can be reached.
     const picks = [...this.#stops.keys()].filter((k) => k.startsWith("pick-"));
     const order =
-      this.#pickerSeat !== null
+      state.pickerSeat !== null
         ? picks
         : ["back", ...Array.from({ length: ROSTER_SEAT_COUNT }, (_, i) => `seat-${i + 1}`), "cta"].filter((key) =>
             this.#stops.has(key),
           );
-    this.#route?.set(order, this.#stops);
+    this.#route?.set(order, new Map(this.#stops));
+    this.#mount(frame, b);
     this.#hover?.onDraw();
+    if (import.meta.env.DEV) this.#publishDebug();
   }
 
-  // ---- Seat grids -------------------------------------------------------------------------------------------
-
-  #wideSeatRects(x: number, y: number, width: number, height: number): Rect[] {
-    const gap = 16;
-    const cardWidth = (width - gap * (ROSTER_SEAT_COUNT - 1)) / ROSTER_SEAT_COUNT;
-    return Array.from({ length: ROSTER_SEAT_COUNT }, (_, i) => ({
-      x: x + i * (cardWidth + gap),
-      y,
-      width: cardWidth,
-      height,
-    }));
-  }
-
-  #phoneSeatRects(x: number, y: number, width: number, height: number): Rect[] {
-    const gap = 12;
-    const cardWidth = (width - gap) / 2;
-    const cardHeight = (height - gap) / 2;
-    return Array.from({ length: ROSTER_SEAT_COUNT }, (_, i) => ({
-      x: x + (i % 2) * (cardWidth + gap),
-      y: y + Math.floor(i / 2) * (cardHeight + gap),
-      width: cardWidth,
-      height: cardHeight,
-    }));
-  }
-
-  /**
-   * The Team-Up marker above the seat cards: per pair, a bracket from each partner's card up to a line with a pill on
-   * it (the pair's circle where there is art, "Team-Up: Colossus and Shadowcat"). On the phone's 2×2 grid only a top
-   * row card can reach the strip, so the pill also says which seats ("#1 + #3") and the paired cards carry their own
-   * small TEAM-UP tag (`#drawSeat`). Not interactive.
-   */
-  #drawPairStrip(
-    strip: Rect,
-    pairs: readonly SeatedPair[],
-    seatRects: readonly Rect[],
-    cardsTop: number,
-    phone: boolean,
-  ): void {
-    pairs.slice(0, Math.floor(strip.height / PAIR_ROW_HEIGHT)).forEach((pair, row) => {
-      const y = strip.y + row * PAIR_ROW_HEIGHT + PAIR_ROW_HEIGHT / 2;
-      const g = this.add.graphics();
-      g.lineStyle(2, accent.heroRed.hex, 1);
-      const rects = pair.seats.map((seat) => seatRects[seat - 1]!);
-      const xs = rects.map((rect) => rect.x + rect.width / 2);
-      rects.forEach((rect, i) => {
-        if (rect.y <= cardsTop + 1) g.lineBetween(xs[i]!, y, xs[i]!, cardsTop);
+  /** Hands the built parts to the panel (made once, so the picker's scroll survives a redraw) and renders them now. */
+  #mount(frame: { readonly width: number; readonly height: number }, b: SheetBuilder): void {
+    const rect: Rect = { x: 0, y: 0, width: frame.width, height: frame.height };
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      element.addEventListener("mc-activate", (event) => {
+        // Signing: a second tap must not act.
+        if (this.#state.signing) return;
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
       });
-      g.lineBetween(xs[0]!, y, xs[1]!, y);
-      const art = teamUpArtFor(TEAM_UP_ART, pair.pair.names)?.badge ?? null;
-      const ringSize = PAIR_ROW_HEIGHT - 2;
-      const caption = phone ? `${pair.label} · #${pair.seats[0]} + #${pair.seats[1]}` : pair.label;
-      const text = this.add.text(0, 0, caption.toUpperCase(), textStyle(typeRole.label, surface.paper.hex, 1));
-      const width = Math.min(strip.width, text.width + 16 + (art ? ringSize + 2 : 0));
-      const center = (xs[0]! + xs[1]!) / 2;
-      const left = Math.max(strip.x, Math.min(strip.x + strip.width - width, center - width / 2));
-      g.fillStyle(surface.ink.hex, 1).fillRect(left, y - ringSize / 2, width, ringSize);
-      g.lineStyle(2, accent.heroRed.hex, 1).strokeRect(left, y - ringSize / 2, width, ringSize);
-      let textX = left + 8;
-      if (art) {
-        drawRingImage(
-          this,
-          { key: pair.pair.key, cx: left + ringSize / 2 + 1, cy: y, radius: ringSize / 2 - 1 },
-          art,
-          this.#masks,
-          this.#onSceneArt,
-        );
-        textX = left + ringSize + 6;
-      }
-      text.setPosition(textX, y - text.height / 2);
-      fitText(text, left + width - textX - 6, typeRole.label.size);
-      this.children.bringToTop(text);
-    });
-  }
-
-  #drawSeat(seatNumber: number, rect: Rect): void {
-    const deck = this.#seats[seatNumber - 1] ?? null;
-    const open = (): void => {
-      this.#pickerSeat = seatNumber;
-      this.#pickerScroll.reset();
-      this.#pickerQuery = "";
-      this.#pickerRanking = null;
-      this.#search.cancel();
-      this.#pickerRecs = null;
-      this.#rebuild();
-    };
-    if (!deck) {
-      const g = this.add.graphics();
-      dashedRect(g, rect, 2);
-      const label = this.add
-        .text(rect.x + rect.width / 2, rect.y + rect.height / 2, `+ Seat #${seatNumber}`.toUpperCase(), {
-          ...textStyle({ ...typeRole.rowTitle, size: 12 }, surface.ink.hex),
-          fontStyle: "italic 800",
-        })
-        .setOrigin(0.5, 0.5);
-      label.setColor(cssOf(surface.ink.hex, ink.meta));
-      const zone = this.add
-        .zone(rect.x, rect.y, rect.width, rect.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true });
-      onTap(zone, open, `roster:seat-${seatNumber}`);
-      this.#stops.set(`seat-${seatNumber}`, { rect, activate: open });
-      return;
-    }
-
-    const seatView = this.#model?.seats[seatNumber - 1] ?? null;
-    // A saved deck's name takes a line of its own between the hero and the aspects (#658).
-    const deckName = seatView?.deckName ?? null;
-    // Never shorter than its lines (hero, deck name, aspects), so a short phone card (Team-Up rows above it) gives up
-    // art rather than stacks its lines on each other; a card too short for even that keeps a little art.
-    const footerHeight = Math.min(
-      rect.height * 0.7,
-      deckName
-        ? Math.max(SEAT_FOOTER_THREE_LINES, Math.min(80, rect.height * 0.3))
-        : Math.max(48, Math.min(64, rect.height * 0.22)),
-    );
-    const artRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - footerHeight };
-    const border = this.add.graphics();
-    border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
-
-    const picture = this.#heroPictureFor(deck.identityCardId as string);
-    if (picture) drawPicture(this, picture, artRect, this.#onSceneArt, { focusY: 0.1 });
-    else this.add.rectangle(artRect.x, artRect.y, artRect.width, artRect.height, surface.parchment.hex).setOrigin(0, 0);
-
-    const tagLabel = this.add.text(0, 0, `#${seatNumber}`, textStyle(bangers(14, 1), surface.paper.hex));
-    const tagBg = this.add.graphics();
-    tagBg.fillStyle(surface.ink.hex, 1).fillRect(rect.x + 8, rect.y + 8, tagLabel.width + 14, tagLabel.height + 8);
-    tagLabel.setPosition(rect.x + 15, rect.y + 12);
-    this.children.bringToTop(tagLabel);
-
-    // A paired hero on the phone's grid wears its own tag, since the strip above can't reach a bottom-row card.
-    if (this.#phoneLayout && this.#pairs.some((pair) => pair.seats.includes(seatNumber))) {
-      const tag = this.add
-        .text(rect.x + rect.width - 8, rect.y + 8, "TEAM-UP", textStyle(typeRole.label, surface.paper.hex, 1))
-        .setOrigin(1, 0)
-        .setPadding(5, 3, 5, 3)
-        .setBackgroundColor(cssOf(accent.heroRed.hex));
-      void tag;
-    }
-
-    const footerRect: Rect = { x: rect.x, y: rect.y + artRect.height, width: rect.width, height: footerHeight };
-    this.add
-      .rectangle(footerRect.x, footerRect.y, footerRect.width, footerRect.height, surface.card.hex)
-      .setOrigin(0, 0);
-    const identityCard = currentCardsById().get(deck.identityCardId as string);
-    const identityName = identityCard ? cardDisplayName(identityCard) : (deck.identityCardId as string);
-    const name = this.add.text(
-      footerRect.x + 8,
-      footerRect.y + 6,
-      identityName.toUpperCase(),
-      textStyle(bangers(15, 0.9), surface.ink.hex),
-    );
-    fitText(name, footerRect.width - 16, 15);
-    if (deckName) {
-      const deckNameText = this.add.text(footerRect.x + 8, footerRect.y + 26, deckName, {
-        ...textStyle(typeRole.emphasis, surface.ink.hex),
-        fontSize: "12px",
-        wordWrap: { width: footerRect.width - 16, useAdvancedWrap: true },
+      element.addEventListener("mc-inspect", (event) => {
+        this.#inspects.get((event as CustomEvent<{ key: string }>).detail.key)?.();
       });
-      clampLines(deckNameText, 1);
-    }
-    // A card too short for all three lines keeps the deck name, which tells two decks of a hero apart, and drops the
-    // aspects line rather than drawing it over the name (the aspects are in the picker and the deck itself).
-    if (!deckName || footerHeight >= SEAT_FOOTER_THREE_LINES) {
-      this.add.text(footerRect.x + 8, footerRect.y + footerHeight - 18, seatView?.aspectsLabel ?? "", {
-        ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
-        fontSize: "9px",
+      element.addEventListener("mc-search", (event) => {
+        const { key, value } = (event as CustomEvent<{ key: string; value: string }>).detail;
+        if (key !== PICKER_SEARCH || value === this.#state.pickerQuery) return;
+        this.#state.pickerQuery = value;
+        this.#state.pickerTop = 0;
+        const scroller = this.#scroller();
+        if (scroller) scroller.scrollTop = 0;
+        this.#requestSearch(value);
       });
+      this.#leases.watch(element);
+      const region = new DomRegion(this, element, rect);
+      // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas; the popover itself is
+      // drawn in the canvas, so its box is left out of the panel.
+      region.forwardMouseMoves(() => this.#hover?.suppress());
+      region.setHoles(() => {
+        const popover = this.#hover?.shownRect;
+        return popover ? [popover] : [];
+      });
+      this.#region = region;
     }
-    if (seatView && !seatView.legal) {
-      this.add
-        .text(footerRect.x + footerRect.width - 8, footerRect.y + 6, "Illegal", textStyle(typeRole.label, 0xc8102e, 1))
-        .setOrigin(1, 0);
-    }
-
-    const zone = this.add
-      .zone(rect.x, rect.y, rect.width, rect.height)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true });
-    onTap(zone, open, `roster:seat-${seatNumber}`);
-    this.#stops.set(`seat-${seatNumber}`, {
-      rect,
-      activate: open,
-      inspect: () => this.#inspectIdentity(deck.identityCardId as string),
-    });
-  }
-
-  /** Y: the hero's identity card in full. */
-  #inspectIdentity(cardId: string): void {
-    this.scene.launch(SCENES.inspect, { card: { cardId: cardId as CardId, face: { kind: "front" } } });
-    this.scene.bringToTop(SCENES.inspect);
-  }
-
-  /** The hero's artwork as Take your seats picks it, else the identity card's own scan; null draws a plain block. */
-  #heroPictureFor(identityId: string): Picture | null {
-    // Keyed by the card language too: the identity scan fallback is a different picture in each (`setArtLanguage`).
-    const key = `${artLanguageNow()}:${identityId}`;
-    if (!this.#heroArtCache.has(key)) {
-      const art = heroArtForIdentity(HERO_ART, identityId, currentPool(), () => 0);
-      const identity = currentCardsById().get(identityId);
-      this.#heroArtCache.set(key, art ?? (identity ? artFor(identity, { kind: "hero" }) : null));
-    }
-    return this.#heroArtCache.get(key) ?? null;
-  }
-
-  // ---- The deck picker overlay ------------------------------------------------------------------------------
-
-  #drawPicker(frame: ReturnType<typeof campaignFrame>, seatNumber: number): void {
-    const panelWidth = Math.min(460, frame.width - 32);
-    const panelHeight = Math.min(560, frame.height - 32);
-    const panelRect: Rect = {
-      x: (frame.width - panelWidth) / 2,
-      y: (frame.height - panelHeight) / 2,
-      width: panelWidth,
-      height: panelHeight,
-    };
-    // Dev e2e hook (never referenced by product code): each picker row's name, whether its hero picture is drawn,
-    // and the aspect badges it carries (label and fill: a badge is never color alone); whether the picker is open, and
-    // where its panel sits.
-    if (import.meta.env.DEV) {
-      this.#pickerRowsDebug.clear();
-      this.#pickerRowTextDebug.clear();
-      (window as unknown as { __mcRosterPickerDebug?: unknown }).__mcRosterPickerDebug = {
-        rows: () => [...this.#pickerRowsDebug.values()],
-        // Each drawn row's rect, its button's state, and the colors of the texts drawn over it, beside the text color
-        // the button's skin gives that state: a row whose texts are left in another state's colors reads blank (#272).
-        rowTexts: () =>
-          [...this.#pickerRowTextDebug.values()]
-            .filter((row) => row.button.container.active)
-            .map((row) => {
-              const s = skin("secondary", row.button.state);
-              return {
-                name: row.name,
-                rect: row.rect,
-                state: row.button.state,
-                expected: cssOf(s.text, s.textAlpha),
-                title: row.texts[0]!.style.color,
-              };
-            }),
-        open: () => this.#pickerSeat !== null,
-        panel: () => panelRect,
-      };
-    }
-    // The scrim takes every press, so nothing under the picker answers while it is open; only a tap on it closes, never
-    // the lift of a drag through the list (issue #257).
-    const shield = addPressShield(this, { x: 0, y: 0, width: frame.width, height: frame.height });
-    onTap(
-      shield,
-      () => {
-        this.#pickerSeat = null;
-        this.#rebuild();
-      },
-      "roster-picker:scrim",
-    );
-    this.add.rectangle(0, 0, frame.width, frame.height, surface.ink.hex, 0.6).setOrigin(0, 0);
-
-    // The panel takes a press that lands on it, so only the scrim around it closes.
-    this.add.zone(panelRect.x, panelRect.y, panelRect.width, panelRect.height).setOrigin(0, 0).setInteractive();
-    const panelBg = this.add.graphics();
-    panelBg.fillStyle(surface.paper.hex, 1).fillRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height);
-    panelBg
-      .lineStyle(3, surface.ink.hex, 1)
-      .strokeRect(panelRect.x + 1.5, panelRect.y + 1.5, panelRect.width - 3, panelRect.height - 3);
-
-    this.add.text(
-      panelRect.x + 20,
-      panelRect.y + 18,
-      `Seat #${seatNumber}`.toUpperCase(),
-      textStyle(bangers(20, 1), surface.ink.hex),
-    );
-
-    const closeRect: Rect = { x: panelRect.x + panelRect.width - 44, y: panelRect.y + 14, width: 30, height: 30 };
-    const close = new McButton(this, {
-      kind: "secondary",
-      label: "✕",
-      type: typeRole.rowTitle,
-      rect: closeRect,
-      onClick: () => {
-        this.#pickerSeat = null;
-        this.#rebuild();
-      },
-    });
-    void close;
-    this.#stops.set("pick-close", {
-      rect: closeRect,
-      activate: () => {
-        this.#pickerSeat = null;
-        this.#rebuild();
-      },
-    });
-
-    let y = panelRect.y + 58;
-    const rowWidth = panelRect.width - 40;
-
-    if (this.#seats[seatNumber - 1]) {
-      const removeRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: 40 };
-      const remove = campaignActionButton(this, {
-        kind: "secondary",
-        rect: removeRect,
-        title: "Remove from this seat",
-        enabled: true,
-        onClick: () => {
-          this.#seats[seatNumber - 1] = null;
-          this.#pickerSeat = null;
-          this.#rebuild();
+    const region = this.#region;
+    region.setRect(rect);
+    region.element.nodes = b.nodes;
+    renderNow(region.element);
+    this.#leases.end();
+    const scroller = this.#scroller();
+    if (scroller && !this.#placed.has(scroller)) {
+      scroller.scrollTop = this.#state.pickerTop;
+      this.#placed.add(scroller);
+      scroller.addEventListener(
+        "scroll",
+        () => {
+          this.#state.pickerTop = scroller.scrollTop;
         },
-        titleSize: 13,
-      });
-      void remove;
-      this.#stops.set("pick-remove", {
-        rect: removeRect,
-        activate: () => {
-          this.#seats[seatNumber - 1] = null;
-          this.#pickerSeat = null;
-          this.#rebuild();
-        },
-      });
-      y += 50;
-    }
-
-    const options = rosterDeckOptions(this.#seats, seatNumber, this.#savedDecks, POOL_VERSION, (deck) =>
-      unlocks().deckLock(deck),
-    );
-
-    if (options.length > 0) {
-      const searchRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: 40 };
-      this.#pickerSearch = drawSearchField(
-        this,
-        searchRect,
-        "pick-search",
-        this.#pickerQuery,
-        "Search heroes, aspects, decks…",
-        (value) => {
-          this.#pickerQuery = value;
-          this.#pickerScroll.reset();
-          this.#requestSearch(value);
-        },
-        this.#pickerSearch,
-        this.#stops,
+        { passive: true },
       );
-      this.#pickerSearchRect = searchRect;
-      y += 50;
     }
+  }
 
-    const listRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: panelRect.y + panelRect.height - 16 - y };
-    const gap = 8;
-
-    if (options.length === 0) {
-      this.add.text(listRect.x, listRect.y, "No decks available — build one from Decks & Collection.", {
-        ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-        wordWrap: { width: rowWidth, useAdvancedWrap: true },
-      });
-      return;
-    }
-
-    // From seat 2 on, with someone else seated: a pinned "Recommended" group, then everyone else; both A to Z.
-    const recsKey = [seatNumber, ...this.#seats.map((deck) => deck?.id ?? "-"), options.length].join("|");
-    if (this.#pickerRecs?.key !== recsKey) {
-      const recs = pickerRecommendationsOf(this.#seats, seatNumber, options, currentCardsById(), rosterPairCatalog());
-      this.#pickerRecs = { key: recsKey, recs };
-    }
-    this.#syncSearchDocuments(options);
-    const entries = pickerEntriesOf(
-      seatNumber,
-      options,
-      this.#pickerRecs.recs,
-      currentCardsById(),
-      "",
-      this.#pickerQuery.trim() === "" ? null : this.#pickerRanking,
-    );
-    if (entries.length === 0) {
-      this.add.text(listRect.x, listRect.y + 4, "No hero matches this search.", {
-        ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-        wordWrap: { width: rowWidth, useAdvancedWrap: true },
-      });
-      return;
-    }
-    const hasGroup = this.#pickerRecs.recs.length > 0;
-    // A recommended row has a third line for its reason, so a list with the group is a little taller throughout.
-    const rowHeight = hasGroup ? 78 : 64;
-    // A heading is a compact band, not a full row; a row whose aspect badges wrap to a second line grows by that line.
-    const thumbSide = rowHeight - 16;
-    const chipRoom = rowWidth - 8 - thumbSide - 12 - 12;
-    // The reason line is measured with the very style and wrap the row draws it with (an estimate from a nominal
-    // character width came up a line short, and the second line ran off the row's bottom).
-    const reasonStyle = { ...textStyle(typeRole.body, 0), fontSize: "11px" };
-    const probe = this.make.text({ x: 0, y: 0, text: "Ag", style: reasonStyle }, false);
-    const oneLine = probe.height;
-    const reasonExtraOf = (reason: string): number => {
-      probe.setWordWrapWidth(null).setText(reason).setWordWrapWidth(chipRoom, true);
-      clampLines(probe, 2);
-      return Math.max(0, probe.height - oneLine);
-    };
-    const optionHeightOf = (entry: PickerEntry): number => {
-      if (entry.kind !== "option") return PICKER_HEADING_HEIGHT;
-      const stamps = options[entry.optionIndex]!.stamps;
-      const reason = entry.rec?.reason ?? "";
-      return (
-        rowHeight +
-        (options[entry.optionIndex]!.deckName ? PICKER_DECK_NAME_STEP : 0) +
-        (aspectChipLines(this, stamps, chipRoom) - 1) * ASPECT_CHIP_LINE_STEP +
-        (reason ? reasonExtraOf(reason) : 0)
-      );
-    };
-    const heights = entries.map(optionHeightOf);
-    probe.destroy();
-
-    const selectAt = (index: number): void => {
-      const option = options[index];
-      if (!option || option.blocked) return;
-      const before = this.#seats.filter((deck): deck is Deck => deck !== null);
-      this.#seats[seatNumber - 1] = option.deck;
-      // A replacement answered a hero who has now left the table: drop the answers (a hero only joining keeps them).
-      const after = this.#seats.filter((deck): deck is Deck => deck !== null);
-      if (!before.every((deck) => after.some((other) => other.id === deck.id))) {
-        this.#swaps = [];
-        this.#kept = [];
-      }
-      this.#pickerSeat = null;
-      this.#rebuild();
-    };
-
-    const renderRow = (entryIndex: number, rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } => {
-      const entry = entries[entryIndex]!;
-      if (entry.kind === "heading") {
-        const midY = rect.y + PICKER_HEADING_HEIGHT / 2;
-        const text = this.add
-          .text(rect.x, midY, entry.text.toUpperCase(), textStyle(typeRole.label, surface.ink.hex, ink.label))
-          .setOrigin(0, 0.5);
-        const rule = this.add.graphics();
-        rule
-          .lineStyle(2, surface.ink.hex, ink.meta)
-          .lineBetween(rect.x + text.width + 10, midY, rect.x + rect.width, midY);
-        // In one container, like a deck row, so the list moves both together.
-        return { objects: [this.add.container(0, 0, [text, rule])] };
-      }
-      const index = entry.optionIndex;
-      const rec = entry.rec;
-      const option = options[index]!;
-      const identityCard = currentCardsById().get(option.identityId);
-      const identityName = identityCard ? cardDisplayName(identityCard) : option.identityId;
-      const rowRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: heights[entryIndex]! };
-      const enabled = !option.blocked;
-      // The row's own button supplies fill, border, hover and hit zone; its text is drawn here so the picture and
-      // the aspect badges can sit beside it. Text color tracks hover the way `campaignActionButton`'s does.
-      const button = new McButton(this, {
-        kind: "secondary",
-        label: "",
-        type: typeRole.body,
-        rect: rowRect,
-        enabled,
-        ...(option.blockedReason ? { reason: option.blockedReason } : {}),
-        onClick: () => selectAt(index),
-        // `onHover`, not the zone's own `pointerover`/`pointerout`: a finger's hover ends without a `pointerout`, and
-        // a row left in its hover colors over the rest fill drew its name, note and reason blank (#272).
-        onHover: (over) => {
-          if (enabled) applyState(over ? "hover" : "rest");
-        },
-      });
-      const parts: Phaser.GameObjects.GameObject[] = [];
-      const pad = 8;
-      const thumb: Rect = {
-        x: rowRect.x + pad,
-        y: rowRect.y + pad,
-        width: thumbSide,
-        height: thumbSide,
-      };
-      const picture = this.#heroPictureFor(option.identityId);
-      const image = drawPicture(this, picture, thumb, this.#onRowArt, { focusY: 0.2 });
-      if (image) {
-        parts.push(image);
-      } else {
-        parts.push(
-          this.add.rectangle(thumb.x, thumb.y, thumb.width, thumb.height, surface.parchment.hex).setOrigin(0, 0),
-        );
-      }
-      parts.push(
-        this.add.graphics().lineStyle(1.5, surface.ink.hex, 1).strokeRect(thumb.x, thumb.y, thumb.width, thumb.height),
-      );
-      if (import.meta.env.DEV) {
-        this.#pickerRowsDebug.set(index, {
-          name: identityName,
-          picture: image !== null && image !== undefined,
-          badges: option.stamps.map((stamp) => ({ label: stamp.label, fill: stamp.fill })),
-        });
-      }
-      const textX = thumb.x + thumb.width + 12;
-      const textWidth = rowRect.x + rowRect.width - textX - 12;
-      const title = this.add
-        .text(textX, rowRect.y + 8, identityName.toUpperCase(), textStyle(bangers(16), 0))
-        .setOrigin(0, 0);
-      fitText(title, textWidth, 16);
-      // A saved deck's own name under the hero's (#658): two Leadership decks of one hero tell apart by it alone.
-      let deckNameText: Phaser.GameObjects.Text | null = null;
-      if (option.deckName) {
-        deckNameText = this.add
-          .text(textX, rowRect.y + 8 + 16 + 4, option.deckName, {
-            ...textStyle(typeRole.emphasis, 0),
-            fontSize: "13px",
-            wordWrap: { width: textWidth, useAdvancedWrap: true },
-          })
-          .setOrigin(0, 0);
-        clampLines(deckNameText, 1);
-      }
-      const lineY = rowRect.y + 8 + 16 + 8 + (option.deckName ? PICKER_DECK_NAME_STEP : 0);
-      // Four badges (Adam Warlock) wrap to a second line rather than run off the row's edge; the source note rides
-      // beside the last badge and the reason line moves down by the extra line.
-      const chips = drawAspectChips(this, textX, lineY, option.stamps, false, textWidth);
-      const extraLines = (chips.lines - 1) * ASPECT_CHIP_LINE_STEP;
-      const noteText = option.blocked ? (option.blockedReason ?? "Already seated") : option.sourceLabel;
-      const noteX = textX + chips.lastWidth + (chips.lastWidth > 0 ? 8 : 0);
-      const note = this.add
-        .text(noteX, lineY + extraLines + 9, noteText, { ...textStyle(typeRole.emphasis, 0), fontSize: "12px" })
-        .setOrigin(0, 0.5);
-      fitText(note, Math.max(40, rowRect.x + rowRect.width - 12 - noteX), 12);
-      // A recommended row: the TEAM-UP tag where it applies (right of the name) and the reason on a line of its own.
-      const extras: Phaser.GameObjects.GameObject[] = [];
-      let reasonText: Phaser.GameObjects.Text | null = null;
-      if (rec) {
-        if (rec.teamUps.length > 0) {
-          // Quiet: the accent as an outline on an ink plate (not a solid red block), so it does not compete with the
-          // aspect badges; the label is paper-white, since red on ink was hard to read (owner, 2026-10-20).
-          const tag = this.add
-            .text(
-              rowRect.x + rowRect.width - 10,
-              rowRect.y + 8,
-              "TEAM-UP",
-              textStyle(typeRole.label, surface.paper.hex, 1),
-            )
-            .setOrigin(1, 0)
-            .setPadding(5, 2, 5, 2);
-          const plate = this.add.graphics();
-          const tagBounds = tag.getBounds();
-          plate.fillStyle(surface.ink.hex, 1).fillRect(tagBounds.x, tagBounds.y, tagBounds.width, tagBounds.height);
-          plate
-            .lineStyle(1.5, accent.heroRed.hex, 1)
-            .strokeRect(tagBounds.x + 0.75, tagBounds.y + 0.75, tagBounds.width - 1.5, tagBounds.height - 1.5);
-          extras.push(plate, tag);
-          title.setWordWrapWidth(Math.max(40, textWidth - tag.width - 8));
-          fitText(title, Math.max(40, textWidth - tag.width - 8), 16);
-        }
-        reasonText = this.add.text(textX, lineY + extraLines + 22, rec.reason, reasonStyle).setOrigin(0, 0);
-        // Wrapped to two lines (the row has grown for the second, `optionHeightOf`), never cut to one with an ellipsis.
-        reasonText.setWordWrapWidth(textWidth, true);
-        clampLines(reasonText, 2);
-        extras.push(reasonText);
-      }
-      const applyState = (state: "rest" | "hover" | "unavailable"): void => {
-        const buttonSkin = skin("secondary", state);
-        title.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha));
-        deckNameText?.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha));
-        note.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
-        reasonText?.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
-      };
-      applyState(enabled ? "rest" : "unavailable");
-      if (import.meta.env.DEV)
-        this.#pickerRowTextDebug.set(index, {
-          name: identityName,
-          rect: rowRect,
-          texts: deckNameText ? [title, deckNameText] : [title],
-          button,
-        });
-      button.container.add([
-        ...parts,
-        title,
-        ...(deckNameText ? [deckNameText] : []),
-        ...chips.objects,
-        note,
-        ...extras,
-      ]);
-      return { objects: [button.container] };
-    };
-
-    // Stops for every option, not just the visible window, so Tab reaches a deck scrolled off-screen (`rect` reads
-    // the list's own position math, which is valid whether or not that row is currently drawn).
-    // A stop for every deck row, `pick-<optionIndex>` as ever for the full list, `pick-rec-<n>` for the pinned group.
-    let list: McVirtualList;
-    let recCount = 0;
-    entries.forEach((entry, entryIndex) => {
-      if (entry.kind !== "option") return;
-      const key = entry.recommended ? `pick-rec-${recCount++}` : `pick-${entry.optionIndex}`;
-      this.#stops.set(key, {
-        rect: () => list.rectFor(entryIndex),
-        activate: () => selectAt(entry.optionIndex),
-        inspect: () => this.#inspectIdentity(options[entry.optionIndex]!.identityId as string),
-        ensureVisible: () => list.scrollIntoView(entryIndex),
-      });
-    });
-
-    list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight: rowHeight + gap,
-      rowHeightOf: (index) => (heights[index] ?? rowHeight) + gap,
-      count: entries.length,
-      scroll: this.#pickerScroll,
-      background: false,
-      renderRow,
-      onRowActivate: (entryIndex) => {
-        const entry = entries[entryIndex];
-        if (entry?.kind === "option") selectAt(entry.optionIndex);
-      },
-    });
-    this.#pickerList = list;
-    this.#redrawPickerRows = () => list.update(entries.length, renderRow);
-    // Each option row's thumbnail opens the hover popover with the hero's identity card (desktop mouse only).
-    this.#pickerHoverCards = () => {
-      const found = new Map<string, HoverCardIdRect>();
-      entries.forEach((entry, entryIndex) => {
-        if (entry.kind !== "option") return;
-        const row = list.rectFor(entryIndex);
-        const thumb = clipHoverRect({ x: row.x + 8, y: row.y + 8, width: thumbSide, height: thumbSide }, listRect);
-        if (thumb)
-          found.set(hoverSlotOf(options[entry.optionIndex]!.identityId, `pick${entryIndex}`), {
-            ...thumb,
-            cardId: options[entry.optionIndex]!.identityId,
-            through: true,
-          });
-      });
-      return found;
+  /** Dev e2e hook (never referenced by product code): the picker's rows and whether it is open, and where its panel sits. */
+  #publishDebug(): void {
+    (window as unknown as { __mcRosterPickerDebug?: unknown }).__mcRosterPickerDebug = {
+      rows: () => pickerDebugRows(this.#ctx).map(({ name, picture, badges }) => ({ name, picture, badges })),
+      rowTexts: () => pickerDebugRows(this.#ctx).map(({ name, rect }) => ({ name, rect })),
+      open: () => this.#state.pickerSeat !== null,
+      panel: () => this.#state.pickerView?.panel ?? null,
     };
   }
 
   async #sign(): Promise<void> {
-    if (this.#signing) return;
-    const model = this.#model;
+    const state = this.#state;
+    if (state.signing) return;
+    const model = state.model;
     if (!model || !model.canSign) return;
-    this.#signing = true;
-    this.#error = null;
+    state.signing = true;
+    state.error = null;
     this.#rebuild();
     try {
       // The run's own copy of each deck carries this run's replacements; the saved deck is never modified.
       const seats = this.#effectiveDecks().map((deck) => ({ identityCardId: deck.identityCardId, deck }));
       const tableRules = tableRulesOf(appSession().settings);
       const record = await campaignService().start({
-        campaignId: this.#campaignId,
+        campaignId: state.campaignId,
         seats,
-        ...(this.#expertCampaign ? { expertCampaign: true } : {}),
-        ...(this.#balanced ? { balanced: this.#balanced } : {}),
+        ...(state.expertCampaign ? { expertCampaign: true } : {}),
+        ...(state.balanced ? { balanced: state.balanced } : {}),
         poolVersion: POOL_VERSION,
         seed: rollSeed(),
         ...(tableRules ? { tableRules } : {}),
@@ -1115,8 +452,8 @@ export class CampaignRosterScene extends Phaser.Scene {
       if (!this.sys.isActive()) return;
       goToScreen(this, SCENES.campaignOpener, { runId: record.id });
     } catch (error) {
-      this.#signing = false;
-      this.#error = error instanceof Error ? error.message : "could not start this campaign";
+      state.signing = false;
+      state.error = error instanceof Error ? error.message : t("roster.error.fallback");
       this.#rebuild();
     }
   }
