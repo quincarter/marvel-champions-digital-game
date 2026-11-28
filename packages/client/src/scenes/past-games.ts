@@ -19,30 +19,37 @@
  * or a button presses nothing (issue #227).
  */
 import Phaser from "phaser";
+import "@mc/ui";
+import type { McSearchDetail, McSearchField, McSheet } from "@mc/ui";
 import type { AnyCard } from "@mc/content";
 import type { PackRuntime } from "../packs/pack-runtime.js";
+import { inputDevice } from "../platform/input-device.js";
 import { onArtChange } from "../language-change.js";
 import { artLanguageNow } from "../art/art-source.js";
-import { cardFaces } from "../art/card-face-baker.js";
-import { heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
-import { accent, hit, signal, surface, typeRole } from "../tokens.js";
+import { heroSourceOf, villainSourceOf } from "../art/matchup-pictures.js";
+import type { ArtSource } from "../art/art-source.js";
+import { PictureLeases } from "../dom/picture-leases.js";
+import { accent, border, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
+
+/** A label in the type of `typeRole.label` but written as given: the placeholder's name keeps its own case. */
+const AS_WRITTEN_LABEL: TypeSpec = { ...typeRole.label, uppercase: false };
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { addPressShield } from "../ui/press-shield.js";
-import { McScrollRegion } from "../ui/scroll-region.js";
-import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import { cssOf } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { McButton, McTabs, McTextInput, fitText, paintPanel } from "../ui/widgets.js";
-import { drawPictureAspectChips } from "../ui/aspect-chips.js";
+import { McButton, McTabs } from "../ui/widgets.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder } from "../dom/sheet-builder.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { clipToView } from "../view/focus-list.js";
 import type { Rect } from "../view/layout.js";
-import { ListScroll } from "../view/list-scroll.js";
 import { cardInPacks, PAST_GAME_NAMES, TRACKER_EXPORT_NAMES } from "../view/game-label-names.js";
 import {
   PAST_GAME_ACTIONS,
@@ -51,9 +58,11 @@ import {
   pastGameDetailParts,
   pastGameRowHeight,
   aspectsNotInName,
+  aspectChipsOf,
   pastGameRowParts,
   pastGameRowsOf,
   pastGamesLayout,
+  type PastGamesLayout,
   playedMinutesOf,
   seatFatesOf,
   type PastGameAction,
@@ -78,7 +87,6 @@ import { ReplayOpenError } from "../replay/replay-core.js";
 import { exportPastGame, sharePastGame, type PastGameActionDeps } from "../replay/past-game-actions.js";
 import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../replay/replay-share.js";
 import { appSession, deckStorage } from "../session.js";
-import { drawSearchField, renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { introReplay } from "./replay-entry.js";
 import { drawOpenFileIcon } from "../ui/open-file-icon.js";
@@ -88,6 +96,11 @@ import { SCENES } from "./keys.js";
 const CONTENT_MAX_WIDTH = 1220;
 const TAB_HEIGHT = 44;
 const ROW_GAP = 8;
+/** The scrolling keys in the panel. */
+const LIST = "list";
+const DETAILS = "details";
+/** How far a page (Page Up / Down, a shoulder button) scrolls, as a share of the scroller's height. */
+const PAGE = 0.85;
 
 const FILTER_LABEL: Readonly<Record<PastGameFilter, MessageKey>> = {
   all: "pastGames.filter.all",
@@ -108,6 +121,34 @@ interface Busy {
   readonly action: PastGameAction | "file" | "tracker";
 }
 
+/** What the last draw laid out, for the panel's own redraws (the list scrolling) and the focus stops. */
+interface PanelContext {
+  readonly width: number;
+  readonly height: number;
+  readonly gutter: number;
+  readonly areaTop: number;
+  /** The search field's box, and the export button's when the field sits beside it (a hole the panel leaves). */
+  readonly searchRect: Rect;
+  readonly exportHole: Rect | null;
+  readonly contentWidth: number;
+  readonly listRect: Rect;
+  /** A row's height with the gap under it. */
+  readonly rowHeight: number;
+  readonly layout: PastGamesLayout;
+  readonly selected: PastGameRow | null;
+  readonly popup: boolean;
+  /** What the list says in place of rows (still reading, no games, no match), or null when there are rows. */
+  readonly empty: string | null;
+}
+
+/** What a picture's hover slot stands for, and where it sits: in the list's content space (`y` from its top) or on the screen. */
+interface HoverTarget {
+  readonly cardId: string;
+  readonly card?: AnyCard;
+  readonly rect: Rect;
+  readonly inList: boolean;
+}
+
 /** Links shared this run, by game id: Share never uploads a game twice. */
 const sharedUrls = new Map<string, string>();
 
@@ -126,9 +167,10 @@ const picturedCardRecords = (row: PastGameRow): readonly (AnyCard | undefined)[]
     id ? cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, id) : undefined,
   );
 
-const picturedUrls = (row: PastGameRow): readonly (string | null)[] => [
-  villainPictureOf(row.scenarioId, row.villainCardId, packsOf(row)),
-  ...row.seats.map((seat) => heroPictureOf(seat.identityCardId, packsOf(row))),
+/** The pictures' sources (not just URLs): a pack hero's scan is leased and re-resolved by its key while mounted. */
+const picturedSources = (row: PastGameRow): readonly (ArtSource | null)[] => [
+  villainSourceOf(row.scenarioId, row.villainCardId, packsOf(row)),
+  ...row.seats.map((seat) => heroSourceOf(seat.identityCardId, packsOf(row))),
 ];
 
 /** The names to print on pictures that have no art (a custom hero or villain whose pack is gone), villain first. */
@@ -136,25 +178,6 @@ const picturedNames = (row: PastGameRow): readonly (string | null)[] => [
   row.villainName,
   ...row.seats.map((seat) => seat.name),
 ];
-
-/** The name printed on the placeholder of a picture with no art, so a cover never shows an unnamed blank (#758). */
-function addStandInName(
-  scene: Phaser.Scene,
-  rect: Rect,
-  name: string | null,
-  url: string | null,
-): Phaser.GameObjects.Text | null {
-  if (url !== null || !name) return null;
-  const label = scene.add
-    .text(rect.x + rect.width / 2, rect.y + rect.height / 2, name, {
-      ...textStyle(typeRole.label, surface.ink.hex, 0.85),
-      align: "center",
-      wordWrap: { width: rect.width - 8 },
-    })
-    .setOrigin(0.5, 0.5);
-  fitText(label, rect.width - 8, 12);
-  return label;
-}
 
 /** How Past games was opened. All absent: from the Title, to the list as it was last left. */
 export interface PastGamesSceneData {
@@ -169,12 +192,28 @@ export class PastGamesScene extends Phaser.Scene {
   /** Every save on the device, or null while they are read. */
   #saves: readonly SaveMeta[] | null = null;
   #rows: readonly PastGameRow[] = [];
-  /** What the search box says. Kept across visits like the filter; the DOM field outlives a redraw (`#draw`). */
+  /** What the search box says. Kept across visits like the filter. The field is a part of the panel (`mc-search-field`). */
   #query = "";
-  #searchInput: McTextInput | null = null;
+  /** The caret is in the search field: the screen's keyboard route stands aside. */
+  #searchFocused = false;
   /** Kept across visits (Phaser reuses the instance): a replay's Exit comes back to the same filter, place and game. */
   #filter: PastGameFilter = "all";
-  readonly #scroll = new ListScroll();
+  /** Where the list was left: kept across visits (Phaser reuses the instance) and put back when the panel is made again. */
+  #listTop = 0;
+  /** The list reads from its top on the next paint (a new filter or search). */
+  #listFromTop = false;
+  /** The list scrollers this scene has put back where they were, and listens to. */
+  #listPlaced = new WeakSet<HTMLElement>();
+  #listened = new WeakSet<HTMLElement>();
+  #scrollFrame = 0;
+  /** The screen's one Lit panel over the canvas: the list, the details or popup, the notes. Made on the first paint. */
+  #region: DomRegion<McSheet> | null = null;
+  #glyphs!: SheetGlyphs;
+  #ctx: PanelContext | null = null;
+  /** The rows built into the list now: [from, to). */
+  #built: { readonly from: number; readonly to: number } | null = null;
+  #actions = new Map<string, () => void>();
+  #hoverTargets = new Map<string, HoverTarget>();
   /** The game whose details show (the side panel), or whose popup is open (a phone); null for none. */
   #selectedId: string | null = null;
   /** A game to scroll to once the saves have loaded (`PastGamesSceneData.gameId`). */
@@ -184,21 +223,18 @@ export class PastGamesScene extends Phaser.Scene {
   #busy: Busy | null = null;
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
-  #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
   #hover: HoverPreview | null = null;
-  #hoverCards: (() => ReadonlyMap<string, HoverCardIdRect>)[] = [];
   #status: { readonly text: string; readonly until: number } | null = null;
   #obstacles: Rect[] = [];
   /** True while a phone's details popup is up: the list under it takes no taps. */
   #popupOpen = false;
-  #offBaked: (() => void) | null = null;
-  /** The details' words, which scroll when they outgrow the panel; the offset is kept while the same game shows. */
-  #detailsRegion: McScrollRegion | null = null;
-  #detailsScroll = new VariableListScroll();
+  /** The game whose details' words the panel last showed: their scroll is kept while the same game shows. */
   #detailsScrollId: string | null = null;
   #alive = false;
+  /** The leases this screen holds on its mounted hero and villain pictures (`dom/picture-leases.ts`). */
+  readonly #pictures = new PictureLeases();
   /**
    * This visit's number. Phaser reuses the scene, so an open still running from an earlier visit (a slow Watch, then
    * Back and in again) checks it after each wait and stands down rather than act on this one.
@@ -221,7 +257,8 @@ export class PastGamesScene extends Phaser.Scene {
       // The record's game may be under the current filter or search: show everything.
       this.#filter = "all";
       this.#query = "";
-      this.#scroll.reset();
+      this.#listTop = 0;
+      this.#listFromTop = true;
     }
     // Only a visit that says where it came from returns there. Phaser keeps the scene, so a later visit without `from`
     // (from the Title, or back from a replay watched from here) must not keep a Stats return (code review, #917).
@@ -237,17 +274,22 @@ export class PastGamesScene extends Phaser.Scene {
     this.#busy = null;
     this.#status = null;
     this.#saves = null;
+    this.#region = null;
+    this.#built = null;
+    this.#ctx = null;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
     this.#hints = new GlyphHints(this, () => this.#obstacles);
+    this.#glyphs = new SheetGlyphs(this, () => this.#draw());
     // A pad that put the caret in the search box can take it out again. Bound before the route (`text-field-escape.ts`).
     bindTextFieldEscape(
       this,
-      () => this.#searchInput,
+      () => this.#searchField(),
       () => this.#popupOpen,
     );
     this.#route = new FocusRoute(this, {
-      blocked: () => this.#searchInput?.focused ?? false,
+      ring: domFocusRing,
+      blocked: () => this.#searchFocused,
       onCancel: () => this.#cancel(),
       onTab: (direction) => {
         if (!this.#popupOpen) this.#stepFilter(direction);
@@ -255,32 +297,21 @@ export class PastGamesScene extends Phaser.Scene {
       // The details scroll while the popup is up or the ring is on their actions; else the list does (the phone
       // popup holds the list under it still).
       onPage: (direction) => {
-        const details = this.#detailsHaveScroll() ? this.#detailsRegion : null;
-        if (details) details.scrollByPx(direction * details.rect.height * 0.9);
-        else if (!this.#popupOpen) this.#list?.scrollByPage(direction);
+        const scroller = this.#activeScroller();
+        scroller?.scrollBy({ top: direction * scroller.clientHeight * PAGE });
       },
       onHomeEnd: (edge) => {
-        const details = this.#detailsHaveScroll() ? this.#detailsRegion : null;
-        if (details) details.scrollByPx(edge === "home" ? -1e6 : 1e6);
-        else if (this.#popupOpen) return;
-        else if (edge === "home") this.#list?.scrollToStart();
-        else this.#list?.scrollToEnd();
+        this.#activeScroller()?.scrollTo({ top: edge === "home" ? 0 : Number.MAX_SAFE_INTEGER });
       },
       onScroll: (_dx, dy) => {
-        const details = this.#detailsHaveScroll() ? this.#detailsRegion : null;
-        if (details) details.scrollByPx(dy);
-        else if (!this.#popupOpen) this.#list?.scrollByPx(dy);
+        this.#activeScroller()?.scrollBy({ top: dy });
       },
       onFocusChange: (key) => {
         this.#focusKey = key;
       },
     });
     this.#hover = new HoverPreview(this, {
-      cardIds: () => {
-        const found = new Map<string, HoverCardIdRect>();
-        for (const source of this.#hoverCards) for (const [key, rect] of source()) found.set(key, rect);
-        return found;
-      },
+      cardIds: () => this.#hoverCards(),
       area: (pointer) => screenHoverArea(this, pointer),
     });
     const offLanguage = onLanguageChange(() => this.#draw());
@@ -291,17 +322,29 @@ export class PastGamesScene extends Phaser.Scene {
       this.#visit += 1;
       offLanguage();
       offArt();
+      this.#pictures.dispose();
       this.#hover?.destroy();
       this.#hover = null;
       this.scale.off("resize", this.#draw, this);
       this.#hints.dispose();
+      this.#glyphs.dispose();
       this.#destroyWidgets();
-      this.#searchInput?.destroy();
-      this.#searchInput = null;
+      // The panel goes with the scene (`DomRegion`); the next visit makes a new one.
+      this.#region = null;
     });
     this.#draw();
+    // The type measured before the fonts were in: lay the words out again once they are.
+    void (typeof document === "undefined" ? undefined : document.fonts?.ready)?.then(() => {
+      if (this.#alive) this.#draw();
+    });
     fadeScreenIn(this);
     void this.#load();
+  }
+
+  /** The scroller the stick and the Page keys move: the details', or the list (never under the phone's popup). */
+  #activeScroller(): HTMLElement | null {
+    if (this.#detailsHaveScroll()) return this.#detailsScroller();
+    return this.#popupOpen ? null : this.#scroller();
   }
 
   /** The stick and the Page keys scroll the details: the phone popup is up, or the ring is on the side panel's actions. */
@@ -329,7 +372,10 @@ export class PastGamesScene extends Phaser.Scene {
     if (!id) return;
     this.#revealId = null;
     const index = this.#rows.findIndex((row) => row.id === id);
-    if (index >= 0) this.#list?.scrollIntoView(index);
+    if (index >= 0) {
+      this.#centerRow(index);
+      this.#paintPanel();
+    }
   }
 
   #back(): void {
@@ -369,7 +415,7 @@ export class PastGamesScene extends Phaser.Scene {
   #setFilter(filter: PastGameFilter): void {
     if (filter === this.#filter) return;
     this.#filter = filter;
-    this.#scroll.reset();
+    this.#resetScroll();
     this.#draw();
     this.#route?.focusKey(`filter:${filter}`);
   }
@@ -568,23 +614,92 @@ export class PastGamesScene extends Phaser.Scene {
     this.#buttons = [];
     this.#tabs?.destroy();
     this.#tabs = null;
-    this.#list?.destroy();
-    this.#list = null;
-    this.#hoverCards = [];
-    this.#offBaked?.();
-    this.#offBaked = null;
-    this.#detailsRegion?.destroy();
-    this.#detailsRegion = null;
+  }
+
+  /** The list's own scroller, in the panel (null before the first draw). */
+  #scroller(): HTMLElement | null {
+    return this.#region?.element.elementOf(LIST) ?? null;
+  }
+
+  #detailsScroller(): HTMLElement | null {
+    return this.#region?.element.elementOf(DETAILS) ?? null;
+  }
+
+  /** The list reads from its top on the next draw (a new filter or search). */
+  #resetScroll(): void {
+    this.#listTop = 0;
+    this.#listFromTop = true;
+    const scroller = this.#scroller();
+    if (scroller) scroller.scrollTop = 0;
+  }
+
+  /** A row's box in the list's content space (`y` from the list's top), as the Phaser list placed it. */
+  #rowBox(index: number): Rect {
+    const ctx = this.#ctx!;
+    return {
+      x: ctx.listRect.x + 4,
+      y: index * ctx.rowHeight + 4,
+      width: ctx.listRect.width - 20,
+      height: ctx.rowHeight - ROW_GAP,
+    };
+  }
+
+  /** A row's box on the screen now, from the list's scroll. */
+  #rowOnScreen(index: number): Rect {
+    const ctx = this.#ctx!;
+    const box = this.#rowBox(index);
+    return clipToView(
+      { ...box, y: ctx.listRect.y + box.y - (this.#scroller()?.scrollTop ?? this.#listTop) },
+      ctx.listRect,
+    );
+  }
+
+  /** Brings a row into view: the least scroll that shows all of it. */
+  #showRow(index: number): void {
+    const ctx = this.#ctx;
+    const scroller = this.#scroller();
+    if (!ctx || !scroller) return;
+    const top = index * ctx.rowHeight;
+    if (top < scroller.scrollTop) scroller.scrollTop = top;
+    else if (top + ctx.rowHeight > scroller.scrollTop + ctx.listRect.height)
+      scroller.scrollTop = top + ctx.rowHeight - ctx.listRect.height;
+  }
+
+  /** The rows a linked game scrolls to the middle of the list. */
+  #centerRow(index: number): void {
+    const ctx = this.#ctx;
+    const scroller = this.#scroller();
+    if (!ctx || !scroller) return;
+    scroller.scrollTop = Math.max(0, index * ctx.rowHeight - (ctx.listRect.height - ctx.rowHeight) / 2);
+  }
+
+  /**
+   * Every picture in view with its place, for the card hover popover (read on each pointer move). The list's pictures
+   * are placed from the rects noted at draw time and the list's scroll, clipped to its window, so no element is
+   * measured.
+   */
+  #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const ctx = this.#ctx;
+    if (!ctx) return found;
+    const scrolled = this.#scroller()?.scrollTop ?? this.#listTop;
+    for (const [slot, target] of this.#hoverTargets) {
+      let rect: Rect | null = target.rect;
+      if (target.inList) {
+        // Under the phone's popup the list takes no hover.
+        if (ctx.popup) continue;
+        rect = clipHoverRect({ ...target.rect, y: ctx.listRect.y + target.rect.y - scrolled }, ctx.listRect);
+      }
+      if (!rect) continue;
+      found.set(slot, { ...rect, cardId: target.cardId, ...(target.card ? { card: target.card } : {}), through: true });
+    }
+    return found;
   }
 
   #draw(): void {
     if (!this.#alive) return;
     this.#destroyWidgets();
-    // The search box's DOM field outlives a redraw, so its caret and what is typed stay put.
-    const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
-    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
-    for (const node of kept) this.children.add(node);
     this.#hints.reset();
     this.#obstacles = [];
 
@@ -600,7 +715,9 @@ export class PastGamesScene extends Phaser.Scene {
     // The file button's room in the bar's right end, so the title stops short of it.
     const fileWidth = phone ? 128 : 220;
     const bar = drawTopBar(this, {
-      backLabel: phone ? "◂" : this.#backTo?.from === SCENES.playerStats ? "◂ STATS" : "◂ TITLE",
+      backLabel: phone
+        ? "◂"
+        : `◂ ${t(this.#backTo?.from === SCENES.playerStats ? "pastGames.backStats" : "pastGames.backTitle")}`,
       onBack: () => this.#back(),
       title: t("pastGames.title"),
       reserveRight: fileWidth + 12,
@@ -706,20 +823,8 @@ export class PastGamesScene extends Phaser.Scene {
           height: hit.target,
         }
       : { x: left, y: exportRect.y + exportRect.height + 6, width: contentWidth, height: hit.target };
-    this.#searchInput = drawSearchField(
-      this,
-      searchRect,
-      "search",
-      this.#query,
-      t("pastGames.search"),
-      (value) => {
-        this.#query = value;
-        this.#scroll.reset();
-        this.#draw();
-      },
-      this.#searchInput,
-      stops,
-    );
+    // A real field in the panel (`#paintPanel`): the focus route enters it, and a keyboard or pad user types into it.
+    stops.set("search", { rect: searchRect, activate: () => this.#searchField()?.focusInput() });
     this.#obstacles.push(searchRect);
 
     const areaTop = Math.max(exportRect.y + exportRect.height, searchRect.y + searchRect.height) + 10;
@@ -732,41 +837,57 @@ export class PastGamesScene extends Phaser.Scene {
     // Until the saves load there are no rows to find a linked game in: keep the id for the draw that has them.
     if (!selected && this.#saves !== null) this.#selectedId = null;
     this.#popupOpen = !layout.side && selected !== null;
-    // The popup sits over the screen; the DOM field would show through it.
-    this.#searchInput.setVisible(!this.#popupOpen);
 
-    if (this.#saves === null || rows.length === 0) {
-      const empty =
-        this.#saves === null
+    const empty =
+      this.#saves === null || rows.length === 0
+        ? this.#saves === null
           ? t("pastGames.loading")
           : this.#query.trim() !== ""
             ? t("pastGames.emptySearch")
-            : t(this.#filter === "all" ? "pastGames.empty" : "pastGames.emptyFilter");
-      this.add
-        .text(width / 2, areaTop + 24, empty, textStyle(typeRole.body, surface.ink.hex, 0.8))
-        .setOrigin(0.5, 0)
-        .setWordWrapWidth(Math.min(contentWidth, 560) - 24)
-        .setAlign("center");
-    } else {
-      this.#drawList(layout.list, selected, stops);
-    }
+            : t(this.#filter === "all" ? "pastGames.empty" : "pastGames.emptyFilter")
+        : null;
+    this.#ctx = {
+      width,
+      height,
+      gutter,
+      areaTop,
+      searchRect,
+      exportHole: besideExport ? exportRect : null,
+      contentWidth,
+      listRect: layout.list,
+      rowHeight: pastGameRowHeight(layout.list.width - 20) + ROW_GAP,
+      layout,
+      selected,
+      popup: this.#popupOpen,
+      empty,
+    };
 
     const listKeys = pastGamesFocusOrder(rows.map((row) => row.id));
     if (selected && layout.side) {
-      this.#drawDetails(selected, layout.details, false, stops);
+      this.#obstacles.push(layout.details);
+      this.#detailStops(selected, layout.details, false, stops);
       order.push(...listKeys);
     } else if (selected) {
       // The popup takes every press: a shield over the screen, and only its own stops on the route.
       addPressShield(this, { x: 0, y: 0, width, height });
-      this.add.rectangle(0, 0, width, height, surface.ink.hex, 0.72).setOrigin(0, 0);
-      this.#drawDetails(selected, layout.details, true, stops);
+      this.#obstacles.push(layout.details);
+      this.#detailStops(selected, layout.details, true, stops);
       order.push("close", ...PAST_GAME_ACTIONS.map((action) => `action:${action}`));
     } else {
       order.push(...listKeys.filter((key) => !key.startsWith("action:")));
     }
+    if (empty === null) {
+      rows.forEach((row, index) => {
+        stops.set(`game:${row.id}`, {
+          rect: () => this.#rowOnScreen(index),
+          view: () => this.#ctx?.listRect ?? layout.list,
+          activate: () => this.#select(row),
+          ensureVisible: () => this.#showRow(index),
+        });
+      });
+    }
 
-    if (this.#status && this.#status.until > Date.now()) this.#drawStatus(this.#status.text, width, height, gutter);
-
+    this.#paintPanel();
     this.#route?.set(order, stops);
   }
 
@@ -806,208 +927,341 @@ export class PastGamesScene extends Phaser.Scene {
         : surface.ink.hex;
   }
 
-  #drawList(listRect: Rect, selected: PastGameRow | null, stops: Map<string, FocusStop>): void {
+  /** What a key does when the panel reports a tap on it. */
+  #press(key: string, action: () => void): void {
+    this.#actions.set(key, action);
+  }
+
+  /**
+   * Builds the list, the details (or the phone's popup), the empty note and the status line as the panel's parts, hands
+   * them to it and renders now. Also the list's own redraw when a scroll nears the edge of the rows built.
+   */
+  #paintPanel(): void {
+    const ctx = this.#ctx;
+    if (!ctx || !this.#alive) return;
+    // Every path that builds the rows (a full draw, a scroll near the edge, a picture arriving) renews the leases:
+    // the new rows take theirs, and the rows no longer drawn give theirs back once the new parts are mounted.
+    this.#pictures.begin();
+    this.#actions = new Map();
+    this.#hoverTargets = new Map();
+    this.#glyphs.reset();
+    // The panel's box: the search field and everything below it, or (a phone's popup) the whole screen, which its
+    // scrim covers. Beside the export button the field's row also holds that button: a hole in the panel shows it.
+    const region: Rect = ctx.popup
+      ? { x: 0, y: 0, width: ctx.width, height: ctx.height }
+      : { x: 0, y: ctx.searchRect.y, width: ctx.width, height: Math.max(0, ctx.height - ctx.searchRect.y) };
+    const b = new SheetBuilder(this.game, { x: region.x, y: region.y }, isDesktopType);
     const rows = this.#rows;
-    const rowHeight = pastGameRowHeight(listRect.width - 20) + ROW_GAP;
-    const boxIn = (rect: Rect): Rect => ({
-      x: rect.x + 4,
-      y: rect.y + 4,
-      width: rect.width - 20,
-      height: rect.height - ROW_GAP,
+    const steam = inputDevice().mode === "pad" && inputDevice().pad?.steam === true;
+    b.search(ctx.searchRect, {
+      key: "search",
+      value: this.#query,
+      placeholder: t("pastGames.search"),
+      clearLabel: t("decks.clearSearch"),
+      escapeClears: true,
+      ...(steam ? { focusPlaceholder: t("reader.steamKeyboard") } : {}),
     });
-    const ink = surface.ink.hex;
 
-    const renderRow = (index: number, rect: Rect): VirtualListRow => {
-      const row = rows[index]!;
-      const box = boxIn(rect);
-      const parts = pastGameRowParts(box, row.seats.length);
-      const panel = this.add.graphics();
-      paintPanel(panel, box, "card", row.id === selected?.id ? "selected" : "rest");
-      const objects: Phaser.GameObjects.GameObject[] = [panel];
-      const thumbs: LiveArtThumb[] = [];
-      const urls = picturedUrls(row);
-      parts.pictures.forEach((pic, i) => {
-        const thumb = renderLiveArtThumb(this, pic, urls[i] ?? null, 0.2);
-        thumbs.push(thumb);
-        objects.push(thumb.object);
-        const standIn = addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null);
-        if (standIn) objects.push(standIn);
-        // A hero's aspect chips along the foot of its picture (the villain, picture 0, has none).
-        if (i > 0) objects.push(...drawPictureAspectChips(this, pic, row.seats[i - 1]?.aspectIds ?? []));
-      });
-      const lines = this.#summaryLines(row);
-      const result = this.add.text(
-        parts.text.x,
-        parts.text.y,
-        t(`pastGames.result.${row.result}` as MessageKey).toUpperCase(),
-        textStyle(bangers(18), this.#resultColor(row)),
+    if (ctx.empty !== null) {
+      const emptyWidth = Math.min(ctx.contentWidth, 560) - 24;
+      b.emptyState(
+        { x: ctx.width / 2 - emptyWidth / 2, y: ctx.areaTop + 24, width: emptyWidth, height: 80 },
+        ctx.empty,
+        { align: "center", size: 11 },
       );
-      const reason = this.add.text(
-        result.x + result.width + 8,
-        parts.text.y + 3,
-        lines.reason,
-        textStyle(typeRole.body, ink, 0.85),
-      );
-      reason.setFontSize(13);
-      fitText(reason, parts.text.x + parts.text.width - reason.x, 11);
-      const title = this.add
-        .text(parts.text.x, result.y + result.height + 2, row.title, textStyle(typeRole.rowTitle, ink))
-        .setWordWrapWidth(parts.text.width);
-      for (const size of [15, 14, 13, 12]) {
-        title.setFontSize(size);
-        if (title.height <= size * 2 * typeRole.rowTitle.lineHeight + 2) break;
+      this.#built = null;
+    } else {
+      this.#drawList(b, ctx, rows);
+    }
+
+    const selected = ctx.selected;
+    if (selected) {
+      if (ctx.popup) {
+        // The popup takes every press: the scrim over the screen, and a tap area over the scrim that does nothing.
+        b.box({ x: 0, y: 0, width: ctx.width, height: ctx.height }, { fill: surface.ink.hex, fillAlpha: 0.72 });
+        this.#press("scrim", () => undefined);
+        b.tap("scrim", { x: 0, y: 0, width: ctx.width, height: ctx.height });
       }
-      const when = this.add.text(
-        parts.text.x,
-        title.y + title.height + 3,
-        lines.when,
-        textStyle(typeRole.body, ink, 0.75),
-      );
-      when.setFontSize(13);
-      fitText(when, parts.text.width, 11);
-      objects.push(result, reason, title, when);
-      if (lines.fates) {
-        const fates = this.add.text(
-          parts.text.x,
-          when.y + when.height + 2,
-          lines.fates,
-          textStyle(typeRole.body, ink, 0.9),
+      this.#drawDetails(b, selected, ctx.layout.details, ctx.popup);
+    }
+
+    if (this.#status && this.#status.until > Date.now()) this.#drawStatus(b, this.#status.text, ctx);
+    this.#mount(region, b);
+  }
+
+  /** The search field (`mc-search-field`), while it is drawn. */
+  #searchField(): McSearchField | null {
+    return (this.#region?.element.elementOf("search") as McSearchField | null) ?? null;
+  }
+
+  /** Hands the built parts to the panel (made once, so the list's scroll survives a redraw) and renders them now. */
+  #mount(rect: Rect, b: SheetBuilder): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      // A pack scan that fails to load reads its file again (`mc-image-error` from a part with a retry key).
+      this.#pictures.watch(element);
+      element.addEventListener("mc-search", (event) => {
+        const { value } = (event as CustomEvent<McSearchDetail>).detail;
+        if (value === this.#query) return;
+        this.#query = value;
+        this.#resetScroll();
+        this.#draw();
+      });
+      element.addEventListener("mc-search-focus", (event) => {
+        this.#searchFocused = (event as CustomEvent<{ focused: boolean }>).detail.focused;
+      });
+      element.addEventListener("mc-activate", (event) => {
+        // Leaving already (the fade runs): a second tap must not act.
+        if (this.#leaving) return;
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#region = new DomRegion(this, element, rect);
+      // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas.
+      this.#region.forwardMouseMoves();
+    }
+    const region = this.#region;
+    region.setRect(rect);
+    // The export button (beside the search field) and the hover popover are drawn in the canvas: both are left out of
+    // the panel to be seen through it.
+    region.setHoles(() => {
+      const holes: Rect[] = [];
+      const now = this.#ctx;
+      if (now?.exportHole && !now.popup) holes.push(now.exportHole);
+      const popover = this.#hover?.shownRect;
+      if (popover) holes.push(popover);
+      return holes;
+    });
+    region.element.nodes = b.nodes;
+    renderNow(region.element);
+    // The new parts are mounted: the pictures the last pass held are given back now.
+    this.#pictures.end();
+    const scroller = this.#scroller();
+    if (scroller) {
+      // The list comes back to where it was left (a replay's Exit, a redraw), unless the filter or search reset it.
+      if (this.#listFromTop || !this.#listPlaced.has(scroller)) {
+        scroller.scrollTop = this.#listFromTop ? 0 : this.#listTop;
+        this.#listFromTop = false;
+        this.#listPlaced.add(scroller);
+      }
+      if (!this.#listened.has(scroller)) {
+        this.#listened.add(scroller);
+        scroller.addEventListener(
+          "scroll",
+          () => {
+            this.#listTop = scroller.scrollTop;
+            this.#onListScroll();
+          },
+          { passive: true },
         );
-        fates.setFontSize(13);
-        fitText(fates, parts.text.width, 11);
-        objects.push(fates);
       }
-      return { objects, refresh: () => thumbs.forEach((thumb) => thumb.refresh()) };
-    };
+    }
+  }
 
-    this.#list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight,
-      count: rows.length,
-      renderRow,
-      scroll: this.#scroll,
-      onRowActivate: (index) => {
-        const row = rows[index];
-        if (row && !this.#popupOpen) this.#select(row);
-      },
-      rowPressableAt: () => !this.#popupOpen,
-      cursorBlocked: () => this.#popupOpen,
-      inputBlocked: () => this.#popupOpen,
-    });
-    const list = this.#list;
-    list.onDestroy(cardFaces(this).onBaked(() => list.refreshRows()));
-
-    // Each row's pictures open the card hover popover, from the list's own scroll, clipped to its window.
-    this.#hoverCards.push(() => {
-      const found = new Map<string, HoverCardIdRect>();
-      if (this.#popupOpen) return found;
-      const view = list.rect;
-      rows.forEach((row, index) => {
-        const at = list.rectFor(index);
-        if (at.y + at.height < view.y || at.y > view.y + view.height) return;
-        const cards = picturedCards(row);
-        const records = picturedCardRecords(row);
-        pastGameRowParts(boxIn(at), row.seats.length).pictures.forEach((pic, i) => {
-          const cardId = cards[i];
-          const shown = cardId ? clipHoverRect(pic, view) : null;
-          if (cardId && shown)
-            found.set(hoverSlotOf(cardId, `row${index}:${i}`), {
-              ...shown,
-              cardId,
-              ...(records[i] ? { card: records[i] } : {}),
-              through: true,
-            });
-        });
-      });
-      return found;
-    });
-
-    rows.forEach((row, index) => {
-      stops.set(`game:${row.id}`, {
-        rect: () => clipToView(boxIn(list.rectFor(index)), list.rect),
-        view: () => list.rect,
-        activate: () => this.#select(row),
-        ensureVisible: () => list.scrollIntoView(index),
-      });
+  /** The list scrolled: build again once the view nears the edge of the rows built, so what scrolls in is there. */
+  #onListScroll(): void {
+    if (this.#scrollFrame) return;
+    this.#scrollFrame = requestAnimationFrame(() => {
+      this.#scrollFrame = 0;
+      const built = this.#built;
+      const ctx = this.#ctx;
+      if (!built || !ctx || !this.#alive || this.#leaving) return;
+      const top = this.#listTop;
+      const bottom = top + ctx.listRect.height;
+      const slack = ctx.listRect.height / 2;
+      const from = built.from * ctx.rowHeight;
+      const to = built.to * ctx.rowHeight;
+      if ((built.from > 0 && top < from + slack) || (built.to < this.#rows.length && bottom > to - slack))
+        this.#paintPanel();
     });
   }
 
-  /** A game's details: the side panel beside the list, or (`popup`) a phone's popup over it. */
-  #drawDetails(row: PastGameRow, panel: Rect, popup: boolean, stops: Map<string, FocusStop>): void {
-    const ink = surface.ink.hex;
-    const parts = pastGameDetailParts(panel, row.seats.length, popup);
-    const g = this.add.graphics();
-    paintPanel(g, panel, "card", "rest");
-    this.#obstacles.push(panel);
-
-    if (parts.close) {
-      const close = (): void => this.#closePopup();
-      const button = new McButton(this, {
-        kind: "secondary",
-        label: "✕",
-        type: typeRole.menuButton,
-        rect: parts.close,
-        onClick: close,
-      });
-      this.#buttons.push(button);
-      this.#hints.button(button, ["cancel"], "paper");
-      stops.set("close", { rect: parts.close, activate: close });
-    }
-
-    const urls = picturedUrls(row);
-    const thumbs = parts.pictures.map((pic, i) => renderLiveArtThumb(this, pic, urls[i] ?? null, 0.2));
-    parts.pictures.forEach((pic, i) => {
-      addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null);
-      if (i > 0) drawPictureAspectChips(this, pic, row.seats[i - 1]?.aspectIds ?? []);
+  /** The rows in and near the view: a long history builds only these, and builds again as the list scrolls. */
+  #drawList(b: SheetBuilder, ctx: PanelContext, rows: readonly PastGameRow[]): void {
+    const { listRect, rowHeight } = ctx;
+    const top = this.#listFromTop ? 0 : (this.#scroller()?.scrollTop ?? this.#listTop);
+    const from = Math.max(0, Math.floor((top - listRect.height) / rowHeight));
+    const to = Math.min(rows.length, Math.ceil((top + listRect.height * 2) / rowHeight));
+    this.#built = { from, to };
+    b.scroll(LIST, listRect, rows.length * rowHeight, (inner) => {
+      for (let index = from; index < to; index++) {
+        const row = rows[index]!;
+        this.#drawRow(inner, row, index, this.#rowBox(index), row.id === ctx.selected?.id);
+      }
     });
-    this.#offBaked = cardFaces(this).onBaked(() => thumbs.forEach((thumb) => thumb.refresh()));
+  }
+
+  /** One game's row: its pictures, how it went, and a tap area over the whole of it. */
+  #drawRow(b: SheetBuilder, row: PastGameRow, index: number, box: Rect, selected: boolean): void {
+    const ink = surface.ink.hex;
+    const parts = pastGameRowParts(box, row.seats.length);
+    b.box(box, {
+      fill: surface.card.hex,
+      stroke: selected ? accent.heroRed.hex : ink,
+      strokeWidth: border.object,
+    });
+    this.#drawPictures(b, row, parts.pictures, `row${index}`, true);
+    const lines = this.#summaryLines(row);
+    const result = b.text(
+      parts.text.x,
+      parts.text.y,
+      t(`pastGames.result.${row.result}` as MessageKey).toUpperCase(),
+      bangers(18),
+      { color: this.#resultColor(row) },
+    );
+    const reasonX = parts.text.x + result.width + 8;
+    b.text(reasonX, parts.text.y + 3, lines.reason, typeRole.body, {
+      size: 13,
+      color: ink,
+      alpha: 0.85,
+      fitWidth: parts.text.x + parts.text.width - reasonX,
+    });
+    // The title steps down until it fits two lines.
+    const titleY = parts.text.y + result.height + 2;
+    let titleSize = 12;
+    for (const size of [15, 14, 13, 12]) {
+      titleSize = size;
+      const measured = b.measure(row.title, typeRole.rowTitle, { size, wrapWidth: parts.text.width });
+      if (measured.height <= size * 2 * typeRole.rowTitle.lineHeight + 2) break;
+    }
+    const title = b.text(parts.text.x, titleY, row.title, typeRole.rowTitle, {
+      size: titleSize,
+      color: ink,
+      wrapWidth: parts.text.width,
+      maxLines: 2,
+    });
+    const whenY = titleY + title.height + 3;
+    const when = b.text(parts.text.x, whenY, lines.when, typeRole.body, {
+      size: 13,
+      color: ink,
+      alpha: 0.75,
+      fitWidth: parts.text.width,
+    });
+    if (lines.fates) {
+      b.text(parts.text.x, whenY + when.height + 2, lines.fates, typeRole.body, {
+        size: 13,
+        color: ink,
+        alpha: 0.9,
+        fitWidth: parts.text.width,
+      });
+    }
+    // The tap area over the whole row, last, so the pictures and words under it take the press.
+    const key = `game:${row.id}`;
+    b.tap(key, box);
+    this.#press(key, () => {
+      if (!this.#popupOpen) this.#select(row);
+    });
+  }
+
+  /**
+   * The villain's and each hero's picture (the picture, a thin frame, the name printed on a stand-in with no art, a
+   * hero's aspect chips along its foot), each opening the card hover popover. `inList`: the rects are in the list's
+   * content space, so the hover places them from the list's scroll.
+   */
+  #drawPictures(b: SheetBuilder, row: PastGameRow, pictures: readonly Rect[], where: string, inList: boolean): void {
+    const sources = picturedSources(row);
+    const names = picturedNames(row);
     const cards = picturedCards(row);
     const records = picturedCardRecords(row);
-    this.#hoverCards.push(() => {
-      const found = new Map<string, HoverCardIdRect>();
-      parts.pictures.forEach((pic, i) => {
-        const cardId = cards[i];
-        if (cardId)
-          found.set(hoverSlotOf(cardId, `details:${i}`), {
-            ...pic,
-            cardId,
-            ...(records[i] ? { card: records[i] } : {}),
-            through: true,
-          });
+    pictures.forEach((pic, i) => {
+      const cardId = cards[i];
+      const slot = cardId ? hoverSlotOf(cardId, `${where}:${i}`) : undefined;
+      if (cardId && slot)
+        this.#hoverTargets.set(slot, {
+          cardId,
+          rect: pic,
+          inList,
+          ...(records[i] ? { card: records[i] } : {}),
+        });
+      const held = this.#pictures.image(sources[i] ?? null);
+      // A hero's face sits high in its picture (focusY 0.2), as the baked thumbnails cropped it.
+      b.image(pic, {
+        src: held.src,
+        ...(held.retry !== undefined ? { retry: held.retry } : {}),
+        fill: surface.parchment.hex,
+        cover: { x: 0.5, y: 0.2 },
+        ...(slot ? { hover: slot } : {}),
       });
-      return found;
+      b.box(pic, { stroke: surface.ink.hex, strokeWidth: 1.5, alpha: ink.label });
+      // The name printed on the placeholder of a picture with no art, so a cover never shows an unnamed blank (#758).
+      const name = names[i];
+      if (held.src === null && name) {
+        b.text(pic.x + pic.width / 2, pic.y + pic.height / 2, name, AS_WRITTEN_LABEL, {
+          size: 10,
+          color: surface.ink.hex,
+          alpha: 0.85,
+          origin: [0.5, 0.5],
+          wrapWidth: pic.width - 8,
+          align: "center",
+          maxLines: 4,
+        });
+      }
+      // A hero's aspect chips along the foot of its picture (the villain, picture 0, has none).
+      if (i > 0) {
+        for (const chip of aspectChipsOf(pic, row.seats[i - 1]?.aspectIds ?? [])) {
+          b.box(chip.rect, { fill: chip.stamp.fill, stroke: surface.ink.hex, strokeWidth: 1, alpha: 1 });
+          b.text(chip.rect.x + chip.rect.width / 2, chip.rect.y + chip.rect.height / 2, chip.text, typeRole.label, {
+            size: chip.fontSize,
+            color: chip.stamp.ink,
+            origin: [0.5, 0.5],
+            fitWidth: chip.rect.width - 4,
+          });
+        }
+      }
     });
+  }
+
+  /** The details' focus stops: the popup's close, and the four actions. Their rects are fixed, so the route holds them. */
+  #detailStops(row: PastGameRow, panel: Rect, popup: boolean, stops: Map<string, FocusStop>): void {
+    const parts = pastGameDetailParts(panel, row.seats.length, popup);
+    if (parts.close) stops.set("close", { rect: parts.close, activate: () => this.#closePopup() });
+    for (const action of PAST_GAME_ACTIONS) {
+      stops.set(`action:${action}`, { rect: parts.actions[action], activate: () => this.#act(row, action) });
+    }
+  }
+
+  /** A game's details: the side panel beside the list, or (`popup`) a phone's popup over it. */
+  #drawDetails(b: SheetBuilder, row: PastGameRow, panel: Rect, popup: boolean): void {
+    const ink = surface.ink.hex;
+    const parts = pastGameDetailParts(panel, row.seats.length, popup);
+    b.box(panel, { fill: surface.card.hex, stroke: ink, strokeWidth: border.object });
+
+    if (parts.close) {
+      this.#glyphs.button(b, {
+        key: "close",
+        rect: parts.close,
+        label: "✕",
+        look: "secondary",
+        type: typeRole.menuButton,
+        ids: ["cancel"],
+        ground: "paper",
+      });
+      this.#press("close", () => this.#closePopup());
+    }
+    this.#drawPictures(b, row, parts.pictures, "details", false);
 
     // The words run in a region of their own above the actions: four heroes, a long title and a campaign line can
     // outgrow the panel on a small screen, and the region scrolls (wheel, drag, the right stick) rather than cut any.
     const lines = this.#summaryLines(row);
     const text = parts.text;
-    const before = this.children.list.length;
-    let y = text.y;
-    const add = (value: string, style: Phaser.Types.GameObjects.Text.TextStyle, size: number, gap = 4) => {
-      const line = this.add.text(text.x, y, value, style).setWordWrapWidth(text.width - 10);
-      line.setFontSize(size);
+    const inner = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
+    let y = 0;
+    const wrapWidth = text.width - 10;
+    const add = (value: string, spec: TypeSpec, size: number, color: number, alpha: number, gap = 4): void => {
+      const line = inner.text(0, y, value, spec, { size, color, alpha, wrapWidth });
       y += line.height + gap;
-      return line;
     };
-    add(
-      t(`pastGames.result.${row.result}` as MessageKey).toUpperCase(),
-      textStyle(bangers(28), this.#resultColor(row)),
-      28,
-      2,
-    );
-    add(lines.reason, textStyle(typeRole.body, ink), 15);
-    add(row.title, textStyle(typeRole.rowTitle, ink), 16);
-    add(lines.when, textStyle(typeRole.body, ink, 0.8), 14, row.campaign ? 2 : 10);
-    if (row.campaign)
-      add(t("pastGames.campaign", { name: row.campaign }), textStyle(typeRole.label, ink, 0.75), 12, 10);
+    add(t(`pastGames.result.${row.result}` as MessageKey).toUpperCase(), bangers(28), 28, this.#resultColor(row), 1, 2);
+    add(lines.reason, typeRole.body, 15, ink, 1);
+    add(row.title, typeRole.rowTitle, 16, ink, 1);
+    add(lines.when, typeRole.body, 14, ink, 0.8, row.campaign ? 2 : 10);
+    if (row.campaign) add(t("pastGames.campaign", { name: row.campaign }), typeRole.label, 12, ink, 0.75, 10);
     for (const seat of row.seats) {
       const fate = seat.fell === null ? "" : ` · ${t(seat.fell ? "pastGames.seat.fell" : "pastGames.seat.stood")}`;
-      add(`${seat.name}${fate}`, textStyle(typeRole.rowTitle, ink), 14, 1);
+      add(`${seat.name}${fate}`, typeRole.rowTitle, 14, ink, 1, 1);
       // Every seat at the table, not only the first: its stats, aspects and deck, and the cards it played most (#756).
       // A deck named after its aspect (a precon) does not say it twice.
       const deckParts = [...(seat.deckName ? [seat.deckName] : []), ...aspectsNotInName(seat.deckName, seat.aspects)];
-      const lines = [
+      const seatLines = [
         ...(seat.damage !== null && seat.thwart !== null
           ? [t("pastGames.seat.stats", { damage: seat.damage, thwart: seat.thwart })]
           : []),
@@ -1016,56 +1270,50 @@ export class PastGamesScene extends Phaser.Scene {
           ? [t("pastGames.seat.top", { cards: seat.topCards.map((card) => `${card.name} ${card.count}×`).join(", ") })]
           : []),
       ];
-      lines.forEach((line, i) => add(line, textStyle(typeRole.body, ink, 0.75), 13, i === lines.length - 1 ? 8 : 1));
+      seatLines.forEach((line, i) => add(line, typeRole.body, 13, ink, 0.75, i === seatLines.length - 1 ? 8 : 1));
     }
+    // The offset is kept while the same game shows, and starts over for another.
     if (this.#detailsScrollId !== row.id) {
-      this.#detailsScroll = new VariableListScroll();
       this.#detailsScrollId = row.id;
+      const existing = this.#detailsScroller();
+      if (existing) existing.scrollTop = 0;
     }
-    // Taken before the region exists, so its own root and mask are never moved into it.
-    const words = this.children.list.slice(before);
-    const region = new McScrollRegion(this, {
-      rect: text,
-      heights: [Math.max(text.height, y - text.y)],
-      scroll: this.#detailsScroll,
+    b.scroll(DETAILS, text, Math.max(text.height, y), (target) => {
+      target.nodes.push(...inner.nodes);
     });
-    region.content.add(words);
-    region.refresh();
-    this.#detailsRegion = region;
 
     const busy = this.#busy;
     for (const action of PAST_GAME_ACTIONS) {
       const running = busy?.id === row.id && busy.action === action;
       const rect = parts.actions[action];
-      const activate = (): void => this.#act(row, action);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: action === "watch" ? "primary" : "secondary",
-          label: running ? t("pastGames.working") : t(ACTION_LABEL[action]),
-          type: action === "watch" ? typeRole.menuButton : { ...typeRole.rowTitle, size: 13 },
-          rect,
-          enabled: busy === null,
-          onClick: activate,
-        }),
-      );
-      stops.set(`action:${action}`, { rect, activate });
+      b.button({
+        key: `action:${action}`,
+        rect,
+        label: running ? t("pastGames.working") : t(ACTION_LABEL[action]),
+        look: action === "watch" ? "primary" : "secondary",
+        type: action === "watch" ? typeRole.menuButton : { ...typeRole.rowTitle, size: 13 },
+        ...(busy !== null ? { disabled: true as const } : {}),
+      });
+      this.#press(`action:${action}`, () => this.#act(row, action));
     }
   }
 
-  #drawStatus(text: string, width: number, height: number, gutter: number): void {
-    const maxWidth = Math.min(width - gutter * 2, 640);
-    const label = this.add
-      .text(width / 2, 0, text, textStyle(typeRole.body, surface.paper.hex))
-      .setOrigin(0.5, 0)
-      .setWordWrapWidth(maxWidth - 24)
-      .setAlign("center")
-      .setDepth(1001);
-    const boxHeight = label.height + 16;
-    const y = height - gutter - boxHeight;
-    label.setY(y + 8);
-    this.add
-      .rectangle(width / 2, y, Math.min(maxWidth, label.width + 32), boxHeight, surface.ink.hex, 0.95)
-      .setOrigin(0.5, 0)
-      .setDepth(1000);
+  #drawStatus(b: SheetBuilder, text: string, ctx: PanelContext): void {
+    const maxWidth = Math.min(ctx.width - ctx.gutter * 2, 640);
+    const measured = b.measure(text, typeRole.body, { wrapWidth: maxWidth - 24, align: "center" });
+    const boxHeight = measured.height + 16;
+    const y = ctx.height - ctx.gutter - boxHeight;
+    const natural = b.measure(text, typeRole.body).width;
+    const boxWidth = Math.min(maxWidth, Math.min(natural, maxWidth - 24) + 32);
+    b.box(
+      { x: ctx.width / 2 - boxWidth / 2, y, width: boxWidth, height: boxHeight },
+      { fill: surface.ink.hex, fillAlpha: 0.95 },
+    );
+    b.text(ctx.width / 2, y + 8, text, typeRole.body, {
+      color: surface.paper.hex,
+      origin: [0.5, 0],
+      wrapWidth: maxWidth - 24,
+      align: "center",
+    });
   }
 }

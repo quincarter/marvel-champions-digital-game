@@ -200,7 +200,7 @@ test.describe("Decks & Collection: community decks", () => {
     const [copy] = await ownDecks(page);
     expect(copy).toMatchObject({ name: SPIDER_MAN.name, source: "imported", legal: true, selected: true });
     expect((await statusLine(page))?.tone).toBe("success");
-    expect((await statusLine(page))?.text).toContain(`Added "${SPIDER_MAN.name}" by nungunz`);
+    expect((await statusLine(page))?.text).toContain(`Added “${SPIDER_MAN.name}” by nungunz`);
     expect((await offer(page, SPIDER_MAN.id)).added).toBe(true);
     expect((await stops(page)).map((s) => s.key)).toEqual(
       expect.arrayContaining(["stats-edit", "stats-delete", "stats-play"]),

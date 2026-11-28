@@ -42,6 +42,19 @@ async function press(page: Page, scene: string, key: string): Promise<void> {
   await page.waitForTimeout(400);
 }
 
+/** Wheels a phone's scrolling Deck tab until the control is on screen (a control scrolled out of a panel list is not on screen). */
+async function bringIntoView(page: Page, scene: string, key: string): Promise<void> {
+  const size = page.viewportSize()!;
+  if (size.width >= 1100) return;
+  for (let i = 0; i < 20; i++) {
+    const r = await stopRect(page, scene, key);
+    if (r && r.y > 200 && r.y + r.height < size.height - 110) return;
+    await page.mouse.move(size.width / 2, size.height * 0.6);
+    await page.mouse.wheel(0, r && r.y < 200 ? -250 : 250);
+    await page.waitForTimeout(250);
+  }
+}
+
 const sees = async (page: Page, scene: string, text: string): Promise<boolean> =>
   (await visibleTexts(page)).some((t) => t.scene === scene && t.text.toLowerCase() === text.toLowerCase());
 
@@ -73,6 +86,7 @@ test("the deck list's sort is kept, and Review goes to Deck check and back", asy
   await press(page, "DeckCheck", "back");
   await waitFor(async () => ((await screens(page)).includes("DeckBuilder") ? true : null), "back in the builder");
   await page.waitForTimeout(800);
+  await bringIntoView(page, "DeckBuilder", "deck-sort");
   await waitFor(async () => ((await sees(page, "DeckBuilder", "Sort: Type")) ? true : null), "the sort is still kept");
   expect(await stopRect(page, "DeckBuilder", "deck-review")).not.toBeNull();
   await waitFor(async () => ((await deckName(page)).includes("Round trip") ? true : null), "the typed name came back");

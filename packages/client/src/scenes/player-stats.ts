@@ -17,16 +17,25 @@
  * The stats are folded in a worker (`view/player-stats-client.ts`) from the saves' rows this scene reads when it opens.
  */
 import Phaser from "phaser";
-import { t } from "../i18n/translate.js";
+import "@mc/ui";
+import type { McSheet, SvgOp } from "@mc/ui";
+import { t, type MessageKey } from "../i18n/translate.js";
 import { currentCardsById, currentScenarios } from "../content/pool.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import { onArtChange } from "../language-change.js";
 import { artFor, type ArtSource } from "../art/art-source.js";
 import type { AnyCard } from "@mc/content";
-import { cardArt, drawArt } from "../art/card-art.js";
+import { cardArt } from "../art/card-art.js";
 import { cardFaces } from "../art/card-face-baker.js";
-import { heroFocusOf, heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
-import { accent, ink, signal, surface, typeRole } from "../tokens.js";
+import {
+  heroFocusOf,
+  heroPictureOf,
+  heroSourceOf,
+  villainPictureOf,
+  villainSourceOf,
+} from "../art/matchup-pictures.js";
+import { PictureLeases, type LeasedPicture } from "../dom/picture-leases.js";
+import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { TITLE_ART, pickTitleArtFor, titleArtSizeOf, type TitleArt } from "../art/title-art.js";
 import { drawnDensity } from "../platform/screen-settings.js";
@@ -36,11 +45,16 @@ import { addPressShield } from "../ui/press-shield.js";
 import { GlyphHints, specsForShortcuts, type CustomSpecs } from "../ui/glyph-hints.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { McButton, fitText, fitWrapped } from "../ui/widgets.js";
+import { McVirtualList } from "../ui/virtual-list.js";
+import { McButton, fitWrapped } from "../ui/widgets.js";
 import { McChipRail } from "../ui/chip-rail.js";
 import { McMatchupGrid, type MatchupGridState } from "../ui/matchup-grid.js";
-import { drawLegend, renderShelf, renderSideRow, renderTile } from "../ui/matchup-rows.js";
+import { renderSideRow } from "../ui/matchup-rows.js";
+import { drawLegendNodes, drawShelfNodes, drawTileNodes } from "../dom/matchup-sheet.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder, sheetColor } from "../dom/sheet-builder.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import { RailScroll } from "../view/rail-scroll.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
@@ -51,7 +65,6 @@ import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import {
   MATCHUP_VIEWS,
-  MATCHUP_VIEW_LABELS,
   flipGrid,
   shelfPictureRect,
   shelfRowsOf,
@@ -96,7 +109,6 @@ import {
 } from "../view/player-stats-layout.js";
 import type { LossCause, LossPart, OverviewTile, PlayerStats, StatsFilter } from "../view/player-stats-model.js";
 import { appSession } from "../session.js";
-import { renderArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { PastGamesSceneData } from "./past-games.js";
@@ -116,14 +128,30 @@ export interface PlayerStatsData {
 }
 
 /** What Back says, by the screen it goes to. */
-const BACK_LABELS: Readonly<Record<string, string>> = {
-  [SCENES.title]: "TITLE",
-  [SCENES.decks]: "DECKS",
-  [SCENES.trophyRoom]: "TROPHIES",
+const BACK_LABELS: Readonly<Record<string, MessageKey>> = {
+  [SCENES.title]: "stats.back.title",
+  [SCENES.decks]: "stats.back.decks",
+  [SCENES.trophyRoom]: "stats.back.trophies",
 };
 
 /** Room at each row's right edge for the list's own scrollbar. */
 const GUTTER = 14;
+/** The scrolling list's key in the panel. */
+const LIST = "list";
+/** A label in the type of `typeRole.label` but written as given (a sentence, not capitals): what Phaser drew it as. */
+const AS_WRITTEN_LABEL: TypeSpec = { ...typeRole.label, uppercase: false };
+
+/** What a draw laid out for the panel's list. */
+interface PanelList {
+  readonly rect: Rect;
+  /** Each row's top in the list's content space, and its height. */
+  readonly tops: readonly number[];
+  readonly heights: readonly number[];
+  readonly total: number;
+  /** The list's scroll's name: each tab (and each hero, and each Matchups view) keeps its own place. */
+  readonly key: string;
+  readonly phone: boolean;
+}
 const CHIP_GAP = 8;
 /** A stat row's box inside its list row. */
 const statBox = (rect: Rect): Rect => ({
@@ -207,10 +235,10 @@ const gridPlaceOf = (key: string): MatchupGridState => {
   return place;
 };
 
-const DIFFICULTY_CHIP: Readonly<Record<NonNullable<StatsFilter["difficulty"]>, string>> = {
-  standard: "Standard",
-  expert: "Expert",
-  extreme: "Extreme",
+const DIFFICULTY_CHIP: Readonly<Record<NonNullable<StatsFilter["difficulty"]>, MessageKey>> = {
+  standard: "stats.difficulty.standard",
+  expert: "stats.difficulty.expert",
+  extreme: "stats.difficulty.extreme",
 };
 
 /** A shortcut's glyph (LB, RB, or their keys). */
@@ -257,7 +285,13 @@ const statCardArt = (card: AnyCard | undefined): ArtSource | null =>
   card?.type === "hero_identity"
     ? (artFor(card, { kind: "hero" }) ?? artFor(card, { kind: "front" }))
     : artFor(card, { kind: "front" });
+/** `heroPicture`'s source: what a mounted `<img>` leases (a Mod Store hero's picture is a blob URL the cache may revoke). */
+const heroSource = (identityId: string): ArtSource | null => heroSourceOf(identityId, loadedPacks());
 /** A scenario's villain picture, a custom scenario's from its installed pack (#966). */
+function villainSource(scenarioId: string): ArtSource | null {
+  const scenario = scenarioById(scenarioId);
+  return villainSourceOf(scenarioId, scenario ? scenarioCardIdOf(scenario) : null, loadedPacks());
+}
 function villainPicture(scenarioId: string): string | null {
   const scenario = scenarioById(scenarioId);
   return villainPictureOf(scenarioId, scenario ? scenarioCardIdOf(scenario) : null, loadedPacks());
@@ -283,7 +317,19 @@ export class PlayerStatsScene extends Phaser.Scene {
   #rails: McChipRail[] = [];
   #tabScroll = new RailScroll();
   #gridChipScroll = new RailScroll();
-  #list: McVirtualList | null = null;
+  /** The screen's one Lit panel: the dashboard's list (the Matchups grid and the Focus side list stay Phaser). */
+  #region: DomRegion<McSheet> | null = null;
+  /** What the last draw laid out for the list: its box, each row's top and height, and its scroll's name. */
+  #panelList: PanelList | null = null;
+  /** The rows built into the panel now: [from, to). */
+  #built: { readonly from: number; readonly to: number } | null = null;
+  #actions = new Map<string, () => void>();
+  #inspects = new Map<string, () => void>();
+  /** Each tab's own place in the list, by its scroll name; the panel's scroller is one element. */
+  #tops = new Map<string, number>();
+  #shownKey: string | null = null;
+  #listened = new WeakSet<HTMLElement>();
+  #scrollFrame = 0;
   #grid: McMatchupGrid | null = null;
   /** The Focus view's list of villains, beside its tiles. */
   #sideList: McVirtualList | null = null;
@@ -302,6 +348,8 @@ export class PlayerStatsScene extends Phaser.Scene {
   /** Each tab keeps its own scroll. */
   readonly #scrolls = new Map<string, ListScroll>();
   #offArt: (() => void)[] = [];
+  /** The leases this screen holds on its mounted card and hero pictures (`dom/picture-leases.ts`). */
+  readonly #pictures = new PictureLeases();
   #redrawQueued = false;
   /** This visit's backdrop (a title wallpaper), picked once per open so a redraw keeps it. */
   #backdrop: TitleArt | null = null;
@@ -335,6 +383,10 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#shareBusy = false;
     this.#shareFailed = false;
     this.#shareShownAt = null;
+    this.#region = null;
+    this.#panelList = null;
+    this.#built = null;
+    this.#shownKey = null;
     const under = this.#data.overlay && this.#data.from ? this.scene.get(this.#data.from) : null;
     if (under) {
       under.input.enabled = false;
@@ -381,6 +433,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       }),
     ];
     this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
       onCancel: () => this.#back(),
       onTab: (direction) => this.#stepTab(direction),
       onTrigger: (trigger) => {
@@ -391,7 +444,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       onHomeEnd: (edge) => this.#focusEdge(edge),
       onScroll: (dx, dy) => {
         this.#grid?.panBy(dx, dy);
-        this.#list?.scrollByPx(dy);
+        this.#scroller()?.scrollBy({ top: dy });
       },
       // X (G / H): to the filter chips, opening them on a phone (on Everyone, which has none, to the You / Everyone
       // chips); the chip it lands on wears the glyph.
@@ -405,6 +458,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      this.#pictures.dispose();
       for (const off of this.#offArt) off();
       this.#offArt = [];
       this.#hints.dispose();
@@ -412,6 +466,8 @@ export class PlayerStatsScene extends Phaser.Scene {
       this.#hover = null;
       this.scale.off("resize", this.#draw, this);
       this.#destroyWidgets();
+      // The panel goes with the scene (`DomRegion`); the next visit makes a new one.
+      this.#region = null;
       if (under) {
         under.input.enabled = true;
         if (under.input.keyboard) under.input.keyboard.enabled = true;
@@ -555,11 +611,10 @@ export class PlayerStatsScene extends Phaser.Scene {
       }
       return found;
     }
-    const list = this.#list;
     const view = this.#listRect;
-    if (!list || !view) return found;
+    if (!this.#panelList || !view) return found;
     this.#rows.forEach((row, index) => {
-      const r = list.rectFor(index);
+      const r = this.#rowRect(index);
       // The popover is desktop only, so these are never a phone's pictures.
       if (row.kind === "matchup" && row.matchup.kind === "shelf") {
         const id = this.#matchup().rows[row.matchup.shelf.row]!.id;
@@ -597,8 +652,6 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#rails = [];
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.#list?.destroy();
-    this.#list = null;
     this.#listRect = null;
     this.#grid?.destroy();
     this.#grid = null;
@@ -780,7 +833,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     const chips = [
       {
         key: "filter:hero",
-        label: heroName ?? (phone ? "Heroes" : "All heroes"),
+        label: heroName ?? t(phone ? "stats.chip.heroes" : "stats.chip.allHeroes"),
         glyph: phone ? null : shortcutSpecs("guide"),
         selected: filter.hero !== undefined,
         onClick: () =>
@@ -797,7 +850,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       },
       {
         key: "filter:villain",
-        label: filter.villain ?? (phone ? "Villains" : "All villains"),
+        label: filter.villain ?? t(phone ? "stats.chip.villains" : "stats.chip.allVillains"),
         selected: filter.villain !== undefined,
         onClick: () => apply({ ...filter, villain: step(villains, filter.villain) }, "filter:villain"),
       },
@@ -805,7 +858,9 @@ export class PlayerStatsScene extends Phaser.Scene {
         ? [
             {
               key: "filter:difficulty",
-              label: filter.difficulty ? DIFFICULTY_CHIP[filter.difficulty] : phone ? "Difficulty" : "All difficulties",
+              label: filter.difficulty
+                ? t(DIFFICULTY_CHIP[filter.difficulty])
+                : t(phone ? "stats.chip.difficulty" : "stats.chip.allDifficulties"),
               selected: filter.difficulty !== undefined,
               onClick: () =>
                 apply({ ...filter, difficulty: step(difficulties, filter.difficulty) }, "filter:difficulty"),
@@ -816,7 +871,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         ? [
             {
               key: "filter:clear",
-              label: "✕ Clear",
+              label: t("stats.chip.clear"),
               selected: false,
               onClick: () => apply({}, "filter:hero"),
             },
@@ -828,7 +883,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       const count = [filter.hero, filter.villain, filter.difficulty].filter((v) => v !== undefined).length;
       const toggle = {
         key: "filter:toggle",
-        label: `${filtersOpen ? "▾" : "▸"} Filters${count > 0 ? ` · ${count}` : ""}`,
+        label: `${filtersOpen ? "▾" : "▸"} ${t("stats.chip.filters")}${count > 0 ? ` · ${count}` : ""}`,
         glyph: shortcutSpecs("guide"),
         selected: count > 0,
         onClick: () => {
@@ -874,6 +929,14 @@ export class PlayerStatsScene extends Phaser.Scene {
     return heroPicture(id);
   }
 
+  /** `#pictureOf`'s source, for the panel's `<img>`s (leased and re-resolved by key, not just a URL). */
+  #pictureSourceOf(axis: "row" | "column", id: string): ArtSource | null {
+    const scenarios = (axis === "row") !== gridFlipped;
+    if (scenarios) return villainSource(id);
+    if (lastGrid !== "heroes") return null;
+    return heroSource(id);
+  }
+
   /** The card a row's or a column's picture stands for, for the hover: the axes read as in `#pictureOf`. */
   #cardOf(axis: "row" | "column", id: string): string | null {
     const scenarios = (axis === "row") !== gridFlipped;
@@ -887,6 +950,8 @@ export class PlayerStatsScene extends Phaser.Scene {
     const place = gridPlaceOf(gridKey());
     place.cursor = { ...place.cursor, row };
     this.#scrolls.delete(`matchups:focus:${gridKey()}`);
+    this.#tops.delete(`matchups:focus:${gridKey()}`);
+    this.#shownKey = null;
     // Where the side list has no room, the stepper is what focus can land on.
     const landing = this.scale.width < SIDE_LIST_MIN_SCREEN ? "focus:next" : `side:${row}`;
     this.#setView("focus", byFocus ? landing : null);
@@ -899,6 +964,8 @@ export class PlayerStatsScene extends Phaser.Scene {
     const count = this.#matchup().rows.length;
     place.cursor = { ...place.cursor, row: ((row % count) + count) % count };
     this.#scrolls.delete(`matchups:focus:${gridKey()}`);
+    this.#tops.delete(`matchups:focus:${gridKey()}`);
+    this.#shownKey = null;
     this.#draw();
     this.#sideList?.scrollIntoView(place.cursor.row);
     if (byFocus) this.#route?.focusKey(key);
@@ -920,7 +987,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       phone || wide
         ? MATCHUP_VIEWS.map((view) => ({
             key: `view:${view}`,
-            label: MATCHUP_VIEW_LABELS[view],
+            label: t(`stats.view.${view}` as MessageKey),
             selected: lastView === view,
             onClick: (byFocus) => this.#setView(view, byFocus ? `view:${view}` : null),
           }))
@@ -928,7 +995,7 @@ export class PlayerStatsScene extends Phaser.Scene {
             {
               // One chip that steps through the views, where four would wrap to another row above the grid.
               key: "view:step",
-              label: `View: ${MATCHUP_VIEW_LABELS[lastView]}`,
+              label: t("stats.chip.viewStep", { view: t(`stats.view.${lastView}` as MessageKey) }),
               selected: true,
               onClick: (byFocus) => {
                 const next = MATCHUP_VIEWS[(MATCHUP_VIEWS.indexOf(lastView) + 1) % MATCHUP_VIEWS.length]!;
@@ -940,23 +1007,28 @@ export class PlayerStatsScene extends Phaser.Scene {
       ...views,
       {
         key: "grid:heroes",
-        label: "By hero",
+        label: t("stats.chip.byHero"),
         selected: lastGrid === "heroes",
         onClick: (byFocus) => this.#setGrid("heroes", byFocus),
         glyph: phone ? null : triggerSpecs("lt"),
       },
       {
         key: "grid:modulars",
-        label: "By modular",
+        label: t("stats.chip.byModular"),
         selected: lastGrid === "modulars",
         onClick: (byFocus) => this.#setGrid("modulars", byFocus),
         glyph: phone ? null : triggerSpecs("rt"),
       },
       ...(lastView === "shelves"
         ? []
-        : [toggle("grid:counts", "Counts", gridCounts, () => (gridCounts = !gridCounts))]),
-      toggle("grid:played", phone ? "Not beaten" : "Played, not beaten", gridPlayed, () => (gridPlayed = !gridPlayed)),
-      toggle("grid:flip", "Flip axes", gridFlipped, () => (gridFlipped = !gridFlipped)),
+        : [toggle("grid:counts", t("stats.chip.counts"), gridCounts, () => (gridCounts = !gridCounts))]),
+      toggle(
+        "grid:played",
+        t(phone ? "stats.chip.notBeatenShort" : "stats.chip.notBeaten"),
+        gridPlayed,
+        () => (gridPlayed = !gridPlayed),
+      ),
+      toggle("grid:flip", t("stats.chip.flip"), gridFlipped, () => (gridFlipped = !gridFlipped)),
     ];
   }
 
@@ -1118,7 +1190,9 @@ export class PlayerStatsScene extends Phaser.Scene {
     addPressShield(this, { x: 0, y: 0, width, height });
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     this.#drawBackdrop(width, height);
-    const backWord = this.#data.overlay ? "BACK" : (BACK_LABELS[this.#data.from ?? SCENES.trophyRoom] ?? "BACK");
+    const backWord = t(
+      this.#data.overlay ? "stats.back.back" : (BACK_LABELS[this.#data.from ?? SCENES.trophyRoom] ?? "stats.back.back"),
+    );
     // The You / Everyone switch lives in the bar, to the right of the title (`view/stats-source-bar.ts`), so it costs the
     // content no height. The desktop's "N games played" gives way to it where the two would crowd the dark mode button.
     const playedText = phone || !stats ? undefined : stats.header.played;
@@ -1131,7 +1205,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       backLabel: phone ? "◂" : `◂ ${backWord}`,
       onBack: () => this.#back(),
       hints: this.#hints,
-      title: "Your stats",
+      title: t("stats.title"),
       ...(playedText && sourceBar?.showRight ? { right: playedText } : {}),
       ...(sourceBar ? { reserveRight: sourceBar.reserveRight } : {}),
     });
@@ -1144,11 +1218,13 @@ export class PlayerStatsScene extends Phaser.Scene {
     if (!stats) {
       this.#rows = [];
       this.#listKeys = [];
+      this.#panelList = null;
+      this.#region?.setHidden(true);
       this.add
         .text(
           width / 2,
           bar.height + 80,
-          this.#failed ? "Your games could not be read." : "Reading your games…",
+          t(this.#failed ? "stats.failed" : "stats.reading"),
           textStyle(typeRole.body, surface.ink.hex, ink.secondary),
         )
         .setOrigin(0.5, 0);
@@ -1262,7 +1338,12 @@ export class PlayerStatsScene extends Phaser.Scene {
             label:
               phone || !several
                 ? `${heroName} · ${games}`
-                : `${heroName} · ${current.games} · ${heroes.indexOf(current) + 1} of ${heroes.length}`,
+                : t("stats.chip.heroOf", {
+                    name: heroName,
+                    games: current.games,
+                    n: heroes.indexOf(current) + 1,
+                    total: heroes.length,
+                  }),
             selected: true,
             onClick: () => undefined,
             ...(middle !== undefined ? { width: middle } : {}),
@@ -1334,7 +1415,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         [
           {
             key: "hide-signature",
-            label: hideSignature ? "✓ Hero cards hidden" : "Hide hero cards",
+            label: t(hideSignature ? "stats.chip.cardsHidden" : "stats.chip.hideCards"),
             selected: hideSignature,
             onClick: (byFocus: boolean) => {
               hideSignature = !hideSignature;
@@ -1358,6 +1439,8 @@ export class PlayerStatsScene extends Phaser.Scene {
     if (onMatchups && (lastView === "heat" || lastView === "stamps")) {
       this.#rows = [];
       this.#listKeys = [];
+      this.#panelList = null;
+      this.#region?.setHidden(true);
       this.#drawGrid(fullRect, phone, stops, order);
       this.#stops = stops;
       this.#route?.set(order, stops);
@@ -1388,47 +1471,32 @@ export class PlayerStatsScene extends Phaser.Scene {
                     kind: "note" as const,
                     id: "ov:backfill",
                     height: phone ? 52 : 40,
-                    text: `Filling in your older games from their saved logs: ${backfill.done} of ${backfill.total}. Their card numbers appear here when it is done.`,
+                    text: t("stats.backfill", { done: backfill.done, total: backfill.total }),
                   },
                 ]
               : []),
             ...dashboardRowsOf(stats, lastTab, lastHero, rowWidth, phone, hideSignature),
           ];
     this.#rows = rows;
-    const list = new McVirtualList(this, {
-      rect: listRect,
-      rowHeight: rows[0]?.height ?? 60,
-      rowHeightOf: (index) => rows[index]!.height,
-      count: rows.length,
-      // Everyone's list keeps its own scroll, apart from You's on the same tab.
-      scroll: this.#scrollOf(
-        everyone
-          ? `global:${lastTab}`
-          : lastTab === "cards"
-            ? `cards:${lastHero}`
-            : onMatchups
-              ? `matchups:${lastView}:${gridKey()}`
-              : lastTab,
-      ),
-      background: false,
-      renderRow: (index, rect) => this.#renderRow(rows[index]!, rect, phone),
-      onRowActivate: (index: number) => {
-        const row = rows[index]!;
-        if (onMatchups && lastView === "shelves" && row.kind === "matchup" && row.matchup.kind === "shelf")
-          this.#openFocus(row.matchup.shelf.row, false);
-        else if (row.kind === "stat" && this.#gameLinkOf(row.row)) this.#openGame(row.row.gameId!);
-      },
-      // The hand cursor only over a record that links to its game (a shelf row never had one).
-      rowPressableAt: (index: number) => {
-        const row = rows[index];
-        return row?.kind === "stat" && this.#gameLinkOf(row.row);
-      },
-    });
-    this.#list = list;
-    this.#listRect = listRect;
-    if (matchupRows) {
-      this.#listRefresh = () => list.update(rows.length, (index, rect) => this.#renderRow(rows[index]!, rect, phone));
+    this.#rows = rows;
+    const heights = rows.map((row) => row.height);
+    const tops: number[] = [];
+    let total = 0;
+    for (const h of heights) {
+      tops.push(total);
+      total += h;
     }
+    // Everyone's list keeps its own scroll, apart from You's on the same tab.
+    const scrollKey = everyone
+      ? `global:${lastTab}`
+      : lastTab === "cards"
+        ? `cards:${lastHero}`
+        : onMatchups
+          ? `matchups:${lastView}:${gridKey()}`
+          : lastTab;
+    this.#panelList = { rect: listRect, tops, heights, total, key: scrollKey, phone };
+    this.#listRect = listRect;
+    this.#listRefresh = () => this.#paintList();
 
     // Every tile, stat row and card picture is a stop, so a pad or keyboard can walk the whole tab.
     const listKeys: string[] = [];
@@ -1441,15 +1509,15 @@ export class PlayerStatsScene extends Phaser.Scene {
     ): void => {
       listKeys.push(key);
       stops.set(key, {
-        rect: () => clipToView(part(list.rectFor(index)), listRect),
+        rect: () => clipToView(part(this.#rowRect(index)), listRect),
         view: listRect,
         activate: activate ?? (cardId ? () => this.#inspectCard(cardId) : () => undefined),
         ...(cardId ? { inspect: () => this.#inspectCard(cardId) } : {}),
         // The stop's own part of the row: a tile stacked low in the Overview's tall showcase row scrolls to itself.
         ensureVisible: () => {
-          const row = list.rectFor(index);
+          const row = this.#rowRect(index);
           const own = part(row);
-          list.scrollIntoView(index, { y: own.y - row.y, height: own.height });
+          this.#showPart(index, { y: own.y - row.y, height: own.height });
         },
       });
     };
@@ -1503,6 +1571,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#listKeys = listKeys;
     order.push(...listKeys);
     this.#stops = stops;
+    this.#paintList();
     this.#route?.set(order, stops);
     this.#hover?.onDraw();
   }
@@ -1542,245 +1611,412 @@ export class PlayerStatsScene extends Phaser.Scene {
     });
   }
 
-  #renderMatchupRow(matchup: Extract<DashRow, { kind: "matchup" }>["matchup"], rect: Rect, phone: boolean) {
-    const width = rect.width - GUTTER;
-    if (matchup.kind === "legend") return drawLegend(this, matchup.layout, rect.x, rect.y + 2);
-    if (matchup.kind === "shelf") {
-      const { shelf } = matchup;
-      const id = this.#matchup().rows[shelf.row]!.id;
-      return renderShelf(this, shelf, { ...rect, width }, this.#pictureOf("row", id), phone);
-    }
-    const columns = this.#matchup().columns;
-    return matchup.tiles.flatMap((tile) =>
-      renderTile(
-        this,
-        tile,
-        { x: rect.x + tile.x, y: rect.y, width: matchup.tileWidth, height: matchup.tileHeight },
-        this.#pictureOf("column", columns[tile.column]!.id),
-        phone,
-      ),
-    );
+  // ---- the list, as the panel's parts ---------------------------------------------------------------------------
+
+  /** The panel's scroller (null before the first paint, or on a tab with no list). */
+  #scroller(): HTMLElement | null {
+    return this.#region?.element.elementOf(LIST) ?? null;
   }
 
-  #renderRow(row: DashRow, rect: Rect, phone: boolean): VirtualListRow {
-    const objects: Phaser.GameObjects.GameObject[] = [];
+  /** What a key does when the panel reports a tap on it, and when a card is held or right-clicked. */
+  #press(key: string, action: () => void): void {
+    this.#actions.set(key, action);
+  }
+
+  /** A row's box on the screen now, from the list's scroll. */
+  #rowRect(index: number): Rect {
+    const list = this.#panelList!;
+    return {
+      x: list.rect.x,
+      y: list.rect.y + list.tops[index]! - (this.#scroller()?.scrollTop ?? this.#scrollSaved(list.key)),
+      width: list.rect.width,
+      height: list.heights[index]!,
+    };
+  }
+
+  #scrollSaved(key: string): number {
+    return this.#tops.get(key) ?? 0;
+  }
+
+  /** Brings part of a row (`y` from the row's top) into view: the least scroll that shows all of it. */
+  #showPart(index: number, own: { readonly y: number; readonly height: number }): void {
+    const list = this.#panelList;
+    const scroller = this.#scroller();
+    if (!list || !scroller) return;
+    const top = list.tops[index]! + own.y;
+    const bottom = top + own.height;
+    if (top < scroller.scrollTop || own.height > list.rect.height) scroller.scrollTop = top;
+    else if (bottom > scroller.scrollTop + list.rect.height) scroller.scrollTop = bottom - list.rect.height;
+  }
+
+  /**
+   * Builds the rows near the view as the panel's parts, hands them over and renders now. Also the list's redraw when a
+   * scroll nears the edge of the rows built, or a picture's URL arrived.
+   */
+  #paintList(): void {
+    const list = this.#panelList;
+    if (!list || !this.#alive) return;
+    // Every path that builds the rows (a full draw, a scroll near the edge, a picture arriving) renews the leases:
+    // the new rows take theirs, and the rows no longer drawn give theirs back once the new parts are mounted.
+    this.#pictures.begin();
+    this.#actions = new Map();
+    this.#inspects = new Map();
+    // The panel is the list's box (the Focus view's side list, drawn in Phaser, keeps the rest of the row).
+    const region: Rect = { x: list.rect.x, y: list.rect.y, width: list.rect.width + 8, height: list.rect.height };
+    const b = new SheetBuilder(this.game, { x: region.x, y: region.y }, isDesktopType);
+    const scrolled = this.#scroller()?.scrollTop ?? this.#scrollSaved(list.key);
+    // Rows from a view above the top to two views below it.
+    let from = 0;
+    while (from < this.#rows.length && list.tops[from]! + list.heights[from]! < scrolled - list.rect.height) from++;
+    let to = from;
+    while (to < this.#rows.length && list.tops[to]! < scrolled + list.rect.height * 2) to++;
+    this.#built = { from, to };
+    b.scroll(LIST, list.rect, list.total, (inner) => {
+      for (let index = from; index < to; index++) {
+        const rect: Rect = {
+          x: list.rect.x,
+          y: list.tops[index]!,
+          width: list.rect.width,
+          height: list.heights[index]!,
+        };
+        this.#drawDashRow(inner, this.#rows[index]!, rect, list.phone, index);
+      }
+    });
+    this.#mount(region, b, list.key);
+  }
+
+  /** Hands the built parts to the panel (made once, so a scroll survives a redraw) and renders them now. */
+  #mount(rect: Rect, b: SheetBuilder, key: string): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      // A pack scan that fails to load reads its file again (`mc-image-error` from a part with a retry key).
+      this.#pictures.watch(element);
+      element.addEventListener("mc-activate", (event) => {
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      element.addEventListener("mc-inspect", (event) => {
+        this.#inspects.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#region = new DomRegion(this, element, rect);
+      // The card hover popover follows Phaser's pointer, which only hears the mouse over the canvas.
+      this.#region.forwardMouseMoves();
+    }
+    const region = this.#region;
+    region.setHidden(false);
+    region.setRect(rect);
+    // The hover popover is drawn in the canvas: left out of the panel to be seen through it.
+    region.setHoles(() => {
+      const popover = this.#hover?.shownRect;
+      return popover ? [popover] : [];
+    });
+    region.element.nodes = b.nodes;
+    renderNow(region.element);
+    // The new parts are mounted: the pictures the last pass held are given back now.
+    this.#pictures.end();
+    const scroller = this.#scroller();
+    if (!scroller) return;
+    // Each tab keeps its own place: the scroller is one element, so another tab's place is put back on the way in.
+    if (this.#shownKey !== key) {
+      this.#shownKey = key;
+      scroller.scrollTop = this.#scrollSaved(key);
+    }
+    if (!this.#listened.has(scroller)) {
+      this.#listened.add(scroller);
+      scroller.addEventListener(
+        "scroll",
+        () => {
+          if (this.#shownKey !== null) this.#tops.set(this.#shownKey, scroller.scrollTop);
+          this.#hover?.onDraw();
+          this.#onListScroll();
+        },
+        { passive: true },
+      );
+    }
+  }
+
+  /** The list scrolled: build again once the view nears the edge of the rows built, so what scrolls in is there. */
+  #onListScroll(): void {
+    if (this.#scrollFrame) return;
+    this.#scrollFrame = requestAnimationFrame(() => {
+      this.#scrollFrame = 0;
+      const built = this.#built;
+      const list = this.#panelList;
+      if (!built || !list || !this.#alive) return;
+      const slack = list.rect.height / 2;
+      const top = this.#scrollSaved(list.key);
+      const bottom = top + list.rect.height;
+      const builtTop = list.tops[built.from] ?? 0;
+      const builtBottom = built.to < this.#rows.length ? list.tops[built.to]! : list.total;
+      if ((built.from > 0 && top < builtTop + slack) || (built.to < this.#rows.length && bottom > builtBottom - slack))
+        this.#paintList();
+    });
+  }
+
+  /** A caption: small capitals, fitted to its width. */
+  #caption(b: SheetBuilder, text: string, x: number, y: number, color: number, width: number): void {
+    b.text(x, y, text.toUpperCase(), typeRole.label, { size: 11, color, letterSpacing: 1.2, fitWidth: width });
+  }
+
+  /** A body line, wrapped to `lines`. */
+  #body(
+    b: SheetBuilder,
+    text: string,
+    x: number,
+    y: number,
+    width: number,
+    lines: number,
+    color: number,
+  ): { readonly height: number } {
+    return b.text(x, y, text, typeRole.body, {
+      size: 13,
+      color,
+      alpha: 0.9,
+      wrapWidth: width,
+      maxLines: lines,
+    });
+  }
+
+  /** A picture in a box with a card's hover: noted for the popover when it shows a card. */
+  #picture(
+    b: SheetBuilder,
+    rect: Rect,
+    held: LeasedPicture,
+    options: { readonly cover?: { readonly x: number; readonly y: number }; readonly missing?: string } = {},
+  ): void {
+    b.image(rect, {
+      src: held.src,
+      ...(held.retry !== undefined ? { retry: held.retry } : {}),
+      fill: surface.parchment.hex,
+      cover: options.cover ?? { x: 0.5, y: 0.2 },
+      ...(options.missing ? { missing: options.missing } : {}),
+    });
+  }
+
+  #drawDashRow(b: SheetBuilder, row: DashRow, rect: Rect, phone: boolean, index: number): void {
     const width = rect.width - GUTTER;
+    const inkHex = surface.ink.hex;
     switch (row.kind) {
       case "matchup":
-        objects.push(...this.#renderMatchupRow(row.matchup, rect, phone));
-        break;
+        this.#drawMatchupRow(b, row.matchup, rect, phone, index);
+        return;
       case "tiles":
-        for (const placed of row.tiles) {
-          objects.push(...this.#renderTile(placed, tileBox(placed, rect, row.height), phone));
-        }
-        break;
-      case "heading": {
-        const g = this.add.graphics();
-        g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y + rect.height - 6, width, 2);
-        const title = this.add
-          .text(
-            rect.x,
-            rect.y + rect.height - 12,
-            row.title.toUpperCase(),
-            textStyle(bangers(phone ? 18 : 22), surface.ink.hex),
-          )
-          .setOrigin(0, 1)
-          .setLetterSpacing(1);
-        fitText(title, width, phone ? 18 : 22);
-        objects.push(g, title);
-        break;
-      }
-      case "note": {
-        const text = this.add.text(
-          rect.x + 4,
-          rect.y + 10,
-          row.text,
-          textStyle(typeRole.label, surface.ink.hex, ink.secondary),
-        );
-        fitWrapped(text, width - 8, 2, 11);
-        objects.push(text);
-        break;
-      }
-      case "donut": {
-        // A ring of each aspect's share of your games, in its stamp color, and a legend beside it (under it on a phone).
-        const total = row.shares.reduce((sum, share) => sum + share.games, 0);
-        const radius = phone ? 62 : 78;
-        const thickness = phone ? 26 : 32;
-        const cx = rect.x + radius + 8;
-        const cy = rect.y + 12 + radius;
-        const g = this.add.graphics();
-        let at = -Math.PI / 2;
-        for (const share of row.shares) {
-          const sweep = (share.games / Math.max(1, total)) * Math.PI * 2;
-          const stamp = aspectStampOf(share.aspect as Parameters<typeof aspectStampOf>[0]);
-          g.lineStyle(thickness, stamp.fill, 1)
-            .beginPath()
-            .arc(cx, cy, radius - thickness / 2, at, at + sweep)
-            .strokePath();
-          at += sweep;
-        }
-        g.lineStyle(2, surface.ink.hex, 1)
-          .strokeCircle(cx, cy, radius)
-          .strokeCircle(cx, cy, radius - thickness);
-        const middle = this.add
-          .text(cx, cy, "ASPECTS", textStyle(typeRole.label, surface.ink.hex, 1))
-          .setOrigin(0.5)
-          .setLetterSpacing(1);
-        objects.push(g, middle);
-        let ly = phone ? rect.y + radius * 2 + 30 : rect.y + 18;
-        const lx = phone ? rect.x + 4 : cx + radius + 32;
-        for (const share of row.shares) {
-          const stamp = aspectStampOf(share.aspect as Parameters<typeof aspectStampOf>[0]);
-          const swatch = this.add.graphics();
-          swatch.fillStyle(stamp.fill, 1).fillRect(lx, ly + 2, 18, 18);
-          swatch.lineStyle(2, surface.ink.hex, 1).strokeRect(lx, ly + 2, 18, 18);
-          const name = this.add.text(
-            lx + 28,
-            ly + 2,
-            share.label.toUpperCase(),
-            textStyle(typeRole.label, surface.ink.hex, 1),
-          );
-          const facts = this.add
-            .text(
-              lx + 150,
-              ly + 2,
-              `${Math.round((share.games / Math.max(1, total)) * 100)}% · ${share.games} games · ${Math.round((share.wins / Math.max(1, share.games)) * 100)}% won`,
-              textStyle(typeRole.body, surface.ink.hex, 0.85),
-            )
-            .setFontSize(12);
-          fitText(facts, rect.x + width - facts.x, 12);
-          objects.push(swatch, name, facts);
-          ly += 26;
-        }
-        break;
-      }
+        for (const placed of row.tiles) this.#drawTile(b, placed, tileBox(placed, rect, row.height), phone);
+        return;
+      case "heading":
+        b.box({ x: rect.x, y: rect.y + rect.height - 6, width, height: 2 }, { fill: inkHex });
+        b.text(rect.x, rect.y + rect.height - 12, row.title.toUpperCase(), bangers(phone ? 18 : 22), {
+          color: inkHex,
+          origin: [0, 1],
+          letterSpacing: 1,
+          fitWidth: width,
+        });
+        return;
+      case "note":
+        b.text(rect.x + 4, rect.y + 10, row.text, AS_WRITTEN_LABEL, {
+          size: 11,
+          color: inkHex,
+          alpha: ink.secondary,
+          wrapWidth: width - 8,
+          maxLines: 2,
+        });
+        return;
+      case "donut":
+        this.#drawDonut(b, row, rect, phone, width);
+        return;
       case "aspects": {
-        let x = rect.x;
+        const label = b.text(rect.x, rect.y + 14, t("stats.aspectsLabel"), typeRole.label, {
+          color: inkHex,
+          letterSpacing: 1.2,
+        });
+        let x = rect.x + label.width + 12;
         let y = rect.y;
-        const label = this.add
-          .text(x, rect.y + 14, "ASPECTS", textStyle(typeRole.label, surface.ink.hex, 1))
-          .setLetterSpacing(1.2);
-        objects.push(label);
-        const start = x + label.width + 12;
-        x = start;
         for (const entry of row.aspects) {
           const stamp = aspectStampOf(entry.aspect as Parameters<typeof aspectStampOf>[0]);
-          const chip = this.add.text(0, 0, entry.label.toUpperCase(), textStyle(typeRole.label, stamp.ink, 1));
-          const chipRect: Rect = { x, y: y + 8, width: chip.width + 16, height: 26 };
-          const g = this.add.graphics();
-          g.fillStyle(stamp.fill, 1).fillRect(chipRect.x, chipRect.y, chipRect.width, chipRect.height);
-          g.lineStyle(2, surface.ink.hex, 1).strokeRect(chipRect.x, chipRect.y, chipRect.width, chipRect.height);
-          chip.setPosition(chipRect.x + 8, chipRect.y + 6);
-          const detail = this.add
-            .text(
-              chipRect.x + chipRect.width + 8,
-              chipRect.y + 6,
-              entry.detail,
-              textStyle(typeRole.body, surface.ink.hex, 0.85),
-            )
-            .setFontSize(12);
-          fitText(detail, rect.x + width - detail.x, 12);
-          objects.push(g, chip, detail);
+          const chipLabel = entry.label.toUpperCase();
+          const chipWidth = b.measure(chipLabel, typeRole.label).width + 16;
+          const chipRect: Rect = { x, y: y + 8, width: chipWidth, height: 26 };
+          b.box(chipRect, { fill: stamp.fill, stroke: inkHex, strokeWidth: 2 });
+          b.text(chipRect.x + 8, chipRect.y + 6, chipLabel, typeRole.label, { color: stamp.ink });
+          const detailX = chipRect.x + chipRect.width + 8;
+          const detail = b.text(detailX, chipRect.y + 6, entry.detail, typeRole.body, {
+            size: 12,
+            color: inkHex,
+            alpha: 0.85,
+            fitWidth: rect.x + width - detailX,
+          });
           if (phone) y += 34;
-          else x = detail.x + detail.width + 18;
+          else x = detailX + Math.min(detail.width, rect.x + width - detailX) + 18;
           if (x > rect.x + width - 80) break;
         }
-        break;
+        return;
       }
-      case "stat": {
-        objects.push(...this.#renderStat(row.row, statBox(rect), phone));
-        break;
-      }
+      case "stat":
+        this.#drawStat(b, row.row, statBox(rect), phone, row.id);
+        return;
       case "cards":
         for (const card of row.cards) {
           const pic: Rect = { x: rect.x + card.x, y: rect.y + 4, width: row.cardWidth, height: row.cardHeight };
-          const frame = this.add.graphics();
-          frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-          objects.push(frame);
-          const key = cardArt(this).request(this, statCardArt(currentCardsById().get(card.cardId)));
-          const art = drawArt(this, key, pic);
-          if (art) objects.push(art);
-          else {
-            const name = this.add
-              .text(
-                pic.x + 6,
-                pic.y + 6,
-                currentCardsById().get(card.cardId)?.name ?? card.cardId,
-                textStyle(typeRole.label, surface.ink.hex, 1),
-              )
-              .setWordWrapWidth(pic.width - 12);
-            objects.push(name);
-          }
-          frame.lineStyle(2, surface.ink.hex, 1).strokeRect(pic.x, pic.y, pic.width, pic.height);
-          const value = this.add
-            .text(pic.x, pic.y + pic.height + 6, card.value, textStyle(typeRole.rowTitle, surface.ink.hex, 1))
-            .setFontSize(14);
-          const detail = this.add
-            .text(pic.x, value.y + 18, card.detail, textStyle(typeRole.body, surface.ink.hex, 0.75))
-            .setFontSize(11);
-          fitWrapped(detail, pic.width, 2, 10);
-          objects.push(value, detail);
+          const record = currentCardsById().get(card.cardId);
+          this.#picture(b, pic, this.#pictures.image(statCardArt(record)), { missing: record?.name ?? card.cardId });
+          b.box(pic, { stroke: inkHex, strokeWidth: 2 });
+          b.text(pic.x, pic.y + pic.height + 6, card.value, typeRole.rowTitle, {
+            size: 14,
+            color: inkHex,
+            fitWidth: pic.width,
+          });
+          b.text(pic.x, pic.y + pic.height + 24, card.detail, typeRole.body, {
+            size: 11,
+            color: inkHex,
+            alpha: 0.75,
+            wrapWidth: pic.width,
+            maxLines: 2,
+          });
+          const key = `card:${row.id}:${card.cardId}`;
+          b.tap(key, pic, { inspect: true });
+          this.#press(key, () => undefined);
+          this.#inspects.set(key, () => this.#inspectCard(card.cardId));
         }
-        break;
+        return;
     }
-    return { objects };
   }
 
-  #renderStat(
+  /** The Aspects tab's donut: a ring of each aspect's share of your games in its stamp color, and the legend beside it. */
+  #drawDonut(
+    b: SheetBuilder,
+    row: Extract<DashRow, { kind: "donut" }>,
+    rect: Rect,
+    phone: boolean,
+    width: number,
+  ): void {
+    const inkHex = surface.ink.hex;
+    const total = row.shares.reduce((sum, share) => sum + share.games, 0);
+    const radius = phone ? 62 : 78;
+    const thickness = phone ? 26 : 32;
+    const cx = rect.x + radius + 8;
+    const cy = rect.y + 12 + radius;
+    // The ring is a drawing in the panel (an SVG, in its own units: one per px), arcs in each aspect's stamp color.
+    const origin = { x: rect.x, y: rect.y };
+    const ops: SvgOp[] = [];
+    const mid = radius - thickness / 2;
+    const at = (angle: number): string =>
+      `${(cx - origin.x + mid * Math.cos(angle)).toFixed(2)} ${(cy - origin.y + mid * Math.sin(angle)).toFixed(2)}`;
+    let start = -Math.PI / 2;
+    for (const share of row.shares) {
+      const sweep = (share.games / Math.max(1, total)) * Math.PI * 2;
+      const stamp = aspectStampOf(share.aspect as Parameters<typeof aspectStampOf>[0]);
+      const color = sheetColor(stamp.fill, "line");
+      if (sweep >= Math.PI * 2 - 1e-6) {
+        ops.push({ k: "circle", cx: cx - origin.x, cy: cy - origin.y, r: mid, stroke: color, sw: thickness });
+      } else if (sweep > 0) {
+        const large = sweep > Math.PI ? 1 : 0;
+        ops.push({
+          k: "path",
+          d: `M ${at(start)} A ${mid} ${mid} 0 ${large} 1 ${at(start + sweep)}`,
+          stroke: color,
+          sw: thickness,
+        });
+      }
+      start += sweep;
+    }
+    const line = sheetColor(inkHex, "line");
+    ops.push({ k: "circle", cx: cx - origin.x, cy: cy - origin.y, r: radius, stroke: line, sw: 2 });
+    ops.push({ k: "circle", cx: cx - origin.x, cy: cy - origin.y, r: radius - thickness, stroke: line, sw: 2 });
+    b.svg(
+      { x: rect.x, y: rect.y, width: radius * 2 + 16, height: radius * 2 + 24 },
+      [radius * 2 + 16, radius * 2 + 24],
+      ops,
+      `donut:${row.id}`,
+    );
+    b.text(cx, cy, t("stats.aspectsLabel"), typeRole.label, { color: inkHex, origin: [0.5, 0.5], letterSpacing: 1 });
+    let ly = phone ? rect.y + radius * 2 + 30 : rect.y + 18;
+    const lx = phone ? rect.x + 4 : cx + radius + 32;
+    for (const share of row.shares) {
+      const stamp = aspectStampOf(share.aspect as Parameters<typeof aspectStampOf>[0]);
+      b.box({ x: lx, y: ly + 2, width: 18, height: 18 }, { fill: stamp.fill, stroke: inkHex, strokeWidth: 2 });
+      b.text(lx + 28, ly + 2, share.label.toUpperCase(), typeRole.label, { color: inkHex });
+      b.text(
+        lx + 150,
+        ly + 2,
+        t("stats.aspectShare", {
+          share: Math.round((share.games / Math.max(1, total)) * 100),
+          games: share.games,
+          won: Math.round((share.wins / Math.max(1, share.games)) * 100),
+        }),
+        typeRole.body,
+        { size: 12, color: inkHex, alpha: 0.85, fitWidth: rect.x + width - (lx + 150) },
+      );
+      ly += 26;
+    }
+  }
+
+  #drawStat(
+    b: SheetBuilder,
     row: Extract<DashRow, { kind: "stat" }>["row"],
     box: Rect,
     phone: boolean,
-  ): Phaser.GameObjects.GameObject[] {
+    id: string,
+  ): void {
     // A headline fact is solid ink with paper text; every other row is parchment, outlined.
     const filled = row.highlight === true;
     const fg = filled ? surface.paper.hex : surface.ink.hex;
-    const g = this.add.graphics();
-    g.fillStyle(filled ? surface.ink.hex : surface.parchment.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
-    const objects: Phaser.GameObjects.GameObject[] = [g];
+    b.box(box, { fill: filled ? surface.ink.hex : surface.parchment.hex });
+    b.box(box, { stroke: surface.ink.hex, strokeWidth: 2 });
     // A row about a card leads with its picture (the hover popover shows it large).
     let left = box.x + 12;
     const card = row.cardId ? currentCardsById().get(row.cardId) : undefined;
     if (card) {
       const pic = statRowPicture(box);
-      g.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-      const art = drawArt(this, cardArt(this).request(this, statCardArt(card)), pic);
-      if (art) objects.push(art);
+      this.#picture(b, pic, this.#pictures.image(statCardArt(card)), { missing: card.name });
       left = pic.x + pic.width + 10;
     }
     const linked = this.#gameLinkOf(row);
-    const value = this.add
-      .text(box.x + box.width - 12, box.y + 8, row.value, textStyle(typeRole.rowTitle, fg, 1))
-      .setOrigin(1, 0)
-      .setFontSize(15);
-    fitText(value, box.width * 0.45, 15);
-    const label = this.add.text(left, box.y + 8, row.label, textStyle(typeRole.rowTitle, fg, 1)).setFontSize(15);
-    fitText(label, box.x + box.width - 12 - left - value.width - 12, 15);
-    objects.push(value, label);
+    const value = b.text(box.x + box.width - 12, box.y + 8, row.value, typeRole.rowTitle, {
+      size: 15,
+      color: fg,
+      origin: [1, 0],
+      fitWidth: box.width * 0.45,
+    });
+    b.text(left, box.y + 8, row.label, typeRole.rowTitle, {
+      size: 15,
+      color: fg,
+      fitWidth: Math.max(20, box.x + box.width - 12 - left - Math.min(value.width, box.width * 0.45) - 12),
+    });
     // A record from one game says so, and what a press does: an underlined "View game" with an arrow at the right.
     let detailRight = box.x + box.width - 12;
     if (linked) {
-      const link = this.add
-        .text(box.x + box.width - 12, box.y + box.height - 10, t("stats.viewGame"), textStyle(typeRole.label, fg, 1))
-        .setOrigin(1, 1)
-        .setFontSize(12);
-      const rule = this.add.graphics();
-      rule.fillStyle(fg === surface.paper.hex ? surface.paper.hex : surface.ink.hex, 1);
-      rule.fillRect(link.x - link.width, link.y + 1, link.width, 2);
-      objects.push(link, rule);
-      detailRight = link.x - link.width - 12;
+      const label = t("stats.viewGame");
+      const link = b.text(box.x + box.width - 12, box.y + box.height - 10, label, AS_WRITTEN_LABEL, {
+        size: 12,
+        color: fg,
+        origin: [1, 1],
+      });
+      b.box(
+        { x: box.x + box.width - 12 - link.width, y: box.y + box.height - 9, width: link.width, height: 2 },
+        { fill: fg },
+      );
+      detailRight = box.x + box.width - 12 - link.width - 12;
     }
     if (row.detail) {
-      const detail = this.add.text(left, box.y + 30, row.detail, textStyle(typeRole.body, fg, filled ? 0.85 : 0.75));
-      fitWrapped(detail, detailRight - left, phone ? 2 : 1, 12);
-      objects.push(detail);
+      b.text(left, box.y + 30, row.detail, typeRole.body, {
+        size: 12,
+        color: fg,
+        alpha: filled ? 0.85 : 0.75,
+        wrapWidth: Math.max(20, detailRight - left),
+        maxLines: phone ? 2 : 1,
+      });
     }
-    if (row.losses) objects.push(...this.#renderLossBar(row.losses, left, box, phone));
-    return objects;
+    if (row.losses) this.#drawLossBar(b, row.losses, left, box, phone);
+    // The whole row takes the press: a record that names a game opens it; a card row also opens Inspect on a hold.
+    const key = `row:${id}`;
+    b.tap(key, box, row.cardId && card ? { inspect: true } : {});
+    this.#press(key, () => {
+      if (linked) this.#openGame(row.gameId!);
+    });
+    if (row.cardId && card) this.#inspects.set(key, () => this.#inspectCard(row.cardId!));
   }
 
   /** Why a row's games were lost: a stacked bar, and each part in words (beside the bar; under it on a phone). */
-  #renderLossBar(parts: readonly LossPart[], left: number, box: Rect, phone: boolean): Phaser.GameObjects.GameObject[] {
+  #drawLossBar(b: SheetBuilder, parts: readonly LossPart[], left: number, box: Rect, phone: boolean): void {
     const right = box.x + box.width - 12;
     const full = right - left;
     const bar: Rect = {
@@ -1790,50 +2026,39 @@ export class PlayerStatsScene extends Phaser.Scene {
       height: 12,
     };
     const total = parts.reduce((sum, part) => sum + part.count, 0);
-    const g = this.add.graphics();
     let x = bar.x;
     for (const part of parts) {
       const w = (bar.width * part.count) / total;
-      g.fillStyle(LOSS_COLORS[part.cause], 1).fillRect(x, bar.y, w, bar.height);
+      b.box({ x, y: bar.y, width: w, height: bar.height }, { fill: LOSS_COLORS[part.cause] });
       x += w;
     }
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(bar.x, bar.y, bar.width, bar.height);
-    const legend = this.add
-      .text(
-        phone ? bar.x : bar.x + bar.width + 10,
-        phone ? bar.y + 15 : bar.y - 2,
-        parts.map((part) => `${part.label} ${part.count}`).join(" · "),
-        textStyle(typeRole.body, surface.ink.hex, 0.85),
-      )
-      .setFontSize(12);
-    fitText(legend, right - legend.x, 12);
-    return [g, legend];
+    b.box(bar, { stroke: surface.ink.hex, strokeWidth: 2 });
+    const legendX = phone ? bar.x : bar.x + bar.width + 10;
+    b.text(
+      legendX,
+      phone ? bar.y + 15 : bar.y - 2,
+      parts.map((part) => `${part.label} ${part.count}`).join(" · "),
+      typeRole.body,
+      {
+        size: 12,
+        color: surface.ink.hex,
+        alpha: 0.85,
+        fitWidth: right - legendX,
+      },
+    );
   }
 
   /**
-   * The wide Overview's favorite hero (`overviewRowsOf`): the art fills the tall tile, and the name and record sit at
-   * its foot over an ink shade that darkens toward the bottom, so the paper text reads on any picture.
+   * The wide Overview's favorite hero: the art fills the tall tile, and the name and record sit at its foot over an ink
+   * shade that darkens toward the bottom, so the paper text reads on any picture.
    */
-  #renderTallHero(
-    tile: Extract<OverviewTile, { kind: "portrait" }>,
-    box: Rect,
-    /** The tile's own objects: the art, shade and frame go in before the helpers add the text on top. */
-    objects: Phaser.GameObjects.GameObject[],
-    caption: (text: string, x: number, y: number, color?: number, width?: number) => Phaser.GameObjects.Text,
-    big: (text: string, x: number, y: number, size: number, width: number) => Phaser.GameObjects.Text,
-    body: (text: string, x: number, y: number, width: number, lines?: number) => Phaser.GameObjects.Text,
-  ): void {
+  #drawTallHero(b: SheetBuilder, tile: Extract<OverviewTile, { kind: "portrait" }>, box: Rect): void {
     const hero = "hero" in tile.art ? tile.art.hero : null;
     const pictureRect: Rect = { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 };
-    objects.push(
-      renderArtThumb(
-        this,
-        pictureRect,
-        hero ? heroPicture(hero) : null,
-        0.2,
-        (hero ? heroFocusOf(hero) : null) ?? undefined,
-      ),
-    );
+    const focus = (hero ? heroFocusOf(hero) : null) ?? undefined;
+    this.#picture(b, pictureRect, this.#pictures.image(hero ? heroSource(hero) : null), {
+      cover: { x: focus?.x ?? 0.5, y: focus?.y ?? 0.2 },
+    });
     const pad = 18;
     const inner = box.width - pad * 2;
     // Measured from the foot up: the extra line, the detail, the name, the caption.
@@ -1843,7 +2068,6 @@ export class PlayerStatsScene extends Phaser.Scene {
     const nameY = detailY - nameSize - 4;
     const captionY = nameY - 18;
     const shadeTop = Math.max(box.y + 2, captionY - 70);
-    const shade = this.add.graphics();
     const steps = 12;
     const span = box.y + box.height - 2 - shadeTop;
     for (let i = 0; i < steps; i++) {
@@ -1851,95 +2075,58 @@ export class PlayerStatsScene extends Phaser.Scene {
       const alpha = Math.min(0.9, 0.12 + (0.9 * (i + 1)) / steps);
       const top = Math.round(shadeTop + (span * i) / steps);
       const bottom = Math.round(shadeTop + (span * (i + 1)) / steps);
-      shade.fillStyle(surface.ink.hex, alpha).fillRect(pictureRect.x, top, pictureRect.width, bottom - top);
+      b.box(
+        { x: pictureRect.x, y: top, width: pictureRect.width, height: bottom - top },
+        { fill: surface.ink.hex, fillAlpha: alpha },
+      );
     }
-    objects.push(shade);
     // The frame again, over the art and its shade, as every other tile has.
-    const border = this.add.graphics();
-    border.lineStyle(2, surface.ink.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
-    objects.push(border);
-    // The text goes on top (drawn last), into the tile's own list through the helpers.
-    caption(tile.label, box.x + pad, captionY, signal.caution.hex, inner);
-    big(tile.name, box.x + pad, nameY, nameSize, inner);
-    body(tile.detail, box.x + pad, detailY, inner, 1);
-    if (tile.extra) body(tile.extra, box.x + pad, extraY, inner, 1);
+    b.box(box, { stroke: surface.ink.hex, strokeWidth: 2 });
+    this.#caption(b, tile.label, box.x + pad, captionY, signal.caution.hex, inner);
+    b.text(box.x + pad, nameY, tile.name.toUpperCase(), bangers(nameSize), {
+      color: surface.paper.hex,
+      letterSpacing: 1,
+      fitWidth: inner,
+    });
+    this.#body(b, tile.detail, box.x + pad, detailY, inner, 1, surface.paper.hex);
+    if (tile.extra) this.#body(b, tile.extra, box.x + pad, extraY, inner, 1, surface.paper.hex);
   }
 
-  #renderTile(placed: PlacedTile, box: Rect, phone: boolean): Phaser.GameObjects.GameObject[] {
+  #drawTile(b: SheetBuilder, placed: PlacedTile, box: Rect, phone: boolean): void {
     const tile: OverviewTile = placed.tile;
-    const objects: Phaser.GameObjects.GameObject[] = [];
     const dark = tile.kind === "record" || (tile.kind === "portrait" && tile.wide);
     const fg = dark ? surface.paper.hex : surface.ink.hex;
-    const g = this.add.graphics();
-    g.fillStyle(dark ? surface.ink.hex : surface.parchment.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
-    objects.push(g);
     const pad = phone ? 10 : 16;
-    const caption = (
-      text: string,
-      x: number,
-      y: number,
-      color = fg,
-      width = box.width - pad * 2,
-    ): Phaser.GameObjects.Text => {
-      const t = this.add
-        .text(x, y, text.toUpperCase(), textStyle(typeRole.label, color, 1))
-        .setLetterSpacing(1.2)
-        .setFontSize(11);
-      fitText(t, width, 11);
-      objects.push(t);
-      return t;
-    };
-    const body = (
-      text: string,
-      x: number,
-      y: number,
-      width: number,
-      lines = 2,
-      color = fg,
-    ): Phaser.GameObjects.Text => {
-      const t = this.add.text(x, y, text, textStyle(typeRole.body, color, 0.9)).setFontSize(13);
-      fitWrapped(t, width, lines, 11);
-      objects.push(t);
-      return t;
-    };
-    const big = (
-      text: string,
-      x: number,
-      y: number,
-      size: number,
-      width: number,
-      color = fg,
-    ): Phaser.GameObjects.Text => {
-      const t = this.add.text(x, y, text.toUpperCase(), textStyle(bangers(size), color)).setLetterSpacing(1);
-      fitText(t, width, size);
-      objects.push(t);
-      return t;
-    };
     const inner = box.width - pad * 2;
+    const key = `tile:${tile.id}`;
+    b.box(box, { fill: dark ? surface.ink.hex : surface.parchment.hex });
+    // The frame goes on after the parts that fill the tile (the tall hero's art), so it is drawn at the end.
+    const frame = (): void => b.box(box, { stroke: surface.ink.hex, strokeWidth: 2 });
     switch (tile.kind) {
       case "record": {
-        caption("Wins–losses", box.x + pad, box.y + pad);
-        const rate = this.add
-          .text(box.x + box.width - pad, box.y + pad, tile.rate.toUpperCase(), textStyle(typeRole.label, fg, 1))
-          .setOrigin(1, 0)
-          .setFontSize(12);
-        objects.push(rate);
-        big(tile.record, box.x + pad, box.y + pad + 18, phone ? 40 : 58, inner * 0.6);
+        this.#caption(b, t("stats.winsLosses"), box.x + pad, box.y + pad, fg, inner);
+        b.text(box.x + box.width - pad, box.y + pad, tile.rate.toUpperCase(), typeRole.label, {
+          size: 12,
+          color: fg,
+          origin: [1, 0],
+        });
+        b.text(box.x + pad, box.y + pad + 18, tile.record.toUpperCase(), bangers(phone ? 40 : 58), {
+          color: fg,
+          letterSpacing: 1,
+          fitWidth: inner * 0.6,
+        });
         const trackY = box.y + box.height - pad - 12 - (phone ? 18 : 22);
-        g.lineStyle(2, fg, 1).strokeRect(box.x + pad, trackY, inner, 12);
+        b.box({ x: box.x + pad, y: trackY, width: inner, height: 12 }, { stroke: fg, strokeWidth: 2 });
         if (tile.fraction > 0)
-          g.fillStyle(accent.heroRed.hex, 1).fillRect(
-            box.x + pad + 3,
-            trackY + 3,
-            Math.max(2, (inner - 6) * tile.fraction),
-            6,
+          b.box(
+            { x: box.x + pad + 3, y: trackY + 3, width: Math.max(2, (inner - 6) * tile.fraction), height: 6 },
+            { fill: accent.heroRed.hex },
           );
-        body(tile.detail, box.x + pad, trackY + 16, inner, 1);
+        this.#body(b, tile.detail, box.x + pad, trackY + 16, inner, 1, fg);
         break;
       }
       case "split": {
-        caption(tile.label, box.x + pad, box.y + pad);
+        this.#caption(b, tile.label, box.x + pad, box.y + pad, fg, inner);
         const total = tile.parts.reduce((sum, p) => sum + p.count, 0) || 1;
         const barRect: Rect = { x: box.x + pad, y: box.y + pad + 22, width: inner, height: 28 };
         let x = barRect.x;
@@ -1948,67 +2135,108 @@ export class PlayerStatsScene extends Phaser.Scene {
           if (w <= 0) continue;
           const tone =
             part.tone === "caution" ? signal.caution.hex : part.tone === "muted" ? MUTED_PART : surface.ink.hex;
-          g.fillStyle(tone, 1).fillRect(x, barRect.y, w, barRect.height);
-          const label = this.add
-            .text(
-              x + 6,
-              barRect.y + 7,
-              `${part.label.toUpperCase()} ${part.count}`,
-              textStyle(typeRole.label, part.tone === "ink" ? surface.paper.hex : surface.ink.hex, 1),
-            )
-            .setFontSize(11);
-          fitText(label, Math.max(10, w - 8), 11);
+          b.box({ x, y: barRect.y, width: w, height: barRect.height }, { fill: tone });
           // A paper edge between parts, so two dark parts side by side still read as two.
-          if (x > barRect.x) g.fillStyle(surface.paper.hex, 1).fillRect(x - 1, barRect.y, 2, barRect.height);
-          objects.push(label);
+          if (x > barRect.x)
+            b.box({ x: x - 1, y: barRect.y, width: 2, height: barRect.height }, { fill: surface.paper.hex });
+          b.text(x + 6, barRect.y + 7, `${part.label.toUpperCase()} ${part.count}`, typeRole.label, {
+            size: 11,
+            color: part.tone === "ink" ? surface.paper.hex : surface.ink.hex,
+            fitWidth: Math.max(10, w - 8),
+          });
           x += w;
         }
-        g.lineStyle(2, surface.ink.hex, 1).strokeRect(barRect.x, barRect.y, barRect.width, barRect.height);
-        body(tile.detail, box.x + pad, barRect.y + barRect.height + 10, inner, phone ? 1 : 3);
+        b.box(barRect, { stroke: surface.ink.hex, strokeWidth: 2 });
+        this.#body(b, tile.detail, box.x + pad, barRect.y + barRect.height + 10, inner, phone ? 1 : 3, fg);
         break;
       }
       case "figures": {
-        caption(tile.label, box.x + pad, box.y + pad);
+        this.#caption(b, tile.label, box.x + pad, box.y + pad, fg, inner);
         tile.lines.forEach((line, i) => {
           const ly = box.y + pad + 22 + i * (phone ? 20 : 26);
-          const l = this.add
-            .text(box.x + pad, ly, line.label, textStyle(typeRole.rowTitle, fg, 1))
-            .setFontSize(phone ? 13 : 15);
-          const v = this.add
-            .text(box.x + box.width - pad, ly, line.value, textStyle(typeRole.rowTitle, fg, 1))
-            .setOrigin(1, 0)
-            .setFontSize(phone ? 13 : 15);
-          objects.push(l, v);
+          b.text(box.x + pad, ly, line.label, typeRole.rowTitle, { size: phone ? 13 : 15, color: fg });
+          b.text(box.x + box.width - pad, ly, line.value, typeRole.rowTitle, {
+            size: phone ? 13 : 15,
+            color: fg,
+            origin: [1, 0],
+          });
         });
         break;
       }
       case "portrait": {
         if (placed.tall) {
-          this.#renderTallHero(tile, box, objects, caption, big, body);
+          this.#drawTallHero(b, tile, box);
           break;
         }
         const wide = tile.wide;
         const pictureRect: Rect = wide
           ? { x: box.x + 2, y: box.y + 2, width: Math.round(box.width * (phone ? 0.34 : 0.4)), height: box.height - 4 }
           : { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: Math.round(box.height * 0.45) };
-        const url = "hero" in tile.art ? heroPicture(tile.art.hero) : villainPicture(tile.art.scenario);
-        objects.push(renderArtThumb(this, pictureRect, url, 0.2));
+        const source = "hero" in tile.art ? heroSource(tile.art.hero) : villainSource(tile.art.scenario);
+        this.#picture(b, pictureRect, this.#pictures.image(source));
         const tx = wide ? pictureRect.x + pictureRect.width + pad : box.x + pad;
         const ty = wide ? box.y + pad : pictureRect.y + pictureRect.height + 8;
         const tw = wide ? box.x + box.width - pad - tx : inner;
-        caption(tile.label, tx, ty, wide ? signal.caution.hex : fg, tw);
-        const name = big(tile.name, tx, ty + 16, phone ? 20 : wide ? 32 : 24, tw);
-        body(tile.detail, tx, name.y + name.height + 4, tw, 1);
-        if (tile.extra) body(tile.extra, tx, name.y + name.height + 24, tw, wide ? 2 : 1, fg);
+        this.#caption(b, tile.label, tx, ty, wide ? signal.caution.hex : fg, tw);
+        const nameSize = phone ? 20 : wide ? 32 : 24;
+        const name = b.text(tx, ty + 16, tile.name.toUpperCase(), bangers(nameSize), {
+          color: fg,
+          letterSpacing: 1,
+          fitWidth: tw,
+        });
+        const detail = this.#body(b, tile.detail, tx, ty + 16 + name.height + 4, tw, 1, fg);
+        if (tile.extra) this.#body(b, tile.extra, tx, ty + 16 + name.height + 24, tw, wide ? 2 : 1, fg);
+        void detail;
         break;
       }
       case "small": {
-        caption(tile.label, box.x + pad, box.y + pad);
-        big(tile.value, box.x + pad, box.y + pad + 18, phone ? 20 : 24, inner);
-        body(tile.detail, box.x + pad, box.y + pad + (phone ? 44 : 50), inner, 1);
+        this.#caption(b, tile.label, box.x + pad, box.y + pad, fg, inner);
+        b.text(box.x + pad, box.y + pad + 18, tile.value.toUpperCase(), bangers(phone ? 20 : 24), {
+          color: fg,
+          letterSpacing: 1,
+          fitWidth: inner,
+        });
+        this.#body(b, tile.detail, box.x + pad, box.y + pad + (phone ? 44 : 50), inner, 1, fg);
         break;
       }
     }
-    return objects;
+    if (!(tile.kind === "portrait" && placed.tall)) frame();
+    // A tile is a focus stop with nothing to press: a tap area lets its box be found by key.
+    b.box({ x: box.x, y: box.y, width: 1, height: 1 }, { key });
+  }
+
+  /** The Matchups tab's Shelves and Focus rows (`view/matchup-grid.ts` lays them out). */
+  #drawMatchupRow(
+    b: SheetBuilder,
+    matchup: Extract<DashRow, { kind: "matchup" }>["matchup"],
+    rect: Rect,
+    phone: boolean,
+    index: number,
+  ): void {
+    const width = rect.width - GUTTER;
+    if (matchup.kind === "legend") {
+      drawLegendNodes(b, matchup.layout, rect.x, rect.y + 2);
+      return;
+    }
+    if (matchup.kind === "shelf") {
+      const { shelf } = matchup;
+      const id = this.#matchup().rows[shelf.row]!.id;
+      drawShelfNodes(b, shelf, { ...rect, width }, this.#pictures.image(this.#pictureSourceOf("row", id)), phone);
+      const key = `row:matchup:${shelf.row}`;
+      b.tap(key, { x: rect.x, y: rect.y + 3, width, height: rect.height - 6 });
+      this.#press(key, () => this.#openFocus(shelf.row, false));
+      return;
+    }
+    const columns = this.#matchup().columns;
+    for (const tile of matchup.tiles) {
+      drawTileNodes(
+        b,
+        tile,
+        { x: rect.x + tile.x, y: rect.y, width: matchup.tileWidth, height: matchup.tileHeight },
+        this.#pictures.image(this.#pictureSourceOf("column", columns[tile.column]!.id)),
+        phone,
+      );
+    }
+    void index;
   }
 }

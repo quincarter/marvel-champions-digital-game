@@ -4,7 +4,7 @@
  * cannot be read is the default one.
  */
 import { ACHIEVEMENT_FAMILIES, type AchievementFamily } from "../progression/achievements.js";
-import { DEFAULT_TROPHY_VIEW, TROPHY_SORTS, type TrophySort, type TrophyView } from "../view/trophy-room-model.js";
+import { DEFAULT_TROPHY_VIEW, TROPHY_SORT_IDS, type TrophySort, type TrophyView } from "../view/trophy-room-model.js";
 
 export const TROPHY_ROOM_VIEW_KEY = "mc-trophy-room-view";
 
@@ -19,7 +19,7 @@ const browserStorage = (): PrefStorage | null => {
 };
 
 const FAMILY_IDS = new Set<string>(ACHIEVEMENT_FAMILIES.map((f) => f.id));
-const SORT_IDS = new Set<string>(TROPHY_SORTS.map((s) => s.id));
+const SORT_IDS = new Set<string>(TROPHY_SORT_IDS);
 
 export function trophyRoomView(storage: PrefStorage | null = browserStorage()): TrophyView {
   try {

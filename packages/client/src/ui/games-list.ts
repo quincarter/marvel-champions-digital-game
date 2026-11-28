@@ -20,14 +20,7 @@ import { textStyle } from "./theme.js";
 import { McButton, addRowTapZone, fitText } from "./widgets.js";
 import { t } from "../i18n/translate.js";
 import type { FocusStop } from "../scenes/focus-route.js";
-import {
-  GAME_NEEDS_UPDATE_TEXT,
-  REMOVE_CONFIRM_TEXT,
-  gameRowParts,
-  gameRowRects,
-  removeConfirmParts,
-  type GameRow,
-} from "../view/games-list-model.js";
+import { gameRowParts, gameRowRects, removeConfirmParts, type GameRow } from "../view/games-list-model.js";
 import type { Rect } from "../view/layout.js";
 import { playPlatformMarkOf, playPlatformSlotIn } from "../view/play-platform-mark.js";
 import type { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -123,7 +116,7 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
     if (row.needsUpdate) {
       // In Resume's place, in words (never colour alone): the game waits for an update.
       const note = scene.add
-        .text(parts.resume.x, parts.resume.y, GAME_NEEDS_UPDATE_TEXT, textStyle(typeRole.rowTitle, PAPER))
+        .text(parts.resume.x, parts.resume.y, t("title.games.needsUpdate"), textStyle(typeRole.rowTitle, PAPER))
         .setWordWrapWidth(parts.resume.width)
         .setFontSize(13);
       note.setY(parts.resume.y + Math.max(0, (parts.resume.height - note.height) / 2));
@@ -131,7 +124,7 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
       buttons.push(
         new McButton(scene, {
           kind: "primary",
-          label: "Resume",
+          label: t("title.games.resume"),
           type: typeRole.menuButton,
           rect: parts.resume,
           enabled: options.enabled,
@@ -155,7 +148,7 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
       }),
       new McButton(scene, {
         kind: "onInk",
-        label: "Remove",
+        label: t("title.games.remove"),
         type: { ...typeRole.rowTitle, size: 13 },
         rect: parts.remove,
         enabled: options.enabled,
@@ -201,7 +194,12 @@ function drawConfirm(scene: Phaser.Scene, options: GamesListOptions, row: GameRo
     .setWordWrapWidth(wrap)
     .setFontSize(15);
   scene.add
-    .text(parts.message.x + pad, name.y + name.height + 8, REMOVE_CONFIRM_TEXT, textStyle(typeRole.body, PAPER, 0.9))
+    .text(
+      parts.message.x + pad,
+      name.y + name.height + 8,
+      t("title.games.confirm"),
+      textStyle(typeRole.body, PAPER, 0.9),
+    )
     .setWordWrapWidth(wrap)
     .setFontSize(14)
     .setLineSpacing(3);
@@ -222,7 +220,7 @@ function drawConfirm(scene: Phaser.Scene, options: GamesListOptions, row: GameRo
   const buttons = [
     new McButton(scene, {
       kind: "onInk",
-      label: "Keep it",
+      label: t("title.games.keep"),
       type: typeRole.menuButton,
       rect: parts.keep,
       enabled: options.enabled,
@@ -230,7 +228,7 @@ function drawConfirm(scene: Phaser.Scene, options: GamesListOptions, row: GameRo
     }),
     new McButton(scene, {
       kind: "primary",
-      label: "Remove",
+      label: t("title.games.remove"),
       type: typeRole.menuButton,
       rect: parts.remove,
       enabled: options.enabled,

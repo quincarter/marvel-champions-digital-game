@@ -10,7 +10,7 @@
  * could drift from what the tutorial actually teaches.
  */
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
-import type { MessageKey } from "../i18n/translate.js";
+import { t, type MessageKey } from "../i18n/translate.js";
 import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 export type GuideChooserValue = "full" | "hints" | "off";
@@ -47,7 +47,9 @@ export const GUIDE_CHOOSER_OPTIONS: readonly GuideChooserOptionInfo[] = [
 
 /** "1 · HOW TO WIN", "2 · HERO & ALTER-EGO", … — the tutorial's real five lessons, in their real order (§3.4), for the "Learn as you play" card's chip row on wide layouts. */
 export function guideChooserLessonChips(): readonly string[] {
-  return TUTORIAL_LESSONS.map((lesson, index) => `${index + 1} · ${lesson.title}`.toUpperCase());
+  return TUTORIAL_LESSONS.map((lesson, index) =>
+    `${index + 1} · ${t(`howToPlay.lesson.${lesson.id}` as MessageKey)}`.toLocaleUpperCase(),
+  );
 }
 
 export interface GuideChooserLayout {
@@ -71,6 +73,8 @@ const PAD = 24;
 const NARROW_PAD = 16;
 const GAP = 12;
 const SUBTITLE_HEIGHT = 40;
+/** How far the wide column's first line is pushed down to clear the dark mode toggle (`view/theme-button.ts`). */
+const TOGGLE_ROOM = 24;
 const BANNER_HEIGHT = 56;
 const OPTION_GAP = 10;
 const SUIT_UP_HEIGHT = 52;
@@ -111,7 +115,10 @@ function wideLayout(width: number, height: number, formFactor: FormFactor): Guid
     height: SUIT_UP_HEIGHT,
   };
 
-  const subtitle: Rect = { x: columnLeft, y: PAD, width: columnWidth, height: SUBTITLE_HEIGHT };
+  // The column opens under the dark mode toggle, which floats at the top centre of the screen and cuts its whole press
+  // area (44 by 36) out of the panel: the subtitle must start below it where the column reaches it.
+  const subtitleY = PAD + TOGGLE_ROOM;
+  const subtitle: Rect = { x: columnLeft, y: subtitleY, width: columnWidth, height: SUBTITLE_HEIGHT };
   const optionsTop = subtitle.y + subtitle.height + GAP;
 
   const options: Rect[] = [];

@@ -11,6 +11,7 @@ import { eventOnce } from "../../view/event-once.js";
 import { navIntentOf, typingInTextField } from "../../view/keyboard-intent.js";
 import type { KeyboardHand } from "../../view/input-shortcuts.js";
 import { gamepadIntentFor, GAMEPAD_AXIS, GAMEPAD_BUTTON, type GamepadIntent } from "../../view/gamepad.js";
+import { padLayoutUsableHere, rightStickReadable } from "../../view/pad-mapping.js";
 import {
   padIdentityOf,
   physicalIndexOf,
@@ -255,8 +256,9 @@ const DPAD_INDICES = new Set(DPAD_DIRECTION.map(([index]) => index));
  * scrolls through `binding.onScroll`. Everything, repeat and scroll included, is held while `blocked()` or the sync
  * conflict prompt owns input, and a direction held when that begins does not repeat when it ends.
  *
- * Only pads the browser maps to the "standard" layout are used; any other is logged once and ignored, since the
- * intent table is positional and a guess at an unknown layout would press the wrong things.
+ * Only pads in the "standard" button order are used (`view/pad-mapping.ts`, which counts Android's unmapped pads as
+ * standard); any other is logged once and ignored, since the intent table is positional and a guess at an unknown
+ * layout would press the wrong things.
  */
 export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
   const gamepad = scene.input.gamepad;
@@ -266,7 +268,7 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
   const ignored = new Set<string>();
   const usable = (pad: Phaser.Input.Gamepad.Gamepad): boolean => {
     const mapping: unknown = pad.pad?.mapping;
-    if (typeof mapping !== "string" || mapping === "standard") return true;
+    if (padLayoutUsableHere(mapping)) return true;
     if (!ignored.has(pad.id)) {
       ignored.add(pad.id);
       console.info(`Gamepad "${pad.id}" reports mapping "${mapping}", not "standard"; ignoring it.`);
@@ -461,11 +463,10 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
         lean ??= stick;
         touched = true;
       }
-      const scrolled = scrollDelta(
-        pad.axes[GAMEPAD_AXIS.rightX]?.getValue() ?? 0,
-        pad.axes[GAMEPAD_AXIS.rightY]?.getValue() ?? 0,
-        delta,
-      );
+      const rightX = pad.axes[GAMEPAD_AXIS.rightX]?.getValue() ?? 0;
+      const rightY = pad.axes[GAMEPAD_AXIS.rightY]?.getValue() ?? 0;
+      // An unmapped pad's right-stick slots may hold some other axis (`view/pad-mapping.ts`): only a standard pad scrolls.
+      const scrolled = rightStickReadable(pad.pad?.mapping) ? scrollDelta(rightX, rightY, delta) : null;
       if (scrolled !== null) {
         scroll ??= scrolled;
         touched = true;

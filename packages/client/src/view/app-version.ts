@@ -67,19 +67,19 @@ export function updateActions(
   // An install that updates itself (`platform/self-update.ts`) opens the same panel, with this install's installer.
   if (selfUpdate && !steamScript && update.downloadUrl !== null) {
     return [
-      { id: "update-notes", label: "What's new ↗", url: update.notesUrl },
+      { id: "update-notes", label: t("title.updateNotes"), url: update.notesUrl },
       { id: "update-install", label: t("title.updateInstall"), url: null },
     ];
   }
   if (steamScript) {
     return [
-      { id: "update-notes", label: "What's new ↗", url: update.notesUrl },
-      { id: "update-steam", label: "Update", url: null },
+      { id: "update-notes", label: t("title.updateNotes"), url: update.notesUrl },
+      { id: "update-steam", label: t("title.updateInstall"), url: null },
     ];
   }
-  if (update.downloadUrl === null) return [{ id: "update-notes", label: "View release ↗", url: update.notesUrl }];
+  if (update.downloadUrl === null) return [{ id: "update-notes", label: t("title.viewRelease"), url: update.notesUrl }];
   return [
-    { id: "update-notes", label: "What's new ↗", url: update.notesUrl },
-    { id: "update-download", label: "Download ↗", url: update.downloadUrl },
+    { id: "update-notes", label: t("title.updateNotes"), url: update.notesUrl },
+    { id: "update-download", label: t("title.updateDownload"), url: update.downloadUrl },
   ];
 }

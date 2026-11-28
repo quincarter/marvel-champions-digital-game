@@ -128,7 +128,7 @@ export async function press(page: Page, scene: string, key: string): Promise<voi
   }
 }
 
-/** The pool row's own + (or -) button, by its geometry in `deck-builder.ts#renderCardRow`. */
+/** The pool row's own + (or -) button, by its geometry in `deck-builder.ts#listRow`. */
 export async function rowButton(page: Page, id: string, which: "plus" | "minus"): Promise<void> {
   await scrollTo(page, "DeckBuilder", `card:${id}`);
   await settle(page, { quietMs: 120, maxMs: 400 });

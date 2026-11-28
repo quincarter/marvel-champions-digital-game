@@ -12,19 +12,23 @@
  * (`scenes/boot.ts`'s own `startDevTutorialGame`) — both go through `guide/start-tutorial.ts`'s one shared
  * `startTutorialGame`. Hints/No guide record the level and carry on into scenario select.
  *
- * Back or Escape returns to Title with nothing saved (§3.10: "nobody is locked in"); the chooser asks again at the
- * next New game.
+ * Back or Escape returns to Title with nothing saved (§3.10: "nobody is locked in"); the chooser asks again at the next
+ * New game.
+ *
+ * **One Lit panel over the canvas** (`mc-sheet`, `dom/sheet-builder.ts`, as `scenes/how-to-play.ts` is) at the rects
+ * `view/guide-chooser-model.ts` gives: the picture (the panel-size WebP copy of the title picture, `art/title-art.ts`
+ * `displayCopyOf`, an `<img>` that loads lazily), its scrim, the banner, the three option cards, Back and Suit up. The
+ * scene keeps the focus route (its ring drawn in the DOM, `dom/dom-ring.ts`), the Back glyph and navigation.
  */
 import Phaser from "phaser";
-import { accent, dotGrid, surface, typeRole, type TypeSpec } from "../tokens.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import "@mc/ui";
+import type { McSheet } from "@mc/ui";
+import { accent, dotGrid, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { cssOf } from "../ui/theme.js";
+import { isDesktopType } from "../ui/desktop-type.js";
 import { t } from "../i18n/translate.js";
 import { onLanguageChange } from "../language-change.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
-import { onTap } from "../ui/tap.js";
-import { McButton, paintDotGrid } from "../ui/widgets.js";
-import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
-import { ensurePictureLoaded } from "../art/pictures.js";
+import { TITLE_ART, displayCopyOf, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import {
   GUIDE_CHOOSER_OPTIONS,
   guideChooserFocusOrder,
@@ -33,12 +37,17 @@ import {
   type GuideChooserLayout,
   type GuideChooserValue,
 } from "../view/guide-chooser-model.js";
+import type { Rect } from "../view/layout.js";
 import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
 import { withLevel } from "../guide/guide-prefs.js";
 import { newGameDraft } from "./title.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { DomRegion, renderNow } from "../dom/dom-region.js";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { SheetBuilder } from "../dom/sheet-builder.js";
+import { SheetGlyphs } from "../dom/sheet-glyphs.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { HowToWinSceneData } from "./how-to-win.js";
@@ -46,18 +55,21 @@ import type { HowToWinSceneData } from "./how-to-win.js";
 const BODY_TYPE: TypeSpec = typeRole.body;
 const TITLE_TYPE: TypeSpec = typeRole.rowTitle;
 const CHIP_TYPE: TypeSpec = { ...typeRole.label, size: 9 };
+const STAMP_TYPE: TypeSpec = { ...typeRole.label, size: 9 };
 const RADIO_RADIUS = 9;
+const CHIP_HEIGHT = 20;
 
 export class GuideChooserScene extends Phaser.Scene {
-  #buttons: McButton[] = [];
-  #hints!: GlyphHints;
+  #glyphs!: SheetGlyphs;
   /** What a hanging glyph must not cover: the option cards and Suit up. */
-  #obstacles: { x: number; y: number; width: number; height: number }[] = [];
+  #obstacles: Rect[] = [];
   #route: FocusRoute | null = null;
   #selected: GuideChooserValue = "full";
   #art: TitleArt | null = null;
-  #artPanel: { x: number; y: number; width: number; height: number } | null = null;
-  #artGeneration = 0;
+  /** The screen, one Lit panel over the canvas; made on the first draw and kept. */
+  #region: DomRegion<McSheet> | null = null;
+  /** What each key in the panel does when tapped, this draw. */
+  #actions = new Map<string, () => void>();
 
   constructor() {
     super(SCENES.guideChooser);
@@ -65,239 +77,208 @@ export class GuideChooserScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    this.#region = null;
     this.scale.on("resize", this.#rebuild, this);
     // A language switch (#390): the screen reads again in the new language.
     const unsubscribeLanguage = onLanguageChange(() => {
       if (this.sys.isActive()) this.#rebuild();
     });
-    this.#hints = new GlyphHints(this, () => this.#obstacles);
+    this.#glyphs = new SheetGlyphs(
+      this,
+      () => this.#rebuild(),
+      () => this.#obstacles,
+    );
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
       unsubscribeLanguage();
-      this.#hints.dispose();
+      this.#glyphs.dispose();
+      // The panel goes with the scene (`DomRegion`); the next open makes a new one.
+      this.#region = null;
     });
     this.#selected = "full";
     this.#art = pickTitleArt(TITLE_ART, null);
     // Start is "forward": it presses Suit up.
-    this.#route = new FocusRoute(this, { onCancel: () => this.#decline(), primary: () => "suit-up" });
+    this.#route = new FocusRoute(this, {
+      ring: domFocusRing,
+      onCancel: () => this.#decline(),
+      primary: () => "suit-up",
+    });
     this.#rebuild();
     fadeScreenIn(this);
   }
 
   #rebuild(): void {
-    for (const button of this.#buttons) button.destroy();
-    this.#buttons = [];
-    this.#hints.reset();
     destroyChildren(this);
+    this.#glyphs.reset();
+    this.#actions = new Map();
 
     const { width, height } = this.scale.gameSize;
     const layout = guideChooserLayout(width, height);
-    this.#artPanel = layout.art;
     this.#obstacles = [...layout.options, layout.suitUp];
+    const b = new SheetBuilder(this.game, { x: 0, y: 0 }, isDesktopType);
 
     // Ground: paper everywhere (the picture sits over an ink scrim so the yellow banner/paper cards stay legible).
-    this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0).setDepth(GROUND_DEPTH);
-    this.add
-      .rectangle(layout.art.x, layout.art.y, layout.art.width, layout.art.height, surface.ink.hex)
-      .setOrigin(0, 0)
-      .setDepth(ART_GROUND_DEPTH);
-    paintDotGrid(this, layout.art, "ink", dotGrid.onInk).setDepth(ART_GROUND_DEPTH);
+    b.box({ x: 0, y: 0, width, height }, { fill: surface.paper.hex });
+    b.box(layout.art, { fill: surface.ink.hex });
+    b.dots(layout.art, "ink", dotGrid.onInk.spacing, dotGrid.onInk.radius, dotGrid.onInk.alpha);
+    // The panel-size copy of the picture, cover-cropped around its center; it loads when the panel does.
+    if (this.#art) b.image(layout.art, { src: displayCopyOf(this.#art).url, cover: { x: 0.5, y: 0.5 }, key: "art" });
     // Scrim so the banner reads over any picture, phone (full-bleed) or wide (left panel) alike.
-    this.add
-      .rectangle(
-        layout.art.x,
-        layout.art.y,
-        layout.art.width,
-        layout.art.height,
-        surface.ink.hex,
-        layout.wide ? 0.28 : 0.5,
-      )
-      .setOrigin(0, 0)
-      .setDepth(ART_SCRIM_DEPTH);
+    b.box(layout.art, { fill: surface.ink.hex, fillAlpha: layout.wide ? 0.28 : 0.5 });
 
-    this.#drawBanner(layout);
-
-    this.add
-      .text(layout.subtitle.x, layout.subtitle.y, t("guide.subtitle"), {
-        ...textStyle(BODY_TYPE, surface.ink.hex),
-      })
-      .setWordWrapWidth(layout.subtitle.width);
+    this.#drawBanner(b, layout);
+    b.text(layout.subtitle.x, layout.subtitle.y, t("guide.subtitle"), BODY_TYPE, {
+      color: surface.ink.hex,
+      wrapWidth: layout.subtitle.width,
+    });
 
     const stops = new Map<string, FocusStop>();
     GUIDE_CHOOSER_OPTIONS.forEach((option, index) => {
       const rect = layout.options[index]!;
-      this.#drawOption(layout, option.value, rect, index === 0);
+      this.#drawOption(b, layout, option.value, rect, index === 0);
       const select = (): void => {
         this.#selected = option.value;
         this.#rebuild();
       };
-      const zone = this.add
-        .zone(rect.x, rect.y, rect.width, rect.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true });
-      onTap(zone, select, `option:${option.value}`);
+      b.tap(`option:${option.value}`, rect);
+      this.#actions.set(`option:${option.value}`, select);
       stops.set(`option:${option.value}`, { rect, activate: select });
     });
 
     if (layout.back.width > 0) {
-      const back = new McButton(this, {
-        kind: "secondary",
-        label: t("guide.back"),
-        type: typeRole.menuButton,
+      this.#glyphs.button(b, {
+        key: "back",
         rect: layout.back,
-        onClick: () => this.#decline(),
+        label: t("guide.back"),
+        look: "secondary",
+        type: typeRole.menuButton,
+        ids: ["cancel"],
+        ground: "paper",
       });
-      this.#buttons.push(back);
-      this.#hints.button(back, ["cancel"], "paper");
+      this.#actions.set("back", () => this.#decline());
       stops.set("back", { rect: layout.back, activate: () => this.#decline() });
     }
 
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: t("guide.suitUp"),
-        type: typeRole.barTitle,
-        rect: layout.suitUp,
-        onClick: () => this.#chooseGuide(),
-      }),
-    );
+    b.button({
+      key: "suit-up",
+      rect: layout.suitUp,
+      label: t("guide.suitUp"),
+      look: "primary",
+      type: typeRole.barTitle,
+    });
+    this.#actions.set("suit-up", () => this.#chooseGuide());
     stops.set("suit-up", { rect: layout.suitUp, activate: () => this.#chooseGuide() });
 
+    this.#mount(width, height, b);
     this.#route?.set(guideChooserFocusOrder(layout.wide), stops);
-    this.#drawArt();
   }
 
-  #drawBanner(layout: GuideChooserLayout): void {
-    const g = this.add.graphics().setDepth(BANNER_DEPTH);
-    g.fillStyle(surface.ink.hex, 1).fillRect(
-      layout.banner.x + 3,
-      layout.banner.y + 3,
-      layout.banner.width,
-      layout.banner.height,
-    );
-    g.fillStyle(0xf2b01e, 1).fillRect(layout.banner.x, layout.banner.y, layout.banner.width, layout.banner.height);
-    g.lineStyle(3, surface.ink.hex, 1).strokeRect(
-      layout.banner.x,
-      layout.banner.y,
-      layout.banner.width,
-      layout.banner.height,
-    );
-    this.add
-      .text(layout.banner.x + layout.banner.width / 2, layout.banner.y + layout.banner.height / 2, t("guide.title"), {
-        ...textStyle(typeRole.barTitle, surface.ink.hex),
-        fontSize: "22px",
-      })
-      .setOrigin(0.5, 0.5)
-      .setDepth(BANNER_DEPTH);
+  /** Hands the built parts to the panel (made once) and renders them now. */
+  #mount(width: number, height: number, builder: SheetBuilder): void {
+    if (!this.#region) {
+      const element = document.createElement("mc-sheet") as McSheet;
+      element.addEventListener("mc-activate", (event) => {
+        this.#actions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
+      this.#region = new DomRegion(this, element, { x: 0, y: 0, width, height });
+    }
+    const region = this.#region;
+    region.setRect({ x: 0, y: 0, width, height });
+    region.element.nodes = builder.nodes;
+    renderNow(region.element);
   }
 
-  #drawOption(
-    layout: GuideChooserLayout,
-    value: GuideChooserValue,
-    rect: { x: number; y: number; width: number; height: number },
-    first: boolean,
-  ): void {
+  #drawBanner(b: SheetBuilder, layout: GuideChooserLayout): void {
+    const { banner } = layout;
+    b.box({ ...banner, x: banner.x + 3, y: banner.y + 3 }, { fill: surface.ink.hex });
+    b.box(banner, { fill: signal.caution.hex });
+    // The 3px outline, centered on the edge as Phaser strokes it.
+    b.box(banner, { stroke: surface.ink.hex, strokeWidth: 3 });
+    b.text(banner.x + banner.width / 2, banner.y + banner.height / 2, t("guide.title"), typeRole.barTitle, {
+      size: 22,
+      color: surface.ink.hex,
+      origin: [0.5, 0.5],
+    });
+  }
+
+  #drawOption(b: SheetBuilder, layout: GuideChooserLayout, value: GuideChooserValue, rect: Rect, first: boolean): void {
     const option = GUIDE_CHOOSER_OPTIONS.find((o) => o.value === value)!;
     const selected = this.#selected === value;
-    const g = this.add.graphics();
-    g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    g.lineStyle(selected ? 3 : 1.5, selected ? accent.heroRed.hex : surface.ink.hex, 1).strokeRect(
-      rect.x,
-      rect.y,
-      rect.width,
-      rect.height,
-    );
+    b.box(rect, { fill: surface.card.hex });
+    b.box(rect, {
+      stroke: selected ? accent.heroRed.hex : surface.ink.hex,
+      strokeWidth: selected ? 3 : 1.5,
+      key: `card:${value}`,
+    });
 
     const padX = 20;
     const radioCx = rect.x + padX + RADIO_RADIUS;
     const radioCy = rect.y + 26;
-    g.lineStyle(2, surface.ink.hex, 1).strokeCircle(radioCx, radioCy, RADIO_RADIUS);
-    if (selected) g.fillStyle(accent.heroRed.hex, 1).fillCircle(radioCx, radioCy, RADIO_RADIUS - 4);
+    const circle = (radius: number): Rect => ({
+      x: radioCx - radius,
+      y: radioCy - radius,
+      width: radius * 2,
+      height: radius * 2,
+    });
+    b.box(circle(RADIO_RADIUS), { stroke: surface.ink.hex, strokeWidth: 2, round: true });
+    if (selected) b.box(circle(RADIO_RADIUS - 4), { fill: accent.heroRed.hex, round: true });
 
     const textLeft = radioCx + RADIO_RADIUS + 12;
-    this.add.text(textLeft, rect.y + 14, t(option.labelKey), {
-      ...textStyle(TITLE_TYPE, surface.ink.hex),
-      fontSize: "16px",
+    b.text(textLeft, rect.y + 14, t(option.labelKey), TITLE_TYPE, { size: 16, color: surface.ink.hex });
+    b.text(textLeft, rect.y + 36, t(option.bodyKey), BODY_TYPE, {
+      color: surface.ink.hex,
+      wrapWidth: rect.width - (textLeft - rect.x) - padX - (option.recommended ? 90 : 0),
     });
-    this.add
-      .text(textLeft, rect.y + 36, t(option.bodyKey), textStyle(BODY_TYPE, surface.ink.hex))
-      .setWordWrapWidth(rect.width - (textLeft - rect.x) - padX - (option.recommended ? 90 : 0));
 
     if (option.recommended) {
-      // Sized to the measured label, not a guessed fixed width (`ui/guide-tag.ts`'s own `STAMP_PAD` convention) —
-      // a fixed box can run narrower than "RECOMMENDED" actually renders and let the label spill past it.
+      // Sized to the measured label, not a guessed fixed width (`ui/guide-tag.ts`'s own `STAMP_PAD` convention): a
+      // fixed box can run narrower than "RECOMMENDED" actually renders and let the label spill past it.
+      const label = t("guide.recommended");
       const stampPad = 10;
       const stampHeight = 20;
-      const stampLabel = this.add
-        .text(0, 0, t("guide.recommended"), textStyle({ ...typeRole.label, size: 9 }, surface.paper.hex))
-        .setVisible(false);
-      const stampWidth = stampLabel.width + stampPad * 2;
+      const stampWidth = b.measure(label, STAMP_TYPE).width + stampPad * 2;
       const sx = rect.x + rect.width - stampWidth - 10;
       const sy = rect.y + 10;
-      g.fillStyle(accent.heroRed.hex, 1).fillRect(sx, sy, stampWidth, stampHeight);
-      stampLabel
-        .setPosition(sx + stampWidth / 2, sy + stampHeight / 2)
-        .setOrigin(0.5, 0.5)
-        .setVisible(true);
+      b.box({ x: sx, y: sy, width: stampWidth, height: stampHeight }, { fill: accent.heroRed.hex });
+      b.text(sx + stampWidth / 2, sy + stampHeight / 2, label, STAMP_TYPE, {
+        color: surface.paper.hex,
+        origin: [0.5, 0.5],
+      });
     }
 
     if (layout.chipsRow.width > 0 && first) {
-      const chips = guideChooserLessonChips();
       const chipPadX = 8;
       const chipGap = 6;
       const rowGap = 4;
       let cx = layout.chipsRow.x;
       let cy = layout.chipsRow.y;
-      for (const chip of chips) {
+      for (const chip of guideChooserLessonChips()) {
         // Measured, not estimated: a chip's real width varies with the actual letters, and a fixed
-        // characters-times-px guess either clips the label or leaves the box wider than it needs to be —
-        // measuring the text this widget already has to draw settles both at once.
-        const chipLabel = this.add.text(0, 0, chip, textStyle(CHIP_TYPE, surface.ink.hex)).setVisible(false);
-        const w = chipLabel.width + chipPadX * 2;
+        // characters-times-px guess either clips the label or leaves the box wider than it needs to be.
+        const w = b.measure(chip, CHIP_TYPE).width + chipPadX * 2;
         if (cx > layout.chipsRow.x && cx + w > layout.chipsRow.x + layout.chipsRow.width) {
           cx = layout.chipsRow.x;
-          cy += CHIP_TYPE_HEIGHT + rowGap;
+          cy += CHIP_HEIGHT + rowGap;
         }
-        g.fillStyle(surface.parchment.hex, 1).fillRect(cx, cy, w, CHIP_TYPE_HEIGHT);
-        g.lineStyle(1, surface.ink.hex, 1).strokeRect(cx, cy, w, CHIP_TYPE_HEIGHT);
-        chipLabel
-          .setPosition(cx + w / 2, cy + CHIP_TYPE_HEIGHT / 2)
-          .setOrigin(0.5, 0.5)
-          .setVisible(true);
+        b.box(
+          { x: cx, y: cy, width: w, height: CHIP_HEIGHT },
+          { fill: surface.parchment.hex, stroke: surface.ink.hex, strokeWidth: 1 },
+        );
+        b.text(cx + w / 2, cy + CHIP_HEIGHT / 2, chip, CHIP_TYPE, { color: surface.ink.hex, origin: [0.5, 0.5] });
         cx += w + chipGap;
       }
     }
-  }
-
-  /** Draws this scene's picture if its texture is ready, otherwise loads it once and draws on arrival — same shape as `TitleScene#drawArt`. */
-  #drawArt(): void {
-    const art = this.#art;
-    const panel = this.#artPanel;
-    if (!art || !panel) return;
-    const generation = ++this.#artGeneration;
-    const place = (): void => {
-      if (generation !== this.#artGeneration || !this.sys.isActive() || !this.textures.exists(art.key)) return;
-      const frame = this.textures.get(art.key).getSourceImage() as { width: number; height: number };
-      const fit = coverFit(frame, panel);
-      this.add
-        .image(panel.x + panel.width / 2, panel.y + panel.height / 2, art.key)
-        .setScale(fit.scale)
-        .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight)
-        .setDepth(ART_DEPTH);
-    };
-    if (ensurePictureLoaded(this, art, place) !== null) place();
   }
 
   /** SUIT UP: writes the picked level (`withLevel` marks the chooser seen), then either goes to How to win (G6b) or
    * carries on with the New game the player started (scenario select). */
   #chooseGuide(): void {
     setGuidePrefs(withLevel(guidePrefs(), this.#selected));
+    this.scale.off("resize", this.#rebuild, this);
     if (this.#selected === "full") {
-      this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.howToWin, { backTo: "chooser" } satisfies HowToWinSceneData);
       return;
     }
-    this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.scenarioSelect, { draft: newGameDraft() } satisfies ScenarioSelectData);
   }
 
@@ -308,12 +289,3 @@ export class GuideChooserScene extends Phaser.Scene {
     goToScreen(this, SCENES.title);
   }
 }
-
-const CHIP_TYPE_HEIGHT = 20;
-
-/** Depth ladder, mirroring `TitleScene`'s own (art ground/dot grid, scrim, picture, banner) below everything else. */
-const GROUND_DEPTH = -4;
-const ART_GROUND_DEPTH = -3;
-const ART_SCRIM_DEPTH = -1;
-const ART_DEPTH = -2;
-const BANNER_DEPTH = 1;
