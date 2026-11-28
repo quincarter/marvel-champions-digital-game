@@ -312,6 +312,8 @@ export const GUARDED_EVENTS = [
   "mc-deck-check",
   "mc-card-inspect",
   "mc-scenario-select",
+  "mc-pause",
+  "mc-title",
   "mc-decks",
 ] as const;
 
